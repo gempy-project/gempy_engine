@@ -33,4 +33,7 @@ def moureze():
     mask_surfpoints = Moureze_points['G_x'] < -9999
     sp = Moureze_points[mask_surfpoints]
     orientations = Moureze_points[~mask_surfpoints]
+
+    sp['smooth'] = 1e4
+
     return sp, orientations
