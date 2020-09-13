@@ -100,8 +100,12 @@ def cov_sp_grad_f(orientations_input: OrientationsInput,
 
     return cov_sp_grad_matrix
 
-def drift_uni_f():
-    pass
+
+def drift_uni_f(dip_positions: np.ndarray, sp_internal: SurfacePointsInternals,
+                gi: float, degree: int):
+    drift_uni_grad = compute_drift_uni_grad(dip_positions, gi, degree=degree)
+    drift_uni_sp = compute_drift_uni_sp(sp_internal, gi, degree=degree)
+    return drift_uni_grad, drift_uni_sp
 
 
 def create_covariance(
@@ -127,7 +131,11 @@ def create_covariance(
         1
     )
 
-    drift_uni = drift_uni_f()
+    drift_uni = drift_uni_f(
+        orientations_input.dip_positions,
+        sp_internals,
+        kriging_parameters.uni_degree
+    )
 
     return
 

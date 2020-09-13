@@ -28,5 +28,6 @@ class TensorsStructure:
 class KrigingParameters:
     range: float
     c_o: float
+    uni_degree: int = 1
     i_res: float = 4.
     gi_res: float = 2.

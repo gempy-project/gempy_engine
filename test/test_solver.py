@@ -7,7 +7,7 @@ from gempy_engine.data_structures.private_structures import SurfacePointsInterna
 from gempy_engine.data_structures.public_structures import OrientationsInput, KrigingParameters, SurfacePointsInput
 from gempy_engine.graph_model import GemPyEngine, GemPyEngineTF, squared_euclidean_distances, cartesian_distances, \
     compute_perpendicular_matrix, compute_cov_gradients, get_ref_rest, create_covariance, cov_sp_f, cov_sp_grad_f, \
-    tile_dip_positions
+    tile_dip_positions, drift_uni_f
 
 
 @pytest.fixture
@@ -26,6 +26,7 @@ def moureze_sp(moureze):
     sp_t = SurfacePointsInput(sp[['X', 'Y', 'Z']].values,
                               sp['smooth'].values)
     return sp_t
+
 
 @pytest.fixture()
 def moureze_kriging():
@@ -73,7 +74,6 @@ def test_get_ref_rest(moureze_sp):
 
 
 def test_squared_euclidean_distances(moureze_orientations):
-
     # Test numpy/eager
     np_array = moureze_orientations.dip_positions
     s = squared_euclidean_distances(np_array,
@@ -107,7 +107,6 @@ def test_perpendicularity_matrix():
 
 
 def test_cov_gradients(ge, moureze_orientations, moureze_kriging):
-
     dip_tiled = test_dips_position_tiled2(moureze_orientations)
     s = ge.cov_gradients(
         moureze_orientations,
@@ -146,6 +145,23 @@ def test_cov_sp_grad(moureze_sp, moureze_orientations, moureze_kriging):
                       sp_i,
                       moureze_kriging,
                       1)
+    print(s)
+    return s
+
+
+def test_drift_uni(moureze_orientations, moureze_sp):
+    sp_i = SurfacePointsInternals(*get_ref_rest(
+        moureze_sp,
+        np.array([moureze_sp.sp_positions.shape[0] - 1], dtype='int32')
+    ))
+
+    s = drift_uni_f(
+        moureze_orientations.dip_positions,
+        sp_i,
+        4,
+        1
+    )
+
     print(s)
     return s
 
