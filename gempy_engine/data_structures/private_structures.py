@@ -18,9 +18,9 @@ class OrientationsInternals:
 class SurfacePointsInternals:
     ref_surface_points: tensor_types = np.empty((0, 3))
     rest_surface_points: tensor_types = np.empty((0, 3))
-    ref_nugget: tensor_types = np.empty((0, 1))
-    rest_nugget: tensor_types = np.empty((0, 1))
-
+    #ref_nugget: tensor_types = np.empty((0, 1))
+    #rest_nugget: tensor_types = np.empty((0, 1))
+    nugget_effect_ref_rest: tensor_types = np.empty((0, 1))
 
 @dataclass
 class InterpolationOptions:

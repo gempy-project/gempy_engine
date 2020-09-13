@@ -3,9 +3,11 @@ import tensorflow as tf
 from pandas import np
 
 from gempy_engine.config import use_tf
+from gempy_engine.data_structures.private_structures import SurfacePointsInternals
 from gempy_engine.data_structures.public_structures import OrientationsInput, KrigingParameters, SurfacePointsInput
 from gempy_engine.graph_model import GemPyEngine, GemPyEngineTF, squared_euclidean_distances, cartesian_distances, \
-    compute_perpendicular_matrix, compute_cov_gradients, get_ref_rest
+    compute_perpendicular_matrix, compute_cov_gradients, get_ref_rest, create_covariance, cov_sp_f, cov_sp_grad_f, \
+    tile_dip_positions
 
 
 @pytest.fixture
@@ -17,11 +19,12 @@ def moureze_orientations(moureze):
 
     return ori_t
 
+
 @pytest.fixture
 def moureze_sp(moureze):
     sp, ori = moureze
     sp_t = SurfacePointsInput(sp[['X', 'Y', 'Z']].values,
-                              sp['smooth'])
+                              sp['smooth'].values)
     return sp_t
 
 @pytest.fixture()
@@ -39,10 +42,10 @@ def test_dips_position_tiled(moureze_orientations):
     print(a)
 
 
-def test_dips_position_tiled2(ge, moureze_orientations):
+def test_dips_position_tiled2(moureze_orientations):
     tf.debugging.set_log_device_placement(True)
 
-    s = ge.tile_dip_positions(moureze_orientations.dip_positions, 3)
+    s = tile_dip_positions(moureze_orientations.dip_positions, 3)
     print(s)
     return s
 
@@ -105,7 +108,7 @@ def test_perpendicularity_matrix():
 
 def test_cov_gradients(ge, moureze_orientations, moureze_kriging):
 
-    dip_tiled = test_dips_position_tiled2(ge, moureze_orientations)
+    dip_tiled = test_dips_position_tiled2(moureze_orientations)
     s = ge.cov_gradients(
         moureze_orientations,
         dip_tiled,
@@ -115,8 +118,36 @@ def test_cov_gradients(ge, moureze_orientations, moureze_kriging):
     print(s)
     return s
 
-def test_cov_sp():
-    raise NotImplementedError
+
+def test_cov_sp(ge, moureze_sp, moureze_kriging):
+    sp_i = SurfacePointsInternals(*get_ref_rest(
+        moureze_sp,
+        np.array([moureze_sp.sp_positions.shape[0] - 1], dtype='int32')
+    ))
+
+    s = cov_sp_f(
+        sp_i,
+        moureze_kriging
+    )
+    print(s)
+    return s
+
+
+def test_cov_sp_grad(moureze_sp, moureze_orientations, moureze_kriging):
+    dip_tiled = test_dips_position_tiled2(moureze_orientations)
+
+    sp_i = SurfacePointsInternals(*get_ref_rest(
+        moureze_sp,
+        np.array([moureze_sp.sp_positions.shape[0] - 1], dtype='int32')
+    ))
+
+    s = cov_sp_grad_f(moureze_orientations,
+                      dip_tiled,
+                      sp_i,
+                      moureze_kriging,
+                      1)
+    print(s)
+    return s
 
 
 def test_covariance_matrix():

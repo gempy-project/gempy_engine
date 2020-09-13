@@ -31,7 +31,7 @@ if tensorflow_imported is False:
 
 
 def tile_dip_positions(dip_positions, n_dimensions):
-    return tfnp.tile(dip_positions, n_dimensions)
+    return tfnp.tile(dip_positions, (n_dimensions, 1))
 
 
 def get_ref_rest(sp_input: SurfacePointsInput,
@@ -69,8 +69,8 @@ def get_ref_rest(sp_input: SurfacePointsInput,
 
         ref_points = sp[partitions_bool]
         rest_points = sp[~partitions_bool]
-        ref_nugget = sp[partitions_bool]
-        rest_nugget = sp[~partitions_bool]
+        ref_nugget = nugget_effect[partitions_bool]
+        rest_nugget = nugget_effect[~partitions_bool]
 
     # repeat the reference points (the number of persurface -1)  times
     ref_points_repeated = tfnp.repeat(
@@ -78,7 +78,8 @@ def get_ref_rest(sp_input: SurfacePointsInput,
     ref_nugget_repeated = tfnp.repeat(
         ref_nugget, number_of_points_per_surface, 0)
 
-    return ref_points_repeated, rest_points, ref_nugget_repeated, rest_nugget
+    nugget_effect_ref_rest = rest_nugget + ref_nugget_repeated
+    return ref_points_repeated, rest_points, nugget_effect_ref_rest
 
 
 def squared_euclidean_distances(x_1: tensor_types,
@@ -122,33 +123,36 @@ def squared_euclidean_distances(x_1: tensor_types,
     return sqd
 
 
-def cartesian_distances(xzy_0: tensor_types,
-                        xzy_1: tensor_types,
+def cartesian_distances(xyz_0: tensor_types,
+                        xyz_1: tensor_types,
                         n_dim: int):
     # Cartesian distances between dips positions
     h = tfnp.concat((
         tfnp.tile(
-            xzy_0[:, 0] - xzy_1[:, 0].reshape(
-                (
-                    xzy_0[:, 0].shape[0], 1
-                )
-            ),
+            xyz_0[:, 0] - tfnp.reshape(xyz_1[:, 0], (-1, 1)),
+            # xyz_1[:, 0].reshape(
+            #     (
+            #         xyz_0[:, 0].shape[0], 1
+            #     )
+            # ),
             (n_dim, 1)
         ),
         tfnp.tile(
-            xzy_0[:, 1] - xzy_1[:, 1].reshape(
-                (
-                    xzy_0[:, 0].shape[0], 1
-                )
-            ),
+            xyz_0[:, 1] - tfnp.reshape(xyz_1[:, 1], (-1, 1)),
+            # xyz_1[:, 1].reshape(
+            #     (
+            #         xyz_0[:, 0].shape[0], 1
+            #     )
+            # ),
             (n_dim, 1)
         ),
         tfnp.tile(
-            xzy_0[:, 2] - xzy_1[:, 2].reshape(
-                (
-                    xzy_0[:, 0].shape[0], 1
-                )
-            ),
+            xyz_0[:, 2] - - tfnp.reshape(xyz_1[:, 2], (-1, 1)),
+            # xyz_1[:, 2].reshape(
+            #     (
+            #         xyz_0[:, 0].shape[0], 1
+            #     )
+            # ),
             (n_dim, 1)
         )),
         axis=1
@@ -201,6 +205,75 @@ def compute_cov_gradients(sed_dips_dips, h_u, h_v, perpendicularity_matrix,
     c_g = c_g + tfnp.eye(c_g.shape[0], dtype='float64') * nugget_effect_grad
 
     return c_g
+
+
+def compute_cov_sp(sed_rest_rest, sed_ref_rest, sed_rest_ref, sed_ref_ref,
+                   kriging_parameters, nugget_effect_scalar):
+
+    range_ = kriging_parameters.range
+    c_o = kriging_parameters.c_o
+    i_res = kriging_parameters.i_res
+
+    c_i =  (c_o * i_res * (
+                # (sed_rest_rest < range) *  # Rest - Rest Covariances Matrix
+                (1 - 7 * (sed_rest_rest / range_) ** 2 +
+                 35 / 4 * (sed_rest_rest / range_) ** 3 -
+                 7 / 2 * (sed_rest_rest / range_) ** 5 +
+                 3 / 4 * (sed_rest_rest / range_) ** 7) -
+                #((sed_ref_rest < range) *  # Reference - Rest
+                ((1 - 7 * (sed_ref_rest / range_) ** 2 +
+                  35 / 4 * (sed_ref_rest / range_) ** 3 -
+                  7 / 2 * (sed_ref_rest / range_) ** 5 +
+                  3 / 4 * (sed_ref_rest / range_) ** 7)) -
+                #((sed_rest_ref < range) *  # Rest - Reference
+                 ((1 - 7 * (sed_rest_ref / range_) ** 2 +
+                  35 / 4 * (sed_rest_ref / range_) ** 3 -
+                  7 / 2 * (sed_rest_ref / range_) ** 5 +
+                  3 / 4 * (sed_rest_ref / range_) ** 7)) +
+                #((sed_ref_ref < range) *  # Reference - References
+                 ((1 - 7 * (sed_ref_ref / range_) ** 2 +
+                  35 / 4 * (sed_ref_ref / range_) ** 3 -
+                  7 / 2 * (sed_ref_ref / range_) ** 5 +
+                  3 / 4 * (sed_ref_ref / range_) ** 7))))
+
+    # C_I = C_I + tf.eye(tf.shape(C_I)[0], dtype=self.dtype) * \
+    #       self.nugget_effect_scalar_ref_rest
+    c_i = c_i + tfnp.eye(c_i.shape[0], dtype='float64') * nugget_effect_scalar
+
+    return c_i
+
+
+def compute_cov_sp_grad(sed_dips_rest, sed_dips_ref,
+                        hu_rest, hu_ref,
+                        kriging_parameters):
+
+    sed_dips_rest = tensor_transpose(sed_dips_rest)
+    sed_dips_ref = tensor_transpose(sed_dips_ref)
+
+    range_ = kriging_parameters.range
+    c_o = kriging_parameters.c_o
+
+    # Cross-Covariance gradients-surface_points
+    c_gi = kriging_parameters.gi_res * (
+            (hu_rest *
+             # (sed_dips_rest < range) *  # first derivative
+             (- c_o * ((-14 / range_ ** 2) + 105 / 4 * sed_dips_rest / range_ ** 3 -
+                              35 / 2 * sed_dips_rest ** 3 / range_ ** 5 +
+                              21 / 4 * sed_dips_rest ** 5 / range_ ** 7))) -
+            (hu_ref *
+             # (sed_dips_ref < range) *  # first derivative
+             (- c_o * ((-14 / range_ ** 2) + 105 / 4 * sed_dips_ref / range_ ** 3 -
+                              35 / 2 * sed_dips_ref ** 3 / range_ ** 5 +
+                              21 / 4 * sed_dips_ref ** 5 / range_ ** 7)))
+    )
+
+    # Add name to the theano node
+    # c_gi.name = 'Covariance gradient interface'
+    #
+    # if str(sys._getframe().f_code.co_name) + '_g' in self.verbose:
+    #     theano.printing.pydotprint(C_GI, outfile="graphs/" + sys._getframe().f_code.co_name + ".png",
+    #                                var_with_name_simple=True)
+    return c_gi
 
 
 def tensor_transpose(tensor):
