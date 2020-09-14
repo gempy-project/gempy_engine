@@ -22,6 +22,10 @@ class SurfacePointsInput:
 @dataclass
 class TensorsStructure:
     number_of_points_per_surface: np.int32
+    len_c_g: np.int32
+    len_c_gi: np.int32
+    len_sp: np.int32
+    len_faults: np.int32
 
 
 @dataclass

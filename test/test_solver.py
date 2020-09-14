@@ -7,7 +7,7 @@ from gempy_engine.data_structures.private_structures import SurfacePointsInterna
 from gempy_engine.data_structures.public_structures import OrientationsInput, KrigingParameters, SurfacePointsInput
 from gempy_engine.graph_model import GemPyEngine, GemPyEngineTF, squared_euclidean_distances, cartesian_distances, \
     compute_perpendicular_matrix, compute_cov_gradients, get_ref_rest, create_covariance, cov_sp_f, cov_sp_grad_f, \
-    tile_dip_positions, drift_uni_f
+    tile_dip_positions, drift_uni_f, cov_gradients_f, covariance_assembly
 
 
 @pytest.fixture
@@ -106,9 +106,9 @@ def test_perpendicularity_matrix():
     return s
 
 
-def test_cov_gradients(ge, moureze_orientations, moureze_kriging):
+def test_cov_gradients(moureze_orientations, moureze_kriging):
     dip_tiled = test_dips_position_tiled2(moureze_orientations)
-    s = ge.cov_gradients(
+    s = cov_gradients_f(
         moureze_orientations,
         dip_tiled,
         moureze_kriging,
@@ -118,7 +118,7 @@ def test_cov_gradients(ge, moureze_orientations, moureze_kriging):
     return s
 
 
-def test_cov_sp(ge, moureze_sp, moureze_kriging):
+def test_cov_sp(moureze_sp, moureze_kriging):
     sp_i = SurfacePointsInternals(*get_ref_rest(
         moureze_sp,
         np.array([moureze_sp.sp_positions.shape[0] - 1], dtype='int32')
@@ -166,8 +166,16 @@ def test_drift_uni(moureze_orientations, moureze_sp):
     return s
 
 
-def test_covariance_matrix():
-    raise NotImplementedError
+def test_covariance_matrix(moureze_sp, moureze_orientations, moureze_kriging):
+    cov_g = test_cov_gradients(moureze_orientations, moureze_kriging)
+    cov_g_sp = test_cov_sp_grad(moureze_sp, moureze_orientations, moureze_kriging)
+    cov_sp = test_cov_sp(moureze_sp, moureze_kriging)
+    drift_grad, drift_sp = test_drift_uni(moureze_orientations, moureze_sp)
+    cov_matrix = covariance_assembly(cov_sp, cov_g, cov_g_sp,
+                                     drift_grad, drift_sp)
+
+    print(cov_matrix)
+    return cov_matrix
 
 
 def test_solver():

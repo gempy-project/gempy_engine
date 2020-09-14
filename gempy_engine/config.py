@@ -1,1 +1,1 @@
-use_tf = False  # Whether using TensorFlow or numpy
+use_tf = True  # Whether using TensorFlow or numpy

@@ -189,7 +189,7 @@ def compute_cov_gradients(sed_dips_dips, h_u, h_v, perpendicularity_matrix,
     if tensorflow_imported:
         t1 = tf.math.divide_no_nan(h_u * h_v, sed_dips_dips ** 2)
     else:
-        t1 = (h_u * h_v / sed_dips_dips ** 2)
+        t1 = np.nan_to_num(h_u * h_v / sed_dips_dips ** 2)
     c_g = t1 * ((
                         -c_o * ((-14 / range_ ** 2) + 105 / 4 * sed_dips_dips / range_ ** 3 -
                                 35 / 2 * sed_dips_dips ** 3 / range_ ** 5 +
@@ -342,6 +342,19 @@ def compute_drift_uni_sp(sp_internal: SurfacePointsInternals, gi, degree=1):
     else:
         raise AttributeError('degree must be either 1 or 2.')
     return u_i
+
+
+def covariance_assembly(cov_sp, cov_gradients, cov_sp_grad, drift_uni_grad,
+                        drift_uni_sp):
+    zeros_block = tfnp.zeros((drift_uni_grad.shape[1], drift_uni_grad.shape[1]),
+                             dtype='float64')
+    A = tfnp.concat(
+        [tfnp.concat([cov_gradients, tfnp.transpose(cov_sp_grad), drift_uni_grad], 1),
+         tfnp.concat([cov_sp_grad, cov_sp, tfnp.transpose(drift_uni_sp)], 1),
+         tfnp.concat([tfnp.transpose(drift_uni_grad), drift_uni_sp, zeros_block], 1)],
+        0)
+
+    return A
 
 
 def tensor_transpose(tensor):
