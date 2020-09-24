@@ -19,3 +19,5 @@ def test_tensor_vs_variable():
 
 def test_tf_conts():
     print(tf.constant([5, 5, 5]))
+    print(tf.config.experimental.list_physical_devices())
+

@@ -6,23 +6,28 @@ from gempy_engine.data_structures.private_structures import OrientationsInternal
 from gempy_engine.data_structures.public_structures import OrientationsInput, KrigingParameters, SurfacePointsInput, \
     TensorsStructure
 from gempy_engine.systems.generators import *
+from gempy_engine.systems.reductions import solver
+from gempy_engine.systems.transformations import dip_to_gradients
 
 
 def cov_gradients_f(orientations_input: OrientationsInput,
                     dip_positions_tiled: np.ndarray,
                     kriging_parameters: KrigingParameters,
                     n_dimensions: int):
-    sed_dips_dips = sed_dips_dips = squared_euclidean_distances(
+    sed_dips_dips = squared_euclidean_distances(
         dip_positions_tiled,
         dip_positions_tiled
     )
 
-    h_u = cartesian_distances(orientations_input.dip_positions,
+    h_u = cartesian_distances(
+        #dip_positions_tiled,
+        #dip_positions_tiled,
+        orientations_input.dip_positions,
                               orientations_input.dip_positions,
                               n_dimensions)
     h_v = tensor_transpose(h_u)
     _perpendicular_matrix = compute_perpendicular_matrix(
-        orientations_input.dip_positions.shape[0]
+        orientations_input.dip_positions.shape[0], n_dimensions
     )
 
     cov_grad_matrix = compute_cov_gradients(
@@ -86,12 +91,12 @@ def cov_sp_grad_f(orientations_input: OrientationsInput,
     hu_rest = cartesian_distances(
         orientations_input.dip_positions,
         sp_internal.rest_surface_points,
-        n_dimensions
+        n_dimensions, cross_variance=True  # This is independent of the number of dimensions
     )
     hu_ref = cartesian_distances(
         orientations_input.dip_positions,
         sp_internal.ref_surface_points,
-        n_dimensions
+        n_dimensions, cross_variance=True
     )
 
     cov_sp_grad_matrix = compute_cov_sp_grad(
@@ -102,11 +107,10 @@ def cov_sp_grad_f(orientations_input: OrientationsInput,
 
 
 def drift_uni_f(dip_positions: np.ndarray, sp_internal: SurfacePointsInternals,
-                gi: float, degree: int):
-    drift_uni_grad = compute_drift_uni_grad(dip_positions, gi, degree=degree)
-    drift_uni_sp = compute_drift_uni_sp(sp_internal, gi, degree=degree)
+                gi: float, degree: int, n_dim:int):
+    drift_uni_grad = compute_drift_uni_grad(dip_positions, n_dim, gi, degree=degree)
+    drift_uni_sp = compute_drift_uni_sp(sp_internal, n_dim, gi, degree=degree)
     return drift_uni_grad, drift_uni_sp
-
 
 
 def create_covariance(
@@ -126,16 +130,19 @@ def create_covariance(
     cov_sp = cov_sp_f(sp_internals, kriging_parameters)
 
     cov_sp_grad = cov_sp_grad_f(
-        orientations_input.dip_positions,
+        orientations_input,
+        dip_positions_tiled,
         sp_internals,
         kriging_parameters,
-        1
+        options.number_dimensions
     )
 
     drift_uni_grad, dridf_uni_sp = drift_uni_f(
         orientations_input.dip_positions,
         sp_internals,
-        kriging_parameters.uni_degree
+        kriging_parameters.gi_res,
+        kriging_parameters.uni_degree,
+        options.number_dimensions
     )
 
     covariance_matrix = covariance_assembly(
@@ -146,7 +153,7 @@ def create_covariance(
         dridf_uni_sp
     )
 
-    return
+    return covariance_matrix
 
 
 # def tile_dip_positions(dip_positions, n_dimensions):
@@ -182,7 +189,7 @@ class GemPyEngine:
         """
 
         return self._call(*args, **kwargs)
-
+    
     def _call(self, *args, **kwargs):
         """This function contains the main logic. It has to be different
         to __call__ so we can later on wrap it has tensor flow function"""
@@ -216,6 +223,9 @@ class GemPyEngine:
             self.options
         )
         # -------------------
+        grad = dip_to_gradients(self.orientations_input)
+        b_vector = b_scalar_assembly(grad, self.covariance.shape[0])
+        weights = solver(self.covariance, b_vector)
 
 
 class GemPyEngineTF(tf.Module, GemPyEngine):

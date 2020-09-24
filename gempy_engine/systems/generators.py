@@ -4,12 +4,15 @@ from pykeops.numpy import LazyTensor as LazyTensor_np
 import numpy as np
 
 # TODO Check in the configuration script
-from gempy_engine.data_structures.private_structures import SurfacePointsInternals
+from gempy_engine.data_structures.private_structures import SurfacePointsInternals, OrientationsGradients
 from gempy_engine.data_structures.public_structures import SurfacePointsInput
 
 try:
     import tensorflow as tf
 
+    # Set CPU as available physical device
+    # my_devices = tf.config.experimental.list_physical_devices(device_type='CPU')
+    # tf.config.experimental.set_visible_devices(devices=my_devices, device_type='CPU')
     # if we import it we check in config
     tensorflow_imported = use_tf
 except ImportError:
@@ -43,7 +46,7 @@ def get_ref_rest(sp_input: SurfacePointsInput,
 
     # reference point: every first point of each layer
     ref_positions = tfnp.cumsum(
-        tf.concat([[0], number_of_points_per_surface[:-1] + 1], axis=0)
+        tfnp.concat([[0], number_of_points_per_surface[:-1] + 1], axis=0)
     )
 
     if tensorflow_imported:
@@ -120,45 +123,34 @@ def squared_euclidean_distances(x_1: tensor_types,
     else:
         x_1 = LazyTensor_np(x_1[:, None, :])
         x_2 = LazyTensor_np(x_2[None, :, :])
-    sqd = tfnp.reduce_sum(((x_1 - x_2) ** 2), -1)
+    sqd = tfnp.sqrt(tfnp.reduce_sum(((x_1 - x_2) ** 2), -1))
 
     return sqd
 
 
 def cartesian_distances(xyz_0: tensor_types,
                         xyz_1: tensor_types,
-                        n_dim: int):
-    # Cartesian distances between dips positions
-    h = tfnp.concat((
-        tfnp.tile(
-            xyz_0[:, 0] - tfnp.reshape(xyz_1[:, 0], (-1, 1)),
+                        n_dim: int, cross_variance=False):
+
+    if cross_variance is True:
+        n_tile = 1
+    else:
+        n_tile = n_dim
+
+    h_sub = list()
+    for i in range(n_dim):
+        h_sub.append(tfnp.tile(
+            tfnp.reshape(xyz_0[:, i], (-1, 1)) - xyz_1[:, i],
             # xyz_1[:, 0].reshape(
             #     (
             #         xyz_0[:, 0].shape[0], 1
             #     )
             # ),
-            (n_dim, 1)
-        ),
-        tfnp.tile(
-            xyz_0[:, 1] - tfnp.reshape(xyz_1[:, 1], (-1, 1)),
-            # xyz_1[:, 1].reshape(
-            #     (
-            #         xyz_0[:, 0].shape[0], 1
-            #     )
-            # ),
-            (n_dim, 1)
-        ),
-        tfnp.tile(
-            xyz_0[:, 2] - - tfnp.reshape(xyz_1[:, 2], (-1, 1)),
-            # xyz_1[:, 2].reshape(
-            #     (
-            #         xyz_0[:, 0].shape[0], 1
-            #     )
-            # ),
-            (n_dim, 1)
-        )),
-        axis=1
-    )
+            (1, n_tile)
+        ))
+    # # Cartesian distances between dips positions
+    h = tfnp.concat(h_sub, axis=0)
+    #h = tfnp.reshape(xyz_0[:, 0], (-1, 1)) - xyz_1[:, i]
     return h
 
 
@@ -200,8 +192,28 @@ def compute_cov_gradients(sed_dips_dips, h_u, h_v, perpendicularity_matrix,
                 )) - (
                   perpendicularity_matrix *
                   c_o * ((-14 / range_ ** 2) + 105 / 4 * sed_dips_dips / range_ ** 3 -
-                         35 / 2 * sed_dips_dips ** 3 / range_ ** 5 + 21 / 4 * sed_dips_dips ** 5 / range_ ** 7)
+                         35 / 2 * sed_dips_dips ** 3 / range_ ** 5 +
+                         21 / 4 * sed_dips_dips ** 5 / range_ ** 7)
           )
+
+
+    # t2 = (
+    #                     -c_o * ((-14 / range_ ** 2) + 105 / 4 * sed_dips_dips / range_ ** 3 -
+    #                             35 / 2 * sed_dips_dips ** 3 / range_ ** 5 +
+    #                             21 / 4 * sed_dips_dips ** 5 / range_ ** 7)
+    #             ) + (
+    #                     c_o * 7 * (9 * sed_dips_dips ** 5 - 20 * range_ ** 2 * sed_dips_dips ** 3 +
+    #                                15 * range_ ** 4 * sed_dips_dips - 4 * range_ ** 5) / (2 * range_ ** 7)
+    #             )
+    #
+    # t3 = (
+    #               perpendicularity_matrix *
+    #               c_o * ((-14 / range_ ** 2) + 105 / 4 * sed_dips_dips / range_ ** 3 -
+    #                      35 / 2 * sed_dips_dips ** 3 / range_ ** 5 + 21 / 4 * sed_dips_dips ** 5 / range_ ** 7)
+    #       )
+    #
+    # print('t1: ', t1, '\nt2:', t2, '\nt3', t3)
+    # c_g = t1 * t2 - t3
 
     # Setting nugget effect of the gradients
     c_g = c_g + tfnp.eye(c_g.shape[0], dtype='float64') * nugget_effect_grad
@@ -247,8 +259,8 @@ def compute_cov_sp(sed_rest_rest, sed_ref_rest, sed_rest_ref, sed_ref_ref,
 def compute_cov_sp_grad(sed_dips_rest, sed_dips_ref,
                         hu_rest, hu_ref,
                         kriging_parameters):
-    sed_dips_rest = tensor_transpose(sed_dips_rest)
-    sed_dips_ref = tensor_transpose(sed_dips_ref)
+    #sed_dips_rest = tensor_transpose(sed_dips_rest)
+    #sed_dips_ref = tensor_transpose(sed_dips_ref)
 
     range_ = kriging_parameters.range
     c_o = kriging_parameters.c_o
@@ -276,12 +288,13 @@ def compute_cov_sp_grad(sed_dips_rest, sed_dips_ref,
     return c_gi
 
 
-def compute_drift_uni_grad(dip_positions, gi, degree=1, dtype='float64'):
+def compute_drift_uni_grad(dip_positions, n_dim: int, gi, degree=1, dtype='float64'):
     n = dip_positions.shape[0]
 
     sub_x = tfnp.tile(tfnp.constant([[1., 0., 0.]], dtype), [n, 1])
     sub_y = tfnp.tile(tfnp.constant([[0., 1., 0.]], dtype), [n, 1])
     sub_z = tfnp.tile(tfnp.constant([[0., 0., 1.]], dtype), [n, 1])
+
     sub_block1 = tfnp.concat([sub_x, sub_y, sub_z], 0)
 
     if degree == 1:
@@ -309,24 +322,29 @@ def compute_drift_uni_grad(dip_positions, gi, degree=1, dtype='float64'):
         sub_block3 = tfnp.concat([sub_xy, sub_xz, sub_yz], 1)
 
         u_g = tfnp.concat([sub_block1, sub_block2, sub_block3], 1)
+    elif degree == 0:
+        u_g = tfnp.zeros((n*n_dim, 0))
+
     else:
         raise AttributeError('degree must be either 1 or 2')
 
     return u_g
 
 
-def compute_drift_uni_sp(sp_internal: SurfacePointsInternals, gi, degree=1):
+def compute_drift_uni_sp(sp_internal: SurfacePointsInternals, n_dim, gi, degree=1,
+                         ):
     rest_points = sp_internal.rest_surface_points
     ref_points = sp_internal.ref_surface_points
 
     if degree== 1:
-        u_i = -tf.stack([
+
+        u_i = -tfnp.stack([
             gi * (rest_points[:, 0] - ref_points[:, 0]),
             gi * (rest_points[:, 1] - ref_points[:, 1]),
             gi * (rest_points[:, 2] - ref_points[:, 2])])
 
     elif degree == 2:
-        u_i = -tf.stack([
+        u_i = -tfnp.stack([
             gi * (rest_points[:, 0] - ref_points[:, 0]),
             gi * (rest_points[:, 1] - ref_points[:, 1]),
             gi * (rest_points[:, 2] - ref_points[:, 2]),
@@ -339,6 +357,10 @@ def compute_drift_uni_sp(sp_internal: SurfacePointsInternals, gi, degree=1):
                        ref_points[:, 0] * ref_points[:, 2]),
             gi ** 2 * (rest_points[:, 1] * rest_points[:, 2] -
                        ref_points[:, 1] * ref_points[:, 2])], 1)
+
+    elif degree == 0:
+        u_i = tfnp.zeros((0, rest_points.shape[0]))
+
     else:
         raise AttributeError('degree must be either 1 or 2.')
     return u_i
@@ -349,12 +371,23 @@ def covariance_assembly(cov_sp, cov_gradients, cov_sp_grad, drift_uni_grad,
     zeros_block = tfnp.zeros((drift_uni_grad.shape[1], drift_uni_grad.shape[1]),
                              dtype='float64')
     A = tfnp.concat(
-        [tfnp.concat([cov_gradients, tfnp.transpose(cov_sp_grad), drift_uni_grad], 1),
-         tfnp.concat([cov_sp_grad, cov_sp, tfnp.transpose(drift_uni_sp)], 1),
+        [tfnp.concat([cov_gradients, cov_sp_grad, drift_uni_grad], 1),
+         tfnp.concat([tfnp.transpose(cov_sp_grad), cov_sp, tfnp.transpose(drift_uni_sp)], 1),
          tfnp.concat([tfnp.transpose(drift_uni_grad), drift_uni_sp, zeros_block], 1)],
         0)
 
     return A
+
+
+def b_scalar_assembly(grad: OrientationsGradients, cov_size: int):
+    g_s = grad.gz.shape[0] * 3
+    g = tfnp.concat([grad.gx, grad.gy, grad.gz,
+                     tfnp.zeros(cov_size - g_s, dtype='float64')],
+                    -1)
+    g = tfnp.expand_dims(g, axis=1)
+    b_vector = g
+    #b_vector = tf.pad(g, [[0, cov_size - g.shape[0]], [0, 0]])
+    return b_vector
 
 
 def tensor_transpose(tensor):
