@@ -23,12 +23,12 @@ def cubic_function_a(r, a):
 
 
 def exp_function(r, a):
-    return np.exp(-(r / a) ** 2)
+    return (-(r / a) ** 2).exp()
 
 
 def exp_function_p_div_r(r, a):
-    return -2 * r / a ** 2 * np.exp(-(r / a) ** 2)
+    return -2 / a ** 2 * (-(r / a) ** 2).exp()
 
 
 def exp_function_a(r, a):
-    return (-4 * r ** 2 + 2 * a ** 2) / a ** 4 * np.exp(-(r / a) ** 2)
+    return (-4 * r ** 2 + 2 * a ** 2) / a ** 4 * (-(r / a) ** 2).exp()

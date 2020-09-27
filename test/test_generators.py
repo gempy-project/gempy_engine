@@ -43,7 +43,7 @@ def input():
 
 
 def test_create_r(input):
-    dipsref, dipsrest = input
+    dipsref, dipsrest, _ = input
 
     a = dipsref[:, None, :]
     b = dipsref[None, :, :]
@@ -61,6 +61,21 @@ def test_create_r(input):
     # print(sed_ref_rest)
     print(sed_rest_rest)
     print(sed_rest_ref)
+
+
+def test_perpendicular_matrix(input):
+    _, _ , n_dips = input
+    perp_m = np.zeros_like(_)
+    perp_m[:n_dips, 0] = 1
+    perp_m[n_dips:2*n_dips, 1] = 1
+
+    perp_i = perp_m[:, None, :].copy()
+    perp_j = perp_m[None, :, :].copy()
+
+    perp_ma = perp_i*perp_j
+    perp_m, perp_ma
+    print(perp_m, perp_ma)
+
 
 
 def test_create_hu_dips(input):

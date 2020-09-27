@@ -3,8 +3,8 @@ import tensorflow as tf
 from pandas import np
 
 from gempy_engine.config import use_tf
-from gempy_engine.data_structures.private_structures import SurfacePointsInternals,\
-    OrientationsGradients
+from gempy_engine.data_structures.private_structures import SurfacePointsInternals, \
+    OrientationsGradients, OrientationsInternals
 from gempy_engine.data_structures.public_structures import OrientationsInput, InterpolationOptions, SurfacePointsInput
 from gempy_engine.graph_model import GemPyEngineTF, squared_euclidean_distances, get_ref_rest, tile_dip_positions
 from gempy_engine.systems.kernel.aux_functions import cartesian_distances, compute_perpendicular_matrix, \
@@ -22,25 +22,6 @@ def moureze_orientations(moureze):
 
     return ori_t
 
-
-@pytest.fixture
-def moureze_orientations_heavy(moureze):
-    _, ori = moureze
-    n = 2
-    ori_poss = ori[['X', 'Y', 'Z']].values,
-    ori_pos = ori_poss[0]
-    ori_grad = ori[['G_x', 'G_y', 'G_z']].values
-
-    for i in range(n):
-        ori_pos = np.vstack([ori_pos, ori_pos + np.array([i * 100, i * 100, i * 100])])
-        ori_grad = np.vstack([ori_grad, ori_grad])
-
-    ori_t = OrientationsInput(ori_pos,
-                              dip_gradients=ori_grad)
-
-    return ori_t
-
-
 @pytest.fixture
 def moureze_orientations_lite(moureze):
     _, ori = moureze
@@ -51,12 +32,6 @@ def moureze_orientations_lite(moureze):
     return ori_t
 
 
-@pytest.fixture
-def moureze_sp(moureze):
-    sp, ori = moureze
-    sp_t = SurfacePointsInput(sp[['X', 'Y', 'Z']].values,
-                              sp['smooth'].values)
-    return sp_t
 
 
 @pytest.fixture
@@ -67,9 +42,7 @@ def moureze_sp_lite(moureze):
     return sp_t
 
 
-@pytest.fixture()
-def moureze_kriging():
-    return InterpolationOptions(10000, 50000)
+
 
 
 @pytest.fixture
@@ -245,6 +218,8 @@ def test_creat_covariance():
     kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
                                number_dimensions=2)
 
+
+
     # ci
     cov_sp = cov_sp_f(
         spi,
@@ -253,10 +228,11 @@ def test_creat_covariance():
     print(cov_sp, '\n')
 
     cov = create_covariance_legacy(spi, ori_i, dip_tiled, kri)
-    np.set_printoptions(precision=2)
+    np.set_printoptions(precision=2, linewidth=150)
     print('\n', cov)
     #print(cov.sum(axis=1), '\n', cov.sum(axis=0))
     return cov
+
 
 @pytest.fixture()
 def simple_model():
