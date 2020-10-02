@@ -1,18 +1,20 @@
-from gempy_engine.data_structures.private_structures import OrientationsInternals,  \
+from gempy_engine.data_structures.private_structures import OrientationsInternals, \
     SurfacePointsInternals
-from gempy_engine.data_structures.public_structures import OrientationsInput, InterpolationOptions, TensorsStructure
+from gempy_engine.data_structures.public_structures import OrientationsInput, \
+    InterpolationOptions, TensorsStructure
 from gempy_engine.systems.generators import *
 from gempy_engine.systems.kernel.aux_functions import b_scalar_assembly
 from gempy_engine.systems.kernel.kernel_legacy import create_covariance_legacy
 from gempy_engine.systems.reductions import solver
 from gempy_engine.systems.transformations import dip_to_gradients
+from gempy_engine.config import tfnp, tensorflow_imported, tensor_types
 
 
 # def tile_dip_positions(dip_positions, n_dimensions):
 #     return tile_dip_positions(dip_positions, (n_dimensions, 1))
 
 
-class GemPyEngine:
+class GemPyEngineCommon:
     """This class should be backend agnostic, i.e. it should not have any
     trace of tensorflow"""
 
@@ -41,7 +43,7 @@ class GemPyEngine:
         """
 
         return self._call(*args, **kwargs)
-    
+
     def _call(self, *args, **kwargs):
         """This function contains the main logic. It has to be different
         to __call__ so we can later on wrap it has tensor flow function"""
@@ -80,17 +82,39 @@ class GemPyEngine:
         weights = solver(self.covariance, b_vector)
 
 
-class GemPyEngineTF(tf.Module, GemPyEngine):
-    @tf.function
-    def __call__(self, *args, **kwargs):
-        """ Here I imagine that we pass the public variables
+if tensorflow_imported:
+    inheritance = [tfnp.Module, GemPyEngineCommon]
 
-        Args:
-            *args:
-            **kwargs:
+    class GemPyEngine(*inheritance):
+        @tfnp.function
+        def __call__(self, *args, **kwargs):
+            """ Here I imagine that we pass the public variables
 
-        Returns:
+            Args:
+                *args:
+                **kwargs:
 
-        """
+            Returns:
 
-        return self._call(*args, **kwargs)
+            """
+
+            return self._call(*args, **kwargs)
+
+else:
+    inheritance = [GemPyEngineCommon]
+
+    class GemPyEngine(*inheritance):
+        def __call__(self, *args, **kwargs):
+            """ Here I imagine that we pass the public variables
+
+            Args:
+                *args:
+                **kwargs:
+
+            Returns:
+
+            """
+
+            return self._call(*args, **kwargs)
+
+

@@ -6,7 +6,8 @@ from gempy_engine.config import use_tf
 from gempy_engine.data_structures.private_structures import SurfacePointsInternals, \
     OrientationsGradients, OrientationsInternals
 from gempy_engine.data_structures.public_structures import OrientationsInput, InterpolationOptions, SurfacePointsInput
-from gempy_engine.graph_model import GemPyEngineTF, squared_euclidean_distances, get_ref_rest, tile_dip_positions
+from gempy_engine.graph_model import GemPyEngine, squared_euclidean_distances, \
+    get_ref_rest, tile_dip_positions
 from gempy_engine.systems.kernel.aux_functions import cartesian_distances, compute_perpendicular_matrix, \
     covariance_assembly, b_scalar_assembly
 from gempy_engine.systems.kernel.kernel_legacy import cov_gradients_f, cov_sp_f, cov_sp_grad_f, drift_uni_f, create_covariance_legacy
@@ -42,12 +43,9 @@ def moureze_sp_lite(moureze):
     return sp_t
 
 
-
-
-
 @pytest.fixture
 def ge():
-    return GemPyEngineTF()
+    return GemPyEngine()
 
 
 def test_dips_position_tiled(moureze_orientations):
@@ -63,11 +61,13 @@ def test_dips_position_tiled2(moureze_orientations):
     return s
 
 
+@pytest.mark.skipif(~use_tf, reason='Numpy backend used')
 def test_dips_position_tiled_jacobian(ge, moureze_orientations):
+
     # tf.debugging.set_log_device_placement(True)
     dp = tf.Variable(moureze_orientations.dip_positions)
     with tf.GradientTape(persistent=True) as tape:
-        s = ge.tile_dip_positions(dp, 3)
+        s = tile_dip_positions(dp, 3)
         su = tf.reduce_sum(s)
 
     print(su)
@@ -171,7 +171,7 @@ def test_cov_sp_grad(moureze_sp, moureze_orientations, moureze_kriging):
                       dip_tiled,
                       sp_i,
                       moureze_kriging,
-                      1)
+                      n_dimensions=3)
     print(s)
     return s
 
@@ -185,8 +185,9 @@ def test_drift_uni(moureze_orientations, moureze_sp):
     s = drift_uni_f(
         moureze_orientations.dip_positions,
         sp_i,
-        4,
-        1
+        gi=4,
+        degree=1,
+        n_dim=3
     )
 
     print(s)
@@ -233,32 +234,32 @@ def test_creat_covariance():
     #print(cov.sum(axis=1), '\n', cov.sum(axis=0))
     return cov
 
-
-@pytest.fixture()
-def simple_model():
-    spi = SurfacePointsInternals(
-        ref_surface_points=np.array(
-            [[4, 0],
-             [4, 0],
-             [4, 0],
-             [3, 3],
-             [3, 3]]),
-        rest_surface_points=np.array([[0, 0],
-                                      [2, 0],
-                                      [3, 0],
-                                      [0, 2],
-                                      [2, 2]]),
-        nugget_effect_ref_rest=0
-    )
-
-    ori_i = OrientationsInput(
-        dip_positions=np.array([[0, 6],
-                                [2, 13]]),
-        nugget_effect_grad=0.0000001
-    )
-    dip_tiled = tile_dip_positions(ori_i.dip_positions, 2)
-    kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
-                               number_dimensions=2)
+# DEP
+# @pytest.fixture()
+# def simple_model():
+#     spi = SurfacePointsInternals(
+#         ref_surface_points=np.array(
+#             [[4, 0],
+#              [4, 0],
+#              [4, 0],
+#              [3, 3],
+#              [3, 3]]),
+#         rest_surface_points=np.array([[0, 0],
+#                                       [2, 0],
+#                                       [3, 0],
+#                                       [0, 2],
+#                                       [2, 2]]),
+#         nugget_effect_ref_rest=0
+#     )
+#
+#     ori_i = OrientationsInput(
+#         dip_positions=np.array([[0, 6],
+#                                 [2, 13]]),
+#         nugget_effect_grad=0.0000001
+#     )
+#     dip_tiled = tile_dip_positions(ori_i.dip_positions, 2)
+#     kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
+#                                number_dimensions=2)
 
 
 def test_covariance_matrix(moureze_sp, moureze_orientations, moureze_kriging):
@@ -286,6 +287,7 @@ def test_b_scalar_assembly(moureze_orientations, c_size=4783):
     return s
 
 
+@pytest.mark.skip
 def test_solver_lite(moureze_sp_lite, moureze_orientations_lite, moureze_kriging):
     """Here we need to test all the different methods"""
     cov_matrix = test_covariance_matrix(
@@ -300,6 +302,7 @@ def test_solver_lite(moureze_sp_lite, moureze_orientations_lite, moureze_kriging
     print(s)
 
 
+@pytest.mark.skip
 def test_solver(moureze_sp, moureze_orientations, moureze_kriging):
     """Here we need to test all the different methods"""
     cov_matrix = test_covariance_matrix(
@@ -314,9 +317,10 @@ def test_solver(moureze_sp, moureze_orientations, moureze_kriging):
     print(s)
 
 
+@pytest.mark.skip
 def test_solver_heavy(moureze_sp, moureze_orientations_heavy, moureze_kriging):
-    my_devices = tf.config.experimental.list_physical_devices(device_type='CPU')
-    tf.config.experimental.set_visible_devices(devices=my_devices, device_type='CPU')
+    #my_devices = tf.config.experimental.list_physical_devices(device_type='CPU')
+    #tf.config.experimental.set_visible_devices(devices=my_devices, device_type='CPU')
     tf.debugging.set_log_device_placement(True)
     # with tf.device('/device:GPU:0'):
     tf.profiler.experimental.start('logdir')

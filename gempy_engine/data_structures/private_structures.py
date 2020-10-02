@@ -75,7 +75,10 @@ class KernelInput:
     dipsrest_ui_bj1: np.array = np.empty((1, 0, 3))
     dipsrest_ui_bi2: np.array = np.empty((0, 1, 3))
     dipsrest_ui_bj2: np.array = np.empty((1, 0, 3))
-
+    sel_ui: np.array = np.empty((0, 1, 3))
+    sel_uj: np.array = np.empty((1, 0, 3))
+    sel_vi: np.array = np.empty((0, 1, 3))
+    sel_vj: np.array = np.empty((1, 0, 3))
 
 # @dataclass
 # class InterpolationOptions:

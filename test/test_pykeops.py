@@ -1,9 +1,11 @@
+import pytest
 from pykeops.numpy import LazyTensor, Genred, Vi, Vj, Pm
 import numpy as np
 from pykeops.numpy.utils import IsGpuAvailable
 
 
-
+@pytest.mark.skip('Only trigger manually when there is something wrong with'
+                  'pykeops compilation')
 def test_keops_run():
     import pykeops
     pykeops.verbose = True
@@ -11,6 +13,8 @@ def test_keops_run():
     pykeops.clean_pykeops()          # just in case old build files are still present
     pykeops.test_numpy_bindings()
 
+
+@pytest.mark.skip('DEP test')
 def test_pykeops_wrong():
     layer1 = np.array([[0, 0], [2, 0]])
     layer2 = np.array([[0, 2], [2, 2]])
@@ -288,7 +292,7 @@ def test_pykeops_wrong():
     print(s)
 
 
-
+@pytest.mark.skip('DEP test')
 def test_pykeops():
     layer1 = np.array([[0, 0], [2, 0]])
     layer2 = np.array([[0, 2], [2, 2]])

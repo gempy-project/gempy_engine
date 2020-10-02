@@ -124,6 +124,61 @@ def test_hu_ref_select(input):
     print(c)
 
 
+def test_uni_select(input):
+    n_dim = 2
+    dipsref, dipsrest, n_dips = input
+    perp_m = np.zeros_like(dipsref)
+    perp_m[:n_dips, 0] = 1
+    perp_m[-2:, 1] = 1
+
+    perp_i = perp_m[None, :, :].copy()
+    perp_j = perp_m[:, None, :].copy()
+
+    perp_i2 = perp_m[None, :, :].copy()
+    perp_j2 = perp_m[:, None, :].copy()
+
+    perp_ma = (perp_i*perp_j)+(perp_i2*perp_j2)
+    perp_m, perp_ma
+    print(perp_m, perp_ma)
+
+
+def test_uni_select2(input):
+    n_dim = 2
+    uni_terms = 2
+    dipsref, dipsrest, n_dips = input
+
+    #perp_cgi = np.zeros((dipsref.shape[0], 2))
+    #perp_cgi[:n_dips * 2, 1] = 1
+    #perp_cgi[n_dips * 2:, 0] = 0
+
+    # sel_0 = perp_cgi[:, None, :]
+    # sel_1 = perp_cgi[None, :, :]
+    # sel = (sel_0 - sel_1).sum(axis=-1)
+    #sel = (sel_0 * sel_1 - 1).prod(axis=-1)
+    #print(sel)
+    dipsref_0 = dipsref[:, None, :].copy()
+    dipsref_1 = dipsref[None, :, :].copy()
+
+
+    sel_0 = np.zeros_like(dipsref)
+    sel_0[:-uni_terms, 0] = 1
+    sel_0[-uni_terms:, 1] = 1
+
+    sel_1 = np.zeros_like(dipsref)
+    sel_1[-uni_terms:, :] = 1
+
+    sel_01 = sel_0[:, None, :].copy()
+    sel_11 = sel_1[None, :, :].copy()
+
+    sel_02 = sel_1[:, None, :].copy()
+    sel_12 = sel_0[None, :, :].copy()
+
+    hu_ref = (sel_01 * sel_11)
+    hv_ref = (sel_02 * sel_12)
+
+    print(hu_ref.sum(axis=-1) - hv_ref.sum(axis=-1))
+
+
 def test_create_hu_ref_rest(input):
     n_dim = 2
     uni_terms = 2
@@ -204,7 +259,6 @@ def test_create_ug(input):
     print('ui_b: \n', ui_b)
 
     print('ug: \n', ui_a+ui_b)
-
 
 
 def test_create_us(input):
@@ -303,7 +357,7 @@ def test_create_us(input):
 
 
 def test_create_h(input):
-    dipsref, dipsrest = input
+    dipsref, dipsrest, _ = input
 
     a = dipsref[:, None, :]
     b = dipsref[None, :, :]

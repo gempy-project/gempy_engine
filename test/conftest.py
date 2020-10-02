@@ -58,7 +58,7 @@ def moureze_kriging():
 @pytest.fixture(scope='session')
 def moureze_orientations_heavy(moureze):
     _, ori = moureze
-    n = 5
+    n = 2
     ori_poss = ori[['X', 'Y', 'Z']].values,
     ori_pos = ori_poss[0]
     ori_grad = ori[['G_x', 'G_y', 'G_z']].values
