@@ -1,7 +1,10 @@
+from typing import Union
+
 import numpy as np
 import tensorflow as tf
 
-from gempy_engine.data_structures.private_structures import SurfacePointsInternals, OrientationsGradients
+from gempy_engine.data_structures.private_structures import SurfacePointsInternals, OrientationsGradients, \
+    OrientationsInternals
 from gempy_engine.systems.generators import tensor_types, tfnp, tensorflow_imported
 
 
@@ -256,9 +259,11 @@ def covariance_assembly(cov_sp, cov_gradients, cov_sp_grad, drift_uni_grad,
     return A
 
 
-def b_scalar_assembly(grad: OrientationsGradients, cov_size: int):
-    g_s = grad.gz.shape[0] * 3
-    g = tfnp.concat([grad.gx, grad.gy, grad.gz,
+def b_scalar_assembly(grad: Union[OrientationsInternals, OrientationsGradients],
+                      cov_size: int):
+
+    g_s = grad.n_orientations_tiled
+    g = tfnp.concat([grad.gx_tiled, grad.gy_tiled, grad.gz_tiled,
                      tfnp.zeros(cov_size - g_s, dtype='float64')],
                     -1)
     g = tfnp.expand_dims(g, axis=1)

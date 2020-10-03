@@ -5,7 +5,9 @@ from gempy_engine.data_structures.public_structures import OrientationsInput, In
 from gempy_engine.systems.generators import squared_euclidean_distances, tensor_transpose
 from gempy_engine.systems.kernel.aux_functions import cartesian_distances, compute_perpendicular_matrix, \
     compute_cov_gradients, compute_cov_sp, compute_cov_sp_grad, compute_drift_uni_grad, compute_drift_uni_sp, \
-    covariance_assembly
+    covariance_assembly, b_scalar_assembly
+from gempy_engine.systems.reductions import solver
+from gempy_engine.systems.transformations import dip_to_gradients
 
 
 def cov_gradients_f(orientations_input: OrientationsInput,
@@ -152,3 +154,18 @@ def create_covariance_legacy(
     )
 
     return covariance_matrix
+
+
+def legacy_solver(sp_internals, ori_input, ori_internals, int_options):
+    covariance = create_covariance_legacy(
+        sp_internals,
+        ori_input,
+        ori_internals.dip_poistions_tiled,
+        int_options
+    )
+    # -------------------
+    grad = dip_to_gradients(ori_input)
+    b_vector = b_scalar_assembly(ori_internals, covariance.shape[0])
+    weights = solver(covariance, b_vector)
+
+    return weights

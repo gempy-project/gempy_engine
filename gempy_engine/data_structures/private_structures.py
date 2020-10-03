@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from typing import Union
 
 import numpy as np
+
+from gempy_engine.data_structures.public_structures import OrientationsInput
+
 try:
     import tensorflow as tf
     tensor_types = Union[np.ndarray, tf.Tensor, tf.Variable]
@@ -14,9 +17,10 @@ except ImportError:
 @dataclass
 class OrientationsInternals:
     dip_positions_tiled: tensor_types = np.empty((0, 3))
-    gx: np.array = np.empty((0, 3))
-    gy: np.array = np.empty((0, 3))
-    gz: np.array = np.empty((0, 3))
+    gx_tiled: np.array = np.empty((0, 3))
+    gy_tiled: np.array = np.empty((0, 3))
+    gz_tiled: np.array = np.empty((0, 3))
+    ori_input: OrientationsInput = None
 
     @property
     def n_orientations_tiled(self):

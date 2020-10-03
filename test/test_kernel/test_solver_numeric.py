@@ -4,38 +4,29 @@ import gempy_engine.systems.kernel.kernel
 from gempy_engine.data_structures.private_structures import SurfacePointsInternals, OrientationsInternals
 from gempy_engine.data_structures.public_structures import OrientationsInput, InterpolationOptions
 from gempy_engine.systems.generators import tile_dip_positions
-from gempy_engine.systems.kernel.kernel import vectors_preparation, create_covariance
+from gempy_engine.systems.kernel.kernel import vectors_preparation, create_covariance, kernel_solver
 from gempy_engine.systems.kernel.kernel_functions import *
 
 
-@pytest.fixture()
-def simple_model():
-    spi = SurfacePointsInternals(
-        ref_surface_points=np.array(
-            [[4, 0],
-             [4, 0],
-             [4, 0],
-             [3, 3],
-             [3, 3]]),
-        rest_surface_points=np.array([[0, 0],
-                                      [2, 0],
-                                      [3, 0],
-                                      [0, 2],
-                                      [2, 2]]),
-        nugget_effect_ref_rest=0
-    )
+def test_kernel_numeric_numpy_cubic(simple_model, save_result=True):
+    # Test numpy
+    gempy_engine.systems.kernel.kernel.pykeops_imported = False
+    simple_model[2].uni_degree = 1
+    w = kernel_solver(*simple_model)
+    if save_result:
+        np.save('./test_kernel_numeric', w)
+    print(w)
 
-    ori_i = OrientationsInput(
-        dip_positions=np.array([[0, 6],
-                                [2, 13]]),
-        nugget_effect_grad=0.0000001
-    )
-    dip_tiled = tile_dip_positions(ori_i.dip_positions, 2)
-    ori_int = OrientationsInternals(dip_tiled)
-    kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
-                               number_dimensions=2)
+    # Test TF:
+    simple_model[2].uni_degree = 1
+    w = kernel_solver(*simple_model)
+    print(w)
 
-    return spi, ori_int, kri
+    # Test pykeops
+    gempy_engine.systems.kernel.kernel.pykeops_imported = True
+    simple_model[2].uni_degree = 1
+    w = kernel_solver(*simple_model)
+    print(w)
 
 
 def test_vector_preparation(simple_model):
@@ -59,7 +50,7 @@ def test_kernel_numeric(simple_model, save_result=False):
     if save_result:
         np.save('./test_kernel_numeric', c)
 
-    np.testing.assert_array_almost_equal(c, np.load('./test_kernel_numeric.npy'))
+    np.testing.assert_array_almost_equal(c, np.load('test_kernel_numeric.npy'))
     # ============================== PYKEOPS ==================
     gempy_engine.systems.kernel.kernel.pykeops_imported = True
     ki = vectors_preparation(*simple_model, backend='pykeops')
@@ -68,7 +59,7 @@ def test_kernel_numeric(simple_model, save_result=False):
                           cubic_function_a)
     np.testing.assert_array_almost_equal(
         c.sum_reduction(axis=0).reshape(-1),
-        np.load('./test_kernel_numeric.npy').sum(axis=0), decimal=3)
+        np.load('test_kernel_numeric.npy').sum(axis=0), decimal=3)
     print('\n', c)
 
 
@@ -107,7 +98,7 @@ def test_kernel_numeric_pykeops_cubic(simple_model):
     print('\n', w)
 
 
-def test_kernel_numeric_numpy_cubic(simple_model):
+def test_kernel_numeric_numpy_cubic2(simple_model):
     gempy_engine.systems.kernel.kernel.pykeops_imported = False
     ki = vectors_preparation(*simple_model, backend='numpy')
     c = create_covariance(ki, simple_model[2].range, simple_model[2].c_o,

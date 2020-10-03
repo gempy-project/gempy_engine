@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Optional
 
 import numpy as np
 
@@ -6,16 +6,39 @@ from gempy_engine.data_structures.private_structures import SurfacePointsInterna
 from gempy_engine.data_structures.public_structures import OrientationsInput, InterpolationOptions
 from gempy_engine.systems.generators import squared_euclidean_distances, tensor_transpose
 from gempy_engine.config import tfnp, tensorflow_imported, tensor_types, pykeops_imported
+from gempy_engine.systems.kernel.aux_functions import b_scalar_assembly
 
 
 def kernel_solver(sp_internals: SurfacePointsInternals,
                   ori_internals: OrientationsInternals,
-                  kriging_parameters: InterpolationOptions,
-                  ):
+                  interpolation_options: InterpolationOptions,
+                  kernel_type='cubic'):
+    cov_size = ori_internals.n_orientations_tiled + \
+               sp_internals.n_points + \
+               interpolation_options.n_uni_eq
+
     kernel_input = vectors_preparation(sp_internals, ori_internals,
-                                       kriging_parameters)
-    # Either the weights or directly the scalar field
-    r = kernel_reduction(kernel_input)
+                                       interpolation_options)
+    kernels = get_kernels(kernel_type)
+    b = b_scalar_assembly(ori_internals, cov_size)
+
+    w = kernel_reduction(
+        kernel_input,
+        b,
+        interpolation_options.range,
+        interpolation_options.c_o,
+        *kernels
+    )
+    return w
+
+
+def get_kernels(typeof: str):
+    if typeof == 'cubic':
+        from .kernel_functions import cubic_function, cubic_function_p_div_r, cubic_function_a
+        return cubic_function, cubic_function_p_div_r, cubic_function_a
+    elif typeof == 'gaussian' or typeof == 'exponential':
+        from .kernel_functions import exp_function, exp_function_p_div_r, exp_function_a
+        return exp_function, exp_function_p_div_r, exp_function_a
 
 
 def create_covariance(ki: KernelInput, a: float, c_o: float,
@@ -53,11 +76,11 @@ def create_covariance(ki: KernelInput, a: float, c_o: float,
 
     hu_rest = dif_rest_rest * (ki.hu_sel_i * ki.hu_sel_points_j)
     hv_rest = dif_rest_rest * (ki.hv_sel_points_i * ki.hv_sel_j)
-    huv_rest = hu_rest.sum(axis=-1) - hv_rest.sum(axis=-1) # C
+    huv_rest = hu_rest.sum(axis=-1) - hv_rest.sum(axis=-1)  # C
 
-    c_g = hu * hv / (r_ref_ref ** 2+1e-5) * (- k_p_ref + k_a) - k_p_ref * perp_matrix  # C
+    c_g = hu * hv / (r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * perp_matrix  # C
     c_sp = k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref  # It is expanding towards cross
-    c_gsp = - huv_rest * k_p_rest + huv_ref * k_p_ref # C
+    c_gsp = - huv_rest * k_p_rest + huv_ref * k_p_ref  # C
 
     usp = (ki.dipsref_ui_ai * ki.dipsref_ui_aj).sum(axis=-1)
     ug = (ki.dips_ug_ai * ki.dips_ug_aj).sum(axis=-1)
@@ -67,17 +90,35 @@ def create_covariance(ki: KernelInput, a: float, c_o: float,
     return cov
 
 
-def kernel_reduction(ki: KernelInput):
-    cov = create_covariance(ki)
+def kernel_reduction(ki: KernelInput, b, range, c_o, kernel, kernel_1st,
+                     kernel_2nd, smooth=.0001):
+    cov = create_covariance(ki, range, c_o, kernel, kernel_1st, kernel_2nd)
+
+    if pykeops_imported is True and tensorflow_imported is False:
+        w = cov.solve(b.astype('float32'), alpha=smooth, dtype_acc='float32')
+    elif pykeops_imported is True and tensorflow_imported is True:
+        w = cov.solve(b.numpy().astype('float32'), alpha=smooth, dtype_acc='float32')
+    elif pykeops_imported is False and tensorflow_imported is True:
+        w = tfnp.linalg.solve(cov, b)
+    elif pykeops_imported is False and tensorflow_imported is False:
+        w = tfnp.linalg.solve(cov, b[:, 0])
+    else:
+        raise AttributeError('There is a weird combination of libraries?')
+    return w
 
 
 def vectors_preparation(sp_internals: SurfacePointsInternals,
                         ori_internals: OrientationsInternals,
                         interpolation_options: InterpolationOptions,
-                        backend='numpy'):
-    cov_size = ori_internals.n_orientations_tiled +\
-               sp_internals.n_points +\
-               interpolation_options.n_uni_eq
+                        cov_size: Optional[int] = None,
+                        backend=None):
+    if backend is None:
+        backend = 'pykeops' if pykeops_imported else 'numpy'
+
+    if cov_size is None:
+        cov_size = ori_internals.n_orientations_tiled + \
+                   sp_internals.n_points + \
+                   interpolation_options.n_uni_eq
 
     dipref_i, dipref_j = input_dips_points(ori_internals.dip_positions_tiled,
                                            sp_internals.ref_surface_points,
@@ -98,6 +139,7 @@ def vectors_preparation(sp_internals: SurfacePointsInternals,
         interpolation_options
     )
 
+    # Universal
     dipsref_ui_ai, dipsref_ui_aj, dipsref_ui_bi1, \
     dips_uiref_bj1, dipsref_ui_bi2, dips_uiref_bj2 = input_usp(
         sp_internals.ref_surface_points,
@@ -115,27 +157,33 @@ def vectors_preparation(sp_internals: SurfacePointsInternals,
     sel_ui, sel_uj, sel_vi, sel_vj = drift_sel(cov_size,
                                                interpolation_options.n_uni_eq)
 
+    # Prepare Return
     if backend == 'numpy':
         ki = KernelInput(dipref_i, dipref_j, diprest_i, diprest_j, hu_sel_i, hu_sel_j,
-                       hv_sel_i, hv_sel_j, hu_points_j, hv_points_i,
-                       dips_ug_ai, dips_ug_aj, dips_ug_bi,
-                       dips_ug_bj, dipsref_ui_ai, dipsref_ui_aj, dipsref_ui_bi1,
-                       dips_uiref_bj1, dipsref_ui_bi2, dips_uiref_bj2, dipsrest_ui_ai,
-                       dipsrest_ui_aj, dipsrest_ui_bi1, dips_uirest_bj1,
-                       dipsrest_ui_bi2, dips_uirest_bj2,
-                       sel_ui, sel_uj, sel_vi, sel_vj)
+                         hv_sel_i, hv_sel_j, hu_points_j, hv_points_i,
+                         dips_ug_ai, dips_ug_aj, dips_ug_bi,
+                         dips_ug_bj, dipsref_ui_ai, dipsref_ui_aj, dipsref_ui_bi1,
+                         dips_uiref_bj1, dipsref_ui_bi2, dips_uiref_bj2, dipsrest_ui_ai,
+                         dipsrest_ui_aj, dipsrest_ui_bi1, dips_uirest_bj1,
+                         dipsrest_ui_bi2, dips_uirest_bj2,
+                         sel_ui, sel_uj, sel_vi, sel_vj)
 
     elif backend == 'pykeops':
         from pykeops.numpy import LazyTensor
         # Convert to LazyTensors
         args = [dipref_i, dipref_j, diprest_i, diprest_j, hu_sel_i, hu_sel_j,
-                       hv_sel_i, hv_sel_j, hu_points_j, hv_points_i,
-                       dips_ug_ai, dips_ug_aj, dips_ug_bi,
-                       dips_ug_bj, dipsref_ui_ai, dipsref_ui_aj, dipsref_ui_bi1,
-                       dips_uiref_bj1, dipsref_ui_bi2, dips_uiref_bj2, dipsrest_ui_ai,
-                       dipsrest_ui_aj, dipsrest_ui_bi1, dips_uirest_bj1,
-                       dipsrest_ui_bi2, dips_uirest_bj2, sel_ui, sel_uj, sel_vi, sel_vj]
-        ki_args = [LazyTensor(i.astype('float32')) for i in args]
+                hv_sel_i, hv_sel_j, hu_points_j, hv_points_i,
+                dips_ug_ai, dips_ug_aj, dips_ug_bi,
+                dips_ug_bj, dipsref_ui_ai, dipsref_ui_aj, dipsref_ui_bi1,
+                dips_uiref_bj1, dipsref_ui_bi2, dips_uiref_bj2, dipsrest_ui_ai,
+                dipsrest_ui_aj, dipsrest_ui_bi1, dips_uirest_bj1,
+                dipsrest_ui_bi2, dips_uirest_bj2, sel_ui, sel_uj, sel_vi, sel_vj]
+        if tensorflow_imported is True:
+            # TODO: Possibly eventually I have to add i.numpy() to convert
+            # the eager tensors to numpy
+            ki_args = [LazyTensor(i.astype('float32')) for i in args]
+        else:
+            ki_args = [LazyTensor(i.astype('float32')) for i in args]
         ki = KernelInput(*ki_args)
     elif backend == 'tf':
         raise NotImplementedError
@@ -211,7 +259,7 @@ def input_ug(ori_internals: OrientationsInternals,
     n_ori = ori_internals.n_orientations
     n_dim = interpolation_options.number_dimensions
 
-    z = np.zeros((n_ori*n_dim + sp_size + interpolation_options.n_uni_eq,
+    z = np.zeros((n_ori * n_dim + sp_size + interpolation_options.n_uni_eq,
                   interpolation_options.number_dimensions))
     # z2 = z.copy()
 
@@ -222,7 +270,7 @@ def input_ug(ori_internals: OrientationsInternals,
         for i in range(interpolation_options.number_dimensions):
             z[-interpolation_options.n_uni_eq + i, i] = 1
 
-    #dips_a = np.vstack((ori_internals.dip_positions_tiled, z))
+    # dips_a = np.vstack((ori_internals.dip_positions_tiled, z))
     dips_a = z
     dips_ia = dips_a[:, None, :]
     dips_ja = dips_a[None, :, :]
