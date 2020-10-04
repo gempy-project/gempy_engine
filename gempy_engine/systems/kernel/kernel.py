@@ -262,12 +262,13 @@ def input_ug(ori_internals: OrientationsInternals,
     z = np.zeros((n_ori * n_dim + sp_size + interpolation_options.n_uni_eq,
                   interpolation_options.number_dimensions))
     # z2 = z.copy()
-
-    z[:n_ori, 0] = 1
-    z[n_ori:n_ori * n_dim, 1] = 1
+    #
+    # z[:n_ori, 0] = 1
+    # z[n_ori:n_ori * n_dim, 1] = 1
     if interpolation_options.uni_degree != 0:
         # Degree 1
         for i in range(interpolation_options.number_dimensions):
+            z[n_ori*i:n_ori * (i+1)] = 1
             z[-interpolation_options.n_uni_eq + i, i] = 1
 
     # dips_a = np.vstack((ori_internals.dip_positions_tiled, z))

@@ -3,111 +3,52 @@ import numpy as np
 
 from gempy_engine.data_structures.private_structures import OrientationsInternals, SurfacePointsInternals, ExportInput
 from gempy_engine.data_structures.public_structures import InterpolationOptions
-from gempy_engine.systems.kernel.kernel import get_kernels
-
-
-def hu_x0(ori_internals: OrientationsInternals,
-          grid, cov_size):
-
-    dips = ori_internals.ori_input.dip_positions.reshape((-1, 1), order='F')
-    dips_x0 = tfnp.zeros((cov_size, 1), dtype='float64')
-
-    sel_x0 = tfnp.zeros((cov_size, 1), dtype='float64')
-    sel_x0[:ori_internals.n_orientations_tiled] = 1
-    dips_x0[:ori_internals.n_orientations_tiled] = dips
-    dips_i = dips_x0[:, None, :]
-    sel_x0 = sel_x0[:, None, :]
-    grid_j = grid.reshape((-1, 1), order='F')[None, :, :]
-    hu_x0 = ((dips_i - grid_j) * sel_x0).sum(axis=-1)
-    return hu_x0
-
-
-def get_direction_val(direction: str):
-    if direction == 'x':
-        direction_val = 0
-    if direction == 'y':
-        direction_val = 1
-    if direction == 'z':
-        direction_val = 2
-    return direction_val
-
-
-def hv_x0(ori_internals: OrientationsInternals,
-          interpolations_options: InterpolationOptions, grid,
-          direction_val, cov_size):
-
-    dips = tfnp.tile(
-        ori_internals.ori_input.dip_positions[:, direction_val],
-        interpolations_options.number_dimensions
-    ).reshape((-1, 1))
-
-    dips_x0 = tfnp.zeros((cov_size, 1), dtype='float64')
-    grid_ = tfnp.tile(
-        grid[:, direction_val],
-        interpolations_options.number_dimensions
-    ).reshape((-1, 1))
-
-    sel_x0 = tfnp.zeros((cov_size, 1), dtype='float64')
-    sel_x0[:ori_internals.n_orientations_tiled] = 1
-    dips_x0[:ori_internals.n_orientations_tiled] = dips
-    dips_i = dips_x0[:, None, :]
-    sel_x0 = sel_x0[:, None, :]
-    grid_j = grid_[None, :, :]
-    hv_x0 = ((dips_i - grid_j) * sel_x0).sum(axis=-1)
-    return hv_x0
+from gempy_engine.systems.kernel.kernel import get_kernels, input_usp
 
 
 def export(sp_internals: SurfacePointsInternals,
            ori_internals: OrientationsInternals,
            interpolations_options: InterpolationOptions, grid):
+    # TODO this function can be split into two
+
     cov_size = sp_internals.n_points + \
                ori_internals.n_orientations_tiled + \
                interpolations_options.n_uni_eq
     direction_val = get_direction_val('x')
 
-    ei = vector_preparation_export(sp_internals, ori_internals, interpolations_options)
-    hu = hu_x0(ori_internals, grid, cov_size)
-    hv = hv_x0(ori_internals, interpolations_options, direction_val, cov_size)
+    ei = vector_preparation_export(sp_internals, ori_internals,
+                                   interpolations_options, grid, cov_size)
+
+    hu = hu_x0(ori_internals, interpolations_options, grid, cov_size)
+    hv = hv_x0(ori_internals, interpolations_options, grid,
+               direction_val, cov_size)
+
     k, k1, k2 = get_kernels('cubic')
     perp_v = compute_perep_v(
         ori_internals.n_orientations,
         cov_size,
         direction_val
     )
-    z_0 = export_scalar(ei, hu, k1, interpolations_options.range)
-    dz_dx =  export_gradients(ei, hu, hv, k1, k2, perp_v)
+    hu_rest = hu_points(sp_internals.rest_surface_points, grid, direction_val)
+    hu_ref = hu_points(sp_internals.ref_surface_points, grid, direction_val)
+
+    # TODO maybe create a class for these
+    drift_sp = prepare_usp(grid, cov_size, interpolations_options)
+    drift_g = prepare_ug(grid, cov_size, direction_val,
+                         interpolations_options)
+
+    z_0 = export_scalar(ei, hu, drift_sp, k1, interpolations_options)
+    dz_dx = export_gradients(ei, hu, hv, hu_ref, hu_rest, drift_g,
+                             k1, k2, perp_v,
+                             interpolations_options.range)
 
     return z_0, dz_dx
 
 
-def compute_perep_v(n_ori: int, cov_size:int, direction_val: int):
-    perp_v = tfnp.zeros_like(cov_size)
-    perp_v[n_ori * direction_val:n_ori * (direction_val + 1)] = 1
-    return perp_v
+def export_scalar(ei: ExportInput, hu_x0, drift, kernel_1st, interpolation_options,
+                  ):
 
-
-def vector_preparation_export(sp_internals: SurfacePointsInternals,
-                              ori_internals: OrientationsInternals,
-                              interpolations_options: InterpolationOptions, grid):
-    dips = ori_internals.ori_input.dip_positions
-
-    dips_i = dips[:, None, :]
-    grid_j = grid[None, :, :]
-
-    z = np.zeros((interpolations_options.n_uni_eq,
-                  interpolations_options.number_dimensions))
-    z2 = np.zeros_like(ori_internals.dip_positions_tiled)
-
-    ref_x0 = np.vstack((z2, sp_internals.ref_surface_points, z))
-    rest_x0 = np.vstack((z2, sp_internals.rest_surface_points, z))
-    ref_i = ref_x0[:, None, :]
-    rest_i = rest_x0[:, None, :]
-
-    ei = ExportInput(dips_i, grid_j, ref_i, rest_i)
-    return ei
-
-
-def export_scalar(ei: ExportInput, hu_x0, kernel_1st, a):
+    a = interpolation_options.range
 
     if pykeops_imported is True:
         r_dip_x0 = (((ei.dips_i - ei.grid_j) ** 2).sum(-1)).sqrt()
@@ -130,197 +71,198 @@ def export_scalar(ei: ExportInput, hu_x0, kernel_1st, a):
 
     sigma_0_interf = k_rest_x0 - k_ref_x0
 
-    return sigma_0_grad_interface + sigma_0_interf
+    return sigma_0_grad_interface + sigma_0_interf + drift
 
 
-def export_gradients(ei: ExportInput, hu, hv,
-                     kernel_1st, kernel_2nd, perp_v):
+def export_gradients(ei: ExportInput, hu, hv, hu_ref, hu_rest, drift_g,
+                     kernel_1st, kernel_2nd, perp_v, a):
     if pykeops_imported is True:
         r_dip_x0 = (((ei.dips_i - ei.grid_j) ** 2).sum(-1)).sqrt()
+        r_ref_x0 = (((ei.ref_i - ei.grid_j) ** 2).sum(-1)).sqrt()
+        r_rest_x0 = (((ei.rest_i - ei.grid_j) ** 2).sum(-1)).sqrt()
     else:
         r_dip_x0 = tfnp.sqrt(((ei.dips_i - ei.grid_j) ** 2).sum(-1))
+        r_ref_x0 = tfnp.sqrt(((ei.ref_i - ei.grid_j) ** 2).sum(-1))
+        r_rest_x0 = tfnp.sqrt(((ei.rest_i - ei.grid_j) ** 2).sum(-1))
 
-    k_p_dip_x0 = kernel_1st(r_dip_x0)
-    k_a_dip_x0 = kernel_2nd(r_dip_x0)
+    k_p_dip_x0 = kernel_1st(r_dip_x0, a)
+    k_a_dip_x0 = kernel_2nd(r_dip_x0, a)
 
     sigma_0_grad = hu * hv / (r_dip_x0 ** 2 + 1e-5) * (- k_p_dip_x0 + k_a_dip_x0) - \
                    k_p_dip_x0 * perp_v
-    return
+
+    # ===
+    # Euclidian distances
+    k_p_ref = kernel_1st(r_ref_x0)
+    k_p_rest = kernel_1st(r_rest_x0)
+
+    sigma_0_sp_grad = hu_rest * k_p_rest - hu_ref * k_p_ref
+
+    return sigma_0_grad + sigma_0_sp_grad + drift_g
 
 
-# hu_x0[:ori_internals.n_orientations_tiled] = (dips_i - grid_j)
-#
-# tfnp.concat([hu_x0[:, :, 0],
-#              tfnp.zeros(cov_size - g_s, dtype='float64')],
-#              #                     -1))
+def vector_preparation_export(sp_internals: SurfacePointsInternals,
+                              ori_internals: OrientationsInternals,
+                              interpolations_options: InterpolationOptions, grid,
+                              cov_size):
+    dips_init = tfnp.zeros((cov_size, interpolations_options.number_dimensions))
+    ref_init = tfnp.zeros((cov_size, interpolations_options.number_dimensions))
+    rest_init = tfnp.zeros((cov_size, interpolations_options.number_dimensions))
+    dips = ori_internals.dip_positions_tiled
+    dips_init[:ori_internals.n_orientations_tiled] = dips
+
+    dips_i = dips_init[:, None, :]
+    grid_j = grid[None, :, :]
+
+    s1 = ori_internals.n_orientations_tiled
+    s2 = s1 + sp_internals.n_points
+
+    ref_init[s1:s2] = sp_internals.ref_surface_points
+    rest_init[s1:s2] = sp_internals.rest_surface_points
+
+    ref_i = ref_init[:, None, :]
+    rest_i = rest_init[:, None, :]
+
+    ei = ExportInput(dips_i, grid_j, ref_i, rest_i)
+    return ei
 
 
-#
-#
-#
+def hu_x0(ori_internals: OrientationsInternals,
+          interpolations_options,
+          grid, cov_size):
+    n_dim = interpolations_options.number_dimensions
+    n_dips = ori_internals.n_orientations
 
-def export_gradients(export_grad):
-    "Contribution gradients and interfaces-gradients"
+    dips = ori_internals.ori_input.dip_positions.reshape((-1, 1), order="F")
+    dips_x0 = tfnp.zeros((cov_size, 1), dtype='float64')
 
+    sel_0 = np.zeros((cov_size, n_dim))
+    for i in range(n_dim):
+        sel_0[n_dips * i:n_dips * (i + 1), i] = 1
+    sel_hui = sel_0[:, None, :]
+
+    dips_x0[:ori_internals.n_orientations_tiled] = dips
+    dips_i = dips_x0[:, None, :]
+
+    grid_j = grid[None, :, :]
+    hu_x0 = ((dips_i - grid_j) * sel_hui).sum(axis=-1)
+
+    return hu_x0
+
+
+def hv_x0(ori_internals: OrientationsInternals,
+          interpolations_options: InterpolationOptions, grid,
+          direction_val, cov_size):
+    n_dim = interpolations_options.number_dimensions
+    n_dips = ori_internals.n_orientations
+
+    dips = tfnp.tile(
+        ori_internals.ori_input.dip_positions[:, direction_val],
+        interpolations_options.number_dimensions
+    ).reshape((-1, 1))
+
+    dips_x0 = tfnp.zeros((cov_size, 1), dtype='float64')
+    grid_ = grid[:, direction_val].reshape((-1, 1))
+
+    sel_0 = np.zeros((cov_size, n_dim))
+    for i in range(n_dim):
+        sel_0[n_dips * i:n_dips * (i + 1), i] = 1
+    sel_hui = sel_0[:, None, :]
+
+    dips_x0[:ori_internals.n_orientations_tiled] = dips
+    dips_i = dips_x0[:, None, :]
+
+    grid_j = grid_[None, :, :]
+    hv_x0 = ((dips_i - grid_j) * sel_hui).sum(axis=-1)
+    return hv_x0
+
+
+def hu_points(points, grid, dir_val):
+    return points[:, dir_val] + grid[:, dir_val].reshape((grid[:, dir_val].shape[0], 1))
+
+
+def get_direction_val(direction: str):
     if direction == 'x':
         direction_val = 0
-    if direction == 'y':
+    elif direction == 'y':
         direction_val = 1
-    if direction == 'z':
+    elif direction == 'z':
         direction_val = 2
-    # self.gi_reescale = theano.shared(1)
-    #
-    # if weights is None:
-    #     weights = self.extend_dual_kriging()
-    # if grid_val is None:
-    #     grid_val = self.x_to_interpolate()
-    #
-    # length_of_CG = self.matrices_shapes()[0]
+    else:
+        raise AttributeError('direction must be x, y, z')
+    return direction_val
 
-    # Cartesian distances between the point to simulate and the dips
-    # TODO optimize to compute this only once?
-    # Euclidean distances
-    sed_dips_SimPoint = self.squared_euclidean_distances(grid_val, self.dips_position_tiled).T
 
-    # Cartesian distances between dips positions
-    h_u = T.tile(
-        self.dips_position[:, direction_val] -
-        grid_val[:, direction_val].reshape((grid_val[:, direction_val].shape[0], 1)), 3)
-    h_v = T.horizontal_stack(
-        T.tile(self.dips_position[:, 0] - grid_val[:, 0].reshape((grid_val[:, 0].shape[0], 1)),
-               1),
-        T.tile(self.dips_position[:, 1] - grid_val[:, 1].reshape((grid_val[:, 1].shape[0], 1)),
-               1),
-        T.tile(self.dips_position[:, 2] - grid_val[:, 2].reshape((grid_val[:, 2].shape[0], 1)),
-               1))
+def prepare_ug(grid, cov_size, direction_val: int,
+               interpolation_options: InterpolationOptions):
 
-    perpendicularity_vector = T.zeros(T.stack(length_of_CG))
-    perpendicularity_vector = T.set_subtensor(
-        perpendicularity_vector[
-        self.dips_position.shape[0] * direction_val:self.dips_position.shape[0] * (direction_val + 1)], 1)
+    n_dim = interpolation_options.number_dimensions
+    n_eq = interpolation_options.n_uni_eq
+    i = direction_val
+    z = np.zeros((cov_size,
+                  interpolation_options.number_dimensions))
 
-    sigma_0_grad = hu * hv / (r_ref_x0 ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * perp_matrix
+    z2 = np.zeros((cov_size,
+                  interpolation_options.number_dimensions))
 
-    return
+    if interpolation_options.uni_degree != 0:
+        # Degree 1
+        z[-n_eq + i, i] = 1
 
-#
-# def contribution_gradient(self, direction='x', grid_val=None, weights=None):
-#     if direction == 'x':
-#         direction_val = 0
-#     if direction == 'y':
-#         direction_val = 1
-#     if direction == 'z':
-#         direction_val = 2
-#     # self.gi_reescale = theano.shared(1)
-#     #
-#     # if weights is None:
-#     #     weights = self.extend_dual_kriging()
-#     # if grid_val is None:
-#     #     grid_val = self.x_to_interpolate()
-#     #
-#     # length_of_CG = self.matrices_shapes()[0]
-#
-#     # Cartesian distances between the point to simulate and the dips
-#     # TODO optimize to compute this only once?
-#     # Euclidean distances
-#     sed_dips_SimPoint = self.squared_euclidean_distances(grid_val, self.dips_position_tiled).T
-#
-#     if 'sed_dips_SimPoint' in self.verbose:
-#         sed_dips_SimPoint = theano.printing.Print('sed_dips_SimPoint')(sed_dips_SimPoint)
-#
-#     # Cartesian distances between dips positions
-#     # h_u = T.tile(self.dips_position[:, direction_val] - grid_val[:, direction_val].reshape(
-#     #     (grid_val[:, direction_val].shape[0], 1)), 3)
-#     # h_v = T.horizontal_stack(
-#     #     T.tile(self.dips_position[:, 0] - grid_val[:, 0].reshape((grid_val[:, 0].shape[0], 1)),
-#     #            1),
-#     #     T.tile(self.dips_position[:, 1] - grid_val[:, 1].reshape((grid_val[:, 1].shape[0], 1)),
-#     #            1),
-#     #     T.tile(self.dips_position[:, 2] - grid_val[:, 2].reshape((grid_val[:, 2].shape[0], 1)),
-#     #            1))
-#     #
-#     # perpendicularity_vector = T.zeros(T.stack(length_of_CG))
-#     # perpendicularity_vector = T.set_subtensor(
-#     #     perpendicularity_vector[
-#     #     self.dips_position.shape[0] * direction_val:self.dips_position.shape[0] * (direction_val + 1)], 1)
-#
-#
-#     sigma_0_grad = hu * hv / (r_ref_x0 ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * perp_matrix
-#     return sigma_0_grad
-#
-#
-# def contribution_gradient_interface(self, grid_val=None, weights=None):
-#     """
-#     Computation of the contribution of the foliations at every point to interpolate
-#     Returns:
-#         theano.tensor.vector: Contribution of all foliations (input) at every point to interpolate
-#     """
-#
-#     length_of_CG = self.matrices_shapes()[0]
-#
-#     # Cartesian distances between the point to simulate and the dips
-#     hu_SimPoint = T.vertical_stack(
-#         (self.dips_position[:, 0] - grid_val[:, 0].reshape((grid_val[:, 0].shape[0], 1))).T,
-#         (self.dips_position[:, 1] - grid_val[:, 1].reshape((grid_val[:, 1].shape[0], 1))).T,
-#         (self.dips_position[:, 2] - grid_val[:, 2].reshape((grid_val[:, 2].shape[0], 1))).T
-#     )
-#
-#     # Euclidian distances
-#     sed_dips_SimPoint = self.squared_euclidean_distances(self.dips_position_tiled, grid_val)
-#     # Gradient contribution
-#
-#     sigma_0_grad = hu_SimPoint * k_p_ref
-#     return sigma_0_grad
-#
-#
-# def contribution_interface_gradient(self, direction='x', grid_val=None, weights=None):
-#     """
-#     Computation of the contribution of the foliations at every point to interpolate
-#     Returns:
-#         theano.tensor.vector: Contribution of all foliations (input) at every point to interpolate
-#     """
-#     #
-#     # if direction == 'x':
-#     #     dir_val = 0
-#     # if direction == 'y':
-#     #     dir_val = 1
-#     # if direction == 'z':
-#     #     dir_val = 2
-#     #
-#     # if weights is None:
-#     #     weights = self.extend_dual_kriging()
-#     # if grid_val is None:
-#     #     grid_val = self.x_to_interpolate()
-#     #
-#     # length_of_CG, length_of_CGI = self.matrices_shapes()[:2]
-#     #
-#     # # Cartesian distances between the point to simulate and the dips
-#     # hu_rest = (- self.rest_layer_points[:, dir_val] + grid_val[:, dir_val].reshape((grid_val[:, dir_val].shape[0], 1)))
-#     # hu_ref = (- self.ref_layer_points[:, dir_val] + grid_val[:, dir_val].reshape((grid_val[:, dir_val].shape[0], 1)))
-#     #
-#     # # Euclidian distances
-#     #
-#     # sed_grid_rest = self.squared_euclidean_distances(grid_val, self.rest_layer_points)
-#     # sed_grid_ref = self.squared_euclidean_distances(grid_val, self.ref_layer_points)
-#     #
-#     # # Gradient contribution
-#     # self.gi_reescale = 2
-#     #
-#     # sigma_0_grad = T.sum(
-#     #     (weights[length_of_CG:length_of_CG + length_of_CGI] *
-#     #      self.gi_reescale * (
-#     #              (hu_rest *
-#     #               (sed_grid_rest < self.a_T) *  # first derivative
-#     #               (- self.c_o_T * ((-14 / self.a_T ** 2) + 105 / 4 * sed_grid_rest / self.a_T ** 3 -
-#     #                                35 / 2 * sed_grid_rest ** 3 / self.a_T ** 5 +
-#     #                                21 / 4 * sed_grid_rest ** 5 / self.a_T ** 7))) -
-#     #              (hu_ref *
-#     #               (sed_grid_ref < self.a_T) *  # first derivative
-#     #               (- self.c_o_T * ((-14 / self.a_T ** 2) + 105 / 4 * sed_grid_ref / self.a_T ** 3 -
-#     #                                35 / 2 * sed_grid_ref ** 3 / self.a_T ** 5 +
-#     #                                21 / 4 * sed_grid_ref ** 5 / self.a_T ** 7)))).T),
-#     #     axis=0)
-#
-#     sigma_0_grad = hu_rest * k_p_rest - hu_ref * k_p_ref
-#
-#     return sigma_0_grad
+    drift_i = z[:, None, :]
+    grid_j = grid[None, :, :]
+
+    drift_1 = (drift_i * grid_j).sum(-1)
+    print(drift_1)
+
+    if interpolation_options.uni_degree == 2:
+        z2[-n_eq + n_dim + i, i] = 2
+        z2[-n_eq + n_dim * 2 + i] = 1
+        z2[-n_eq + n_dim * 2 + i, i] = 0
+
+    drift_2_i = z2[:, None, :]
+
+    drift_2 = (drift_2_i * grid_j).sum(-1)
+    print(drift_2)
+
+    return drift_1 + drift_2
+
+
+def prepare_usp(grid, cov_size, interpolation_options: InterpolationOptions):
+    drift_init = tfnp.zeros((cov_size, interpolation_options.number_dimensions))
+    u_eq = interpolation_options.n_uni_eq
+    n_dim = interpolation_options.number_dimensions
+
+    if interpolation_options.uni_degree != 0:
+        for i in range(interpolation_options.number_dimensions):
+            drift_init[-u_eq + i, i] = 1
+    drift_i = drift_init[:, None, :]
+    grid_j = grid[None, :, :]
+
+    drift_1 = (drift_i * grid_j).sum(-1)
+
+    # Degree 2
+    zb = tfnp.zeros((cov_size, interpolation_options.number_dimensions))
+    zc = tfnp.zeros((cov_size, interpolation_options.number_dimensions))
+    if interpolation_options.uni_degree == 2:
+
+        for i in range(n_dim):
+            zb[-u_eq + n_dim + i, i] = 1
+        zb[-u_eq + n_dim * 2:, 0] = 1
+
+        for i in range(n_dim):
+            zc[-u_eq + n_dim + i, i] = 1
+        zc[-u_eq + n_dim * 2:, 1] = 1
+
+    drift_i_2a = zb[:, None, :]
+    drift_i_2b = zc[:, None, :]
+
+    drift_2 = (drift_i_2a * grid_j).sum(-1) * (drift_i_2b * grid_j).sum(-1)
+
+    return drift_1 + drift_2
+
+
+def compute_perep_v(n_ori: int, cov_size: int, direction_val: int):
+    perp_v = tfnp.zeros((cov_size, 1))
+    perp_v[n_ori * direction_val:n_ori * (direction_val + 1)] = 1
+    return perp_v

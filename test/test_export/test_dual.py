@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from gempy_engine.systems.evalution.dual_kriging import export_scalar, hv_x0
+from gempy_engine.systems.evalution.dual_kriging import export_scalar, hv_x0, export
 from gempy_engine.systems.kernel.kernel import input_dips_points
 
 
@@ -23,3 +23,13 @@ def test_export_scalar(simple_model, grid):
 
 def test_hv_x0(simple_model, grid):
     e = hv_x0(*simple_model, grid, direction='x')
+
+
+def test_export(simple_model, grid):
+    simple_model[2].uni_degree = 1
+    e = export(*simple_model, grid)
+
+
+def test_export_drift2(simple_model, grid):
+    simple_model[2].uni_degree = 2
+    e = export(*simple_model, grid)
