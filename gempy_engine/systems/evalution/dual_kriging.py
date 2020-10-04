@@ -3,14 +3,11 @@ import numpy as np
 
 from gempy_engine.data_structures.private_structures import OrientationsInternals, SurfacePointsInternals, ExportInput
 from gempy_engine.data_structures.public_structures import InterpolationOptions
+from gempy_engine.systems.kernel.kernel import get_kernels
 
 
-def hu_x0(sp_internals: SurfacePointsInternals,
-          ori_internals: OrientationsInternals,
-          interpolations_options: InterpolationOptions, grid):
-    cov_size = sp_internals.n_points + \
-               ori_internals.n_orientations_tiled + \
-               interpolations_options.n_uni_eq
+def hu_x0(ori_internals: OrientationsInternals,
+          grid, cov_size):
 
     dips = ori_internals.ori_input.dip_positions.reshape((-1, 1), order='F')
     dips_x0 = tfnp.zeros((cov_size, 1), dtype='float64')
@@ -35,13 +32,9 @@ def get_direction_val(direction: str):
     return direction_val
 
 
-def hv_x0(sp_internals: SurfacePointsInternals,
-          ori_internals: OrientationsInternals,
+def hv_x0(ori_internals: OrientationsInternals,
           interpolations_options: InterpolationOptions, grid,
-          direction_val):
-    cov_size = sp_internals.n_points + \
-               ori_internals.n_orientations_tiled + \
-               interpolations_options.n_uni_eq
+          direction_val, cov_size):
 
     dips = tfnp.tile(
         ori_internals.ori_input.dip_positions[:, direction_val],
@@ -62,6 +55,35 @@ def hv_x0(sp_internals: SurfacePointsInternals,
     grid_j = grid_[None, :, :]
     hv_x0 = ((dips_i - grid_j) * sel_x0).sum(axis=-1)
     return hv_x0
+
+
+def export(sp_internals: SurfacePointsInternals,
+           ori_internals: OrientationsInternals,
+           interpolations_options: InterpolationOptions, grid):
+    cov_size = sp_internals.n_points + \
+               ori_internals.n_orientations_tiled + \
+               interpolations_options.n_uni_eq
+    direction_val = get_direction_val('x')
+
+    ei = vector_preparation_export(sp_internals, ori_internals, interpolations_options)
+    hu = hu_x0(ori_internals, grid, cov_size)
+    hv = hv_x0(ori_internals, interpolations_options, direction_val, cov_size)
+    k, k1, k2 = get_kernels('cubic')
+    perp_v = compute_perep_v(
+        ori_internals.n_orientations,
+        cov_size,
+        direction_val
+    )
+    z_0 = export_scalar(ei, hu, k1, interpolations_options.range)
+    dz_dx =  export_gradients(ei, hu, hv, k1, k2, perp_v)
+
+    return z_0, dz_dx
+
+
+def compute_perep_v(n_ori: int, cov_size:int, direction_val: int):
+    perp_v = tfnp.zeros_like(cov_size)
+    perp_v[n_ori * direction_val:n_ori * (direction_val + 1)] = 1
+    return perp_v
 
 
 def vector_preparation_export(sp_internals: SurfacePointsInternals,
@@ -85,82 +107,43 @@ def vector_preparation_export(sp_internals: SurfacePointsInternals,
     return ei
 
 
-def export_scalar(sp_internals: SurfacePointsInternals,
-                  ori_internals: OrientationsInternals,
-                  interpolations_options: InterpolationOptions, grid, kernel_1st):
-    cov_size = sp_internals.n_points + \
-               ori_internals.n_orientations_tiled + \
-               interpolations_options.n_uni_eq
-
-    dips = ori_internals.ori_input.dip_positions.reshape((-1, 1), order='F')
-    dips_x0 = tfnp.zeros((cov_size, 1), dtype='float64')
-
-    sel_x0 = tfnp.zeros((cov_size, 1), dtype='float64')
-    sel_x0[:ori_internals.n_orientations_tiled] = 1
-    dips_x0[:ori_internals.n_orientations_tiled] = dips
-    dips_i = dips_x0[:, None, :]
-    sel_x0 = sel_x0[:, None, :]
-    grid_j = grid.reshape((-1, 1), order='F')[None, :, :]
-    hu_x0 = ((dips_i - grid_j) * sel_x0).sum(axis=-1)
-    print(hu_x0)
+def export_scalar(ei: ExportInput, hu_x0, kernel_1st, a):
 
     if pykeops_imported is True:
-        r_dip_x0 = (((dips_i - grid_j) ** 2).sum(-1)).sqrt()
+        r_dip_x0 = (((ei.dips_i - ei.grid_j) ** 2).sum(-1)).sqrt()
     else:
-        r_dip_x0 = tfnp.sqrt(((dips_i - grid_j) ** 2).sum(-1))
-    k_p_grad = kernel_1st(r_dip_x0, interpolations_options.range)
+        r_dip_x0 = tfnp.sqrt(((ei.dips_i - ei.grid_j) ** 2).sum(-1))
+    k_p_grad = kernel_1st(r_dip_x0, a)
 
     sigma_0_grad_interface = hu_x0 * k_p_grad
-    print(sigma_0_grad_interface)
-
-    # =========
-    z = np.zeros((interpolations_options.n_uni_eq,
-                  interpolations_options.number_dimensions))
-    z2 = np.zeros_like(ori_internals.dip_positions_tiled)
-
-    ref_x0 = np.vstack((z2, sp_internals.ref_surface_points, z))
-    rest_x0 = np.vstack((z2, sp_internals.rest_surface_points, z))
-    ref_i = ref_x0[:, None, :]
-    rest_i = rest_x0[:, None, :]
 
     if pykeops_imported is True:
-        r_ref_grid = (((ref_i - grid_j) ** 2).sum(-1)).sqrt()
-        r_rest_grid = (((rest_i - grid_j) ** 2).sum(-1)).sqrt()
+        r_ref_grid = (((ei.ref_i - ei.grid_j) ** 2).sum(-1)).sqrt()
+        r_rest_grid = (((ei.rest_i - ei.grid_j) ** 2).sum(-1)).sqrt()
 
     else:
-        r_ref_grid = tfnp.sqrt(((ref_i - grid_j) ** 2).sum(-1))
-        r_rest_grid = tfnp.sqrt(((rest_i - grid_j) ** 2).sum(-1))
+        r_ref_grid = tfnp.sqrt(((ei.ref_i - ei.grid_j) ** 2).sum(-1))
+        r_rest_grid = tfnp.sqrt(((ei.rest_i - ei.grid_j) ** 2).sum(-1))
 
-    k_ref_x0 = kernel_1st(r_ref_grid, interpolations_options.range)
-    k_rest_x0 = kernel_1st(r_rest_grid, interpolations_options.range)
-    # sed_rest_SimPoint = self.squared_euclidean_distances(self.rest_layer_points, grid_val)
-    # sed_ref_SimPoint = self.squared_euclidean_distances(self.ref_layer_points, grid_val)
-    #
+    k_ref_x0 = kernel_1st(r_ref_grid, a)
+    k_rest_x0 = kernel_1st(r_rest_grid, a)
+
     sigma_0_interf = k_rest_x0 - k_ref_x0
 
-    print(sigma_0_interf)
-
-    return sigma_0_grad_interface
+    return sigma_0_grad_interface + sigma_0_interf
 
 
-def export_gradients(sp_internals: SurfacePointsInternals,
-                     ori_internals: OrientationsInternals,
-                     interpolations_options: InterpolationOptions, grid,
-                     kernel_1st, kernel_2nd, direction):
-    n_ori = ori_internals.n_orientations
-    direction_val = get_direction_val(direction)
+def export_gradients(ei: ExportInput, hu, hv,
+                     kernel_1st, kernel_2nd, perp_v):
+    if pykeops_imported is True:
+        r_dip_x0 = (((ei.dips_i - ei.grid_j) ** 2).sum(-1)).sqrt()
+    else:
+        r_dip_x0 = tfnp.sqrt(((ei.dips_i - ei.grid_j) ** 2).sum(-1))
 
-    hu = hu_x0(sp_internals, ori_internals, interpolations_options, grid)
-    hv = hv_x0(sp_internals, ori_internals, interpolations_options, grid,
-               direction_val)
+    k_p_dip_x0 = kernel_1st(r_dip_x0)
+    k_a_dip_x0 = kernel_2nd(r_dip_x0)
 
-    k_p_dip_x0 = kernel_1st(r_grad_x0)
-    k_a_dip_x0 = kernel_2nd(r_grad_x0)
-
-    perp_v = tfnp.zeros_like(hu)
-    perp_v[n_ori * direction_val:n_ori * (direction_val + 1)] = 1
-
-    sigma_0_grad = hu * hv / (r_ref_x0 ** 2 + 1e-5) * (- k_p_dip_x0 + k_a_dip_x0) - \
+    sigma_0_grad = hu * hv / (r_dip_x0 ** 2 + 1e-5) * (- k_p_dip_x0 + k_a_dip_x0) - \
                    k_p_dip_x0 * perp_v
     return
 
