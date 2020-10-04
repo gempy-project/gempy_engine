@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from gempy_engine.systems.evalution.dual_kriging import export_scalar
+from gempy_engine.systems.evalution.dual_kriging import export_scalar, hv_x0
 from gempy_engine.systems.kernel.kernel import input_dips_points
 
 
@@ -15,5 +15,11 @@ def grid():
     return g
 
 
-def test_hu_simPoint(simple_model, grid):
-    e = export_scalar(*simple_model, grid)
+def test_export_scalar(simple_model, grid):
+    from gempy_engine.systems.kernel.kernel_functions import cubic_function_p_div_r
+    kernel = cubic_function_p_div_r
+    e = export_scalar(*simple_model, grid, kernel)
+
+
+def test_hv_x0(simple_model, grid):
+    e = hv_x0(*simple_model, grid, direction='x')

@@ -84,6 +84,14 @@ class KernelInput:
     sel_vi: np.array = np.empty((0, 1, 3))
     sel_vj: np.array = np.empty((1, 0, 3))
 
+@dataclass
+class ExportInput:
+    dips_i: np.array = np.empty((0, 1, 3))
+    grid_j: np.array = np.empty((0, 1, 3))
+    sel_i: np.array = np.empty((0, 1, 3))
+    ref_i: np.array = np.empty((0, 1, 3))
+    rest_i: np.array = np.empty((0, 1, 3))
+
 # @dataclass
 # class InterpolationOptions:
 #     number_dimensions: int = 3
