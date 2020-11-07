@@ -5,7 +5,8 @@ import numpy as np
 from gempy_engine.data_structures.private_structures import SurfacePointsInternals, OrientationsInternals, KernelInput
 from gempy_engine.data_structures.public_structures import OrientationsInput, InterpolationOptions
 from gempy_engine.systems.generators import squared_euclidean_distances, tensor_transpose
-from gempy_engine.config import tfnp, tensorflow_imported, tensor_types, pykeops_imported
+from gempy_engine.config import tensorflow_imported, tensor_types, pykeops_imported, \
+    tfnp
 from gempy_engine.systems.kernel.aux_functions import b_scalar_assembly
 
 
@@ -95,7 +96,9 @@ def kernel_reduction(ki: KernelInput, b, range, c_o, kernel, kernel_1st,
     cov = create_covariance(ki, range, c_o, kernel, kernel_1st, kernel_2nd)
 
     if pykeops_imported is True and tensorflow_imported is False:
-        w = cov.solve(b.astype('float32'), alpha=smooth, dtype_acc='float32')
+        w = cov.solve(np.asarray(b).astype('float32'),
+                      alpha=smooth,
+                      dtype_acc='float32')
     elif pykeops_imported is True and tensorflow_imported is True:
         w = cov.solve(b.numpy().astype('float32'), alpha=smooth, dtype_acc='float32')
     elif pykeops_imported is False and tensorflow_imported is True:
@@ -114,6 +117,8 @@ def vectors_preparation(sp_internals: SurfacePointsInternals,
                         backend=None):
     if backend is None:
         backend = 'pykeops' if pykeops_imported else 'numpy'
+    elif backend == 'pykeops' and pykeops_imported is False:
+        raise ImportError('pykeops could not be imported.')
 
     if cov_size is None:
         cov_size = ori_internals.n_orientations_tiled + \

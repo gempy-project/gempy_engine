@@ -234,33 +234,6 @@ def test_creat_covariance():
     #print(cov.sum(axis=1), '\n', cov.sum(axis=0))
     return cov
 
-# DEP
-# @pytest.fixture()
-# def simple_model():
-#     spi = SurfacePointsInternals(
-#         ref_surface_points=np.array(
-#             [[4, 0],
-#              [4, 0],
-#              [4, 0],
-#              [3, 3],
-#              [3, 3]]),
-#         rest_surface_points=np.array([[0, 0],
-#                                       [2, 0],
-#                                       [3, 0],
-#                                       [0, 2],
-#                                       [2, 2]]),
-#         nugget_effect_ref_rest=0
-#     )
-#
-#     ori_i = OrientationsInput(
-#         dip_positions=np.array([[0, 6],
-#                                 [2, 13]]),
-#         nugget_effect_grad=0.0000001
-#     )
-#     dip_tiled = tile_dip_positions(ori_i.dip_positions, 2)
-#     kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
-#                                number_dimensions=2)
-
 
 def test_covariance_matrix(moureze_sp, moureze_orientations, moureze_kriging):
     cov_g = test_cov_gradients(moureze_orientations, moureze_kriging)
@@ -273,69 +246,3 @@ def test_covariance_matrix(moureze_sp, moureze_orientations, moureze_kriging):
     print(cov_matrix, cov_matrix.shape[0])
     return cov_matrix
 
-
-def test_b_scalar_assembly(moureze_orientations, c_size=4783):
-    s = b_scalar_assembly(
-        OrientationsGradients(
-            moureze_orientations.dip_gradients[0],
-            moureze_orientations.dip_gradients[1],
-            moureze_orientations.dip_gradients[2],
-        ),
-        c_size
-    )
-    print(s)
-    return s
-
-
-@pytest.mark.skip
-def test_solver_lite(moureze_sp_lite, moureze_orientations_lite, moureze_kriging):
-    """Here we need to test all the different methods"""
-    cov_matrix = test_covariance_matrix(
-        moureze_sp_lite,
-        moureze_orientations_lite,
-        moureze_kriging
-    )
-
-    b = test_b_scalar_assembly(moureze_orientations_lite, cov_matrix.shape[0])
-
-    s = solver(cov_matrix, b)
-    print(s)
-
-
-@pytest.mark.skip
-def test_solver(moureze_sp, moureze_orientations, moureze_kriging):
-    """Here we need to test all the different methods"""
-    cov_matrix = test_covariance_matrix(
-        moureze_sp,
-        moureze_orientations,
-        moureze_kriging
-    )
-
-    b = test_b_scalar_assembly(moureze_orientations, cov_matrix.shape[0])
-
-    s = solver(cov_matrix, b)
-    print(s)
-
-
-@pytest.mark.skip
-def test_solver_heavy(moureze_sp, moureze_orientations_heavy, moureze_kriging):
-    #my_devices = tf.config.experimental.list_physical_devices(device_type='CPU')
-    #tf.config.experimental.set_visible_devices(devices=my_devices, device_type='CPU')
-    tf.debugging.set_log_device_placement(True)
-    # with tf.device('/device:GPU:0'):
-    tf.profiler.experimental.start('logdir')
-    for step in range(1):
-        with tf.profiler.experimental.Trace('train', step_num=step, _r=1):
-            """Here we need to test all the different methods"""
-            cov_matrix = test_covariance_matrix(
-                moureze_sp,
-                moureze_orientations_heavy,
-                moureze_kriging
-            )
-
-            b = test_b_scalar_assembly(moureze_orientations_heavy, cov_matrix.shape[0])
-
-            s = solver(cov_matrix, b)
-        tf.profiler.experimental.stop()
-
-    print(s)

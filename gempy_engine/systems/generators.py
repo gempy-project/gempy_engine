@@ -45,7 +45,7 @@ def get_ref_rest(sp_input: SurfacePointsInput,
 
     # reference point: every first point of each layer
     ref_positions = tfnp.cumsum(
-        tfnp.concat([[0], number_of_points_per_surface[:-1] + 1], axis=0)
+        tfnp.concat([np.array([0]), number_of_points_per_surface[:-1] + 1], axis=0)
     )
 
     if tensorflow_imported:

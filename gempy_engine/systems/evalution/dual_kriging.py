@@ -45,7 +45,8 @@ def export(sp_internals: SurfacePointsInternals,
     return z_0, dz_dx
 
 
-def export_scalar(ei: ExportInput, hu_x0, drift, kernel_1st, interpolation_options,
+def export_scalar(ei: ExportInput, hu_x0, drift, kernel_1st,
+                  interpolation_options,
                   ):
 
     a = interpolation_options.range
@@ -93,8 +94,8 @@ def export_gradients(ei: ExportInput, hu, hv, hu_ref, hu_rest, drift_g,
 
     # ===
     # Euclidian distances
-    k_p_ref = kernel_1st(r_ref_x0)
-    k_p_rest = kernel_1st(r_rest_x0)
+    k_p_ref = kernel_1st(r_ref_x0, a)
+    k_p_rest = kernel_1st(r_rest_x0, a)
 
     sigma_0_sp_grad = hu_rest * k_p_rest - hu_ref * k_p_ref
 

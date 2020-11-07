@@ -1,8 +1,18 @@
+from dataclasses import dataclass
+
 import numpy as np
 from typing import Union
 
 use_tf = False  # Whether using TensorFlow or numpy
+use_jax = True
+
 use_pykeops = False # Whether using pykeops for reduction
+
+try:
+    import jax.numpy as jnp
+    jax_imported = use_jax
+except ImportError:
+    jax_imported = False
 
 try:
     import tensorflow as tf
@@ -27,13 +37,44 @@ except ImportError:
 #    name of the function
 # 3) signature and args are different -> We need an if statement
 
-# Case 1)
-tfnp = tf if tensorflow_imported else np
-tensor_types = Union[np.ndarray, tf.Tensor, tf.Variable]
-
-# Case 2)
-if tensorflow_imported is False:
+if use_jax is True:
+    tfnp = jnp
     tfnp.reduce_sum = tfnp.sum
     tfnp.concat = tfnp.concatenate
     tfnp.constant = tfnp.array
+elif use_tf is True:
+    tfnp = tf
+else:
+    tfnp = np
+    tfnp.reduce_sum = tfnp.sum
+    tfnp.concat = tfnp.concatenate
+    tfnp.constant = tfnp.array
+
+
+# @dataclass
+# class GemPyTensor:
+#     use_tf = False  # Whether using TensorFlow or numpy
+#     use_pykeops = False  # Whether using pykeops for reduction
+#     use_jax = False
+#
+#     @property
+#     def tfnp(self):
+#         if self.use_jax is True:
+#             tfnp = jnp
+#             tfnp.reduce_sum = tfnp.sum
+#             tfnp.concat = tfnp.concatenate
+#             tfnp.constant = tfnp.array
+#         elif self.use_tf is True:
+#             tfnp = tf
+#         else:
+#             tfnp = np
+#             tfnp.reduce_sum = tfnp.sum
+#             tfnp.concat = tfnp.concatenate
+#             tfnp.constant = tfnp.array
+#         return tfnp
+
+
+# gempy_tensor = GemPyTensor()
+
+tensor_types = Union[np.ndarray, tf.Tensor, tf.Variable]
 

@@ -14,7 +14,7 @@ def grid():
     g = np.vstack((xv.ravel(), yv.ravel())).T
     return g
 
-
+# All these test are old!
 def test_export_scalar(simple_model, grid):
     from gempy_engine.systems.kernel.kernel_functions import cubic_function_p_div_r
     kernel = cubic_function_p_div_r

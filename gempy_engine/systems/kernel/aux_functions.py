@@ -268,5 +268,4 @@ def b_scalar_assembly(grad: Union[OrientationsInternals, OrientationsGradients],
                     -1)
     g = tfnp.expand_dims(g, axis=1)
     b_vector = g
-    #b_vector = tf.pad(g, [[0, cov_size - g.shape[0]], [0, 0]])
     return b_vector
