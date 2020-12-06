@@ -1,8 +1,49 @@
 import pandas as pd
+import numpy as np
 import pytest
 
+from gempy_engine.data_structures.private_structures import SurfacePointsInternals, OrientationsInternals
+from gempy_engine.data_structures.public_structures import SurfacePointsInput, InterpolationOptions, OrientationsInput
+from gempy_engine.systems.generators import get_ref_rest, tile_dip_positions
 
-@pytest.fixture(scope='package')
+
+@pytest.fixture(scope='session')
+def simple_model():
+    spi = SurfacePointsInternals(
+        ref_surface_points=np.array(
+            [[4, 0],
+             [4, 0],
+             [4, 0],
+             [3, 3],
+             [3, 3]]),
+        rest_surface_points=np.array([[0, 0],
+                                      [2, 0],
+                                      [3, 0],
+                                      [0, 2],
+                                      [2, 2]]),
+        nugget_effect_ref_rest=0
+    )
+
+    ori_i = OrientationsInput(
+        dip_positions=np.array([[0, 6],
+                                [2, 13]]),
+        nugget_effect_grad=0.0000001
+    )
+    dip_tiled = tile_dip_positions(ori_i.dip_positions, 2)
+    ori_int = OrientationsInternals(
+        dip_tiled,
+        gx_tiled=np.zeros(2),
+        gy_tiled=np.ones(2),
+        gz_tiled=np.ones(0),
+        ori_input=ori_i
+    )
+    kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
+                               number_dimensions=2)
+
+    return spi, ori_int, kri
+
+
+@pytest.fixture(scope='session')
 def moureze():
     # %%
     # Loading surface points from repository:
@@ -37,3 +78,51 @@ def moureze():
     sp['smooth'] = 1e4
 
     return sp, orientations
+
+@pytest.fixture(scope='session')
+def moureze_sp(moureze):
+    sp, ori = moureze
+    sp_t = SurfacePointsInput(sp[['X', 'Y', 'Z']].values,
+                              sp['smooth'].values)
+    return sp_t
+
+@pytest.fixture(scope='session')
+def moureze_kriging():
+    return InterpolationOptions(10000, 1000)
+
+
+@pytest.fixture(scope='session')
+def moureze_orientations_heavy(moureze):
+    _, ori = moureze
+    n = 2
+    ori_poss = ori[['X', 'Y', 'Z']].values,
+    ori_pos = ori_poss[0]
+    ori_grad = ori[['G_x', 'G_y', 'G_z']].values
+
+    for i in range(n):
+        ori_pos = np.vstack([ori_pos, ori_pos + np.array([i * 100, i * 100, i * 100])])
+        ori_grad = np.vstack([ori_grad, ori_grad])
+
+    ori_t = OrientationsInput(ori_pos,
+                              dip_gradients=ori_grad)
+
+    return ori_t
+
+
+@pytest.fixture(scope='session')
+def moureze_internals(moureze_sp, moureze_orientations_heavy, moureze_kriging):
+    moureze_sp.sp_positions /= 1000
+
+    args = get_ref_rest(
+        moureze_sp,
+        np.array([10, 50, moureze_sp.sp_positions.shape[0] - 60 - 3],
+                 dtype='int32'))
+    sp_int = SurfacePointsInternals(*args)
+
+    args = tile_dip_positions(moureze_orientations_heavy.dip_positions/1000, 3)
+    ori_int = OrientationsInternals(args)
+    opts = moureze_kriging
+    opts.range = 10
+    opts.c_o = 1
+    opts.number_dimensions = 3
+    return sp_int, ori_int, opts

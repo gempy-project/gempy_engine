@@ -1,16 +1,20 @@
+import pytest
 from pykeops.numpy import LazyTensor, Genred, Vi, Vj, Pm
 import numpy as np
 from pykeops.numpy.utils import IsGpuAvailable
 
 
-
+@pytest.mark.skip('Only trigger manually when there is something wrong with'
+                  'pykeops compilation')
 def test_keops_run():
     import pykeops
     pykeops.verbose = True
 
-    pykeops.clean_pykeops()          # just in case old build files are still present
+    pykeops.clean_pykeops()  # just in case old build files are still present
     pykeops.test_numpy_bindings()
 
+
+@pytest.mark.skip('DEP test')
 def test_pykeops_wrong():
     layer1 = np.array([[0, 0], [2, 0]])
     layer2 = np.array([[0, 2], [2, 2]])
@@ -21,15 +25,15 @@ def test_pykeops_wrong():
     number_of_layer = 2
     number_of_points_per_surface = np.array([layer1.shape[0], layer2.shape[0]])
 
-
-
     def set_rest_ref_matrix(number_of_points_per_surface):
         ref_layer_points = np.repeat(np.stack([layer1[-1], layer2[-1]], axis=0),
-                                     repeats=number_of_points_per_surface - 1, axis=0)
+                                     repeats=number_of_points_per_surface - 1,
+                                     axis=0)
         rest_layer_points = np.concatenate([layer1[0:-1], layer2[0:-1]], axis=0)
         return ref_layer_points, rest_layer_points
 
-    ref_layer_points, rest_layer_points = set_rest_ref_matrix(number_of_points_per_surface)
+    ref_layer_points, rest_layer_points = set_rest_ref_matrix(
+        number_of_points_per_surface)
     ## defining the dips position
     G_1 = np.array([[0., 6.], [2., 13.]])
 
@@ -83,51 +87,50 @@ def test_pykeops_wrong():
 
     # ==================================
 
-    #x_i = Vi(0, 2)
-    #x_j = Vj(1, 2)
+    # x_i = Vi(0, 2)
+    # x_j = Vj(1, 2)
     x_iref = Vi(0, 2)
     x_jref = Vj(1, 2)
 
-    z_i = Vi(2, 1) # Used for selecting hu1
-    z_i2 = Vi(3, 1) # Used for selecting hu2
-    z_j = Vj(4, 1) # Used for selecting hv1
-    z_j2 = Vj(5, 1) # Used for selecting hv2
-    #p_cg_i = Vi(6,1)
-    #p_cg_j= Vj(7,1)
-    nugget = Pm(8,1) # Avoid a/0
-    f1g = Pm(9,1)
+    z_i = Vi(2, 1)  # Used for selecting hu1
+    z_i2 = Vi(3, 1)  # Used for selecting hu2
+    z_j = Vj(4, 1)  # Used for selecting hv1
+    z_j2 = Vj(5, 1)  # Used for selecting hv2
+    # p_cg_i = Vi(6,1)
+    # p_cg_j= Vj(7,1)
+    nugget = Pm(8, 1)  # Avoid a/0
+    f1g = Pm(9, 1)
     f2g = Pm(10, 1)
     f3g = Pm(11, 1)
-    p_i = Vi(12,2) # Select matrix
-    p_j2 = Vj(13, 2) # Select matrix
-    c_o = Pm(14,1)
-    range_ = Pm(15,1)
+    p_i = Vi(12, 2)  # Select matrix
+    p_j2 = Vj(13, 2)  # Select matrix
+    c_o = Pm(14, 1)
+    range_ = Pm(15, 1)
 
     # ===============
 
     x_irest = Vi(16, 2)
     x_jrest = Vj(17, 2)
-    i_res = Pm(18,1)
-    f1i = Pm(19,1)
+    i_res = Pm(18, 1)
+    f1i = Pm(19, 1)
     f2i = Pm(20, 1)
     f3i = Pm(21, 1)
     # x_idip = Vi(0, 2)
     # x_jref = Vj(1, 2)
     # x_jrest = Vj(2, 2)
-    #z_i = Vi(3, 1)
-    #z_i2 = Vi(4, 1)
+    # z_i = Vi(3, 1)
+    # z_i2 = Vi(4, 1)
 
     # ===============
 
-    gi_res = Pm(22,1)
-    f1gi = Pm(23,1)
-    f2gi = Pm(6,1)
-    f3gi = Pm(7,1)
-    #p_cg_i = Vi(24,1)
-    #p_cg_j= Vj(25,1)
-    #p_cgi_i = Vi(26, 2)
-    #p_cgi_j = Vj(27, 2)
-
+    gi_res = Pm(22, 1)
+    f1gi = Pm(23, 1)
+    f2gi = Pm(6, 1)
+    f3gi = Pm(7, 1)
+    # p_cg_i = Vi(24,1)
+    # p_cg_j= Vj(25,1)
+    # p_cgi_i = Vi(26, 2)
+    # p_cgi_j = Vj(27, 2)
 
     sed_ref_ref = x_iref.sqdist(x_jref).sqrt()
     sed_rest_rest = x_irest.sqdist(x_jrest).sqrt()
@@ -147,52 +150,53 @@ def test_pykeops_wrong():
 
     # perp_cg_m = p_cg_i * p_cg_j
 
-    #hu1 = huke[0] * z_i
-    #hv1 = - huke[0] * z_j
-    #hu1.ranges = ranges_ij0
-    #hu2 = huke[1] * z_i2
-    #hv2 = - huke[1] * z_j2
-    #hu2.ranges = ranges_ij1
+    # hu1 = huke[0] * z_i
+    # hv1 = - huke[0] * z_j
+    # hu1.ranges = ranges_ij0
+    # hu2 = huke[1] * z_i2
+    # hv2 = - huke[1] * z_j2
+    # hu2.ranges = ranges_ij1
 
-    #hu = hu1+hu2
-    #hv = hv1+hv2
-    t1 = (hu_dip*hv_dip)/(sed_ref_ref**2+nugget)
+    # hu = hu1+hu2
+    # hv = hv1+hv2
+    t1 = (hu_dip * hv_dip) / (sed_ref_ref ** 2 + nugget)
 
-    t2 =  (-c_o * ((-14 / range_ ** 2) + f1g * sed_ref_ref / range_ ** 3 -
-                                    f2g * sed_ref_ref ** 3 / range_ ** 5 +
-                                    f3g * sed_ref_ref ** 5 / range_ ** 7)
-                    ) + (
-                            c_o * 7 * (9 * sed_ref_ref ** 5 - 20 * range_ ** 2 * sed_ref_ref ** 3 +
-                                       15 * range_ ** 4 * sed_ref_ref - 4 * range_ ** 5) / (2 * range_ ** 7))
+    t2 = (-c_o * ((-14 / range_ ** 2) + f1g * sed_ref_ref / range_ ** 3 -
+                  f2g * sed_ref_ref ** 3 / range_ ** 5 +
+                  f3g * sed_ref_ref ** 5 / range_ ** 7)
+          ) + (
+                 c_o * 7 * (
+                     9 * sed_ref_ref ** 5 - 20 * range_ ** 2 * sed_ref_ref ** 3 +
+                     15 * range_ ** 4 * sed_ref_ref - 4 * range_ ** 5) / (
+                             2 * range_ ** 7))
 
-    t3 = (p_i * p_j2).sum(-1) * c_o * ((-14 / range_ ** 2) + f1g * sed_ref_ref / range_ ** 3 -
-                 f2g * sed_ref_ref ** 3 / range_ ** 5 + f3g * sed_ref_ref ** 5 / range_ ** 7)
+    t3 = (p_i * p_j2).sum(-1) * c_o * (
+                (-14 / range_ ** 2) + f1g * sed_ref_ref / range_ ** 3 -
+                f2g * sed_ref_ref ** 3 / range_ ** 5 + f3g * sed_ref_ref ** 5 / range_ ** 7)
 
-
-    cg = (t1*t2-t3)#*perp_cg_m
+    cg = (t1 * t2 - t3)  # *perp_cg_m
 
     ci = (c_o * i_res * (
-            # (sed_rest_rest < range) *  # Rest - Rest Covariances Matrix
-                (1 - 7 * (sed_rest_rest / range_) ** 2 +
-                 f1i * (sed_rest_rest / range_) ** 3 -
-                 f2i * (sed_rest_rest / range_) ** 5 +
-                 f3i * (sed_rest_rest / range_) ** 7) -
-                # ((sed_ref_rest < range) *  # Reference - Rest
-                ((1 - 7 * (sed_ref_rest / range_) ** 2 +
-                  f1i * (sed_ref_rest / range_) ** 3 -
-                  f2i * (sed_ref_rest / range_) ** 5 +
-                  f3i * (sed_ref_rest / range_) ** 7)) -
-                # ((sed_rest_ref < range) *  # Rest - Reference
-                ((1 - 7 * (sed_rest_ref / range_) ** 2 +
-                  f1i * (sed_rest_ref / range_) ** 3 -
-                  f2i * (sed_rest_ref / range_) ** 5 +
-                  f3i * (sed_rest_ref / range_) ** 7)) +
-                # ((sed_ref_ref < range) *  # Reference - References
-                ((1 - 7 * (sed_ref_ref / range_) ** 2 +
-                  f1i * (sed_ref_ref / range_) ** 3 -
-                  f2i * (sed_ref_ref / range_) ** 5 +
-                  f3i * (sed_ref_ref / range_) ** 7))))
-
+        # (sed_rest_rest < range) *  # Rest - Rest Covariances Matrix
+            (1 - 7 * (sed_rest_rest / range_) ** 2 +
+             f1i * (sed_rest_rest / range_) ** 3 -
+             f2i * (sed_rest_rest / range_) ** 5 +
+             f3i * (sed_rest_rest / range_) ** 7) -
+            # ((sed_ref_rest < range) *  # Reference - Rest
+            ((1 - 7 * (sed_ref_rest / range_) ** 2 +
+              f1i * (sed_ref_rest / range_) ** 3 -
+              f2i * (sed_ref_rest / range_) ** 5 +
+              f3i * (sed_ref_rest / range_) ** 7)) -
+            # ((sed_rest_ref < range) *  # Rest - Reference
+            ((1 - 7 * (sed_rest_ref / range_) ** 2 +
+              f1i * (sed_rest_ref / range_) ** 3 -
+              f2i * (sed_rest_ref / range_) ** 5 +
+              f3i * (sed_rest_ref / range_) ** 7)) +
+            # ((sed_ref_ref < range) *  # Reference - References
+            ((1 - 7 * (sed_ref_ref / range_) ** 2 +
+              f1i * (sed_ref_ref / range_) ** 3 -
+              f2i * (sed_ref_ref / range_) ** 5 +
+              f3i * (sed_ref_ref / range_) ** 7))))
 
     hu_ref = (hu_dip + hv_dip)
 
@@ -215,11 +219,6 @@ def test_pykeops_wrong():
     # hv_1 = hu_temp_ref[1] * z_j2
     # hv_dip = -(hv_0 + hv_1)
 
-
-
-
-
-
     # h_rest1 = hu_temp_rest[0] * (z_i + z_j)
     # h_rest2 = hu_temp_rest[1] * (z_i2 + z_j2)
     # hu_rest = h_rest1+h_rest2
@@ -230,19 +229,18 @@ def test_pykeops_wrong():
     # hu_ref2 = hu_temp_ref2[1] * (z_i2 + z_j2)
     # hu_ref = hu_ref1 + hu_ref2
 
-
-    #perp_cgi_ke = -1 * (p_cgi_i*p_cgi_j-1)
+    # perp_cgi_ke = -1 * (p_cgi_i*p_cgi_j-1)
 
     cgi = gi_res * (
-                (hu_rest *
-                 (- c_o * ((-14 / range_ ** 2) + f1gi * sed_rest_rest / range_ ** 3 -
-                           f2gi * sed_rest_rest ** 3 / range_ ** 5 +
-                           f3gi * sed_rest_rest ** 5 / range_ ** 7))) -
-                (hu_ref *
-                 (- c_o * ((-14 / range_ ** 2) + f1gi * sed_ref_ref / range_ ** 3 -
-                           f2gi * sed_ref_ref ** 3 / range_ ** 5 +
-                           f3gi * sed_ref_ref ** 5 / range_ ** 7)))
-        )
+            (hu_rest *
+             (- c_o * ((-14 / range_ ** 2) + f1gi * sed_rest_rest / range_ ** 3 -
+                       f2gi * sed_rest_rest ** 3 / range_ ** 5 +
+                       f3gi * sed_rest_rest ** 5 / range_ ** 7))) -
+            (hu_ref *
+             (- c_o * ((-14 / range_ ** 2) + f1gi * sed_ref_ref / range_ ** 3 -
+                       f2gi * sed_ref_ref ** 3 / range_ ** 5 +
+                       f3gi * sed_ref_ref ** 5 / range_ ** 7)))
+    )
 
     # foo = (- c_o * ((-14 / range_ ** 2) + f1gi
     #                 * sed_rest_rest / range_ ** 3 #-
@@ -255,7 +253,7 @@ def test_pykeops_wrong():
     #                        f2gi * sed_ref_ref ** 3 / range_ ** 5 +
     #                        f3gi * sed_ref_ref ** 5 / range_ ** 7))
 
-    cov = cg + ci + cgi#gi_res *  foo  - gi_res *  bar +  hu_ref + hu_rest# hu_rest # + hu_ref
+    cov = cg + ci + cgi  # gi_res *  foo  - gi_res *  bar +  hu_ref + hu_rest# hu_rest # + hu_ref
     # f = cov.sum_reduction(axis=0)
 
     b = Vi(24, 1)
@@ -263,32 +261,32 @@ def test_pykeops_wrong():
     f = cov.solve(b)
 
     s = f(dipsref, dipsref,
-      z, z2, z, z2,
-      # perp_cg, perp_cg,
-      np.ones((1, 1)) * 35 / 2,
-      np.ones((1, 1)) * 21 / 4,
-      np.ones((1, 1)) * 1e-3,
-      np.ones((1, 1)) * 105 / 4,
-      np.ones((1, 1)) * 35 / 2,
-      np.ones((1, 1)) * 21 / 4,
-      perp_m, perp_m,
-      np.ones((1, 1)) * c_o_T,
-      np.ones((1, 1)) * a_T,
-      dipsrest, dipsrest,
-      np.ones((1, 1)) * 1,
-      np.ones((1, 1)) * 35 / 4,
-      np.ones((1, 1)) * 7 / 2,
-      np.ones((1, 1)) * 3 / 4,
-      np.ones((1, 1)) * 1,
-      np.ones((1, 1)) * 105 / 4,
+          z, z2, z, z2,
+          # perp_cg, perp_cg,
+          np.ones((1, 1)) * 35 / 2,
+          np.ones((1, 1)) * 21 / 4,
+          np.ones((1, 1)) * 1e-3,
+          np.ones((1, 1)) * 105 / 4,
+          np.ones((1, 1)) * 35 / 2,
+          np.ones((1, 1)) * 21 / 4,
+          perp_m, perp_m,
+          np.ones((1, 1)) * c_o_T,
+          np.ones((1, 1)) * a_T,
+          dipsrest, dipsrest,
+          np.ones((1, 1)) * 1,
+          np.ones((1, 1)) * 35 / 4,
+          np.ones((1, 1)) * 7 / 2,
+          np.ones((1, 1)) * 3 / 4,
+          np.ones((1, 1)) * 1,
+          np.ones((1, 1)) * 105 / 4,
 
-     # perp_cgi, perp_cgi
-      )
+          # perp_cgi, perp_cgi
+          )
 
     print(s)
 
 
-
+@pytest.mark.skip('DEP test')
 def test_pykeops():
     layer1 = np.array([[0, 0], [2, 0]])
     layer2 = np.array([[0, 2], [2, 2]])
@@ -299,15 +297,15 @@ def test_pykeops():
     number_of_layer = 2
     number_of_points_per_surface = np.array([layer1.shape[0], layer2.shape[0]])
 
-
-
     def set_rest_ref_matrix(number_of_points_per_surface):
         ref_layer_points = np.repeat(np.stack([layer1[-1], layer2[-1]], axis=0),
-                                     repeats=number_of_points_per_surface - 1, axis=0)
+                                     repeats=number_of_points_per_surface - 1,
+                                     axis=0)
         rest_layer_points = np.concatenate([layer1[0:-1], layer2[0:-1]], axis=0)
         return ref_layer_points, rest_layer_points
 
-    ref_layer_points, rest_layer_points = set_rest_ref_matrix(number_of_points_per_surface)
+    ref_layer_points, rest_layer_points = set_rest_ref_matrix(
+        number_of_points_per_surface)
     ## defining the dips position
     G_1 = np.array([[0., 6.], [2., 13.]])
 
@@ -361,25 +359,25 @@ def test_pykeops():
 
     # ==================================
 
-    #x_i = Vi(0, 2)
-    #x_j = Vj(1, 2)
+    # x_i = Vi(0, 2)
+    # x_j = Vj(1, 2)
     x_iref = Vi(dipsref)
     x_jref = Vj(dipsref)
 
-    z_i = Vi(z) # Used for selecting hu1
-    z_i2 = Vi(z2) # Used for selecting hu2
-    z_j = Vj(z) # Used for selecting hv1
-    z_j2 = Vj(z2) # Used for selecting hv2
-    #p_cg_i = Vi(6,1)
-    #p_cg_j= Vj(7,1)
-    nugget = Pm(np.ones((1, 1)) * 1e-3) # Avoid a/0
+    z_i = Vi(z)  # Used for selecting hu1
+    z_i2 = Vi(z2)  # Used for selecting hu2
+    z_j = Vj(z)  # Used for selecting hv1
+    z_j2 = Vj(z2)  # Used for selecting hv2
+    # p_cg_i = Vi(6,1)
+    # p_cg_j= Vj(7,1)
+    nugget = Pm(np.ones((1, 1)) * 1e-3)  # Avoid a/0
     f1g = Pm(np.ones((1, 1)) * 105 / 4)
     f2g = Pm(np.ones((1, 1)) * 35 / 2)
     f3g = Pm(np.ones((1, 1)) * 21 / 4)
-    p_i = Vi(perp_m) # Select matrix
-    p_j2 = Vj(perp_m) # Select matrix
+    p_i = Vi(perp_m)  # Select matrix
+    p_j2 = Vj(perp_m)  # Select matrix
     c_o = Pm(np.ones((1, 1)) * c_o_T)
-    range_ = Pm(np.ones((1, 1)) * a_T,)
+    range_ = Pm(np.ones((1, 1)) * a_T, )
 
     # ===============
 
@@ -392,8 +390,8 @@ def test_pykeops():
     # x_idip = Vi(0, 2)
     # x_jref = Vj(1, 2)
     # x_jrest = Vj(2, 2)
-    #z_i = Vi(3, 1)
-    #z_i2 = Vi(4, 1)
+    # z_i = Vi(3, 1)
+    # z_i2 = Vi(4, 1)
 
     # ===============
 
@@ -405,7 +403,6 @@ def test_pykeops():
     p_cg_j = Vj(perp_cg)
     p_cgi_i = Vi(perp_cgi)
     p_cgi_j = Vj(perp_cgi)
-
 
     sed_ref_ref = x_iref.sqdist(x_jref).sqrt()
     sed_rest_rest = x_irest.sqdist(x_jrest).sqrt()
@@ -425,52 +422,53 @@ def test_pykeops():
 
     perp_cg_m = p_cg_i * p_cg_j
 
-    #hu1 = huke[0] * z_i
-    #hv1 = - huke[0] * z_j
-    #hu1.ranges = ranges_ij0
-    #hu2 = huke[1] * z_i2
-    #hv2 = - huke[1] * z_j2
-    #hu2.ranges = ranges_ij1
+    # hu1 = huke[0] * z_i
+    # hv1 = - huke[0] * z_j
+    # hu1.ranges = ranges_ij0
+    # hu2 = huke[1] * z_i2
+    # hv2 = - huke[1] * z_j2
+    # hu2.ranges = ranges_ij1
 
-    #hu = hu1+hu2
-    #hv = hv1+hv2
-    t1 = (hu_dip*hv_dip)/(sed_ref_ref**2+nugget)
+    # hu = hu1+hu2
+    # hv = hv1+hv2
+    t1 = (hu_dip * hv_dip) / (sed_ref_ref ** 2 + nugget)
 
-    t2 =  (-c_o * ((-14 / range_ ** 2) + f1g * sed_ref_ref / range_ ** 3 -
-                                    f2g * sed_ref_ref ** 3 / range_ ** 5 +
-                                    f3g * sed_ref_ref ** 5 / range_ ** 7)
-                    ) + (
-                            c_o * 7 * (9 * sed_ref_ref ** 5 - 20 * range_ ** 2 * sed_ref_ref ** 3 +
-                                       15 * range_ ** 4 * sed_ref_ref - 4 * range_ ** 5) / (2 * range_ ** 7))
+    t2 = (-c_o * ((-14 / range_ ** 2) + f1g * sed_ref_ref / range_ ** 3 -
+                  f2g * sed_ref_ref ** 3 / range_ ** 5 +
+                  f3g * sed_ref_ref ** 5 / range_ ** 7)
+          ) + (
+                 c_o * 7 * (
+                     9 * sed_ref_ref ** 5 - 20 * range_ ** 2 * sed_ref_ref ** 3 +
+                     15 * range_ ** 4 * sed_ref_ref - 4 * range_ ** 5) / (
+                             2 * range_ ** 7))
 
-    t3 = (p_i * p_j2).sum(-1) * c_o * ((-14 / range_ ** 2) + f1g * sed_ref_ref / range_ ** 3 -
-                 f2g * sed_ref_ref ** 3 / range_ ** 5 + f3g * sed_ref_ref ** 5 / range_ ** 7)
+    t3 = (p_i * p_j2).sum(-1) * c_o * (
+                (-14 / range_ ** 2) + f1g * sed_ref_ref / range_ ** 3 -
+                f2g * sed_ref_ref ** 3 / range_ ** 5 + f3g * sed_ref_ref ** 5 / range_ ** 7)
 
-
-    cg = (t1*t2-t3)*perp_cg_m
+    cg = (t1 * t2 - t3) * perp_cg_m
 
     ci = (c_o * i_res * (
-            # (sed_rest_rest < range) *  # Rest - Rest Covariances Matrix
-                (1 - 7 * (sed_rest_rest / range_) ** 2 +
-                 f1i * (sed_rest_rest / range_) ** 3 -
-                 f2i * (sed_rest_rest / range_) ** 5 +
-                 f3i * (sed_rest_rest / range_) ** 7) -
-                # ((sed_ref_rest < range) *  # Reference - Rest
-                ((1 - 7 * (sed_ref_rest / range_) ** 2 +
-                  f1i * (sed_ref_rest / range_) ** 3 -
-                  f2i * (sed_ref_rest / range_) ** 5 +
-                  f3i * (sed_ref_rest / range_) ** 7)) -
-                # ((sed_rest_ref < range) *  # Rest - Reference
-                ((1 - 7 * (sed_rest_ref / range_) ** 2 +
-                  f1i * (sed_rest_ref / range_) ** 3 -
-                  f2i * (sed_rest_ref / range_) ** 5 +
-                  f3i * (sed_rest_ref / range_) ** 7)) +
-                # ((sed_ref_ref < range) *  # Reference - References
-                ((1 - 7 * (sed_ref_ref / range_) ** 2 +
-                  f1i * (sed_ref_ref / range_) ** 3 -
-                  f2i * (sed_ref_ref / range_) ** 5 +
-                  f3i * (sed_ref_ref / range_) ** 7))))
-
+        # (sed_rest_rest < range) *  # Rest - Rest Covariances Matrix
+            (1 - 7 * (sed_rest_rest / range_) ** 2 +
+             f1i * (sed_rest_rest / range_) ** 3 -
+             f2i * (sed_rest_rest / range_) ** 5 +
+             f3i * (sed_rest_rest / range_) ** 7) -
+            # ((sed_ref_rest < range) *  # Reference - Rest
+            ((1 - 7 * (sed_ref_rest / range_) ** 2 +
+              f1i * (sed_ref_rest / range_) ** 3 -
+              f2i * (sed_ref_rest / range_) ** 5 +
+              f3i * (sed_ref_rest / range_) ** 7)) -
+            # ((sed_rest_ref < range) *  # Rest - Reference
+            ((1 - 7 * (sed_rest_ref / range_) ** 2 +
+              f1i * (sed_rest_ref / range_) ** 3 -
+              f2i * (sed_rest_ref / range_) ** 5 +
+              f3i * (sed_rest_ref / range_) ** 7)) +
+            # ((sed_ref_ref < range) *  # Reference - References
+            ((1 - 7 * (sed_ref_ref / range_) ** 2 +
+              f1i * (sed_ref_ref / range_) ** 3 -
+              f2i * (sed_ref_ref / range_) ** 5 +
+              f3i * (sed_ref_ref / range_) ** 7))))
 
     hu_ref = (hu_dip + hv_dip)
 
@@ -493,11 +491,6 @@ def test_pykeops():
     # hv_1 = hu_temp_ref[1] * z_j2
     # hv_dip = -(hv_0 + hv_1)
 
-
-
-
-
-
     # h_rest1 = hu_temp_rest[0] * (z_i + z_j)
     # h_rest2 = hu_temp_rest[1] * (z_i2 + z_j2)
     # hu_rest = h_rest1+h_rest2
@@ -508,19 +501,18 @@ def test_pykeops():
     # hu_ref2 = hu_temp_ref2[1] * (z_i2 + z_j2)
     # hu_ref = hu_ref1 + hu_ref2
 
-
-    #perp_cgi_ke = -1 * (p_cgi_i*p_cgi_j-1)
+    # perp_cgi_ke = -1 * (p_cgi_i*p_cgi_j-1)
 
     cgi = gi_res * (
-                (hu_rest *
-                 (- c_o * ((-14 / range_ ** 2) + f1gi * sed_rest_rest / range_ ** 3 -
-                           f2gi * sed_rest_rest ** 3 / range_ ** 5 +
-                           f3gi * sed_rest_rest ** 5 / range_ ** 7))) -
-                (hu_ref *
-                 (- c_o * ((-14 / range_ ** 2) + f1gi * sed_ref_ref / range_ ** 3 -
-                           f2gi * sed_ref_ref ** 3 / range_ ** 5 +
-                           f3gi * sed_ref_ref ** 5 / range_ ** 7)))
-        )
+            (hu_rest *
+             (- c_o * ((-14 / range_ ** 2) + f1gi * sed_rest_rest / range_ ** 3 -
+                       f2gi * sed_rest_rest ** 3 / range_ ** 5 +
+                       f3gi * sed_rest_rest ** 5 / range_ ** 7))) -
+            (hu_ref *
+             (- c_o * ((-14 / range_ ** 2) + f1gi * sed_ref_ref / range_ ** 3 -
+                       f2gi * sed_ref_ref ** 3 / range_ ** 5 +
+                       f3gi * sed_ref_ref ** 5 / range_ ** 7)))
+    )
 
     # foo = (- c_o * ((-14 / range_ ** 2) + f1gi
     #                 * sed_rest_rest / range_ ** 3 #-
@@ -533,13 +525,13 @@ def test_pykeops():
     #                        f2gi * sed_ref_ref ** 3 / range_ ** 5 +
     #                        f3gi * sed_ref_ref ** 5 / range_ ** 7))
 
-    cov = cg + ci + cgi#gi_res *  foo  - gi_res *  bar +  hu_ref + hu_rest# hu_rest # + hu_ref
+    cov = cg + ci + cgi  # gi_res *  foo  - gi_res *  bar +  hu_ref + hu_rest# hu_rest # + hu_ref
     # f = cov.sum_reduction(axis=0)
 
     b = Vi(24, 1)
 
     s = cov.sum_reduction(axis=0)
-    #f = cov.solve(b)
+    # f = cov.solve(b)
 
     # s = f(dipsref, dipsref,
     #   z, z2, z, z2,
