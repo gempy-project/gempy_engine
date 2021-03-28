@@ -12,6 +12,9 @@ class SurfacePoints:
         if type(self.nugget_effect_scalar) is float or type(self.nugget_effect_scalar) is int:
             self.nugget_effect_scalar = np.ones(self.n_points) * self.nugget_effect_scalar
 
+    def __hash__(self):
+        return hash(5)
+
     @property
     def n_points(self):
         return self.sp_coords.shape[0]

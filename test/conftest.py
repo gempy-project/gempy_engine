@@ -61,7 +61,9 @@ def simple_model_2():
 
     kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
                                number_dimensions=2)
-    tensor_structure = TensorsStructure(np.array([3, 2]), None, None, None, None)
+
+    _ = np.ones(3)
+    tensor_structure = TensorsStructure(np.array([3, 2]), _, _, _, _)
 
     return spi, ori_i, kri, tensor_structure
 

@@ -1,6 +1,6 @@
 import dataclasses
 
-from gempy_engine.config import BackendConf
+from gempy_engine.config import BackendTensor
 from gempy_engine.core.data.data_shape import TensorsStructure
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
@@ -9,7 +9,7 @@ from gempy_engine.modules.covariance._covariance_assembler import create_covaria
 from gempy_engine.modules.covariance._input_preparation import orientations_preprocess, surface_points_preprocess
 from gempy_engine.modules.covariance._vectors_preparation import _vectors_preparation
 
-tensor_types = BackendConf.tensor_types
+tensor_types = BackendTensor.tensor_types
 
 def yield_covariance(surface_points: SurfacePoints, orientations: Orientations,
                      options: InterpolationOptions, data_shape: TensorsStructure)->tensor_types:

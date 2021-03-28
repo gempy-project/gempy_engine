@@ -1,3 +1,1 @@
-python==3.8 # Tensorflow does no support 3.9
-
 numpy

@@ -1,4 +1,4 @@
-from gempy_engine.config import BackendConf, AvailableBackends
+from gempy_engine.config import BackendTensor, AvailableBackends
 from gempy_engine.core.data.options import InterpolationOptions
 from gempy_engine.modules.covariance._kernel_constructors import assembly_dips_surface_points_coord_matrix, hu_hv_sel, \
     input_ug, input_usp, drift_selector
@@ -26,7 +26,7 @@ def _vectors_preparation(sp_internals: SurfacePointsInternals, ori_internals: Or
     drift_selection= drift_selector(cov_size, interpolation_options.n_uni_eq)
 
     # Prepare Return
-    if BackendConf.engine_backend == AvailableBackends.numpy and BackendConf.pykeops_enabled:
+    if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
         _upgrade_kernel_input_to_keops_tensor(cartesian_selector, dips_ref_ui, dips_rest_ui, dips_ug, drift_selection,
                                               orientations_sp_matrices)
 

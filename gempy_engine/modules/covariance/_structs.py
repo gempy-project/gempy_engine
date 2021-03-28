@@ -2,10 +2,10 @@
 from dataclasses import dataclass
 import numpy as np
 
-from gempy_engine.config import BackendConf
+from gempy_engine.config import BackendTensor
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 
-tensor_types = BackendConf.tensor_types
+tensor_types = BackendTensor.tensor_types
 
 
 @dataclass

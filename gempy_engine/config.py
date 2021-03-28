@@ -2,11 +2,14 @@ from importlib.util import find_spec
 from enum import Enum, auto
 from typing import Union, List, Any
 
-
 class AvailableBackends(Enum):
     numpy = auto()
     tensorflow = auto()
     jax = auto()
+
+DEBUG_MODE = True
+DEFAULT_BACKEND = AvailableBackends.numpy
+
 
 
 # Choose the backend:
@@ -18,14 +21,24 @@ is_jax_installed = find_spec("jax") is not None
 is_pykeops_installed = find_spec("pykeops") is not None
 
 
-class BackendConf():
+class BackendTensor():
     engine_backend: AvailableBackends
+
     pykeops_enabled: bool
-    tensor_types: List
-    tfnp: Any # Pycharm will infer the type. It is the best I got so far
+    use_gpu: bool = True
+
+    tensor_types: Union
+    tensor_backend_pointer: dict = dict() # Pycharm will infer the type. It is the best I got so far
+    tfnp: Any # Alias for the tensor backend pointer
+    _: Any # Alias for the tensor backend pointer
+    t: Any # Alias for the tensor backend pointer
 
     @classmethod
-    def change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled:bool = False):
+    def change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled:bool = False, use_gpu: bool = True):
+
+        cls.use_gpu = use_gpu
+
+        print(f"Setting Backend To: {engine_backend}")
 
         if pykeops_enabled and is_pykeops_installed and is_numpy_installed:
             cls.pykeops_enabled = True
@@ -37,7 +50,7 @@ class BackendConf():
             tfnp.constant = tfnp.array
 
             cls.engine_backend = engine_backend
-            cls.tfnp = tfnp
+            cls.tensor_backend_pointer['active_backend'] = tfnp
             cls.tensor_types = Union[tfnp.ndarray]  # tens
 
         else:
@@ -49,16 +62,23 @@ class BackendConf():
                 tfnp.concat = tfnp.concatenate
                 tfnp.constant = tfnp.array
 
-                cls.engine_backend = engine_backend
-                cls.tfnp = tfnp
+                cls._set_active_backend_pointers(engine_backend, tfnp)
                 cls.tensor_types = Union[tfnp.ndarray]  # tensor Types with respect the backend:
 
             elif engine_backend is AvailableBackends.tensorflow and is_tensorflow_installed:
-                import tensorflow as  tfnp
+                import tensorflow as tf
 
-                cls.engine_backend = engine_backend
-                cls.tfnp = tfnp
-                cls.tensor_types = Union[tfnp.ndarray, tfnp.Tensor, tfnp.Variable]  # tensor Types with respect the backend:
+                if cls.use_gpu is False:
+                    physical_devices = tf.config.list_physical_devices('GPU')
+                    tf.config.set_visible_devices(physical_devices[1:], 'GPU')
+                    logical_devices = tf.config.list_logical_devices('GPU')
+
+                if DEBUG_MODE:
+                    # To find out which devices your operations and tensors are assigned to
+                    tf.debugging.set_log_device_placement(True) # TODO: Remove in production
+
+                cls._set_active_backend_pointers(engine_backend, tf)
+                cls.tensor_types = Union[tf.Tensor, tf.Variable]  # tensor Types with respect the backend:
 
             elif engine_backend is AvailableBackends.numpy and is_numpy_installed:
 
@@ -67,13 +87,22 @@ class BackendConf():
                 tfnp.concat = tfnp.concatenate
                 tfnp.constant = tfnp.array
 
-                cls.engine_backend = engine_backend
-                cls.tfnp = tfnp
+                cls._set_active_backend_pointers(engine_backend, tfnp)
                 cls.tensor_types = Union[tfnp.ndarray]  # tensor Types with respect the backend
 
             else:
                 raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library"
                                      f"is not installed:")
 
-BackendConf.change_backend(AvailableBackends.numpy)
+    @classmethod
+    def _set_active_backend_pointers(cls, engine_backend, tfnp):
+        cls.engine_backend = engine_backend
+        cls.tensor_backend_pointer['active_backend'] = tfnp
+        # Add any alias here
+        cls.tfnp = cls.tensor_backend_pointer['active_backend']
+        cls._ = cls.tensor_backend_pointer['active_backend']
+        cls.t = cls.tensor_backend_pointer['active_backend']
+
+
+BackendTensor.change_backend(DEFAULT_BACKEND)
 

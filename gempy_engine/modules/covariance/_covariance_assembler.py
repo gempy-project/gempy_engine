@@ -1,9 +1,9 @@
-from gempy_engine.config import BackendConf
+from gempy_engine.config import BackendTensor
 from gempy_engine.core.data.options import InterpolationOptions
 from gempy_engine.modules.covariance._structs import KernelInput
 
-tfnp = BackendConf.tfnp
-tensor_types = BackendConf.tensor_types
+tfnp = BackendTensor.tfnp
+tensor_types = BackendTensor.tensor_types
 
 def create_covariance(ki: KernelInput, options: InterpolationOptions) -> tensor_types:
     kernel_f = options.kernel_function
@@ -56,7 +56,7 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices):
     huv_rest = hu_rest.sum(axis=-1) - hv_rest.sum(axis=-1)  # C
 
     perp_matrix = (cs.hu_sel_i * cs.hv_sel_j).sum(axis=-1)
-    if BackendConf.pykeops_enabled is True:
+    if BackendTensor.pykeops_enabled is True:
         r_ref_ref = ((dif_ref_ref ** 2).sum(-1)).sqrt()
         r_rest_rest = ((dif_rest_rest ** 2).sum(-1)).sqrt()
         r_ref_rest = (((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2).sum(-1)).sqrt()

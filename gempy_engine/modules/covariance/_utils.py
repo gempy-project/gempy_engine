@@ -1,7 +1,7 @@
-from gempy_engine.config import BackendConf
+from gempy_engine.config import BackendTensor
 
-tfnp = BackendConf.tfnp
-tensor_types = BackendConf.tensor_types
+tfnp = BackendTensor.tfnp
+tensor_types = BackendTensor.tensor_types
 
 
 def squared_euclidean_distances(x_1: tensor_types,

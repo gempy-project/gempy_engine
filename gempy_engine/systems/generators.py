@@ -3,10 +3,10 @@ import numpy as np
 
 # TODO Check in the configuration script
 from gempy_engine.data_structures.public_structures import SurfacePointsInput
-from gempy_engine.config import BackendConf, AvailableBackends
+from gempy_engine.config import BackendConfig, AvailableBackends
 
-tfnp = BackendConf.tfnp
-tensor_types = BackendConf.tensor_types
+tfnp = BackendConfig.t
+tensor_types = BackendConfig.tensor_types
 
 # try:
 #     import tensorflow as tf
@@ -50,7 +50,7 @@ def get_ref_rest(sp_input: SurfacePointsInput,
         tfnp.concat([np.array([0]), number_of_points_per_surface[:-1] + 1], axis=0)
     )
 
-    if BackendConf.engine_backend is AvailableBackends.tensorflow:
+    if BackendConfig.engine_backend is AvailableBackends.tensorflow:
         one_hot_ = tfnp.one_hot(
             ref_positions, tfnp.reduce_sum(number_of_points_per_surface + 1),
             dtype=tfnp.int32

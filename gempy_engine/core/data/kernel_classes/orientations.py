@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from typing import Union
 
-from gempy_engine.config import BackendConf
+from gempy_engine.config import BackendTensor
 import numpy as np
 
-tensor_types = BackendConf.tensor_types
+tensor_types = BackendTensor.tensor_types
 
 
 @dataclass

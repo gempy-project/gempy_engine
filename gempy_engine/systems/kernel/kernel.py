@@ -5,13 +5,13 @@ import numpy as np
 from gempy_engine.data_structures.private_structures import SurfacePointsInternals, OrientationsInternals, KernelInput
 from gempy_engine.data_structures.public_structures import OrientationsInput, InterpolationOptions
 from gempy_engine.systems.generators import squared_euclidean_distances, tensor_transpose
-from gempy_engine.config import BackendConf
+from gempy_engine.config import BackendConfig
 from gempy_engine.systems.kernel.aux_functions import b_scalar_assembly
 
-from gempy_engine.config import BackendConf, AvailableBackends
+from gempy_engine.config import BackendConfig, AvailableBackends
 
-tfnp = BackendConf.tfnp
-tensor_types = BackendConf.tensor_types
+tfnp = BackendConfig.t
+tensor_types = BackendConfig.tensor_types
 
 
 def kernel_solver(sp_internals: SurfacePointsInternals,
@@ -56,7 +56,7 @@ def create_covariance(ki: KernelInput, a: float, c_o: float,
     hv = -(dif_ref_ref * (ki.hv_sel_i * ki.hv_sel_j)).sum(axis=-1)  # C
     perp_matrix = (ki.hu_sel_i * ki.hv_sel_j).sum(axis=-1)
 
-    if BackendConf.pykeops_enabled is True:
+    if BackendConfig.pykeops_enabled is True:
         r_ref_ref = ((dif_ref_ref ** 2).sum(-1)).sqrt()
         r_rest_rest = ((dif_rest_rest ** 2).sum(-1)).sqrt()
         r_ref_rest = (((ki.dip_ref_i - ki.diprest_j) ** 2).sum(-1)).sqrt()
@@ -99,15 +99,15 @@ def kernel_reduction(ki: KernelInput, b, range, c_o, kernel, kernel_1st,
                      kernel_2nd, smooth=.0001):
     cov = create_covariance(ki, range, c_o, kernel, kernel_1st, kernel_2nd)
 
-    if BackendConf.pykeops_enabled is True and BackendConf.engine_backend is not AvailableBackends.tensorflow:
+    if BackendConfig.pykeops_enabled is True and BackendConfig.engine_backend is not AvailableBackends.tensorflow:
         w = cov.solve(np.asarray(b).astype('float32'),
                       alpha=smooth,
                       dtype_acc='float32')
-    elif BackendConf.pykeops_enabled is True and BackendConf.engine_backend is AvailableBackends.tensorflow:
+    elif BackendConfig.pykeops_enabled is True and BackendConfig.engine_backend is AvailableBackends.tensorflow:
         w = cov.solve(b.numpy().astype('float32'), alpha=smooth, dtype_acc='float32')
-    elif BackendConf.pykeops_enabled is False and BackendConf.engine_backend is AvailableBackends.tensorflow:
+    elif BackendConfig.pykeops_enabled is False and BackendConfig.engine_backend is AvailableBackends.tensorflow:
         w = tfnp.linalg.solve(cov, b)
-    elif BackendConf.pykeops_enabled is False and BackendConf.engine_backend is not AvailableBackends.tensorflow:
+    elif BackendConfig.pykeops_enabled is False and BackendConfig.engine_backend is not AvailableBackends.tensorflow:
         w = tfnp.linalg.solve(cov, b[:, 0])
     else:
         raise AttributeError('There is a weird combination of libraries?')
@@ -183,7 +183,7 @@ def vectors_preparation(sp_internals: SurfacePointsInternals,
                 dips_uiref_bj1, dipsref_ui_bi2, dips_uiref_bj2, dipsrest_ui_ai,
                 dipsrest_ui_aj, dipsrest_ui_bi1, dips_uirest_bj1,
                 dipsrest_ui_bi2, dips_uirest_bj2, sel_ui, sel_uj, sel_vi, sel_vj]
-        if BackendConf.engine_backend is AvailableBackends.tensorflow:
+        if BackendConfig.engine_backend is AvailableBackends.tensorflow:
             # TODO: Possibly eventually I have to add i.numpy() to convert
             # the eager tensors to numpy
             ki_args = [LazyTensor(i.astype('float32')) for i in args]
