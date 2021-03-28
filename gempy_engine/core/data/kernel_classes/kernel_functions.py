@@ -1,3 +1,8 @@
+from dataclasses import dataclass
+from enum import Enum, auto
+
+from typing import Callable
+
 
 def cubic_function(r, a):
     c = (1 - 7 * (r / a) ** 2 +
@@ -32,3 +37,15 @@ def exp_function_p_div_r(r, a):
 def exp_function_a(r, a):
     return (-4 * r ** 2 + 2 * a ** 2) / a ** 4 * (-(r / a) ** 2).exp()
 #
+
+@dataclass
+class KernelFunction:
+    base_function: Callable
+    derivative_div_r: Callable
+    second_derivative: Callable
+
+
+
+class AvailableKernelFunctions(Enum):
+    cubic = KernelFunction(cubic_function, cubic_function_p_div_r, cubic_function_a)
+    exponential = KernelFunction(exp_function_a, exp_function_p_div_r, exp_function_a)

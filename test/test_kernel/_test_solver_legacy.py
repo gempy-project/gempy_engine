@@ -2,7 +2,7 @@ import pytest
 import tensorflow as tf
 from pandas import np
 
-from gempy_engine.config import use_tf
+from gempy_engine.config_ import use_tf
 from gempy_engine.data_structures.private_structures import SurfacePointsInternals, \
     OrientationsGradients, OrientationsInternals
 from gempy_engine.data_structures.public_structures import OrientationsInput, InterpolationOptions, SurfacePointsInput

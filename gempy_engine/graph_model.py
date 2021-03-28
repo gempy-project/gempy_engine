@@ -8,7 +8,7 @@ from gempy_engine.systems.kernel.kernel import kernel_solver
 from gempy_engine.systems.kernel.kernel_legacy import create_covariance_legacy, legacy_solver
 from gempy_engine.systems.reductions import solver
 from gempy_engine.systems.transformations import dip_to_gradients
-from gempy_engine.config import tfnp, tensorflow_imported, tensor_types
+from gempy_engine.config_ import tfnp, tensorflow_imported, tensor_types
 
 
 # def tile_dip_positions(dip_positions, n_dimensions):

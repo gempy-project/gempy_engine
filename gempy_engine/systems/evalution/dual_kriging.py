@@ -1,4 +1,4 @@
-from gempy_engine.config import tfnp, tensorflow_imported, tensor_types, pykeops_imported
+from gempy_engine.config_ import tfnp, tensorflow_imported, tensor_types, pykeops_imported
 import numpy as np
 
 from gempy_engine.data_structures.private_structures import OrientationsInternals, SurfacePointsInternals, ExportInput

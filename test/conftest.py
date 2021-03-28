@@ -2,9 +2,12 @@ import pandas as pd
 import numpy as np
 import pytest
 
-from gempy_engine.data_structures.private_structures import SurfacePointsInternals, OrientationsInternals
-from gempy_engine.data_structures.public_structures import SurfacePointsInput, InterpolationOptions, OrientationsInput
-from gempy_engine.systems.generators import get_ref_rest, tile_dip_positions
+from gempy_engine.core.data.data_shape import TensorsStructure
+from gempy_engine.core.data.kernel_classes.orientations import Orientations
+from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
+from gempy_engine.core.data.options import InterpolationOptions
+from gempy_engine.modules.covariance._input_preparation import orientations_preprocess, surface_points_preprocess
+from gempy_engine.modules.covariance._structs import SurfacePointsInternals, OrientationsInternals
 
 
 @pytest.fixture(scope='session')
@@ -24,23 +27,43 @@ def simple_model():
         nugget_effect_ref_rest=0
     )
 
-    ori_i = OrientationsInput(
+    ori_i = Orientations(
         dip_positions=np.array([[0, 6],
                                 [2, 13]]),
         nugget_effect_grad=0.0000001
     )
-    dip_tiled = tile_dip_positions(ori_i.dip_positions, 2)
-    ori_int = OrientationsInternals(
-        dip_tiled,
-        gx_tiled=np.zeros(2),
-        gy_tiled=np.ones(2),
-        gz_tiled=np.ones(0),
-        ori_input=ori_i
-    )
+    ori_int = orientations_preprocess(ori_i)
+
     kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
                                number_dimensions=2)
 
     return spi, ori_int, kri
+
+
+@pytest.fixture(scope='session')
+def simple_model_2():
+    sp_coords = np.array([[4, 0],
+                          [0, 0],
+                          [2, 0],
+                          [3, 0],
+                          [3, 3],
+                          [0, 2],
+                          [2, 2]])
+
+    nugget_effect_scalar = 0
+    spi = SurfacePoints(sp_coords, nugget_effect_scalar)
+
+    dip_positions = np.array([[0, 6],
+                              [2, 13]])
+
+    nugget_effect_grad = 0.0000001
+    ori_i = Orientations(dip_positions, nugget_effect_grad)
+
+    kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
+                               number_dimensions=2)
+    tensor_structure = TensorsStructure(np.array([3, 2]), None, None, None, None)
+
+    return spi, ori_i, kri, tensor_structure
 
 
 @pytest.fixture(scope='session')
@@ -79,12 +102,13 @@ def moureze():
 
     return sp, orientations
 
+
 @pytest.fixture(scope='session')
 def moureze_sp(moureze):
     sp, ori = moureze
-    sp_t = SurfacePointsInput(sp[['X', 'Y', 'Z']].values,
-                              sp['smooth'].values)
+    sp_t = SurfacePoints(sp[['X', 'Y', 'Z']].values, sp['smooth'].values)
     return sp_t
+
 
 @pytest.fixture(scope='session')
 def moureze_kriging():
@@ -103,8 +127,7 @@ def moureze_orientations_heavy(moureze):
         ori_pos = np.vstack([ori_pos, ori_pos + np.array([i * 100, i * 100, i * 100])])
         ori_grad = np.vstack([ori_grad, ori_grad])
 
-    ori_t = OrientationsInput(ori_pos,
-                              dip_gradients=ori_grad)
+    ori_t = Orientations(ori_pos, dip_gradients=ori_grad)
 
     return ori_t
 
@@ -113,14 +136,11 @@ def moureze_orientations_heavy(moureze):
 def moureze_internals(moureze_sp, moureze_orientations_heavy, moureze_kriging):
     moureze_sp.sp_positions /= 1000
 
-    args = get_ref_rest(
-        moureze_sp,
-        np.array([10, 50, moureze_sp.sp_positions.shape[0] - 60 - 3],
-                 dtype='int32'))
-    sp_int = SurfacePointsInternals(*args)
+    n_points_per_surf = np.array([10, 50, moureze_sp.sp_positions.shape[0] - 60 - 3], dtype='int32')
+    sp_int = surface_points_preprocess(moureze_sp, n_points_per_surf)
 
-    args = tile_dip_positions(moureze_orientations_heavy.dip_positions/1000, 3)
-    ori_int = OrientationsInternals(args)
+    moureze_orientations_heavy.dip_positions /= 1000
+    ori_int = orientations_preprocess(moureze_orientations_heavy)
     opts = moureze_kriging
     opts.range = 10
     opts.c_o = 1

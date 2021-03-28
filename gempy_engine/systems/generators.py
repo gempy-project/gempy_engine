@@ -1,11 +1,13 @@
 from typing import Union
-from gempy_engine.config import use_tf
-from pykeops.numpy import LazyTensor as LazyTensor_np
 import numpy as np
 
 # TODO Check in the configuration script
 from gempy_engine.data_structures.public_structures import SurfacePointsInput
-from gempy_engine.config import tfnp, tensorflow_imported, tensor_types
+from gempy_engine.config import BackendConf, AvailableBackends
+
+tfnp = BackendConf.tfnp
+tensor_types = BackendConf.tensor_types
+
 # try:
 #     import tensorflow as tf
 #
@@ -48,7 +50,7 @@ def get_ref_rest(sp_input: SurfacePointsInput,
         tfnp.concat([np.array([0]), number_of_points_per_surface[:-1] + 1], axis=0)
     )
 
-    if tensorflow_imported:
+    if BackendConf.engine_backend is AvailableBackends.tensorflow:
         one_hot_ = tfnp.one_hot(
             ref_positions, tfnp.reduce_sum(number_of_points_per_surface + 1),
             dtype=tfnp.int32
@@ -120,6 +122,8 @@ def squared_euclidean_distances(x_1: tensor_types,
         x_1 = x_1[:, None, :]
         x_2 = x_2[None, :, :]
     else:
+        from pykeops.numpy import LazyTensor as LazyTensor_np
+
         x_1 = LazyTensor_np(x_1[:, None, :])
         x_2 = LazyTensor_np(x_2[None, :, :])
     sqd = tfnp.sqrt(tfnp.reduce_sum(((x_1 - x_2) ** 2), -1))
