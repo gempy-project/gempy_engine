@@ -10,11 +10,9 @@ tensor_types = BackendTensor.tensor_types
 @dataclass
 class Orientations:
     dip_positions: np.ndarray
+    dip_gradients: np.ndarray
+
     nugget_effect_grad: Union[np.ndarray, float] = 0.01
-    dip_gradients: np.ndarray = None
-    dip: np.ndarray = None
-    azimuth: np.ndarray = None
-    polarity: np.ndarray = None
 
     def __post_init__(self):
         if type(self.nugget_effect_grad) is float:

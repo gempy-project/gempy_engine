@@ -97,11 +97,12 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices):
 
     perp_matrix = (cs.hu_sel_i * cs.hv_sel_j).sum(axis=-1)
     if BackendTensor.pykeops_enabled is True:
-        if False:
+        if True:
             r_ref_ref = dif_ref_ref.sqdist(dif_ref_ref)#((dif_ref_ref ** 2).sum(-1)).sqrt()
             r_rest_rest = dif_rest_rest.sqdist(dif_rest_rest)#((dif_rest_rest ** 2).sum(-1)).sqrt()
             r_ref_rest = ori_sp_matrices.dip_ref_i.sqdist(ori_sp_matrices.diprest_j)#(((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2).sum(-1)).sqrt()
             r_rest_ref = ori_sp_matrices.diprest_j.sqdist(ori_sp_matrices.dip_ref_j)#(((ori_sp_matrices.diprest_i - ori_sp_matrices.dip_ref_j) ** 2).sum(-1)).sqrt()
+        # TODO: Next time I see this if it is working removeRemove
         else:
             r_ref_ref =   ((dif_ref_ref ** 2).sum(-1))
             r_rest_rest = ((dif_rest_rest ** 2).sum(-1))

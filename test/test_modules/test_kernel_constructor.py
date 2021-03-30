@@ -7,7 +7,7 @@ from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_
 from gempy_engine.modules.kernel_constructor._input_preparation import surface_points_preprocess, \
     orientations_preprocess
 from gempy_engine.modules.kernel_constructor._vectors_preparation import _vectors_preparation
-from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance
+from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, yield_b_vector
 
 
 def test_covariance_cubic_kernel(simple_model_2):
@@ -28,6 +28,13 @@ def test_covariance_cubic_kernel(simple_model_2):
 
     np.testing.assert_array_almost_equal(np.asarray(cov), l, decimal=3)
 
+# TODO:
+def test_b_vector(simple_model_2):
+    orientations = simple_model_2[1]
+    ori_internals = orientations_preprocess(orientations)
+
+    b_vec = yield_b_vector(ori_internals, 9)
+    print(b_vec)
 
 # TODO: By default we are not testing if the graph works with tf.function
 def test_covariance_spline_kernel(simple_model_2):
