@@ -3,7 +3,7 @@ from typing import Tuple
 import numpy as np
 
 from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.modules.covariance._structs import SurfacePointsInternals, OrientationSurfacePointsCoords, \
+from gempy_engine.modules.kernel_constructor._structs import SurfacePointsInternals, OrientationSurfacePointsCoords, \
     CartesianSelector, OrientationsInternals, OrientationsDrift, PointsDrift, DriftMatrixSelector
 
 
@@ -129,7 +129,6 @@ def drift_selector(cov_size: int, n_drift_eq: int) -> DriftMatrixSelector:
     sel_vi = -sel_1[:, None, :]
     sel_vj = -sel_0[None, :, :]
     a = sel_ui * (sel_vj + 1)
-    print(a)
     return DriftMatrixSelector(sel_ui, sel_uj, sel_vi, sel_vj)
 
 

@@ -23,6 +23,19 @@ class SurfacePointsInternals:
 class OrientationsInternals:
     orientations: Orientations
     dip_positions_tiled: tensor_types
+    gradients_tiled: tensor_types
+
+    @property
+    def gx_tiled(self):
+        return self.gradients_tiled[:, 0]
+
+    @property
+    def gy_tiled(self):
+        return self.gradients_tiled[:, 1]
+
+    @property
+    def gz_tiled(self):
+        return self.gradients_tiled[:, 2]
 
     @property
     def n_orientations_tiled(self):

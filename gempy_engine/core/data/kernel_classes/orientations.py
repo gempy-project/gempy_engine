@@ -21,6 +21,18 @@ class Orientations:
             self.nugget_effect_grad = np.ones(self.n_items) * self.nugget_effect_grad
 
     @property
+    def gx(self):
+        return self.dip_gradients[:, 0]
+
+    @property
+    def gy(self):
+        return self.dip_gradients[:, 1]
+
+    @property
+    def gz(self):
+        return self.dip_gradients[:, 2]
+
+    @property
     def n_dimensions(self):
         return self.dip_positions.shape[1]
 

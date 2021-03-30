@@ -2,14 +2,26 @@ import pandas as pd
 import numpy as np
 import pytest
 
-from gempy_engine.core.data.data_shape import TensorsStructure
+from gempy_engine.config import BackendTensor, AvailableBackends
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
 from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.modules.covariance._input_preparation import orientations_preprocess, surface_points_preprocess
-from gempy_engine.modules.covariance._structs import SurfacePointsInternals, OrientationsInternals
+from gempy_engine.modules.kernel_constructor._input_preparation import orientations_preprocess, surface_points_preprocess
+from gempy_engine.modules.kernel_constructor._structs import SurfacePointsInternals, OrientationsInternals
+
+# Import fixtures
+from test.fixtures.simple_models import simple_model_2
+
+backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflow])
+using_gpu = bool(np.random.choice([True, False]))
+using_pykeops = bool(np.random.choice([True, False]))
+
+# TODO: For now pykeops is always disabled
+BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=using_gpu,
+                             pykeops_enabled=False)
 
 
+# TODO: Obsolete
 @pytest.fixture(scope='session')
 def simple_model():
     spi = SurfacePointsInternals(
@@ -39,33 +51,6 @@ def simple_model():
 
     return spi, ori_int, kri
 
-
-@pytest.fixture(scope='session')
-def simple_model_2():
-    sp_coords = np.array([[4, 0],
-                          [0, 0],
-                          [2, 0],
-                          [3, 0],
-                          [3, 3],
-                          [0, 2],
-                          [2, 2]])
-
-    nugget_effect_scalar = 0
-    spi = SurfacePoints(sp_coords, nugget_effect_scalar)
-
-    dip_positions = np.array([[0, 6],
-                              [2, 13]])
-
-    nugget_effect_grad = 0.0000001
-    ori_i = Orientations(dip_positions, nugget_effect_grad)
-
-    kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
-                               number_dimensions=2)
-
-    _ = np.ones(3)
-    tensor_structure = TensorsStructure(np.array([3, 2]), _, _, _, _)
-
-    return spi, ori_i, kri, tensor_structure
 
 
 @pytest.fixture(scope='session')

@@ -1,8 +1,8 @@
 from gempy_engine.config import BackendTensor, AvailableBackends
 from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.modules.covariance._kernel_constructors import assembly_dips_surface_points_coord_matrix, hu_hv_sel, \
+from gempy_engine.modules.kernel_constructor._kernel_constructors import assembly_dips_surface_points_coord_matrix, hu_hv_sel, \
     input_ug, input_usp, drift_selector
-from gempy_engine.modules.covariance._structs import SurfacePointsInternals, OrientationsInternals, KernelInput
+from gempy_engine.modules.kernel_constructor._structs import SurfacePointsInternals, OrientationsInternals, KernelInput
 
 
 def _vectors_preparation(sp_internals: SurfacePointsInternals, ori_internals: OrientationsInternals,
@@ -39,7 +39,9 @@ def _vectors_preparation(sp_internals: SurfacePointsInternals, ori_internals: Or
 def _upgrade_kernel_input_to_keops_tensor(cartesian_selector, dips_ref_ui, dips_rest_ui, dips_ug, drift_selection,
                                           orientations_sp_matrices):
     from pykeops.numpy import LazyTensor
+    import dataclasses
+
     args = [orientations_sp_matrices, cartesian_selector, dips_ug, dips_ref_ui, dips_rest_ui, drift_selection]
     for arg in args:
         new_args = [LazyTensor(i.astype('float32')) for i in dataclasses.astuple(arg)]
-        args.__init__(new_args)
+        arg.__init__(*new_args)

@@ -6,13 +6,13 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 @dataclass
 class InterpolationOptions:
 
-    range: float
+    range: int
     c_o: float
     uni_degree: int = 1
     i_res: float = 4.
     gi_res: float = 2.
     number_dimensions: int = 3
-    kernel_function: KernelFunction = AvailableKernelFunctions.cubic.value
+    kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.exponential
 
     @property
     def n_uni_eq(self):
