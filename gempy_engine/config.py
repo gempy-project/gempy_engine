@@ -70,11 +70,13 @@ class BackendTensor():
 
             elif engine_backend is AvailableBackends.tensorflow and is_tensorflow_installed:
                 import tensorflow as tf
-
+                physical_devices = tf.config.list_physical_devices('GPU')
                 if cls.use_gpu is False:
-                    physical_devices = tf.config.list_physical_devices('GPU')
+
                     tf.config.set_visible_devices(physical_devices[1:], 'GPU')
                     logical_devices = tf.config.list_logical_devices('GPU')
+                else:
+                    tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
                 if DEBUG_MODE:
                     # To find out which devices your operations and tensors are assigned to
@@ -86,7 +88,6 @@ class BackendTensor():
                 import logging
                 tf.get_logger().setLevel(logging.ERROR)
                 logging.getLogger("tensorflow").setLevel(logging.ERROR)
-
 
             elif engine_backend is AvailableBackends.numpy and is_numpy_installed:
                 import numpy as tfnp

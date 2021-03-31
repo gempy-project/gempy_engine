@@ -17,7 +17,7 @@ using_gpu = bool(np.random.choice([True, False]))
 using_pykeops = bool(np.random.choice([True, False]))
 
 # TODO: For now pykeops is always disabled
-BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=using_gpu,
+BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=True,
                              pykeops_enabled=False)
 
 

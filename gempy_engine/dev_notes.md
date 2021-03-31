@@ -1,22 +1,33 @@
 TODO:
 
-- [ ] Refactor code
+- [ ] Refactor code: Refactor until exporting scalarfield and gradient
+    - [X] weights
+    - [ ] scalar field export
+    - [ ] gradient export
+    
+- [ ] Add benchmark test
+    - Small medium and big model
+    - xla, pykeops
+    
+- [ ] Gradient to scalar field
+    - Mixing xla-eager
+    - putting keops in the middle
 
-- [ ] Data `__post_init__` should go to utils
+- [ ] Data
+    - [ ] `__post_init__` should go to utils
+    - [ ] Add hash function to all data classes
 
-- [ ] Test in the covariance module if we can mix eager and function
+- [ ] Test in the covariance module if we can mix eager and xla
 
 - [ ] Keep the range cont by increasing r
 
-- [ ]  NOTE: Interesting enough this Gx and Gy are swapped between numpy and pykeops TODO: Check that it does not have
-  effect in the scalar field
 
 Notes
 =====
 
 - Do not try to reinvent the wheel follow tensorflow intalation guide for gpu
     - Tensorflow instalation guide install a gcc and g++ compiler and set them default
-    - Use the following to change the default compiler. **Pykeops** needs gcc 8 (April 2021)
+    - Use the following to change the default compiler. 
         - `sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-9 50`
         - `sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 50
           `- Intalling pykeops is a nightmare:
