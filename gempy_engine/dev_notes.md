@@ -4,6 +4,8 @@ TODO:
     - [X] weights
     - [ ] scalar field export
     - [ ] gradient export
+    - [ ] remove unsued code
+    - [ ] refactor TensorBackend to 
     
 - [ ] Add benchmark test
     - Small medium and big model

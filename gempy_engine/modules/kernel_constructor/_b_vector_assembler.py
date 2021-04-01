@@ -1,5 +1,5 @@
 from gempy_engine.config import BackendTensor as bt
-from gempy_engine.modules.kernel_constructor._structs import OrientationsInternals
+from gempy_engine.core.data.kernel_classes.orientations import OrientationsInternals
 
 
 def b_vector_assembly(ori: OrientationsInternals, cov_size: int) -> bt.tensor_types:

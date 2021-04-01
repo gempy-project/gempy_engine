@@ -1,8 +1,5 @@
 import pytest
 
-from gempy_engine.config import AvailableBackends, BackendTensor
-from gempy_engine.modules.kernel_constructor._input_preparation import surface_points_preprocess, \
-    orientations_preprocess
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_kriging_eq
 from gempy_engine.modules.solver.solver_interface import kernel_reduction
 import numpy as np

@@ -1,52 +1,10 @@
-# TODO: This class should be only in the module
 from dataclasses import dataclass
 import numpy as np
 
 from gempy_engine.config import BackendTensor
-from gempy_engine.core.data.kernel_classes.orientations import Orientations
 
 tensor_types = BackendTensor.tensor_types
 
-
-@dataclass
-class SurfacePointsInternals:
-    ref_surface_points: tensor_types
-    rest_surface_points: tensor_types
-    nugget_effect_ref_rest: tensor_types
-
-    @property
-    def n_points(self):
-        return self.ref_surface_points.shape[0]
-
-
-@dataclass
-class OrientationsInternals:
-    orientations: Orientations
-    dip_positions_tiled: tensor_types
-    gradients_tiled: tensor_types
-
-    @property
-    def gx_tiled(self):
-        return self.gradients_tiled[:, 0]
-
-    @property
-    def gy_tiled(self):
-        return self.gradients_tiled[:, 1]
-
-    @property
-    def gz_tiled(self):
-        return self.gradients_tiled[:, 2]
-
-    @property
-    def n_orientations_tiled(self):
-        return self.dip_positions_tiled.shape[0]
-
-    @property
-    def n_orientations(self):
-        return int(self.dip_positions_tiled.shape[0]/self.dip_positions_tiled.shape[1])
-
-
-# TODO: Rename these classes
 @dataclass
 class OrientationSurfacePointsCoords:
     dip_ref_i: tensor_types = np.empty((0, 1, 3))
@@ -56,22 +14,11 @@ class OrientationSurfacePointsCoords:
 
 
 @dataclass
-class CartesianSelector:
-    hu_sel_i: tensor_types = np.empty((0, 1, 3))
-    hu_sel_j: tensor_types = np.empty((1, 0, 3))
-    hv_sel_i: tensor_types = np.empty((0, 1, 3))
-    hv_sel_j: tensor_types = np.empty((1, 0, 3))
-    hu_sel_points_j: tensor_types = np.empty((1, 0, 3))
-    hv_sel_points_i: tensor_types = np.empty((0, 1, 3))
-
-
-@dataclass
 class OrientationsDrift:
     dips_ug_ai: tensor_types = np.empty((0, 1, 3))
     dips_ug_aj: tensor_types = np.empty((1, 0, 3))
     dips_ug_bi: tensor_types = np.empty((0, 1, 3))
     dips_ug_bj: tensor_types = np.empty((1, 0, 3))
-
 
 @dataclass
 class PointsDrift:
@@ -81,6 +28,17 @@ class PointsDrift:
     dipsPoints_ui_bj1: tensor_types = np.empty((1, 0, 3))
     dipsPoints_ui_bi2: tensor_types = np.empty((0, 1, 3))
     dipsPoints_ui_bj2: tensor_types = np.empty((1, 0, 3))
+
+
+@dataclass
+class CartesianSelector:
+    hu_sel_i: tensor_types = np.empty((0, 1, 3))
+    hv_sel_i: tensor_types = np.empty((0, 1, 3))
+    hv_sel_points_i: tensor_types = np.empty((0, 1, 3))
+
+    hu_sel_j: tensor_types = np.empty((1, 0, 3))
+    hv_sel_j: tensor_types = np.empty((1, 0, 3))
+    hu_sel_points_j: tensor_types = np.empty((1, 0, 3))
 
 @dataclass
 class DriftMatrixSelector:

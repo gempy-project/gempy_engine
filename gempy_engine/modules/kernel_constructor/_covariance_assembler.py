@@ -9,7 +9,7 @@ tensor_types = BackendTensor.tensor_types
 # TODO: Move this to its right place
 euclidean_distances = True
 
-def create_covariance(ki: KernelInput, options: InterpolationOptions, item=None) -> tensor_types:
+def create_kernel(ki: KernelInput, options: InterpolationOptions, item=None) -> tensor_types:
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
@@ -38,36 +38,6 @@ def create_covariance(ki: KernelInput, options: InterpolationOptions, item=None)
     cov = c_o * (cov_grad + cov_sp + cov_grad_sp + drift)
 
     return cov
-
-def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item):
-    """This method is not to be executed in production. Just for sanity check
-    """
-    kernel_f = options.kernel_function.value
-    a = options.range
-    c_o = options.c_o
-
-    dif_ref_ref, dif_rest_rest, hu, hv, huv_ref, huv_rest, perp_matrix, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest = \
-        _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
-
-    k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
-        _compute_all_kernel_terms(a, kernel_f, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest)
-
-    if item == "cov_grad":
-        cov_grad = hu * hv / (r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * perp_matrix  # C
-        return cov_grad
-
-    elif item == "cov_sp":
-        return  k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref
-
-    elif item == "cov_grad_sp":
-        return - huv_rest * k_p_rest + huv_ref * k_p_ref
-
-    elif item == "drift":
-        usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
-        ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
-        drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
-        return drift
-
 
 def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest):
 
@@ -123,3 +93,33 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices):
 
     return dif_ref_ref, dif_rest_rest, hu, hv, huv_ref, huv_rest, perp_matrix,\
            r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest
+
+
+def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item):
+    """This method is not to be executed in production. Just for sanity check
+    """
+    kernel_f = options.kernel_function.value
+    a = options.range
+    c_o = options.c_o
+
+    dif_ref_ref, dif_rest_rest, hu, hv, huv_ref, huv_rest, perp_matrix, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest = \
+        _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
+
+    k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
+        _compute_all_kernel_terms(a, kernel_f, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest)
+
+    if item == "cov_grad":
+        cov_grad = hu * hv / (r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * perp_matrix  # C
+        return cov_grad
+
+    elif item == "cov_sp":
+        return  k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref
+
+    elif item == "cov_grad_sp":
+        return - huv_rest * k_p_rest + huv_ref * k_p_ref
+
+    elif item == "drift":
+        usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
+        ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
+        drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+        return drift

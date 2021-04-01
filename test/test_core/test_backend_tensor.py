@@ -1,5 +1,5 @@
 from gempy_engine.config import BackendTensor, AvailableBackends
-from gempy_engine.modules.kernel_constructor._input_preparation import surface_points_preprocess
+from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess
 
 
 def test_optional_dependencies():
@@ -43,7 +43,6 @@ def test_data_class_hash(simple_model_2):
                           [3, 3],
                           [0, 2],
                           [2, 2]])
-    import tensorflow as tf
     nugget_effect_scalar = 0
     from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
 

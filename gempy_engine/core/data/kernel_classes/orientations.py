@@ -4,6 +4,8 @@ from typing import Union
 from gempy_engine.config import BackendTensor
 import numpy as np
 
+from gempy_engine.modules.kernel_constructor._structs import tensor_types
+
 tensor_types = BackendTensor.tensor_types
 
 
@@ -45,3 +47,29 @@ class OrientationsGradients:
     gy: np.array = np.empty((0, 3))
     gz: np.array = np.empty((0, 3))
 
+
+@dataclass
+class OrientationsInternals:
+    orientations: Orientations
+    dip_positions_tiled: tensor_types
+    gradients_tiled: tensor_types
+
+    @property
+    def gx_tiled(self):
+        return self.gradients_tiled[:, 0]
+
+    @property
+    def gy_tiled(self):
+        return self.gradients_tiled[:, 1]
+
+    @property
+    def gz_tiled(self):
+        return self.gradients_tiled[:, 2]
+
+    @property
+    def n_orientations_tiled(self):
+        return self.dip_positions_tiled.shape[0]
+
+    @property
+    def n_orientations(self):
+        return int(self.dip_positions_tiled.shape[0]/self.dip_positions_tiled.shape[1])

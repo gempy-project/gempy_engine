@@ -4,13 +4,12 @@ import pytest
 
 from gempy_engine.config import BackendTensor, AvailableBackends
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
-from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
+from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints, SurfacePointsInternals
 from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.modules.kernel_constructor._input_preparation import orientations_preprocess, surface_points_preprocess
-from gempy_engine.modules.kernel_constructor._structs import SurfacePointsInternals, OrientationsInternals
+from gempy_engine.modules.data_preprocess._input_preparation import orientations_preprocess, surface_points_preprocess
 
 # Import fixtures
-from test.fixtures.simple_models import simple_model_2
+from .fixtures.simple_models import simple_model_2
 
 backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflow])
 using_gpu = bool(np.random.choice([True, False]))
@@ -50,7 +49,6 @@ def simple_model():
                                number_dimensions=2)
 
     return spi, ori_int, kri
-
 
 
 @pytest.fixture(scope='session')

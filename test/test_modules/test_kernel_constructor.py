@@ -3,8 +3,8 @@ import pytest
 
 from gempy_engine.config import BackendTensor, AvailableBackends
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
-from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_covariance
-from gempy_engine.modules.kernel_constructor._input_preparation import surface_points_preprocess, \
+from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_kernel
+from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
 from gempy_engine.modules.kernel_constructor._vectors_preparation import _vectors_preparation
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, yield_b_vector
@@ -84,8 +84,8 @@ class TestPykeopsNumPyEqual():
     def test_compare_drift(self, preprocess_data):
         self._compare_covariance_item_numpy_pykeops(preprocess_data, item="drift", cov_func = _test_covariance_items)
 
-    def test_copare_full_cov(self, preprocess_data):
-        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov", cov_func = create_covariance)
+    def test_compare_full_cov(self, preprocess_data):
+        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov", cov_func = create_kernel)
 
     def _compare_covariance_item_numpy_pykeops(self, preprocess_data, item, cov_func):
         sp_internals, ori_internals, options = preprocess_data

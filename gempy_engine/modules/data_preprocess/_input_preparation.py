@@ -1,10 +1,8 @@
 import numpy as np
 
 from gempy_engine.config import BackendTensor, AvailableBackends
-from gempy_engine.core.data.kernel_classes.orientations import Orientations
-from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
-
-from gempy_engine.modules.kernel_constructor._structs import OrientationsInternals, SurfacePointsInternals
+from gempy_engine.core.data.kernel_classes.orientations import Orientations, OrientationsInternals
+from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints, SurfacePointsInternals
 
 from gempy_engine.config import BackendTensor as b
 
