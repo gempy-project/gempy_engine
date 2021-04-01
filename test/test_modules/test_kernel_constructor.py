@@ -93,6 +93,8 @@ class TestPykeopsNumPyEqual():
         BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=False)
         kernel_data = _vectors_preparation(sp_internals, ori_internals, options)
         c_n = cov_func(kernel_data, options, item=item)
+        if False:
+            np.save(f"./solutions/{item}", c_n)
         c_n_sum = c_n.sum(0).reshape(-1, 1)
         print(c_n, c_n_sum)
 
