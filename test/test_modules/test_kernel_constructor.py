@@ -3,12 +3,14 @@ import pytest
 
 from gempy_engine.config import BackendTensor, AvailableBackends
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
-from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_kernel
+from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_kernel, \
+    _compute_all_distance_matrices
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
 from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, yield_b_vector
 
+import pickle
 
 def test_covariance_cubic_kernel(simple_model_2):
     # Cubic kernel
@@ -87,7 +89,7 @@ class TestPykeopsNumPyEqual():
         cartesian_selector = hu_hv_sel(sel_hu_input, sel_hv_input,
                                        sel_hv_input, sel_hu_input,
                                        sel_hu_points_input, sel_hu_points_input)
-        import pickle
+
         with open('solutions/cartesian_selector.pickle', 'rb') as handle:
             cartesian_selector_sol = pickle.load(handle)
 
@@ -97,6 +99,27 @@ class TestPykeopsNumPyEqual():
         np.testing.assert_array_almost_equal(cartesian_selector.hv_sel_j,        cartesian_selector_sol.hv_sel_j, decimal=3)
         np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_points_i, cartesian_selector_sol.hv_sel_points_i, decimal=3)
         np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_points_j, cartesian_selector_sol.hu_sel_points_j, decimal=3)
+
+    def test_distance_matrices(self, preprocess_data):
+        sp_, ori_, options = preprocess_data
+        cov_size = ori_.n_orientations_tiled + sp_.n_points + options.n_uni_eq
+
+        ki = cov_vectors_preparation(sp_, ori_, options)
+
+        with open('solutions/distance_matrices.pickle', 'rb') as handle:
+            dm_sol = pickle.load(handle)
+        dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
+
+        np.testing.assert_array_almost_equal(dm.dif_ref_ref , dm_sol.dif_ref_ref, decimal=3)
+        np.testing.assert_array_almost_equal(dm.dif_rest_rest, dm_sol.dif_rest_rest, decimal=3)
+        np.testing.assert_array_almost_equal(dm.hu, dm_sol.hu, decimal=3)
+        np.testing.assert_array_almost_equal(dm.huv_ref, dm_sol.huv_ref, decimal=3)
+        np.testing.assert_array_almost_equal(dm.huv_rest, dm_sol.huv_rest, decimal=3)
+        np.testing.assert_array_almost_equal(dm.perp_matrix, dm_sol.perp_matrix, decimal=3)
+        np.testing.assert_array_almost_equal(dm.r_ref_ref, dm_sol.r_ref_ref, decimal=3)
+        np.testing.assert_array_almost_equal(dm.r_ref_rest, dm_sol.r_ref_rest, decimal=3)
+        np.testing.assert_array_almost_equal(dm.r_rest_ref, dm_sol.r_rest_ref, decimal=3)
+        np.testing.assert_array_almost_equal(dm.r_rest_rest, dm_sol.r_rest_rest, decimal=3)
 
 
     def test_compare_cg(self, preprocess_data):
