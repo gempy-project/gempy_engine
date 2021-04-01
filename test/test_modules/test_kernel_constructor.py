@@ -73,6 +73,32 @@ class TestPykeopsNumPyEqual():
 
         return sp_internals, ori_internals, options
 
+    def test_cartesian_selector(self, preprocess_data):
+        sp_, ori_, options = preprocess_data
+        cov_size = ori_.n_orientations_tiled + sp_.n_points + options.n_uni_eq
+
+        from gempy_engine.modules.kernel_constructor._kernel_selectors import dips_sp_cartesian_selector
+        from gempy_engine.modules.kernel_constructor._kernel_selectors import hu_hv_sel
+
+        sel_hu_input, sel_hv_input, sel_hu_points_input = dips_sp_cartesian_selector(cov_size,
+                                                                                     options.number_dimensions,
+                                                                                     ori_.n_orientations, sp_.n_points)
+
+        cartesian_selector = hu_hv_sel(sel_hu_input, sel_hv_input,
+                                       sel_hv_input, sel_hu_input,
+                                       sel_hu_points_input, sel_hu_points_input)
+        import pickle
+        with open('solutions/cartesian_selector.pickle', 'rb') as handle:
+            cartesian_selector_sol = pickle.load(handle)
+
+        np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_i,        cartesian_selector_sol.hu_sel_i, decimal=3)
+        np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_j,        cartesian_selector_sol.hu_sel_j, decimal=3)
+        np.testing.assert_array_almost_equal(cartesian_selector.hv_sel_i,        cartesian_selector_sol.hv_sel_i, decimal=3)
+        np.testing.assert_array_almost_equal(cartesian_selector.hv_sel_j,        cartesian_selector_sol.hv_sel_j, decimal=3)
+        np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_points_i, cartesian_selector_sol.hv_sel_points_i, decimal=3)
+        np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_points_j, cartesian_selector_sol.hu_sel_points_j, decimal=3)
+
+
     def test_compare_cg(self, preprocess_data):
         self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_grad", cov_func = _test_covariance_items)
 
