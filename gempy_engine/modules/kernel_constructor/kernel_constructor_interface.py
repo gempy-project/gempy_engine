@@ -5,7 +5,7 @@ from gempy_engine.modules.kernel_constructor._b_vector_assembler import b_vector
 from gempy_engine.modules.kernel_constructor._covariance_assembler import create_kernel
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePointsInternals
 from gempy_engine.core.data.kernel_classes.orientations import OrientationsInternals
-from gempy_engine.modules.kernel_constructor._vectors_preparation import _vectors_preparation
+from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation
 
 tensor_types = BackendTensor.tensor_types
 
@@ -13,7 +13,7 @@ tensor_types = BackendTensor.tensor_types
 def yield_covariance(sp_internals: SurfacePointsInternals, ori_internals: OrientationsInternals,
                      options: InterpolationOptions)->tensor_types:
 
-    kernel_data = _vectors_preparation(sp_internals, ori_internals, options)
+    kernel_data = cov_vectors_preparation(sp_internals, ori_internals, options)
     cov = create_kernel(kernel_data, options)
     return cov
 

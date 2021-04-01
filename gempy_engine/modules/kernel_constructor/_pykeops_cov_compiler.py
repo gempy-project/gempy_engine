@@ -15,7 +15,7 @@ import numpy as np
 from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
-from gempy_engine.modules.kernel_constructor._vectors_preparation import _vectors_preparation
+from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance
 
 
@@ -56,7 +56,7 @@ surface_points, orientations, options, tensors_structure = simple_model_2()
 
 sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
 ori_internals = orientations_preprocess(orientations)
-kernel_data = _vectors_preparation(sp_internals, ori_internals, options)
+kernel_data = cov_vectors_preparation(sp_internals, ori_internals, options)
 
 cov = yield_covariance(sp_internals, ori_internals, options)
 

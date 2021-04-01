@@ -6,7 +6,7 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_kernel
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
-from gempy_engine.modules.kernel_constructor._vectors_preparation import _vectors_preparation
+from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, yield_b_vector
 
 
@@ -54,6 +54,7 @@ def test_covariance_spline_kernel(simple_model_2):
     return cov_sum
 
 
+# TODO: (bug) When running test_covariance_spline_kernel the running the class test breaks for some weird state change
 class TestPykeopsNumPyEqual():
 
     @pytest.fixture(scope="class")
@@ -91,16 +92,20 @@ class TestPykeopsNumPyEqual():
         sp_internals, ori_internals, options = preprocess_data
         # numpy
         BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=False)
-        kernel_data = _vectors_preparation(sp_internals, ori_internals, options)
+        kernel_data = cov_vectors_preparation(sp_internals, ori_internals, options)
         c_n = cov_func(kernel_data, options, item=item)
         if False:
             np.save(f"./solutions/{item}", c_n)
+        l =  np.load(f"./solutions/{item}.npy")
         c_n_sum = c_n.sum(0).reshape(-1, 1)
+
         print(c_n, c_n_sum)
+        np.testing.assert_array_almost_equal(c_n, l, decimal=3)
+
 
         # pykeops
         BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=True)
-        kernel_data = _vectors_preparation(sp_internals, ori_internals, options)
+        kernel_data = cov_vectors_preparation(sp_internals, ori_internals, options)
         c_k = cov_func(kernel_data, options, item=item)
         c_k_sum = c_n.sum(0).reshape(-1, 1)
         print(c_k, c_k_sum)
