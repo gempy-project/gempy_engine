@@ -85,7 +85,7 @@ class TestPykeopsNumPyEqual():
         self._compare_covariance_item_numpy_pykeops(preprocess_data, item="drift", cov_func = _test_covariance_items)
 
     def test_copare_full_cov(self, preprocess_data):
-        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov", cov_func = create_covariance)
+        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="all", cov_func = _test_covariance_items)
 
     def _compare_covariance_item_numpy_pykeops(self, preprocess_data, item, cov_func):
         sp_internals, ori_internals, options = preprocess_data
