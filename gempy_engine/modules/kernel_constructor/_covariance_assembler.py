@@ -1,7 +1,11 @@
+from dataclasses import dataclass
+
 from gempy_engine.config import BackendTensor
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, KernelFunction
 from gempy_engine.core.data.options import InterpolationOptions
 from gempy_engine.modules.kernel_constructor._structs import KernelInput
+
+import numpy as np
 
 tfnp = BackendTensor.tfnp
 tensor_types = BackendTensor.tensor_types
@@ -22,15 +26,14 @@ def create_kernel(ki: KernelInput, options: InterpolationOptions, item=None) -> 
     else:
         euclidean_distances = True
 
-    dif_ref_ref, dif_rest_rest, hu, hv, huv_ref, huv_rest, perp_matrix, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest = \
-        _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
+    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
 
     k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
-        _compute_all_kernel_terms(a, kernel_f, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest)
+        _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
 
-    cov_grad = hu * hv / (r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * perp_matrix  # C
+    cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
     cov_sp = k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref  # It is expanding towards cross
-    cov_grad_sp = - huv_rest * k_p_rest + huv_ref * k_p_ref  # C
+    cov_grad_sp = - dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref  # C
 
     # TODO: This Universal term seems buggy. It should also have a rest component!
     usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
@@ -41,7 +44,69 @@ def create_kernel(ki: KernelInput, options: InterpolationOptions, item=None) -> 
     return cov
 
 
+
+@dataclass
+class InternalDistancesMatrices:
+    dif_ref_ref: np.ndarray
+    dif_rest_rest: np.ndarray
+    hu: np.ndarray
+    hv: np.ndarray
+    huv_ref: np.ndarray
+    huv_rest: np.ndarray
+    perp_matrix: np.ndarray
+    r_ref_ref: np.ndarray
+    r_ref_rest: np.ndarray
+    r_rest_ref: np.ndarray
+    r_rest_rest: np.ndarray
+
+
+def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item):
+    """This method is not to be executed in production. Just for sanity check
+    """
+    kernel_f = options.kernel_function.value
+    a = options.range
+    c_o = options.c_o
+
+    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
+
+    with open('distance_matrices.pickle', 'wb') as handle:
+        import pickle
+        pickle.dump(dm, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
+        _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
+
+    if item == "cov_grad":
+        cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
+        return cov_grad
+
+    elif item == "cov_sp":
+        return k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref
+
+    elif item == "cov_grad_sp":
+        return - dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref
+
+    elif item == "drift":
+        usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
+        ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
+        drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+        return drift
+    elif  item == "all":
+        cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
+        cov_sp = k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref  # It is expanding towards cross
+        cov_grad_sp = - dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref  # C
+
+        # TODO: This Universal term seems buggy. It should also have a rest component!
+        usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
+        ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
+        drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+        cov = c_o * (cov_grad + cov_sp + cov_grad_sp + drift)
+
+        return cov
+
+
 def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest):
+
     k_rest_rest = kernel_f.base_function(r_rest_rest, a)
     k_ref_ref = kernel_f.base_function(r_ref_ref, a)
     k_ref_rest = kernel_f.base_function(r_ref_rest, a)
@@ -52,7 +117,7 @@ def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref
     return k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest
 
 
-def _compute_all_distance_matrices(cs, ori_sp_matrices):
+def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatrices:
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j
     hu = (dif_ref_ref * (cs.hu_sel_i * cs.hu_sel_j)).sum(axis=-1)  # C
@@ -86,35 +151,5 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices):
             r_ref_rest = tfnp.sqrt(r_ref_rest)
             r_rest_ref = tfnp.sqrt(r_rest_ref)
 
-    return dif_ref_ref, dif_rest_rest, hu, hv, huv_ref, huv_rest, perp_matrix, \
-           r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest
-
-
-def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item):
-    """This method is not to be executed in production. Just for sanity check
-    """
-    kernel_f = options.kernel_function.value
-    a = options.range
-    c_o = options.c_o
-
-    dif_ref_ref, dif_rest_rest, hu, hv, huv_ref, huv_rest, perp_matrix, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest = \
-        _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
-
-    k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
-        _compute_all_kernel_terms(a, kernel_f, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest)
-
-    if item == "cov_grad":
-        cov_grad = hu * hv / (r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * perp_matrix  # C
-        return cov_grad
-
-    elif item == "cov_sp":
-        return k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref
-
-    elif item == "cov_grad_sp":
-        return - huv_rest * k_p_rest + huv_ref * k_p_ref
-
-    elif item == "drift":
-        usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
-        ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
-        drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
-        return drift
+    return InternalDistancesMatrices(dif_ref_ref, dif_rest_rest, hu, hv, huv_ref, huv_rest, perp_matrix,
+                                     r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest)
