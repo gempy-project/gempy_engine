@@ -26,8 +26,8 @@ def surface_points_preprocess(sp_input: SurfacePoints, number_of_points_per_surf
             _compute_rest_ref_in_numpy(nugget_effect, number_of_points_per_surface, sp)
 
     # repeat the reference points (the number of persurface -1)  times
-    ref_points_repeated = b.tfnp.repeat(ref_points, number_of_points_per_surface, 0)
-    ref_nugget_repeated = b.tfnp.repeat(ref_nugget, number_of_points_per_surface, 0)
+    ref_points_repeated = b.tfnp.repeat(ref_points, number_of_points_per_surface -1, 0)
+    ref_nugget_repeated = b.tfnp.repeat(ref_nugget, number_of_points_per_surface -1, 0)
 
     nugget_effect_ref_rest = rest_nugget + ref_nugget_repeated
 
@@ -37,14 +37,14 @@ def surface_points_preprocess(sp_input: SurfacePoints, number_of_points_per_surf
 def _compute_rest_ref_in_numpy(nugget_effect, number_of_points_per_surface, sp):
     # reference point: every first point of each layer
     ref_positions = b.tfnp.cumsum(
-        b.tfnp.concat([np.array([0], dtype="int32"), number_of_points_per_surface[:-1] + 1], axis=0))
+        b.tfnp.concat([np.array([0], dtype="int32"), number_of_points_per_surface[:-1]], axis=0))
 
     def get_one_hot(targets, nb_classes):
         res = np.eye(nb_classes, dtype='int32')[np.array(targets).reshape(-1)]
         return res.reshape(list(targets.shape) + [nb_classes])
 
     one_hot_ = get_one_hot(ref_positions,
-                           b.tfnp.reduce_sum(number_of_points_per_surface + 1))
+                           b.tfnp.reduce_sum(number_of_points_per_surface))
     partitions = b.tfnp.reduce_sum(one_hot_, axis=0)
     partitions_bool = partitions.astype(bool)
     ref_points = sp[partitions_bool]
@@ -57,9 +57,9 @@ def _compute_rest_ref_in_numpy(nugget_effect, number_of_points_per_surface, sp):
 def _compute_rest_ref_in_tf(nugget_effect, number_of_points_per_surface, sp):
     # reference point: every first point of each layer
     ref_positions = b.tfnp.cumsum(
-        b.tfnp.concat([np.array([0], dtype="int32"), number_of_points_per_surface[:-1] + 1], axis=0))
+        b.tfnp.concat([np.array([0], dtype="int32"), number_of_points_per_surface[:-1]], axis=0))
 
-    one_hot_ = b.tfnp.one_hot(ref_positions, b.t.reduce_sum(number_of_points_per_surface + 1), dtype=b.t.int32)
+    one_hot_ = b.tfnp.one_hot(ref_positions, b.t.reduce_sum(number_of_points_per_surface), dtype=b.t.int32)
     # reference:1 rest: 0
     partitions = b.tfnp.reduce_sum(one_hot_, axis=0)
 

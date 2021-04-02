@@ -14,7 +14,7 @@ tensor_types = BackendTensor.tensor_types
 euclidean_distances = True
 
 
-def create_kernel(ki: KernelInput, options: InterpolationOptions, item=None) -> tensor_types:
+def create_cov_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor_types:
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
@@ -38,12 +38,69 @@ def create_kernel(ki: KernelInput, options: InterpolationOptions, item=None) -> 
     # TODO: This Universal term seems buggy. It should also have a rest component!
     usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
     ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
-    drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
-    cov = c_o * (cov_grad + cov_sp + cov_grad_sp + drift)
+    #drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+    cov = c_o * (cov_grad + cov_sp + cov_grad_sp)# + drift)
 
     return cov
 
+def create_scalar_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor_types:
+    kernel_f = options.kernel_function.value
+    a = options.range
+    c_o = options.c_o
 
+    # Calculate euclidean or square distances depending on the function kernel
+    global euclidean_distances
+    if options.kernel_function == AvailableKernelFunctions.exponential:
+        euclidean_distances = False
+    else:
+        euclidean_distances = True
+
+    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
+
+    k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
+        _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
+
+    sigma_0_sp = k_rest_rest - k_ref_ref # This are right terms
+    sigma_0_grad_sp = dm.huv_ref * k_p_ref # this are the right terms
+
+    return c_o * (- sigma_0_sp + sigma_0_grad_sp) # TODO: + drift
+
+
+def create_grad_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor_types:
+    kernel_f = options.kernel_function.value
+    a = options.range
+    c_o = options.c_o
+
+    # Calculate euclidean or square distances depending on the function kernel
+    global euclidean_distances
+    if options.kernel_function == AvailableKernelFunctions.exponential:
+        euclidean_distances = False
+    else:
+        euclidean_distances = True
+
+    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
+
+    k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
+        _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
+
+    # TODO: This cannot be the right hu and hv since we DO need hx - hy and so on
+
+    a = dm.hu
+    b = dm.hv
+    ab = a*b
+    ab_g = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5)
+    e = k_p_ref
+    f = k_a
+    g = (- k_p_ref + k_a)
+    h = k_p_ref * dm.perp_matrix
+
+    # TODO: Maybe the "-" in dm.hu is unnecessary
+    sigma_0_grad = (+1) * dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix
+
+    c = dm.huv_rest * k_p_rest
+    d = dm.huv_ref * k_p_ref
+    sigma_0_sp_grad =  d - c
+    return c_o * (sigma_0_grad + sigma_0_sp_grad)
 
 @dataclass
 class InternalDistancesMatrices:
@@ -69,9 +126,9 @@ def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item)
 
     dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
 
-    with open('distance_matrices.pickle', 'wb') as handle:
-        import pickle
-        pickle.dump(dm, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    # with open('distance_matrices.pickle', 'wb') as handle:
+    #     import pickle
+    #     pickle.dump(dm, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
         _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
@@ -91,7 +148,7 @@ def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item)
         ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
         drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
         return drift
-    elif  item == "all":
+    elif  item == "cov":
         cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
         cov_sp = k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref  # It is expanding towards cross
         cov_grad_sp = - dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref  # C
@@ -103,6 +160,12 @@ def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item)
         cov = c_o * (cov_grad + cov_sp + cov_grad_sp + drift)
 
         return cov
+
+    elif item =="sigma_0_sp":
+        return c_o * (k_rest_rest - k_ref_ref) # This are right terms
+
+    elif item =="sigma_0_grad_sp":
+        return c_o * ( dm.huv_ref * k_p_ref) # This are right terms
 
 
 def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest):
@@ -119,16 +182,30 @@ def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref
 
 def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatrices:
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j
+
+    t1_i = ori_sp_matrices.dip_ref_i[:, 0, :]
+    t1_j = ori_sp_matrices.dip_ref_j[0, :, :]
+
+    t3_i = cs.hu_sel_i[:, 0, :]
+    t3_j = cs.hu_sel_j[0]
+
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j
     hu = (dif_ref_ref * (cs.hu_sel_i * cs.hu_sel_j)).sum(axis=-1)  # C
+
+    # TODO: t2_is the goal. Hopefully we can get it by manipulating hu_sel_i
+    t2_m = dif_ref_ref[:,:,0] * (cs.hu_sel_i * cs.hu_sel_j).sum(axis=-1)
+
+    t4_i = cs.hv_sel_i[:, 0, :]
+    t4_j = cs.hv_sel_j[0]
+
     hv = -(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j)).sum(axis=-1)  # C
 
-    hu_ref = dif_ref_ref * (cs.hu_sel_i * cs.hu_sel_points_j)
-    hv_ref = dif_ref_ref * (cs.hu_sel_points_i * cs.hv_sel_j)
-    huv_ref = hu_ref.sum(axis=-1) - hv_ref.sum(axis=-1)  # C
+    hu_ref = dif_ref_ref * (cs.hu_sel_i * cs.h_sel_ref_j)
+    hv_ref = dif_ref_ref * (cs.h_sel_ref_i * cs.hv_sel_j)
+    huv_ref =  hu_ref.sum(axis=-1) - hv_ref.sum(axis=-1)  # C
 
-    hu_rest = dif_rest_rest * (cs.hu_sel_i * cs.hu_sel_points_j)
-    hv_rest = dif_rest_rest * (cs.hu_sel_points_i * cs.hv_sel_j)
+    hu_rest = dif_rest_rest * (cs.hu_sel_i * cs.h_sel_rest_j)
+    hv_rest = dif_rest_rest * (cs.h_sel_rest_i * cs.hv_sel_j)
     huv_rest = hu_rest.sum(axis=-1) - hv_rest.sum(axis=-1)  # C
 
     perp_matrix = (cs.hu_sel_i * cs.hv_sel_j).sum(axis=-1)

@@ -18,4 +18,5 @@ def interpolate_single_scalar(surface_points: SurfacePoints, orientations: Orien
 
     weights = kernel_reduction(A_matrix, b_vector, smooth=0.01) # TODO: Smooth should be taken from options
 
+    # TODO: Obsolete? If I am able to construct the kernel properly
     solution_vector = prepare_solution_vector(sp_internal, ori_internal, grid, cov_size, options.number_dimensions)

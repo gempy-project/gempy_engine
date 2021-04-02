@@ -1,16 +1,19 @@
 import pytest
 
-from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_kriging_eq
+from gempy_engine.modules.kernel_constructor._vectors_preparation import evaluation_vectors_preparations
+from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, \
+    yield_b_vector
 from gempy_engine.modules.solver.solver_interface import kernel_reduction
 import numpy as np
 
 
 @pytest.fixture(scope='module')
-def kriging_eq(simple_model_2):
-    surface_points, orientations, options, tensors_structure = simple_model_2
+def kriging_eq(simple_model_2_internals):
+    sp_internal, ori_internal, options = simple_model_2_internals
 
-    a_matrix, b_vector = yield_kriging_eq(surface_points, orientations, options, tensors_structure)
-    return a_matrix, b_vector
+    A_matrix = yield_covariance(sp_internal, ori_internal, options)
+    b_vector = yield_b_vector(ori_internal, A_matrix.shape[0])
+    return A_matrix, b_vector
 
 
 weights_sol = np.array(
@@ -41,3 +44,24 @@ def test_solver_tf(kriging_eq):
     weights = kernel_reduction(A_matrix, b_vector)
     np.testing.assert_array_almost_equal(weights, weights_sol, decimal=3)
     print(weights)
+
+
+def test_scalar_field_export(simple_model_2_internals, simple_grid):
+    sp_internal, ori_internal, options = simple_model_2_internals
+
+    evp = evaluation_vectors_preparations(simple_grid, sp_internal, ori_internal, options)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

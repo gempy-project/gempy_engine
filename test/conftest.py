@@ -9,7 +9,7 @@ from gempy_engine.core.data.options import InterpolationOptions
 from gempy_engine.modules.data_preprocess._input_preparation import orientations_preprocess, surface_points_preprocess
 
 # Import fixtures
-from .fixtures.simple_models import simple_model_2
+from .fixtures.simple_models import simple_model_2, simple_grid, simple_model_2_internals
 
 backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflow])
 using_gpu = bool(np.random.choice([True, False]))

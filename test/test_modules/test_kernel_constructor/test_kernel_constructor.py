@@ -3,11 +3,12 @@ import pytest
 
 from gempy_engine.config import BackendTensor, AvailableBackends
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
-from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_kernel, \
-    _compute_all_distance_matrices
+from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_cov_kernel, \
+    _compute_all_distance_matrices, create_scalar_kernel, create_grad_kernel
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
-from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation
+from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation, \
+    evaluation_vectors_preparations
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, yield_b_vector
 
 import pickle
@@ -16,7 +17,7 @@ def test_covariance_cubic_kernel(simple_model_2):
     # Cubic kernel
     # Euclidean distance
 
-    l = np.load('test_kernel_numeric2.npy')
+    l = np.load('../test_kernel_numeric2.npy')
     surface_points = simple_model_2[0]
     orientations = simple_model_2[1]
     options = simple_model_2[2]
@@ -30,13 +31,28 @@ def test_covariance_cubic_kernel(simple_model_2):
 
     np.testing.assert_array_almost_equal(np.asarray(cov), l, decimal=3)
 
-# TODO:
 def test_b_vector(simple_model_2):
     orientations = simple_model_2[1]
     ori_internals = orientations_preprocess(orientations)
 
     b_vec = yield_b_vector(ori_internals, 9)
     print(b_vec)
+
+
+def test_eval_kernel(simple_model_2, simple_grid):
+    surface_points = simple_model_2[0]
+    orientations = simple_model_2[1]
+    options = simple_model_2[2]
+    tensors_structure = simple_model_2[3]
+
+    sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
+    ori_internals = orientations_preprocess(orientations)
+    kernel_data = evaluation_vectors_preparations(simple_grid, sp_internals, ori_internals, options)
+    export_kernel = create_scalar_kernel(kernel_data, options)
+    print(export_kernel)
+
+    export_gradient_ = create_grad_kernel(kernel_data, options)
+    print(export_gradient_)
 
 # TODO: By default we are not testing if the graph works with tf.function
 def test_covariance_spline_kernel(simple_model_2):
@@ -56,9 +72,9 @@ def test_covariance_spline_kernel(simple_model_2):
     return cov_sum
 
 
+pykeops_enabled = False
 # TODO: (bug) When running test_covariance_spline_kernel the running the class test breaks for some weird state change
 class TestPykeopsNumPyEqual():
-
     @pytest.fixture(scope="class")
     def preprocess_data(self, simple_model_2):
         surface_points = simple_model_2[0]
@@ -86,19 +102,18 @@ class TestPykeopsNumPyEqual():
                                                                                      options.number_dimensions,
                                                                                      ori_.n_orientations, sp_.n_points)
 
-        cartesian_selector = hu_hv_sel(sel_hu_input, sel_hv_input,
-                                       sel_hv_input, sel_hu_input,
-                                       sel_hu_points_input, sel_hu_points_input)
+        cartesian_selector = hu_hv_sel(sel_hu_input, sel_hv_input, sel_hv_input, sel_hu_input, sel_hu_points_input,
+                                       sel_hu_points_input, sel_hu_points_input, sel_hu_points_input)
 
-        with open('solutions/cartesian_selector.pickle', 'rb') as handle:
+        with open('../solutions/cartesian_selector.pickle', 'rb') as handle:
             cartesian_selector_sol = pickle.load(handle)
 
         np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_i,        cartesian_selector_sol.hu_sel_i, decimal=3)
         np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_j,        cartesian_selector_sol.hu_sel_j, decimal=3)
         np.testing.assert_array_almost_equal(cartesian_selector.hv_sel_i,        cartesian_selector_sol.hv_sel_i, decimal=3)
         np.testing.assert_array_almost_equal(cartesian_selector.hv_sel_j,        cartesian_selector_sol.hv_sel_j, decimal=3)
-        np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_points_i, cartesian_selector_sol.hv_sel_points_i, decimal=3)
-        np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_points_j, cartesian_selector_sol.hu_sel_points_j, decimal=3)
+        np.testing.assert_array_almost_equal(cartesian_selector.h_sel_ref_i, cartesian_selector_sol.h_sel_rest_i, decimal=3)
+        np.testing.assert_array_almost_equal(cartesian_selector.h_sel_ref_j, cartesian_selector_sol.h_sel_ref_j, decimal=3)
 
     def test_distance_matrices(self, preprocess_data):
         sp_, ori_, options = preprocess_data
@@ -106,7 +121,7 @@ class TestPykeopsNumPyEqual():
 
         ki = cov_vectors_preparation(sp_, ori_, options)
 
-        with open('solutions/distance_matrices.pickle', 'rb') as handle:
+        with open('../solutions/distance_matrices.pickle', 'rb') as handle:
             dm_sol = pickle.load(handle)
         dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
 
@@ -135,7 +150,7 @@ class TestPykeopsNumPyEqual():
         self._compare_covariance_item_numpy_pykeops(preprocess_data, item="drift", cov_func = _test_covariance_items)
 
     def test_copare_full_cov(self, preprocess_data):
-        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="all", cov_func = _test_covariance_items)
+        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov", cov_func = _test_covariance_items)
 
     def _compare_covariance_item_numpy_pykeops(self, preprocess_data, item, cov_func):
         sp_internals, ori_internals, options = preprocess_data
@@ -145,7 +160,9 @@ class TestPykeopsNumPyEqual():
         c_n = cov_func(kernel_data, options, item=item)
         if False:
             np.save(f"./solutions/{item}", c_n)
-        l =  np.load(f"./solutions/{item}.npy")
+
+
+        l =  np.load(f"../solutions/{item}.npy")
         c_n_sum = c_n.sum(0).reshape(-1, 1)
 
         print(c_n, c_n_sum)
@@ -153,7 +170,7 @@ class TestPykeopsNumPyEqual():
 
 
         # pykeops
-        BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=True)
+        BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=pykeops_enabled)
         kernel_data = cov_vectors_preparation(sp_internals, ori_internals, options)
         c_k = cov_func(kernel_data, options, item=item)
         c_k_sum = c_n.sum(0).reshape(-1, 1)

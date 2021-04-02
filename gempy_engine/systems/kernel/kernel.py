@@ -75,12 +75,12 @@ def create_covariance(ki: KernelInput, a: float, c_o: float,
     k_p_rest = kernel_1st(r_rest_rest, a)  # First derivative DIVIDED BY r C'(r)/r
     k_a = kernel_2nd(r_ref_ref, a)  # Second derivative of the kernel
 
-    hu_ref = dif_ref_ref * (ki.hu_sel_i * ki.hu_sel_points_j)
-    hv_ref = dif_ref_ref * (ki.hu_sel_points_i * ki.hv_sel_j)
+    hu_ref = dif_ref_ref * (ki.hu_sel_i * ki.h_sel_ref_j)
+    hv_ref = dif_ref_ref * (ki.h_sel_ref_i * ki.hv_sel_j)
     huv_ref = hu_ref.sum(axis=-1) - hv_ref.sum(axis=-1)  # C
 
-    hu_rest = dif_rest_rest * (ki.hu_sel_i * ki.hu_sel_points_j)
-    hv_rest = dif_rest_rest * (ki.hu_sel_points_i * ki.hv_sel_j)
+    hu_rest = dif_rest_rest * (ki.hu_sel_i * ki.h_sel_ref_j)
+    hv_rest = dif_rest_rest * (ki.h_sel_ref_i * ki.hv_sel_j)
     huv_rest = hu_rest.sum(axis=-1) - hv_rest.sum(axis=-1)  # C
 
     c_g = hu * hv / (r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * perp_matrix  # C

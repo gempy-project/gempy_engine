@@ -4,6 +4,8 @@ TODO:
     - [X] weights
     - [ ] scalar field export
     - [ ] gradient export
+        - **Interpolate model with gempy and get scalar field** different u_terms!
+        - compute gradients with numpy
     - [ ] remove unsued code
     - [ ] refactor TensorBackend to 
     

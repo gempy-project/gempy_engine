@@ -41,9 +41,9 @@ def exp_function(r, a):
 def exp_function_p_div_r(r, a):
     exp_den = (2 * a ** 2)
     if BackendTensor.pykeops_enabled:
-        return -1 / exp_den / r * (-(r / exp_den)).exp()
+        return -1 / exp_den  * (-(r / exp_den)).exp()
     else:
-        return  -1 / exp_den / r *  BackendTensor.tfnp.exp(-(r / a ** 2))
+        return  -1 / exp_den *  BackendTensor.tfnp.exp(-(r / a ** 2))
 
 
 def exp_function_a(r, a):

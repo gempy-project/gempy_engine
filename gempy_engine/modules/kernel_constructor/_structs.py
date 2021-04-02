@@ -37,8 +37,11 @@ class CartesianSelector:
     hv_sel_i: tensor_types = np.empty((0, 1, 3))
     hv_sel_j: tensor_types = np.empty((1, 0, 3))
 
-    hu_sel_points_i: tensor_types = np.empty((0, 1, 3))
-    hu_sel_points_j: tensor_types = np.empty((1, 0, 3))
+    h_sel_ref_i: tensor_types = np.empty((0, 1, 3))
+    h_sel_ref_j: tensor_types = np.empty((1, 0, 3))
+
+    h_sel_rest_i: tensor_types = np.empty((0, 1, 3))
+    h_sel_rest_j: tensor_types = np.empty((1, 0, 3))
 
 
 

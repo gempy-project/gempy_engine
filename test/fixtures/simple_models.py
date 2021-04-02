@@ -9,6 +9,7 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
 from gempy_engine.core.data.options import InterpolationOptions
+from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
 
 
 @pytest.fixture(scope='session')
@@ -38,9 +39,52 @@ def simple_model_2():
                                number_dimensions=2, kernel_function=AvailableKernelFunctions.cubic)
 
     _ = np.ones(3)
-    tensor_structure = TensorsStructure(np.array([3, 2]), _, _, _, _)
+    tensor_structure = TensorsStructure(np.array([4, 3]), _, _, _, _)
 
     return spi, ori_i, kri, tensor_structure
 
+@pytest.fixture(scope="session")
+def simple_model_2_internals(simple_model_2):
+    surface_points = simple_model_2[0]
+    orientations = simple_model_2[1]
+    options = simple_model_2[2]
+    tensors_structure = simple_model_2[3]
+
+    sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
+    ori_internals = orientations_preprocess(orientations)
+    return sp_internals, ori_internals, options
+
+@pytest.fixture(scope='session')
+def simple_grid():
+    nx, ny = (3, 2)
+    x = np.linspace(0, 1, nx)
+    y = np.linspace(0, 1, ny)
+    xv, yv = np.meshgrid(x, y)
+    g = np.vstack((xv.ravel(), yv.ravel())).T
+    return g
 
 
+def test_simple_model_gempy_engine():
+    g = gempy.create_data("test_engine", extent=[-2, 2, -2, 2, -2, 2], resolution=[2, 2, 2])
+    sp = np.array([[4, 0, 0],
+                   [0, 0, 0],
+                   [2, 0, 0],
+                   [3, 0, 0],
+                   [3, 0, 3],
+                   [0, 0, 2],
+                   [2, 0, 2]])
+
+    g.set_default_surfaces()
+
+    for i in sp:
+        g.add_surface_points(*i, surface="surface1")
+
+    g.add_orientations(0, 0, 6, pole_vector=(0, 0, 1), surface="surface1")
+    g.add_orientations(2, 0, 13, pole_vector=(0, 0, .8), surface="surface1")
+
+    g.modify_kriging_parameters("range", 5)
+    g.modify_kriging_parameters("$C_o$", 5 ** 2 / 14 / 3)
+
+    gempy.set_interpolator(g, verbose=["covariance_matrix"])
+
+    print(g.solutions.scalar_field_matrix)
