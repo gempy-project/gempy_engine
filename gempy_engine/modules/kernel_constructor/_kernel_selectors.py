@@ -74,7 +74,7 @@ def dips_sp_cartesian_selector_for_grad(vector_size, n_dim, n_dips, n_points, ax
 def grid_cartesian_selector(vector_size, n_dim, axis=None):
     sel_hu = np.ones((vector_size, n_dim))
     sel_hv = np.ones((vector_size, n_dim))
-    sel_huv = -1 * np.ones((vector_size, n_dim)) # TODO: This seems unused
+    sel_huv = np.ones((vector_size, n_dim)) # TODO: This seems unused
     sel_hv[:, axis] = 1
 
     return sel_hu, sel_hv, sel_huv

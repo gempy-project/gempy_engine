@@ -31,7 +31,7 @@ weights_sol = np.array(
 
 def test_solver(kriging_eq):
     weights = kernel_reduction(*kriging_eq)
-    np.testing.assert_array_almost_equal(weights.reshape(-1,1), weights_sol, decimal=3)
+    np.testing.assert_array_almost_equal(np.asarray(weights).reshape(-1,1), weights_sol, decimal=3)
     print(weights)
 
 

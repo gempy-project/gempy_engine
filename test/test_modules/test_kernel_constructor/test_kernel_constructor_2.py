@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from gempy_engine.config import BackendTensor, AvailableBackends
 from gempy_engine.core.data import SurfacePoints, Orientations, InterpolationOptions, TensorsStructure
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
@@ -92,10 +93,14 @@ def gempy_v2_model_res():
     return spi, ori_i, kri, tensor_structure
 
 
-#
+plot = False
+
+
 class TestCompareWithGempy_v2:
     @pytest.fixture(scope="class")
     def internals(self, gempy_v2_model_res):
+        BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=False)
+
         surface_points = gempy_v2_model_res[0]
         orientations = gempy_v2_model_res[1]
         options = gempy_v2_model_res[2]
@@ -137,6 +142,7 @@ class TestCompareWithGempy_v2:
         export_sp_contr = _test_covariance_items(kernel_data, options, item="sigma_0_sp")
         sp_contr = weights @ export_sp_contr
 
+        # TODO: Add test
         print(f"\n Scalar field sp contr: {sp_contr}")
 
         # Test sigma grad - sp
@@ -148,9 +154,14 @@ class TestCompareWithGempy_v2:
         export_scalar_ff = create_scalar_kernel(kernel_data, options)
         scalar_ff = weights @ export_scalar_ff
         print(f"\n Scalar field: {scalar_ff.reshape(4, 1, 4)}")
-        pass
 
         np.testing.assert_allclose(np.asarray(scalar_ff), scalar_gempy_v2, rtol=1)
+
+        if plot:
+            import matplotlib.pyplot as plt
+
+            plt.contourf(scalar_ff.reshape(4, 1, 4)[:, 0, :].T, N=40, cmap="autumn")
+            plt.show()
 
     def test_export_to_grad(self, internals, weights):
         # Test gradient x
@@ -173,23 +184,16 @@ class TestCompareWithGempy_v2:
         grad_z = weights @ export_grad_scalar
         print(f"\n Grad z: {grad_z.reshape(4, 1, 4)}")
 
-        import matplotlib.pyplot as plt
+        if plot:
+            import matplotlib.pyplot as plt
 
-        plt.contourf(scalar_gempy_v2.reshape(4, 1, 4)[:, 0, :].T, N=40, cmap="autumn")
-        plt.quiver(np_grad_x[:, 0, :], np_grad_y[:, 0, :],
-                   pivot="tail",
-                   color='blue', alpha=.6)
+            plt.contourf(scalar_gempy_v2.reshape(4, 1, 4)[:, 0, :].T, N=40, cmap="autumn")
+            plt.quiver(np_grad_x[:, 0, :], np_grad_y[:, 0, :],
+                       pivot="tail",
+                       color='blue', alpha=.6)
 
-        plt.quiver(grad_x.reshape(4, 4), grad_z.reshape(4, 4),
-                   pivot="tail",
-                   color='green', alpha=.6)
+            plt.quiver(grad_x.reshape(4, 4), grad_z.reshape(4, 4),
+                       pivot="tail",
+                       color='green', alpha=.6)
 
-        plt.show()
-
-        plt.contourf(scalar_gempy_v2.reshape(4, 1, 4)[:, 0, :].T, N=40, cmap="viridis")
-        plt.quiver(grad_x.reshape(4,4), grad_z.reshape(4, 4),
-                   pivot="tail",
-                   color='blue', alpha=.6)
-
-        plt.show()
-
+            plt.show()

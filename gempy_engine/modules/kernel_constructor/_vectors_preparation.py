@@ -86,8 +86,11 @@ def evaluation_vectors_preparations(grid: np.array, sp_: SurfacePointsInternals,
                                                                                  ori_.n_orientations, sp_.n_points)
 
     sel_hu_grid, sel_hv_grid, sel_hu_points_grid = grid_cartesian_selector(grid.shape[0], options.number_dimensions)
-    cartesian_selector = hu_hv_sel(sel_hu_input, sel_hu_grid, sel_hv_input, sel_hv_grid, sel_hu_points_input,
-                                   sel_hu_points_grid, sel_hu_points_input, sel_hu_points_grid)
+    cartesian_selector = hu_hv_sel(
+        sel_hu_input, sel_hu_grid,
+        sel_hv_input, sel_hv_grid,
+        sel_hu_points_input, sel_hu_points_grid,
+        sel_hu_points_input, sel_hu_points_grid)
 
     # Drift selector
     drift_selection = drift_selector(cov_size, grid.shape[0], options.n_uni_eq)
@@ -109,6 +112,7 @@ def evaluation_vectors_preparations_grad(grid: np.array, sp_: SurfacePointsInter
 
     # When we create que core covariance this are the repeated since the distance are with themselves
     orientations_sp_matrices = assembly_core_tensor(dips_ref_coord, grid, dips_rest_coord, grid)
+
 
     # Universal
     dips_ug_d1, dips_ug_d2 = assembly_dips_ug_coords(ori_, sp_.n_points, options)

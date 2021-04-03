@@ -6,7 +6,7 @@ import numpy as np
 def test_xla_surface_points_preprocessing(simple_model_2):
     surface_points = simple_model_2[0]
     tensors_structure = simple_model_2[3]
-    BackendTensor.change_backend(AvailableBackends.tensorflow, use_gpu=False)
+    BackendTensor.change_backend(AvailableBackends.tensorflow)
     from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess
 
     @tf.function

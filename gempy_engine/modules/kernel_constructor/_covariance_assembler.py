@@ -157,7 +157,7 @@ def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item)
         usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
         ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
         drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
-        cov = c_o * (cov_grad + cov_sp + cov_grad_sp + drift)
+        cov =  (cov_grad + cov_sp + cov_grad_sp + drift)
 
         return cov
 
@@ -183,21 +183,8 @@ def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref
 def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatrices:
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j
 
-    t1_i = ori_sp_matrices.dip_ref_i[:, 0, :]
-    t1_j = ori_sp_matrices.dip_ref_j[0, :, :]
-
-    t3_i = cs.hu_sel_i[:, 0, :]
-    t3_j = cs.hu_sel_j[0]
-
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j
     hu = (dif_ref_ref * (cs.hu_sel_i * cs.hu_sel_j)).sum(axis=-1)  # C
-
-    # TODO: t2_is the goal. Hopefully we can get it by manipulating hu_sel_i
-    t2_m = dif_ref_ref[:,:,0] * (cs.hu_sel_i * cs.hu_sel_j).sum(axis=-1)
-
-    t4_i = cs.hv_sel_i[:, 0, :]
-    t4_j = cs.hv_sel_j[0]
-
     hv = -(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j)).sum(axis=-1)  # C
 
     hu_ref = dif_ref_ref * (cs.hu_sel_i * cs.h_sel_ref_j)
