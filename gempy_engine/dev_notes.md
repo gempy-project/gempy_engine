@@ -2,13 +2,13 @@ TODO:
 
 - [ ] Refactor code: Refactor until exporting scalarfield and gradient
     - [X] weights
-    - [ ] scalar field export
-    - [ ] gradient export
+    - [X] scalar field export
+    - [X] gradient export
         - **Interpolate model with gempy and get scalar field** different u_terms!
         - compute gradients with numpy
-    - [ ] remove unsued code
-    - [ ] refactor TensorBackend to 
-    
+    - [X] remove unsued code
+    - [X] refactor TensorBackend      
+
 - [ ] Add benchmark test
     - Small medium and big model
     - xla, pykeops
@@ -16,6 +16,10 @@ TODO:
 - [ ] Gradient to scalar field
     - Mixing xla-eager
     - putting keops in the middle
+
+- [ ] Add drift to the export
+
+- [ ] Finite faults: the ellipse can be precomputed probably as a getter of its data class!
 
 - [ ] Data
     - [ ] `__post_init__` should go to utils

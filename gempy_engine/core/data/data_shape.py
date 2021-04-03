@@ -1,9 +1,6 @@
 import dataclasses
 from dataclasses import dataclass
-from typing import List, Iterable
 import numpy as np
-from pandas._typing import ArrayLike
-
 
 @dataclass
 class TensorsStructure:

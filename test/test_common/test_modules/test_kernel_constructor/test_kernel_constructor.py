@@ -21,7 +21,7 @@ def test_covariance_cubic_kernel(simple_model_2):
     # Cubic kernel
     # Euclidean distance
 
-    l = np.load(dir_name + '/../test_kernel_numeric2.npy')
+    l = np.load(dir_name + '/../solutions/test_kernel_numeric2.npy')
     surface_points = simple_model_2[0]
     orientations = simple_model_2[1]
     options = simple_model_2[2]
