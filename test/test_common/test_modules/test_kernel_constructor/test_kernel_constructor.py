@@ -7,6 +7,7 @@ from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_
     _compute_all_distance_matrices, create_scalar_kernel, create_grad_kernel
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
+from gempy_engine.modules.kernel_constructor._structs import CartesianSelector
 from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation, \
     evaluation_vectors_preparations
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, yield_b_vector
@@ -99,13 +100,12 @@ class TestPykeopsNumPyEqual():
         cov_size = ori_.n_orientations_tiled + sp_.n_points + options.n_uni_eq
 
         from gempy_engine.modules.kernel_constructor._kernel_selectors import dips_sp_cartesian_selector
-        from gempy_engine.modules.kernel_constructor._kernel_selectors import hu_hv_sel
 
         sel_hu_input, sel_hv_input, sel_hu_points_input = dips_sp_cartesian_selector(cov_size,
                                                                                      options.number_dimensions,
                                                                                      ori_.n_orientations, sp_.n_points)
 
-        cartesian_selector = hu_hv_sel(sel_hu_input, sel_hv_input, sel_hv_input, sel_hu_input, sel_hu_points_input,
+        cartesian_selector = CartesianSelector(sel_hu_input, sel_hv_input, sel_hv_input, sel_hu_input, sel_hu_points_input,
                                        sel_hu_points_input, sel_hu_points_input, sel_hu_points_input)
 
         with open(dir_name + '/../solutions/cartesian_selector.pickle', 'rb') as handle:
@@ -168,7 +168,7 @@ class TestPykeopsNumPyEqual():
         c_n_sum = c_n.sum(0).reshape(-1, 1)
 
         print(c_n, c_n_sum)
-        np.testing.assert_array_almost_equal(c_n, l, decimal=3)
+        np.testing.assert_array_almost_equal(np.asarray(c_n), l, decimal=3)
 
 
         # pykeops

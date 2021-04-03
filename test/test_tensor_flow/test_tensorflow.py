@@ -2,6 +2,7 @@ from gempy_engine.config import BackendTensor, AvailableBackends
 import tensorflow as tf
 import numpy as np
 
+from ..fixtures.simple_models import simple_model_2
 
 def test_xla_surface_points_preprocessing(simple_model_2):
     surface_points = simple_model_2[0]

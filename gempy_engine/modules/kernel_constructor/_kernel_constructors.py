@@ -3,23 +3,7 @@ from typing import Tuple
 import numpy as np
 
 from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.modules.kernel_constructor._structs import OrientationSurfacePointsCoords, \
-    OrientationsDrift, PointsDrift
-from gempy_engine.core.data.kernel_classes.surface_points import SurfacePointsInternals
 from gempy_engine.core.data.kernel_classes.orientations import OrientationsInternals
-
-
-def assembly_core_tensor(x_ref: np.ndarray, y_ref: np.ndarray, x_rest: np.ndarray, y_rest: np.ndarray) -> \
-        OrientationSurfacePointsCoords:
-    def _assembly(x, y) -> Tuple[np.ndarray, np.ndarray]:
-        dips_points0 = x[:, None, :]  # i
-        dips_points1 = y[None, :, :]  # j
-        return dips_points0, dips_points1
-
-    dips_points_ref_i, dips_points_ref_j = _assembly(x_ref, y_ref)
-    dips_points_rest_i, dips_points_rest_j = _assembly(x_rest, y_rest)
-
-    return OrientationSurfacePointsCoords(dips_points_ref_i, dips_points_ref_j, dips_points_rest_i, dips_points_rest_j)
 
 
 def assembly_dips_points_tensor(dips_coord: np.ndarray, sp_coord: np.ndarray, options: InterpolationOptions):
@@ -62,19 +46,9 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, sp_size: int,
     return dips_a, dips_b
 
 
-def assembly_ug_tensor(x_degree_1: np.ndarray, y_degree_1: np.ndarray, x_degree_2: np.ndarray, y_degree_2: np.ndarray):
-    return OrientationsDrift(
-        x_degree_1[:, None, :],
-        y_degree_1[None, :, :],
-        x_degree_2[:, None, :],
-        y_degree_2[None, :, :]
-    )
-
-
 def assembly_dips_points_coords(surface_points: np.ndarray, ori_size: int,
                                 interpolation_options: InterpolationOptions) \
         -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-
     n_dim = interpolation_options.number_dimensions
 
     z = np.zeros((ori_size, n_dim))
@@ -104,15 +78,3 @@ def assembly_dips_points_coords(surface_points: np.ndarray, ori_size: int,
     points_degree_2b = np.vstack((z, surface_points, zc))
 
     return points_degree_1, points_degree_2a, points_degree_2b
-
-
-def assembly_usp_tensor(x_degree_1: np.ndarray, y_degree_1: np.ndarray, x_degree_2a: np.ndarray,
-                        y_degree_2a: np.ndarray, x_degree_2b: np.ndarray, y_degree_2b: np.ndarray):
-    return PointsDrift(
-        x_degree_1[:, None, :],
-        y_degree_1[None, :, :],
-        x_degree_2a[:, None, :],
-        y_degree_2a[None, :, :],
-        x_degree_2b[:, None, :],
-        y_degree_2b[None, :, :],
-    )

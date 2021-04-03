@@ -1,6 +1,7 @@
 from gempy_engine.config import BackendTensor, AvailableBackends
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess
 
+from ..fixtures.simple_models import simple_model_2
 
 def test_optional_dependencies():
     import gempy_engine.config
@@ -54,6 +55,7 @@ def test_data_class_hash(simple_model_2):
     print(f.__hash__)
 
 
+# We should trigger them manually
 def test_tf_function(simple_model_2):
     surface_points = simple_model_2[0]
     tensors_structure = simple_model_2[3]

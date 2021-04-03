@@ -35,17 +35,6 @@ def test_solver(kriging_eq):
     print(weights)
 
 
-# TODO: Obsolete once we change backend in conftest randomly
-def test_solver_tf(kriging_eq):
-    # BackendTensor.change_backend(AvailableBackends.tensorflow, use_gpu=True,
-    #                             pykeops_enabled=False)
-
-    A_matrix, b_vector = kriging_eq
-    weights = kernel_reduction(A_matrix, b_vector)
-    np.testing.assert_array_almost_equal(weights, weights_sol, decimal=3)
-    print(weights)
-
-
 def test_scalar_field_export(simple_model_2_internals, simple_grid):
     sp_internal, ori_internal, options = simple_model_2_internals
 

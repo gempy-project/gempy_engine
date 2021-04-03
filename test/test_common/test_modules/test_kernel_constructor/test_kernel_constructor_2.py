@@ -7,8 +7,7 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
 from gempy_engine.modules.kernel_constructor._covariance_assembler import create_grad_kernel, create_scalar_kernel, \
     _test_covariance_items
-from gempy_engine.modules.kernel_constructor._vectors_preparation import evaluation_vectors_preparations, \
-    evaluation_vectors_preparations_grad
+from gempy_engine.modules.kernel_constructor._vectors_preparation import evaluation_vectors_preparations
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, yield_b_vector
 from gempy_engine.modules.solver.solver_interface import kernel_reduction
 
@@ -93,7 +92,7 @@ def gempy_v2_model_res():
     return spi, ori_i, kri, tensor_structure
 
 
-plot = False
+plot = True
 
 
 class TestCompareWithGempy_v2:
@@ -167,23 +166,34 @@ class TestCompareWithGempy_v2:
         # Test gradient x
         np_grad_x = np.gradient(scalar_gempy_v2.reshape(4, 1, 4), axis=0)
         np_grad_y = np.gradient(scalar_gempy_v2.reshape(4, 1, 4), axis=2)
+
+        grad_x_sol = np.array(
+            [0.154, 0.08, 0.012, -0.048, 0.178, 0.064, -0.138, -0.307, 0.153, 0.052, -0.225, -0.521, 0.049, -0.066,
+             -0.183, -0.475])
+        grad_z_sol = np.array(
+            [0.328, 0.526, 0.818, 0.949, 0.257, 0.412, 0.684, 0.876, 0.182, 0.23, 0.378, 0.803, 0.107, 0.101, 0.086,
+             0.578])
+
         print(f"\n Grad x 'sol': {np_grad_x}")
 
         sp_internals, ori_internals, options = internals
 
         # Gradient x
-        kernel_data = evaluation_vectors_preparations_grad(grid, sp_internals, ori_internals,
-                                                           options, axis=0)
+        kernel_data = evaluation_vectors_preparations(grid, sp_internals, ori_internals,
+                                                      options, axis=0)
         export_grad_scalar = create_grad_kernel(kernel_data, options)
         grad_x = weights @ export_grad_scalar
-        print(f"\n Grad x: {grad_x.reshape(4, 1, 4)}")
 
-        kernel_data = evaluation_vectors_preparations_grad(grid, sp_internals, ori_internals,
-                                                           options, axis=2)
+        print(f"\n Grad x: {grad_x.reshape(4, 1, 4)}")
+        np.testing.assert_array_almost_equal(grad_x, grad_x_sol, decimal=3)
+
+        kernel_data = evaluation_vectors_preparations(grid, sp_internals, ori_internals,
+                                                      options, axis=2)
         export_grad_scalar = create_grad_kernel(kernel_data, options)
         grad_z = weights @ export_grad_scalar
+        print(grad_z)
         print(f"\n Grad z: {grad_z.reshape(4, 1, 4)}")
-
+        np.testing.assert_array_almost_equal(grad_z, grad_z_sol, decimal=3)
         if plot:
             import matplotlib.pyplot as plt
 

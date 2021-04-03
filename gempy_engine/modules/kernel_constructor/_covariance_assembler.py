@@ -83,23 +83,8 @@ def create_grad_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor
     k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
         _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
 
-    # TODO: This cannot be the right hu and hv since we DO need hx - hy and so on
-
-    a = dm.hu
-    b = dm.hv
-    ab = a*b
-    ab_g = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5)
-    e = k_p_ref
-    f = k_a
-    g = (- k_p_ref + k_a)
-    h = k_p_ref * dm.perp_matrix
-
-    # TODO: Maybe the "-" in dm.hu is unnecessary
     sigma_0_grad = (+1) * dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix
-
-    c = dm.huv_rest * k_p_rest
-    d = dm.huv_ref * k_p_ref
-    sigma_0_sp_grad =  d - c
+    sigma_0_sp_grad =  dm.huv_ref * k_p_ref -  dm.huv_rest * k_p_rest
     return c_o * (sigma_0_grad + sigma_0_sp_grad)
 
 @dataclass
@@ -115,57 +100,6 @@ class InternalDistancesMatrices:
     r_ref_rest: np.ndarray
     r_rest_ref: np.ndarray
     r_rest_rest: np.ndarray
-
-
-def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item):
-    """This method is not to be executed in production. Just for sanity check
-    """
-    kernel_f = options.kernel_function.value
-    a = options.range
-    c_o = options.c_o
-
-    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
-
-    # with open('distance_matrices.pickle', 'wb') as handle:
-    #     import pickle
-    #     pickle.dump(dm, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
-        _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
-
-    if item == "cov_grad":
-        cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
-        return cov_grad
-
-    elif item == "cov_sp":
-        return k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref
-
-    elif item == "cov_grad_sp":
-        return - dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref
-
-    elif item == "drift":
-        usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
-        ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
-        drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
-        return drift
-    elif  item == "cov":
-        cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
-        cov_sp = k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref  # It is expanding towards cross
-        cov_grad_sp = - dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref  # C
-
-        # TODO: This Universal term seems buggy. It should also have a rest component!
-        usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
-        ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
-        drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
-        cov =  (cov_grad + cov_sp + cov_grad_sp + drift)
-
-        return cov
-
-    elif item =="sigma_0_sp":
-        return c_o * (k_rest_rest - k_ref_ref) # This are right terms
-
-    elif item =="sigma_0_grad_sp":
-        return c_o * ( dm.huv_ref * k_p_ref) # This are right terms
 
 
 def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest):
@@ -217,3 +151,55 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatr
 
     return InternalDistancesMatrices(dif_ref_ref, dif_rest_rest, hu, hv, huv_ref, huv_rest, perp_matrix,
                                      r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest)
+
+
+
+def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item):
+    """This method is not to be executed in production. Just for sanity check
+    """
+    kernel_f = options.kernel_function.value
+    a = options.range
+    c_o = options.c_o
+
+    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
+
+    # with open('distance_matrices.pickle', 'wb') as handle:
+    #     import pickle
+    #     pickle.dump(dm, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
+        _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
+
+    if item == "cov_grad":
+        cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
+        return cov_grad
+
+    elif item == "cov_sp":
+        return k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref
+
+    elif item == "cov_grad_sp":
+        return - dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref
+
+    elif item == "drift":
+        usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
+        ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
+        drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+        return drift
+    elif  item == "cov":
+        cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
+        cov_sp = k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref  # It is expanding towards cross
+        cov_grad_sp = - dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref  # C
+
+        # TODO: This Universal term seems buggy. It should also have a rest component!
+        usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
+        ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
+        drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+        cov =  (cov_grad + cov_sp + cov_grad_sp + drift)
+
+        return cov
+
+    elif item =="sigma_0_sp":
+        return c_o * (k_rest_rest - k_ref_ref) # This are right terms
+
+    elif item =="sigma_0_grad_sp":
+        return c_o * ( dm.huv_ref * k_p_ref) # This are right terms
