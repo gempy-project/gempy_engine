@@ -5,7 +5,7 @@ from test or anywhere else.
 
 """
 
-from gempy_engine.config import BackendTensor, AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 from gempy_engine.core.data.data_shape import TensorsStructure
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints

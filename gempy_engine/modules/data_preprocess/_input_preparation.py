@@ -1,10 +1,9 @@
 import numpy as np
 
-from gempy_engine.config import BackendTensor, AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor, BackendTensor as b, AvailableBackends
 from gempy_engine.core.data.kernel_classes.orientations import Orientations, OrientationsInternals
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints, SurfacePointsInternals
 
-from gempy_engine.config import BackendTensor as b
 
 def orientations_preprocess(orientations: Orientations):
     tiled_positions = b.tfnp.tile(orientations.dip_positions, (orientations.n_dimensions, 1))

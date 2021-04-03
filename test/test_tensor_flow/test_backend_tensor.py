@@ -1,4 +1,6 @@
-from gempy_engine.config import BackendTensor, AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor
+from gempy_engine.config import AvailableBackends
+
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess
 
 from ..fixtures.simple_models import simple_model_2
@@ -12,7 +14,6 @@ def test_optional_dependencies():
 
 
 def test_change_backend_on_the_fly():
-    from gempy_engine.config import BackendTensor, AvailableBackends
 
     np_module = BackendTensor.tfnp
     BackendTensor.change_backend(AvailableBackends.tensorflow)

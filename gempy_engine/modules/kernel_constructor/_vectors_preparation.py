@@ -1,4 +1,4 @@
-from gempy_engine.config import BackendTensor, AvailableBackends
+from ...core.backend_tensor import BackendTensor, AvailableBackends
 from gempy_engine.core.data.options import InterpolationOptions
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePointsInternals
 from gempy_engine.core.data.kernel_classes.orientations import OrientationsInternals

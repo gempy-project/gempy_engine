@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from gempy_engine.config import BackendTensor, AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 from gempy_engine.core.data import SurfacePoints, Orientations, InterpolationOptions, TensorsStructure
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
@@ -92,7 +92,7 @@ def gempy_v2_model_res():
     return spi, ori_i, kri, tensor_structure
 
 
-plot = True
+plot = False
 
 
 class TestCompareWithGempy_v2:

@@ -3,7 +3,7 @@ from typing import Tuple
 
 import numpy as np
 
-from gempy_engine.config import BackendTensor, AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 tensor_types = BackendTensor.tensor_types
 

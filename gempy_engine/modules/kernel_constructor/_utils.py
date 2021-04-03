@@ -1,4 +1,4 @@
-from gempy_engine.config import BackendTensor
+from gempy_engine.core.backend_tensor import BackendTensor
 
 tfnp = BackendTensor.tfnp
 tensor_types = BackendTensor.tensor_types

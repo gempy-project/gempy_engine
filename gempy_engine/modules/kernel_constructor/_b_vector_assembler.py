@@ -1,4 +1,4 @@
-from gempy_engine.config import BackendTensor as bt
+from gempy_engine.core.backend_tensor import BackendTensor as bt
 from gempy_engine.core.data.kernel_classes.orientations import OrientationsInternals
 
 

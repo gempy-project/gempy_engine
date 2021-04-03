@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from gempy_engine.config import BackendTensor, AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_cov_kernel, \
     _compute_all_distance_matrices, create_scalar_kernel, create_grad_kernel

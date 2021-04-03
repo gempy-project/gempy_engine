@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from gempy_engine.config import BackendTensor
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, KernelFunction
 from gempy_engine.core.data.options import InterpolationOptions
 from gempy_engine.modules.kernel_constructor._structs import KernelInput

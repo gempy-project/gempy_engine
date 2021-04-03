@@ -1,4 +1,4 @@
-from gempy_engine.config import BackendTensor, AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 import tensorflow as tf
 import numpy as np
 

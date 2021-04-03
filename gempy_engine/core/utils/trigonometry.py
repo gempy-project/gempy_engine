@@ -1,8 +1,3 @@
-from gempy_engine.data_structures.private_structures import OrientationsGradients
-from gempy_engine.data_structures.public_structures import OrientationsInput
-from gempy_engine.systems.generators import tfnp
-
-
 def deg2rad(degree_matrix):
     return degree_matrix * tfnp.constant(0.0174533)
 

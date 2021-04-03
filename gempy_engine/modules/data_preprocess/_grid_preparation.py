@@ -1,5 +1,5 @@
 from gempy_engine.core.data import SurfacePointsInternals, OrientationsInternals
-from gempy_engine.config import BackendTensor as bt
+from gempy_engine.core.backend_tensor import BackendTensor as bt
 from gempy_engine.core.data.export_coords import ExportCoordInternals
 
 

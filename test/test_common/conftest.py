@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import pytest
 
-from gempy_engine.config import BackendTensor, AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints, SurfacePointsInternals
 from gempy_engine.core.data.options import InterpolationOptions

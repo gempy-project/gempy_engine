@@ -1,4 +1,4 @@
-from gempy_engine.config import BackendTensor
+from gempy_engine.core.backend_tensor import BackendTensor
 
 from gempy_engine.core.data.options import InterpolationOptions
 from gempy_engine.modules.kernel_constructor._b_vector_assembler import b_vector_assembly

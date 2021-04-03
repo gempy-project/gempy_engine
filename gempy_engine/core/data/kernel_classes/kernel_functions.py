@@ -3,7 +3,7 @@ from enum import Enum, auto
 
 from typing import Callable
 
-from gempy_engine.config import BackendTensor
+from gempy_engine.core.backend_tensor import BackendTensor
 
 
 def cubic_function(r, a):

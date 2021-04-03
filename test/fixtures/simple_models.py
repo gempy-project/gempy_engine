@@ -3,7 +3,7 @@ import logging
 import numpy as np
 import pytest
 
-from gempy_engine.config import BackendTensor
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.data_shape import TensorsStructure
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
