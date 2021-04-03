@@ -55,13 +55,12 @@ class BackendTensor():
                 if cls.use_gpu is False:
 
                     tf.config.set_visible_devices(physical_devices[1:], 'GPU')
-                    logical_devices = tf.config.list_logical_devices('GPU')
                 else:
                     tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
                 if DEBUG_MODE:
                     # To find out which devices your operations and tensors are assigned to
-                    tf.debugging.set_log_device_placement(True) # TODO: Remove in production
+                    tf.debugging.set_log_device_placement(True)
 
                 cls._set_active_backend_pointers(engine_backend, tf)
                 cls.tensor_types = Union[tf.Tensor, tf.Variable]  # tensor Types with respect the backend:
