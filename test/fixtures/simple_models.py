@@ -132,11 +132,56 @@ def simple_model():
 
 
 @pytest.fixture(scope="session")
-def simple_model_output(simple_model):
-    surface_points = simple_model[0]
-    orientations = simple_model[1]
-    options = simple_model[2]
-    data_shape = simple_model[3]
+def simple_model_3_layers():
+    import numpy
+
+    numpy.set_printoptions(precision=3, linewidth=200)
+
+    dip_positions = np.array([
+        [0.25010, 0.50010, 0.54177],
+        [0.66677, 0.50010, 0.62510],
+    ])
+    sp = np.array([
+        [0.25010, 0.50010, 0.37510],
+        [0.50010, 0.50010, 0.37510],
+        [0.66677, 0.50010, 0.41677],
+        [0.70843, 0.50010, 0.47510],
+        [0.75010, 0.50010, 0.54177],
+        [0.58343, 0.50010, 0.39177],
+        [0.73343, 0.50010, 0.50010],
+        [0.25010, 0.50010, 0.27510],
+        [0.50010, 0.50010, 0.27510],
+        [0.25010, 0.50010, 0.17510],
+        [0.50010, 0.50010, 0.17510],
+
+    ])
+
+    nugget_effect_scalar = 0
+    spi = SurfacePoints(sp, nugget_effect_scalar)
+
+    dip_gradients = np.array([[0, 0, 1],
+                              [-.6, 0, .8]])
+    nugget_effect_grad = 0
+
+    range_ = 4.166666666667
+    co = 0.1428571429
+
+    ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
+
+    kri = InterpolationOptions(range_, co, 0, i_res=1, gi_res=1,
+                               number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+    _ = np.ones(3)
+    tensor_structure = TensorsStructure(np.array([7, 2, 2]), _)
+    return spi, ori_i, kri, tensor_structure
+
+
+
+@pytest.fixture(scope="session")
+def simple_model_output(simple_model_3_layers):
+    surface_points = simple_model_3_layers[0]
+    orientations = simple_model_3_layers[1]
+    options = simple_model_3_layers[2]
+    data_shape = simple_model_3_layers[3]
 
     return interpolate_single_scalar(surface_points, orientations, simple_grid_3d, options, data_shape)
 
