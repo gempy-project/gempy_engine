@@ -35,10 +35,10 @@ def test_solver(kriging_eq):
     print(weights)
 
 
-def test_scalar_field_export(simple_model_2_internals, simple_grid):
+def test_scalar_field_export(simple_model_2_internals, simple_grid_2d):
     sp_internal, ori_internal, options = simple_model_2_internals
 
-    evp = evaluation_vectors_preparations(simple_grid, sp_internal, ori_internal, options)
+    evp = evaluation_vectors_preparations(simple_grid_2d, sp_internal, ori_internal, options)
 
 
 

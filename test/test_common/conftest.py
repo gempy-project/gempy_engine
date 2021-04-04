@@ -9,7 +9,8 @@ from gempy_engine.core.data.options import InterpolationOptions
 from gempy_engine.modules.data_preprocess._input_preparation import orientations_preprocess, surface_points_preprocess
 
 # Import fixtures
-from test.fixtures.simple_models import simple_model_2, simple_grid, simple_model_2_internals
+from test.fixtures.simple_models import simple_model_2, simple_grid_2d, simple_model_2_internals, simple_model_output, \
+    tensor_structure, simple_model
 
 backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflow])
 using_gpu = bool(np.random.choice([True, False]))
@@ -18,37 +19,6 @@ using_pykeops = bool(np.random.choice([True, False]))
 # TODO: For now pykeops is always disabled
 BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=True,
                              pykeops_enabled=False)
-
-
-# TODO: Obsolete
-@pytest.fixture(scope='session')
-def simple_model():
-    spi = SurfacePointsInternals(
-        ref_surface_points=np.array(
-            [[4, 0],
-             [4, 0],
-             [4, 0],
-             [3, 3],
-             [3, 3]]),
-        rest_surface_points=np.array([[0, 0],
-                                      [2, 0],
-                                      [3, 0],
-                                      [0, 2],
-                                      [2, 2]]),
-        nugget_effect_ref_rest=0
-    )
-
-    ori_i = Orientations(
-        dip_positions=np.array([[0, 6],
-                                [2, 13]]),
-        nugget_effect_grad=0.0000001
-    )
-    ori_int = orientations_preprocess(ori_i)
-
-    kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
-                               number_dimensions=2)
-
-    return spi, ori_int, kri
 
 
 @pytest.fixture(scope='session')

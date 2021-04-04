@@ -2,8 +2,6 @@ import numpy as np
 import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
-from gempy_engine.core.data import SurfacePoints, Orientations, InterpolationOptions, TensorsStructure
-from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
 from gempy_engine.modules.kernel_constructor._covariance_assembler import create_grad_kernel, create_scalar_kernel, \
     _test_covariance_items
@@ -53,57 +51,16 @@ grid = np.array([
 ])
 
 
-@pytest.fixture(scope="module")
-def gempy_v2_model_res():
-    import numpy
-
-    numpy.set_printoptions(precision=3, linewidth=200)
-
-    dip_positions = np.array([
-        [0.25010, 0.50010, 0.54177],
-        [0.66677, 0.50010, 0.62510],
-    ])
-    sp = np.array([
-        [0.25010, 0.50010, 0.37510],
-        [0.50010, 0.50010, 0.37510],
-        [0.66677, 0.50010, 0.41677],
-        [0.70843, 0.50010, 0.47510],
-        [0.75010, 0.50010, 0.54177],
-        [0.58343, 0.50010, 0.39177],
-        [0.73343, 0.50010, 0.50010],
-    ])
-
-    nugget_effect_scalar = 0
-    spi = SurfacePoints(sp, nugget_effect_scalar)
-
-    dip_gradients = np.array([[0, 0, 1],
-                              [-.6, 0, .8]])
-    nugget_effect_grad = 0
-
-    range_ = 4.166666666667
-    co = 0.1428571429
-
-    ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
-
-    kri = InterpolationOptions(range_, co, 0, i_res=1, gi_res=1,
-                               number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
-    _ = np.ones(3)
-    tensor_structure = TensorsStructure(np.array([7]), _, _, _, _)
-    return spi, ori_i, kri, tensor_structure
-
-
 plot = False
-
-
 class TestCompareWithGempy_v2:
     @pytest.fixture(scope="class")
-    def internals(self, gempy_v2_model_res):
+    def internals(self, simple_model):
         BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=False)
 
-        surface_points = gempy_v2_model_res[0]
-        orientations = gempy_v2_model_res[1]
-        options = gempy_v2_model_res[2]
-        tensors_structure = gempy_v2_model_res[3]
+        surface_points = simple_model[0]
+        orientations = simple_model[1]
+        options = simple_model[2]
+        tensors_structure = simple_model[3]
         sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
         ori_internals = orientations_preprocess(orientations)
         return sp_internals, ori_internals, options

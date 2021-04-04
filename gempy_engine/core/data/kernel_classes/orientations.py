@@ -4,8 +4,6 @@ from typing import Union
 from gempy_engine.core.backend_tensor import BackendTensor
 import numpy as np
 
-from gempy_engine.modules.kernel_constructor._structs import tensor_types
-
 tensor_types = BackendTensor.tensor_types
 
 

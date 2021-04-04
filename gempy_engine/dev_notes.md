@@ -9,25 +9,27 @@ TODO:
     - [X] remove unsued code
     - [X] refactor TensorBackend      
 
-- [ ] Add benchmark test
-    - Small medium and big model
-    - xla, pykeops
-    
+- [ ] Add drift to the export
+
+- [ ] Keep the range cont by increasing r
+
 - [ ] Gradient to scalar field
     - Mixing xla-eager
     - putting keops in the middle
 
-- [ ] Add drift to the export
+- [ ] Test in the covariance module if we can mix eager and xla
 
+- [ ] Add benchmark test
+    - Small medium and big model
+    - xla, pykeops
+    
 - [ ] Finite faults: the ellipse can be precomputed probably as a getter of its data class!
 
 - [ ] Data
     - [ ] `__post_init__` should go to utils
     - [ ] Add hash function to all data classes
 
-- [ ] Test in the covariance module if we can mix eager and xla
 
-- [ ] Keep the range cont by increasing r
 
 
 Notes

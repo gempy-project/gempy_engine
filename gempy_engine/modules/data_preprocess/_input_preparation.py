@@ -5,6 +5,7 @@ from gempy_engine.core.data.kernel_classes.orientations import Orientations, Ori
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints, SurfacePointsInternals
 
 
+
 def orientations_preprocess(orientations: Orientations):
     tiled_positions = b.tfnp.tile(orientations.dip_positions, (orientations.n_dimensions, 1))
     tiled_gradients = b.tfnp.tile(orientations.dip_gradients, (orientations.n_dimensions, 1))

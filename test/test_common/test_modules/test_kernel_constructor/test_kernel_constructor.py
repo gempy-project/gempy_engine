@@ -43,7 +43,7 @@ def test_b_vector(simple_model_2):
     print(b_vec)
 
 
-def test_eval_kernel(simple_model_2, simple_grid):
+def test_eval_kernel(simple_model_2, simple_grid_2d):
     surface_points = simple_model_2[0]
     orientations = simple_model_2[1]
     options = simple_model_2[2]
@@ -51,7 +51,7 @@ def test_eval_kernel(simple_model_2, simple_grid):
 
     sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
     ori_internals = orientations_preprocess(orientations)
-    kernel_data = evaluation_vectors_preparations(simple_grid, sp_internals, ori_internals, options)
+    kernel_data = evaluation_vectors_preparations(simple_grid_2d, sp_internals, ori_internals, options)
     export_kernel = create_scalar_kernel(kernel_data, options)
     print(export_kernel)
 
