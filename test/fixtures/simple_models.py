@@ -43,14 +43,27 @@ simple_grid_3d = np.array([
 
 
 @pytest.fixture(scope='session')
-def tensor_structure(simple_grid_2d):
+def simple_grid_3d_more_points():
+    nx, ny, nz = (50, 5, 50)
+
+    x = np.linspace(0.25, 0.75, nx)
+    y = np.linspace(0.25, 0.75, ny)
+    z = np.linspace(0.25, .75, nz)
+    xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
+    g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
+    return g
+
+
+
+@pytest.fixture(scope='session')
+def tensor_structure_simple_model_2(simple_grid_2d):
     _ = np.ones(3)
     return TensorsStructure(number_of_points_per_surface=np.array([4, 3]),
                             len_grids=np.atleast_1d(simple_grid_2d.shape[0]))
 
 
 @pytest.fixture(scope='session')
-def simple_model_2(tensor_structure):
+def simple_model_2(tensor_structure_simple_model_2):
     print(BackendTensor.describe_conf())
 
     sp_coords = np.array([[4, 0],
@@ -75,7 +88,7 @@ def simple_model_2(tensor_structure):
     kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
                                number_dimensions=2, kernel_function=AvailableKernelFunctions.cubic)
 
-    return spi, ori_i, kri, tensor_structure
+    return spi, ori_i, kri, tensor_structure_simple_model_2
 
 
 
@@ -177,13 +190,13 @@ def simple_model_3_layers():
 
 
 @pytest.fixture(scope="session")
-def simple_model_output(simple_model_3_layers):
-    surface_points = simple_model_3_layers[0]
-    orientations = simple_model_3_layers[1]
-    options = simple_model_3_layers[2]
-    data_shape = simple_model_3_layers[3]
+def simple_model_output(simple_model, simple_grid_3d_more_points):
+    surface_points = simple_model[0]
+    orientations = simple_model[1]
+    options = simple_model[2]
+    data_shape = simple_model[3]
 
-    return interpolate_single_scalar(surface_points, orientations, simple_grid_3d, options, data_shape)
+    return interpolate_single_scalar(surface_points, orientations, simple_grid_3d_more_points, options, data_shape)
 
 #
 # def test_simple_model_gempy_engine():
