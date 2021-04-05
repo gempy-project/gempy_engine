@@ -196,7 +196,8 @@ def simple_model_output(simple_model, simple_grid_3d_more_points):
     options = simple_model[2]
     data_shape = simple_model[3]
 
-    return interpolate_single_scalar(surface_points, orientations, simple_grid_3d_more_points, options, data_shape)
+    ids = np.array([1, 2])
+    return interpolate_single_scalar(surface_points, orientations, simple_grid_3d_more_points, ids, options, data_shape)
 
 #
 # def test_simple_model_gempy_engine():
