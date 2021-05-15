@@ -12,3 +12,5 @@ class ExportedFields:
 class Output:
     exported_fields: ExportedFields
     scalar_field_at_sp: np.ndarray
+    values_block: np.ndarray # final values ignoring unconformities
+    final_block: np.ndarray # Masked array containing only the active voxels

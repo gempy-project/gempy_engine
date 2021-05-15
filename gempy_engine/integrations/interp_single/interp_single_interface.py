@@ -36,10 +36,6 @@ def interpolate_single_scalar(surface_points: data.SurfacePoints,
     # TODO: [~X] Export block
     values_block = activate_formation_block(exported_fields.scalar_field, scalar_at_surface_points,
                                             unit_values, sigmoid_slope=50000)
-
-    # TODO: [ ] Masking OPs
-    # mask_matrix = mask_matrix(exported_fields.scalar_field, scalar_at_surface_points, some_sort_of_array_with_erode_onlap)
-
     #-----------------
     # TODO: [ ] Topology
 
@@ -49,8 +45,12 @@ def interpolate_single_scalar(surface_points: data.SurfacePoints,
 
     # ------------------
 
+    # TODO: [ ] Masking OPs. This is for series, i.e. which voxels are active. During development until we
+    # TODO: multiple series we can assume all true so final_block = values_block
+    # mask_matrix = mask_matrix(exported_fields.scalar_field, scalar_at_surface_points, some_sort_of_array_with_erode_onlap)
+    final_block = values_block.copy() # TODO (dev hack May 2021): this should be values_block * mask_matrix
 
-    output = exported_structs.Output(exported_fields, scalar_at_surface_points)
+    output = exported_structs.Output(exported_fields, scalar_at_surface_points, values_block, final_block)
     return output
 
 

@@ -7,6 +7,8 @@ def interpolate_model(all_the_input):
     s = interpolate_single_scalar
 
     # --------------------
+    # The following operations are applied on the lith block:
+
     # This should happen only on the leaf of an octree
     # TODO: [ ] Dual contouring. This method only make one vertex per voxel. It is possible to make water tight surfaces?
 
