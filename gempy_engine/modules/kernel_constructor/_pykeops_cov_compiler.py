@@ -44,7 +44,7 @@ def simple_model_2():
                                number_dimensions=2)
 
     _ = np.ones(3)
-    tensor_structure = TensorsStructure(np.array([3, 2]), _, _, _, _)
+    tensor_structure = TensorsStructure(np.array([3, 2]))
 
     return spi, ori_i, kri, tensor_structure
 

@@ -59,8 +59,7 @@ def simple_grid_3d_more_points():
 
 def tensor_structure_simple_model_2(simple_grid_2d):
     _ = np.ones(3)
-    return TensorsStructure(number_of_points_per_surface=np.array([4, 3]),
-                            len_grids=np.atleast_1d(simple_grid_2d.shape[0]))
+    return TensorsStructure(number_of_points_per_surface=np.array([4, 3]))
 
 
 @pytest.fixture(scope='session')
@@ -144,7 +143,7 @@ def simple_model():
     kri = InterpolationOptions(range_, co, 0, i_res=1, gi_res=1,
                                number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
     _ = np.ones(3)
-    tensor_structure = TensorsStructure(np.array([7]), _)
+    tensor_structure = TensorsStructure(np.array([7]))
     return spi, ori_i, kri, tensor_structure
 
 
@@ -188,7 +187,7 @@ def simple_model_3_layers():
     kri = InterpolationOptions(range_, co, 0, i_res=1, gi_res=1,
                                number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
     _ = np.ones(3)
-    tensor_structure = TensorsStructure(np.array([7, 2, 2]), _)
+    tensor_structure = TensorsStructure(np.array([7, 2, 2]))
     return spi, ori_i, kri, tensor_structure
 
 

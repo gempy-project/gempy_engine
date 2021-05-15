@@ -2,6 +2,7 @@ from numpy import ndarray
 
 from ...core import data
 from ...core.data import exported_structs, SurfacePointsInternals
+from ...core.data.grid import Grid
 from ...modules.activator import activator_interface
 from ...modules.data_preprocess import data_preprocess_interface
 from ...modules.kernel_constructor import kernel_constructor_interface
@@ -14,7 +15,7 @@ import numpy as np
 
 def interpolate_single_scalar(surface_points: data.SurfacePoints,
                               orientations: data.Orientations,
-                              grid: np.ndarray,
+                              grid: Grid,
                               unit_values: np.ndarray,
                               options: data.InterpolationOptions,
                               data_shape: data.TensorsStructure):
@@ -44,7 +45,7 @@ def interpolate_single_scalar(surface_points: data.SurfacePoints,
     #-----------------
     # TODO: [ ] Topology
 
-    new_grid = octrees_interface.create_oct_level_dense(values_block, grid)
+    #new_grid = octrees_interface.create_oct_level_dense(values_block, grid)
 
     # TODO: [ ] Octree: Define new grid
 

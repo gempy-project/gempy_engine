@@ -1,7 +1,7 @@
 from typing import Union, Any
 
-from gempy_engine.config import is_pykeops_installed, is_numpy_installed, is_jax_installed, \
-    is_tensorflow_installed, DEBUG_MODE, DEFAULT_BACKEND, AvailableBackends
+from ..config import is_pykeops_installed, is_numpy_installed, is_jax_installed, is_tensorflow_installed, DEBUG_MODE, \
+    DEFAULT_BACKEND, AvailableBackends
 
 
 class BackendTensor():
