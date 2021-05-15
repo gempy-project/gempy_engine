@@ -2,8 +2,8 @@ from typing import Tuple
 
 import numpy as np
 
-from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.core.data.kernel_classes.orientations import OrientationsInternals
+from ...core.data.options import InterpolationOptions
+from ...core.data.kernel_classes.orientations import OrientationsInternals
 
 
 def assembly_dips_points_tensor(dips_coord: np.ndarray, sp_coord: np.ndarray, options: InterpolationOptions):

@@ -5,7 +5,7 @@ from gempy_engine.core.backend_tensor import BackendTensor as bt
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
 
 
-def prepare_surface_points(surface_points: SurfacePoints, number_points_per_surface: np.ndarray):
+def prepare_surface_points(surface_points: SurfacePoints, number_points_per_surface: np.ndarray) -> SurfacePointsInternals:
     return surface_points_preprocess(surface_points, number_points_per_surface)
 
 

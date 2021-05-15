@@ -5,7 +5,7 @@ import numpy as np
 def activate_formation_block(Z_x: np.ndarray,
                              scalar_value_at_sp:np.ndarray,
                              ids: np.ndarray,
-                             sigmoid_slope:float):
+                             sigmoid_slope:float) -> np.ndarray:
     def _compute_sigmoid(Z_x, scale_0, scale_1, drift_0, drift_1, drift_id, sigmoid_slope):
 
         # TODO: Test to remove reshape once multiple values are implemented

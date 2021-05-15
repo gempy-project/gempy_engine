@@ -1,11 +1,15 @@
+from numpy import ndarray
+
 from ...core import data
-from ...core.data import exported_structs
-from ...modules.activator.activator_interface import activate_formation_block
+from ...core.data import exported_structs, SurfacePointsInternals
+from ...modules.activator import activator_interface
 from ...modules.data_preprocess import data_preprocess_interface
 from ...modules.kernel_constructor import kernel_constructor_interface
-from gempy_engine.modules.solver import solver_interface
+from ...modules.solver import solver_interface
+from ...modules.octrees import octrees_interface
 
 import numpy as np
+
 
 
 def interpolate_single_scalar(surface_points: data.SurfacePoints,
@@ -15,7 +19,7 @@ def interpolate_single_scalar(surface_points: data.SurfacePoints,
                               options: data.InterpolationOptions,
                               data_shape: data.TensorsStructure):
     # Within series
-    sp_internal = data_preprocess_interface.prepare_surface_points(surface_points,
+    sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points,
                                                                    data_shape.number_of_points_per_surface)
     ori_internal = data_preprocess_interface.prepare_orientations(orientations)
     grid_internal = data_preprocess_interface.prepare_grid(grid, surface_points)
@@ -26,6 +30,7 @@ def interpolate_single_scalar(surface_points: data.SurfacePoints,
     weights = solver_interface.kernel_reduction(A_matrix, b_vector, smooth=0.01)  # TODO: Smooth should be taken from options
 
     # Within octree level
+    # +++++++++++++++++++
     exported_fields = _evaluate_sys_eq(grid_internal, options, ori_internal, sp_internal, weights)
 
     scalar_at_surface_points = _get_scalar_field_at_surface_points(
@@ -34,12 +39,12 @@ def interpolate_single_scalar(surface_points: data.SurfacePoints,
     # -----------------
     # Export and Masking operations can happen even in parallel
     # TODO: [~X] Export block
-    values_block = activate_formation_block(exported_fields.scalar_field, scalar_at_surface_points,
-                                            unit_values, sigmoid_slope=50000)
+    values_block: ndarray = activator_interface.activate_formation_block(exported_fields.scalar_field, scalar_at_surface_points,
+                                                                         unit_values, sigmoid_slope=50000)
     #-----------------
     # TODO: [ ] Topology
 
-
+    new_grid = octrees_interface.create_oct_level_dense(values_block, grid)
 
     # TODO: [ ] Octree: Define new grid
 

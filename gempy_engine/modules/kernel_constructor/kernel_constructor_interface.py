@@ -1,13 +1,11 @@
-from gempy_engine.core.backend_tensor import BackendTensor
+from ...core.backend_tensor import BackendTensor
+from ...core.data.kernel_classes.surface_points import SurfacePointsInternals
+from ...core.data.kernel_classes.orientations import OrientationsInternals
+from ...core.data.options import InterpolationOptions
 
-from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.modules.kernel_constructor._b_vector_assembler import b_vector_assembly
-from gempy_engine.modules.kernel_constructor._covariance_assembler import create_cov_kernel, create_scalar_kernel, \
-    create_grad_kernel
-from gempy_engine.core.data.kernel_classes.surface_points import SurfacePointsInternals
-from gempy_engine.core.data.kernel_classes.orientations import OrientationsInternals
-from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation, \
-    evaluation_vectors_preparations
+from ._b_vector_assembler import b_vector_assembly
+from ._covariance_assembler import create_cov_kernel, create_scalar_kernel, create_grad_kernel
+from ._vectors_preparation import cov_vectors_preparation, evaluation_vectors_preparations
 
 tensor_types = BackendTensor.tensor_types
 
