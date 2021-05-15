@@ -13,13 +13,15 @@ from gempy_engine.modules.data_preprocess._input_preparation import surface_poin
 
 @pytest.fixture(scope='session')
 def simple_grid_2d():
+    return simple_grid_2d_f()
+
+def simple_grid_2d_f():
     nx, ny = (5, 5)
     x = np.linspace(0, 5, nx)
     y = np.linspace(0, 5, ny)
     xv, yv = np.meshgrid(x, y)
     g = np.vstack((xv.ravel(), yv.ravel())).T
     return g
-
 
 simple_grid_3d = np.array([
     [0.25010, 0.50010, 0.12510],
@@ -55,7 +57,6 @@ def simple_grid_3d_more_points():
 
 
 
-@pytest.fixture(scope='session')
 def tensor_structure_simple_model_2(simple_grid_2d):
     _ = np.ones(3)
     return TensorsStructure(number_of_points_per_surface=np.array([4, 3]),
@@ -63,8 +64,11 @@ def tensor_structure_simple_model_2(simple_grid_2d):
 
 
 @pytest.fixture(scope='session')
-def simple_model_2(tensor_structure_simple_model_2):
+def simple_model_2():
+
     print(BackendTensor.describe_conf())
+
+    tensor_struct = tensor_structure_simple_model_2(simple_grid_2d_f())
 
     sp_coords = np.array([[4, 0],
                           [0, 0],
@@ -88,7 +92,7 @@ def simple_model_2(tensor_structure_simple_model_2):
     kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
                                number_dimensions=2, kernel_function=AvailableKernelFunctions.cubic)
 
-    return spi, ori_i, kri, tensor_structure_simple_model_2
+    return spi, ori_i, kri, tensor_struct
 
 
 
