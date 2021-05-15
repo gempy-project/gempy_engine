@@ -20,15 +20,10 @@ def interpolate_single_scalar(surface_points: data.SurfacePoints,
                               options: data.InterpolationOptions,
                               data_shape: data.TensorsStructure):
     # Within series
-    sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points,
-                                                                   data_shape.number_of_points_per_surface)
-    ori_internal = data_preprocess_interface.prepare_orientations(orientations)
-    grid_internal = data_preprocess_interface.prepare_grid(grid, surface_points)
+    grid_internal, ori_internal, sp_internal = input_preprocess(data_shape, grid, orientations,
+                                                                surface_points)
 
-    A_matrix = kernel_constructor_interface.yield_covariance(sp_internal, ori_internal, options)
-    b_vector = kernel_constructor_interface.yield_b_vector(ori_internal, A_matrix.shape[0])
-
-    weights = solver_interface.kernel_reduction(A_matrix, b_vector, smooth=0.01)  # TODO: Smooth should be taken from options
+    weights = solve_interpolation(options, ori_internal, sp_internal)
 
     # Within octree level
     # +++++++++++++++++++
@@ -45,7 +40,7 @@ def interpolate_single_scalar(surface_points: data.SurfacePoints,
     #-----------------
     # TODO: [ ] Topology
 
-    #new_grid = octrees_interface.create_oct_level_dense(values_block, grid)
+    new_grid = octrees_interface.create_oct_level_dense(values_block, grid)
 
     # TODO: [ ] Octree: Define new grid
 
@@ -58,6 +53,22 @@ def interpolate_single_scalar(surface_points: data.SurfacePoints,
 
     output = exported_structs.Output(exported_fields, scalar_at_surface_points, values_block, final_block)
     return output
+
+
+def solve_interpolation(options, ori_internal, sp_internal):
+    A_matrix = kernel_constructor_interface.yield_covariance(sp_internal, ori_internal, options)
+    b_vector = kernel_constructor_interface.yield_b_vector(ori_internal, A_matrix.shape[0])
+    weights = solver_interface.kernel_reduction(A_matrix, b_vector,
+                                                smooth=0.01)  # TODO: Smooth should be taken from options
+    return weights
+
+
+def input_preprocess(data_shape, grid, orientations, surface_points):
+    sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points,
+                                                                                           data_shape.number_of_points_per_surface)
+    ori_internal = data_preprocess_interface.prepare_orientations(orientations)
+    grid_internal = data_preprocess_interface.prepare_grid(grid.values, surface_points)
+    return grid_internal, ori_internal, sp_internal
 
 
 def _evaluate_sys_eq(grid, options, ori_internal, sp_internal, weights) -> exported_structs.ExportedFields:

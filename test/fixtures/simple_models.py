@@ -3,11 +3,14 @@ import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.data_shape import TensorsStructure
+from gempy_engine.core.data.grid import Grid
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
 from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_single_scalar
+from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_single_scalar, input_preprocess, \
+    solve_interpolation, _evaluate_sys_eq, _get_scalar_field_at_surface_points
+from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
 
 
@@ -44,6 +47,24 @@ simple_grid_3d = np.array([
 
 
 
+def create_regular_grid(extent, resolution):
+    dx = (extent[1] - extent[0]) / resolution[0]
+    dy = (extent[3] - extent[2]) / resolution[1]
+    dz = (extent[5] - extent[4]) / resolution[2]
+
+    x = np.linspace(extent[0] + dx / 2, extent[1] - dx / 2, resolution[0],
+                    dtype="float64")
+    y = np.linspace(extent[2] + dy / 2, extent[3] - dy / 2, resolution[1],
+                    dtype="float64")
+    z = np.linspace(extent[4] + dz / 2, extent[5] - dz / 2, resolution[2],
+                    dtype="float64")
+    xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
+    g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
+
+    return g, dx, dy, dz
+
+
+
 @pytest.fixture(scope='session')
 def simple_grid_3d_more_points():
     nx, ny, nz = (50, 5, 50)
@@ -55,6 +76,14 @@ def simple_grid_3d_more_points():
     g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
     return g
 
+
+@pytest.fixture(scope="session")
+def simple_grid_3d_more_points_grid():
+    resolution = [50, 5, 50]
+    g, dx, dy, dz = create_regular_grid([0.25, .75, 0.25, .75, 0.25, .75], resolution)
+
+    grid = Grid(g, [g.shape[0]], [50, 5, 50], [dx, dy, dz])
+    return grid
 
 
 def tensor_structure_simple_model_2(simple_grid_2d):
@@ -200,30 +229,34 @@ def simple_model_output(simple_model, simple_grid_3d_more_points):
     data_shape = simple_model[3]
 
     ids = np.array([1, 2])
-    return interpolate_single_scalar(surface_points, orientations, simple_grid_3d_more_points, ids, options, data_shape)
+    return interpolate_single_scalar(surface_points, orientations, simple_grid_3d_more_points,
+                                     ids, options, data_shape)
 
-#
-# def test_simple_model_gempy_engine():
-#     g = gempy.create_data("test_engine", extent=[-2, 2, -2, 2, -2, 2], resolution=[2, 2, 2])
-#     sp = np.array([[4, 0, 0],
-#                    [0, 0, 0],
-#                    [2, 0, 0],
-#                    [3, 0, 0],
-#                    [3, 0, 3],
-#                    [0, 0, 2],
-#                    [2, 0, 2]])
-#
-#     g.set_default_surfaces()
-#
-#     for i in sp:
-#         g.add_surface_points(*i, surface="surface1")
-#
-#     g.add_orientations(0, 0, 6, pole_vector=(0, 0, 1), surface="surface1")
-#     g.add_orientations(2, 0, 13, pole_vector=(0, 0, .8), surface="surface1")
-#
-#     g.modify_kriging_parameters("range", 5)
-#     g.modify_kriging_parameters("$C_o$", 5 ** 2 / 14 / 3)
-#
-#     gempy.set_interpolator(g, verbose=["covariance_matrix"])
-#
-#     print(g.solutions.scalar_field_matrix)
+
+@pytest.fixture(scope="session")
+def simple_model_values_block(simple_model, simple_grid_3d_more_points_grid):
+    surface_points = simple_model[0]
+    orientations = simple_model[1]
+    options = simple_model[2]
+    data_shape = simple_model[3]
+    grid = simple_grid_3d_more_points_grid
+
+    ids = np.array([1, 2])
+
+    grid_internal, ori_internal, sp_internal = input_preprocess(data_shape, grid, orientations,
+                                                                surface_points)
+
+    weights = solve_interpolation(options, ori_internal, sp_internal)
+
+    exported_fields = _evaluate_sys_eq(grid_internal, options, ori_internal, sp_internal, weights)
+
+    scalar_at_surface_points = _get_scalar_field_at_surface_points(
+        exported_fields.scalar_field, data_shape.nspv, surface_points.n_points)
+
+    # -----------------
+    # Export and Masking operations can happen even in parallel
+    # TODO: [~X] Export block
+    values_block: np.ndarray = activate_formation_block(exported_fields.scalar_field, scalar_at_surface_points,
+                                                         ids, sigmoid_slope=50000)
+
+    return values_block
