@@ -2,8 +2,9 @@ import numpy as np
 import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
+from gempy_engine.core.data.internal_structs import InterpInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
-from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_cov_kernel, \
+from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items,  \
     _compute_all_distance_matrices, create_scalar_kernel, create_grad_kernel
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
@@ -29,7 +30,7 @@ def test_covariance_cubic_kernel(simple_model_2):
     sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
     ori_internals = orientations_preprocess(orientations)
 
-    cov = yield_covariance(sp_internals, ori_internals, options)
+    cov = yield_covariance(InterpInput(sp_internals, ori_internals, options))
     print(cov)
     print(l)
 
@@ -51,7 +52,7 @@ def test_eval_kernel(simple_model_2, simple_grid_2d):
 
     sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
     ori_internals = orientations_preprocess(orientations)
-    kernel_data = evaluation_vectors_preparations(simple_grid_2d, sp_internals, ori_internals, options)
+    kernel_data = evaluation_vectors_preparations(simple_grid_2d, InterpInput(sp_internals, ori_internals, options))
     export_kernel = create_scalar_kernel(kernel_data, options)
     print(export_kernel)
 
@@ -120,7 +121,7 @@ class TestPykeopsNumPyEqual():
         sp_, ori_, options = preprocess_data
         cov_size = ori_.n_orientations_tiled + sp_.n_points + options.n_uni_eq
 
-        ki = cov_vectors_preparation(sp_, ori_, options)
+        ki = cov_vectors_preparation(InterpInput(sp_, ori_, options))
 
         with open(dir_name + '/../solutions/distance_matrices.pickle', 'rb') as handle:
             dm_sol = pickle.load(handle)
@@ -158,7 +159,7 @@ class TestPykeopsNumPyEqual():
         sp_internals, ori_internals, options = preprocess_data
         # numpy
         BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=False)
-        kernel_data = cov_vectors_preparation(sp_internals, ori_internals, options)
+        kernel_data = cov_vectors_preparation(InterpInput(sp_internals, ori_internals, options))
         c_n = cov_func(kernel_data, options, item=item)
         if False:
             np.save(f"./solutions/{item}", c_n)
@@ -173,7 +174,7 @@ class TestPykeopsNumPyEqual():
 
         # pykeops
         BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=pykeops_enabled)
-        kernel_data = cov_vectors_preparation(sp_internals, ori_internals, options)
+        kernel_data = cov_vectors_preparation(InterpInput(sp_internals, ori_internals, options))
         c_k = cov_func(kernel_data, options, item=item)
         c_k_sum = c_n.sum(0).reshape(-1, 1)
         print(c_k, c_k_sum)

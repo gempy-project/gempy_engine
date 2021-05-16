@@ -3,7 +3,9 @@ import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.data_shape import TensorsStructure
+from gempy_engine.core.data.exported_structs import InterpOutput
 from gempy_engine.core.data.grid import Grid
+from gempy_engine.core.data.internal_structs import InterpInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
@@ -220,21 +222,8 @@ def simple_model_3_layers():
     return spi, ori_i, kri, tensor_structure
 
 
-
 @pytest.fixture(scope="session")
-def simple_model_output(simple_model, simple_grid_3d_more_points):
-    surface_points = simple_model[0]
-    orientations = simple_model[1]
-    options = simple_model[2]
-    data_shape = simple_model[3]
-
-    ids = np.array([1, 2])
-    return interpolate_single_scalar(surface_points, orientations, simple_grid_3d_more_points,
-                                     ids, options, data_shape)
-
-
-@pytest.fixture(scope="session")
-def simple_model_values_block(simple_model, simple_grid_3d_more_points_grid):
+def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_grid):
     surface_points = simple_model[0]
     orientations = simple_model[1]
     options = simple_model[2]
@@ -243,12 +232,15 @@ def simple_model_values_block(simple_model, simple_grid_3d_more_points_grid):
 
     ids = np.array([1, 2])
 
+
+
     grid_internal, ori_internal, sp_internal = input_preprocess(data_shape, grid, orientations,
                                                                 surface_points)
+    interp_input = InterpInput(sp_internal, ori_internal, options)
 
-    weights = solve_interpolation(options, ori_internal, sp_internal)
+    weights = solve_interpolation(interp_input)
 
-    exported_fields = _evaluate_sys_eq(grid_internal, options, ori_internal, sp_internal, weights)
+    exported_fields = _evaluate_sys_eq(grid_internal, interp_input, weights)
 
     scalar_at_surface_points = _get_scalar_field_at_surface_points(
         exported_fields.scalar_field, data_shape.nspv, surface_points.n_points)
@@ -259,4 +251,24 @@ def simple_model_values_block(simple_model, simple_grid_3d_more_points_grid):
     values_block: np.ndarray = activate_formation_block(exported_fields.scalar_field, scalar_at_surface_points,
                                                          ids, sigmoid_slope=50000)
 
-    return values_block
+    output = InterpOutput()
+    output.grid = grid
+    output.exported_fields = exported_fields
+    output.weights = weights
+    output.scalar_field_at_sp = scalar_at_surface_points
+    output.values_block = values_block
+
+    return output
+
+
+
+@pytest.fixture(scope="session")
+def simple_model_output(simple_model, simple_grid_3d_more_points_grid):
+    surface_points = simple_model[0]
+    orientations = simple_model[1]
+    options = simple_model[2]
+    data_shape = simple_model[3]
+
+    ids = np.array([1, 2])
+    return interpolate_single_scalar(surface_points, orientations, simple_grid_3d_more_points_grid,
+                                     ids, options, data_shape)

@@ -1,13 +1,17 @@
+from typing import Tuple
+
 from numpy import ndarray
 
 from ...core import data
 from ...core.data import exported_structs, SurfacePointsInternals
+from ...core.data.exported_structs import InterpOutput, OctreeLevel
 from ...core.data.grid import Grid
+from ...core.data.internal_structs import InterpInput
 from ...modules.activator import activator_interface
 from ...modules.data_preprocess import data_preprocess_interface
-from ...modules.kernel_constructor import kernel_constructor_interface
+from ...modules.kernel_constructor import kernel_constructor_interface as kernel_constructor
 from ...modules.solver import solver_interface
-from ...modules.octrees_topology import octrees_topology_interface
+from ...modules.octrees_topology import octrees_topology_interface as octrees
 
 import numpy as np
 
@@ -18,57 +22,80 @@ def interpolate_single_scalar(surface_points: data.SurfacePoints,
                               unit_values: np.ndarray,
                               options: data.InterpolationOptions,
                               data_shape: data.TensorsStructure):
-    # Within series
-    grid_internal, ori_internal, sp_internal = input_preprocess(data_shape, grid, orientations, surface_points)
+    # Init InterpOutput Class empty
+    output = InterpOutput()
+    output.grid = grid
 
-    weights = solve_interpolation(options, ori_internal, sp_internal)
+    # Within series
+    xyz_lvl0, ori_internal, sp_internal = input_preprocess(data_shape, grid, orientations, surface_points)
+
+    interp_input = InterpInput(sp_internal, ori_internal, options)
+    output.weights = solve_interpolation(interp_input)
 
     # Within octree level
     # +++++++++++++++++++
-    exported_fields = _evaluate_sys_eq(grid_internal, options, ori_internal, sp_internal, weights)
+    output.exported_fields = _evaluate_sys_eq(xyz_lvl0, interp_input, output.weights)
 
-    scalar_at_surface_points = _get_scalar_field_at_surface_points(
-        exported_fields.scalar_field, data_shape.nspv, surface_points.n_points)
+    output.scalar_field_at_sp = _get_scalar_field_at_surface_points(
+        output.exported_fields.scalar_field, data_shape.nspv, surface_points.n_points)
 
     # -----------------
     # Export and Masking operations can happen even in parallel
     # TODO: [~X] Export block
-    values_block: ndarray = activator_interface.activate_formation_block(
-        exported_fields.scalar_field, scalar_at_surface_points, unit_values, sigmoid_slope=50000)
+    output.values_block = activator_interface.activate_formation_block(
+        output.exported_fields.scalar_field, output.scalar_field_at_sp, unit_values, sigmoid_slope=50000)
     # -----------------
-    # TODO: [ ] Topology
+    # TODO: [ ] Octree - Topology
 
-    # xyz_level1 = octrees_topology_interface.compute_octtree_level_0(values_block, grid, compute_topology=True)
-    #
-    # n_levels = 3
-    # for i in range(1, n_levels):
-    #     # TODO: This has to go a level higher
-    #     ids_level1 = np.rint(some_matrix)
-    #     xyz_level2 = create_oct_level_sparse(ids_level1, xyz_level1, grid.dxdydz, level=i)
+    octree_lvl0 = OctreeLevel(grid.values, output.ids_block_regular_grid, output.exported_fields_regular_grid,
+                              is_root=True)
 
-    # TODO: [ ] Octree: Define new grid
+    octree_lvl1 = octrees.compute_octree_level_0(octree_lvl0, grid.regular_grid, grid.dxdydz, compute_topology=True)
 
+    n_levels = 3 # TODO: Move to options
+    octree_list = [octree_lvl0, octree_lvl1]
+    for i in range(2, n_levels):
+        next_octree = compute_octree_level_n(octree_list[-1], interp_input, output, unit_values, grid.dxdydz, i)
+        octree_list.append(next_octree)
+
+    output.octrees = octree_list
     # ------------------
 
     # TODO: [ ] Masking OPs. This is for series, i.e. which voxels are active. During development until we
     # TODO: multiple series we can assume all true so final_block = values_block
     # mask_matrix = mask_matrix(exported_fields.scalar_field, scalar_at_surface_points, some_sort_of_array_with_erode_onlap)
-    final_block = values_block.copy()  # TODO (dev hack May 2021): this should be values_block * mask_matrix
+    output.final_block = output.values_block.copy()  # TODO (dev hack May 2021): this should be values_block * mask_matrix
 
-
-    output = exported_structs.Output(exported_fields, scalar_at_surface_points, values_block, final_block)
     return output
 
 
-def solve_interpolation(options, ori_internal, sp_internal):
-    A_matrix = kernel_constructor_interface.yield_covariance(sp_internal, ori_internal, options)
-    b_vector = kernel_constructor_interface.yield_b_vector(ori_internal, A_matrix.shape[0])
+def compute_octree_level_n(prev_octree: OctreeLevel, interp_input: InterpInput, output: InterpOutput,
+                           unit_values, dxdydz, i):
+
+    # Old octree
+    prev_octree.exported_fields = _evaluate_sys_eq(prev_octree.xyz_coords, interp_input, output.weights)
+
+    values_block: ndarray = activator_interface.activate_formation_block(
+        output.exported_fields.scalar_field, output.scalar_field_at_sp, unit_values, sigmoid_slope=50000)
+    prev_octree.id_block = np.rint(values_block[0])
+
+    # New octree
+    new_xyz = octrees.create_oct_level_sparse(prev_octree.id_block, prev_octree.xyz_coords, dxdydz, level=i)
+    new_octree_level = OctreeLevel(new_xyz)
+
+    return new_octree_level
+
+
+def solve_interpolation(interp_input: InterpInput):
+    A_matrix = kernel_constructor.yield_covariance(interp_input)
+    b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
     # TODO: Smooth should be taken from options
     weights = solver_interface.kernel_reduction(A_matrix, b_vector, smooth=0.01)
     return weights
 
 
-def input_preprocess(data_shape, grid, orientations, surface_points):
+def input_preprocess(data_shape, grid, orientations, surface_points) -> \
+        Tuple[np.ndarray, data.OrientationsInternals, data.SurfacePointsInternals]:
     sp_internal = data_preprocess_interface.prepare_surface_points(surface_points,
                                                                    data_shape.number_of_points_per_surface)
     ori_internal = data_preprocess_interface.prepare_orientations(orientations)
@@ -76,20 +103,19 @@ def input_preprocess(data_shape, grid, orientations, surface_points):
     return grid_internal, ori_internal, sp_internal
 
 
-def _evaluate_sys_eq(grid, options, ori_internal, sp_internal, weights) -> exported_structs.ExportedFields:
-    eval_kernel = kernel_constructor_interface.yield_evaluation_kernel(grid, sp_internal, ori_internal, options)
-    eval_gx_kernel = kernel_constructor_interface.yield_evaluation_grad_kernel(
-        grid, sp_internal, ori_internal, options, axis=0)
-    eval_gy_kernel = kernel_constructor_interface.yield_evaluation_grad_kernel(
-        grid, sp_internal, ori_internal, options, axis=1)
+def _evaluate_sys_eq(xyz: np.ndarray, interp_input: InterpInput, weights: np.ndarray) -> exported_structs.ExportedFields:
+    options = interp_input.options
+
+    eval_kernel = kernel_constructor.yield_evaluation_kernel(xyz, interp_input)
+    eval_gx_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=0)
+    eval_gy_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=1)
 
     scalar_field = weights @ eval_kernel
     gx_field = weights @ eval_gx_kernel
     gy_field = weights @ eval_gy_kernel
 
     if options.number_dimensions == 3:
-        eval_gz_kernel = kernel_constructor_interface.yield_evaluation_grad_kernel(
-            grid, sp_internal, ori_internal, options, axis=2)
+        eval_gz_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=2)
         gz_field = weights @ eval_gz_kernel
     elif options.number_dimensions == 2:
         gz_field = None

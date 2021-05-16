@@ -12,5 +12,5 @@ def prepare_surface_points(surface_points: SurfacePoints, number_points_per_surf
 def prepare_orientations(orientations: Orientations):
     return orientations_preprocess(orientations)
 
-def prepare_grid(grid: np.ndarray, surface_points: SurfacePoints):
+def prepare_grid(grid: np.ndarray, surface_points: SurfacePoints) -> np.ndarray:
     return bt.tfnp.concatenate([grid, surface_points.sp_coords])

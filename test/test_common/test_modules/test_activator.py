@@ -1,6 +1,6 @@
 import os
 
-from gempy_engine.core.data.exported_structs import Output
+from gempy_engine.core.data.exported_structs import InterpOutput
 import matplotlib.pyplot as plt
 
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
@@ -9,9 +9,9 @@ import numpy as np
 dir_name = os.path.dirname(__file__)
 
 plot = True
-def test_activator(simple_model_output: Output):
-    Z_x = simple_model_output.exported_fields.scalar_field
-    sasp = simple_model_output.scalar_field_at_sp
+def test_activator(simple_model_values_block_output):
+    Z_x = simple_model_values_block_output.exported_fields.scalar_field
+    sasp = simple_model_values_block_output.scalar_field_at_sp
     ids = np.array([1, 2])
 
 
@@ -20,7 +20,7 @@ def test_activator(simple_model_output: Output):
 
     ids_block = activate_formation_block(Z_x, sasp, ids, 50000)
     print(ids_block)
-    #np.save(dir_name+"/solutions/test_activator", np.round(ids_block))
+    # np.save(dir_name+"/solutions/test_activator", np.round(ids_block))
 
     ids_sol = np.load(dir_name+"/solutions/test_activator.npy")
     np.testing.assert_almost_equal(np.round(ids_block), ids_sol, decimal=3)

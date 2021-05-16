@@ -2,6 +2,7 @@ from typing import List
 
 import numpy as np
 from ...core.backend_tensor import BackendTensor, BackendTensor as b, AvailableBackends
+from ...core.data.exported_structs import InterpOutput, OctreeLevel
 
 from ...core.data.grid import Grid
 
@@ -11,25 +12,45 @@ from ...core.data.grid import Grid
 
 
 
-def compute_octtree_level_0(values_block: np.ndarray, grid: Grid, compute_topology=False):
-    ids = _extract_regular_grid_ids(values_block, grid.regular_grid_shape)
-    shift_select_xyz: list = _mark_edge_voxels(ids)
+def compute_octree_level_0(prev_octree: OctreeLevel, regular_grid_xyz, dxdydz, compute_topology=False) -> OctreeLevel:
 
-    xyz_level1 = _create_oct_level_dense(shift_select_xyz, grid)
+    # Old octree
+    shift_select_xyz: list = _mark_edge_voxels(prev_octree.id_block)
+
     if compute_topology:
-        edges_id, count_edges = compute_topology(shift_select_xyz, ids)
+        prev_octree.edges_id, prev_octree.count_edges = calculate_topology(shift_select_xyz, prev_octree.id_block)
 
-    # ---
+    # New Octree
+    xyz_coords = _create_oct_level_dense(shift_select_xyz, regular_grid_xyz, dxdydz)
+    new_octree_level = OctreeLevel(xyz_coords)
+
+    return new_octree_level
 
 
-    # ---
+def _create_oct_level_dense(shift_select_xyz: List[np.ndarray], regular_grid_xyz, dxdydz):
 
-    return  # TODO: Create a class for each level with the new xyz and selected voxels, edge_id, count_edges
+    x_edg = (regular_grid_xyz[:-1, :, :][shift_select_xyz[0]] + regular_grid_xyz[1:, :, :][shift_select_xyz[0]]) / 2
+    y_edg = (regular_grid_xyz[:, :-1, :][shift_select_xyz[1]] + regular_grid_xyz[:, 1:, :][shift_select_xyz[1]]) / 2
+    z_edg = (regular_grid_xyz[:, :, :-1][shift_select_xyz[2]] + regular_grid_xyz[:, :, 1:][shift_select_xyz[2]]) / 2
+
+    new_xyz_edg = np.vstack((x_edg, y_edg, z_edg))
+
+    return _create_oct_voxels(new_xyz_edg[:, 0], new_xyz_edg[:, 1], new_xyz_edg[:, 2], *dxdydz, level=1)
+
+
+# def extract_octree_level_0(values_block, regular_grid_shape):
+#     new_octree_level = OctreeLevel()
+#
+#     # TODO: [ ] For faults it has to be lith_block + self.max_lith * fault_block[2]
+#     unique_ids = values_block[:, :regular_grid_shape.sum(axis=0)].reshape(regular_grid_shape)
+#     new_octree_level.values_block = np.rint(unique_ids)  # shape (nx, ny, nz)
+#     new_octree_level.exported_fields
+#
+#     return ids
 
 
 def create_oct_level_sparse(ids, xyz: np.ndarray, dxdydz, level):
     xyz_8 = xyz.reshape((-1, 8, 3))
-    # uv_8 = T.round(unique_val[0, :-2 * self.len_points].reshape((-1, 8)))
 
     uv_8 = ids[0, :].reshape((-1, 8))
 
@@ -49,26 +70,7 @@ def create_oct_level_sparse(ids, xyz: np.ndarray, dxdydz, level):
     return _create_oct_voxels(new_xyz_edg[:, 0], new_xyz_edg[:, 1], new_xyz_edg[:, 2], *dxdydz, level=level)
 
 
-def _extract_regular_grid_ids(values_block, regular_grid_shape):
-    # TODO: [ ] For faults it has to be lith_block + self.max_lith * fault_block[2]
-    unique_ids = values_block[:, :regular_grid_shape.sum(axis=0)].reshape(regular_grid_shape)
-    ids = np.rint(unique_ids)  # shape (nx, ny, nz)
-    return ids
-
-
-def _create_oct_level_dense(shift_select_xyz: List[np.ndarray], grid: Grid):
-    regular_grid_xyz = grid.regular_grid
-
-    x_edg = (regular_grid_xyz[:-1, :, :][shift_select_xyz[0]] + regular_grid_xyz[1:, :, :][shift_select_xyz[0]]) / 2
-    y_edg = (regular_grid_xyz[:, :-1, :][shift_select_xyz[1]] + regular_grid_xyz[:, 1:, :][shift_select_xyz[1]]) / 2
-    z_edg = (regular_grid_xyz[:, :, :-1][shift_select_xyz[2]] + regular_grid_xyz[:, :, 1:][shift_select_xyz[2]]) / 2
-
-    new_xyz_edg = np.vstack((x_edg, y_edg, z_edg))
-
-    return _create_oct_voxels(new_xyz_edg[:, 0], new_xyz_edg[:, 1], new_xyz_edg[:, 2], *grid.dxdydz, level=1)
-
-
-def compute_topology(shift_select_xyz: List[np.ndarray], ids: np.ndarray):
+def calculate_topology(shift_select_xyz: List[np.ndarray], ids: np.ndarray):
     """This is for the typology of level 0. Probably for the rest of octtrees
     levels it will be a bit different
     """
