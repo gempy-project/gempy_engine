@@ -54,8 +54,9 @@ class OctreeLevel():
     # Used for dual contouring
     exported_fields: ExportedFields = None
 
-    # Outcome
+    # topo
     edges_id: np.ndarray = None
     count_edges: np.ndarray = None
+    marked_edges: List[np.ndarray] = None # 3 arrays in x, y, z
 
     is_root: bool = False # When root is true arrays are dim 3

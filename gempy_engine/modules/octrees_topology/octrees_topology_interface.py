@@ -11,11 +11,11 @@ from ...core.data.grid import Grid
 # TODO: Remove all stack to be able to compile TF
 
 
-
-def compute_octree_level_0(prev_octree: OctreeLevel, regular_grid_xyz, dxdydz, compute_topology=False) -> OctreeLevel:
+def compute_octree_root(prev_octree: OctreeLevel, regular_grid_xyz, dxdydz, compute_topology=False) -> OctreeLevel:
 
     # Old octree
-    shift_select_xyz: list = _mark_edge_voxels(prev_octree.id_block)
+    shift_select_xyz: list = _mark_edge_voxels_dense(prev_octree.id_block)
+    prev_octree.marked_edges = shift_select_xyz
 
     if compute_topology:
         prev_octree.edges_id, prev_octree.count_edges = calculate_topology(shift_select_xyz, prev_octree.id_block)
@@ -27,47 +27,17 @@ def compute_octree_level_0(prev_octree: OctreeLevel, regular_grid_xyz, dxdydz, c
     return new_octree_level
 
 
-def _create_oct_level_dense(shift_select_xyz: List[np.ndarray], regular_grid_xyz, dxdydz):
+def compute_octree_leaf(prev_octree: OctreeLevel, dxdydz, level):
+    xyz = prev_octree.xyz_coords
+    ids = prev_octree.id_block
 
-    x_edg = (regular_grid_xyz[:-1, :, :][shift_select_xyz[0]] + regular_grid_xyz[1:, :, :][shift_select_xyz[0]]) / 2
-    y_edg = (regular_grid_xyz[:, :-1, :][shift_select_xyz[1]] + regular_grid_xyz[:, 1:, :][shift_select_xyz[1]]) / 2
-    z_edg = (regular_grid_xyz[:, :, :-1][shift_select_xyz[2]] + regular_grid_xyz[:, :, 1:][shift_select_xyz[2]]) / 2
-
-    new_xyz_edg = np.vstack((x_edg, y_edg, z_edg))
-
-    return _create_oct_voxels(new_xyz_edg[:, 0], new_xyz_edg[:, 1], new_xyz_edg[:, 2], *dxdydz, level=1)
-
-
-# def extract_octree_level_0(values_block, regular_grid_shape):
-#     new_octree_level = OctreeLevel()
-#
-#     # TODO: [ ] For faults it has to be lith_block + self.max_lith * fault_block[2]
-#     unique_ids = values_block[:, :regular_grid_shape.sum(axis=0)].reshape(regular_grid_shape)
-#     new_octree_level.values_block = np.rint(unique_ids)  # shape (nx, ny, nz)
-#     new_octree_level.exported_fields
-#
-#     return ids
-
-
-def create_oct_level_sparse(ids, xyz: np.ndarray, dxdydz, level):
     xyz_8 = xyz.reshape((-1, 8, 3))
+    uv_8 = ids.reshape((-1, 8))
 
-    uv_8 = ids[0, :].reshape((-1, 8))
+    shift_select_xyz = _mark_edges_sparse(uv_8)
+    prev_octree.marked_edges = shift_select_xyz
 
-    shift_x = uv_8[:, :4] - uv_8[:, 4:]
-    shift_x_select = np.not_equal(shift_x, 0)
-    x_edg = (xyz_8[:, :4, :][shift_x_select] + xyz_8[:, 4:, :][shift_x_select]) / 2
-
-    shift_y = uv_8[:, [0, 1, 4, 5]] - uv_8[:, [2, 3, 6, 7]]
-    shift_y_select = np.not_equal(shift_y, 0)
-    y_edg = (xyz_8[:, [0, 1, 4, 5], :][shift_y_select] + xyz_8[:, [2, 3, 6, 7], :][shift_y_select]) / 2
-
-    shift_z = uv_8[:, ::2] - uv_8[:, 1::2]
-    shift_z_select = np.not_equal(shift_z, 0)
-    z_edg = (xyz_8[:, ::2, :][shift_z_select] + xyz_8[:, 1::2, :][shift_z_select]) / 2
-
-    new_xyz_edg = np.vstack((x_edg, y_edg, z_edg))
-    return _create_oct_voxels(new_xyz_edg[:, 0], new_xyz_edg[:, 1], new_xyz_edg[:, 2], *dxdydz, level=level)
+    return _create_oct_level_sparse(dxdydz, level, shift_select_xyz, xyz_8)
 
 
 def calculate_topology(shift_select_xyz: List[np.ndarray], ids: np.ndarray):
@@ -92,7 +62,37 @@ def calculate_topology(shift_select_xyz: List[np.ndarray], ids: np.ndarray):
     return edges_id, count_edges
 
 
-def _mark_edge_voxels(ids):
+def _create_oct_level_dense(shift_select_xyz: List[np.ndarray], regular_grid_xyz, dxdydz):
+
+    x_edg = (regular_grid_xyz[:-1, :, :][shift_select_xyz[0]] + regular_grid_xyz[1:, :, :][shift_select_xyz[0]]) / 2
+    y_edg = (regular_grid_xyz[:, :-1, :][shift_select_xyz[1]] + regular_grid_xyz[:, 1:, :][shift_select_xyz[1]]) / 2
+    z_edg = (regular_grid_xyz[:, :, :-1][shift_select_xyz[2]] + regular_grid_xyz[:, :, 1:][shift_select_xyz[2]]) / 2
+
+    new_xyz_edg = np.vstack((x_edg, y_edg, z_edg))
+
+    return _create_oct_voxels(new_xyz_edg[:, 0], new_xyz_edg[:, 1], new_xyz_edg[:, 2], *dxdydz, level=1)
+
+
+def _create_oct_level_sparse(dxdydz, level, shift_select_xyz, xyz_8):
+    x_edg = (xyz_8[:, :4, :][shift_select_xyz[0]] + xyz_8[:, 4:, :][shift_select_xyz[0]]) / 2
+    y_edg = (xyz_8[:, [0, 1, 4, 5], :][shift_select_xyz[1]] + xyz_8[:, [2, 3, 6, 7], :][shift_select_xyz[1]]) / 2
+    z_edg = (xyz_8[:, ::2, :][shift_select_xyz[2]] + xyz_8[:, 1::2, :][shift_select_xyz[2]]) / 2
+    new_xyz_edg = np.vstack((x_edg, y_edg, z_edg))
+    return _create_oct_voxels(new_xyz_edg[:, 0], new_xyz_edg[:, 1], new_xyz_edg[:, 2], *dxdydz, level=level)
+
+
+def _mark_edges_sparse(uv_8):
+    shift_x = uv_8[:, :4] - uv_8[:, 4:]
+    shift_y = uv_8[:, [0, 1, 4, 5]] - uv_8[:, [2, 3, 6, 7]]
+    shift_z = uv_8[:, ::2] - uv_8[:, 1::2]
+    shift_x_select = np.not_equal(shift_x, 0)
+    shift_y_select = np.not_equal(shift_y, 0)
+    shift_z_select = np.not_equal(shift_z, 0)
+    shift_select_xyz = [shift_x_select, shift_y_select, shift_z_select]
+    return shift_select_xyz
+
+
+def _mark_edge_voxels_dense(ids):
     shift_x = ids[1:, :, :] - ids[:-1, :, :]
     shift_y = ids[:, 1:, :] - ids[:, :-1, :]
     shift_z = ids[:, :, 1:] - ids[:, :, :-1]

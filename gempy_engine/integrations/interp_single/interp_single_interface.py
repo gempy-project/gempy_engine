@@ -50,7 +50,7 @@ def interpolate_single_scalar(surface_points: data.SurfacePoints,
     octree_lvl0 = OctreeLevel(grid.values, output.ids_block_regular_grid, output.exported_fields_regular_grid,
                               is_root=True)
 
-    octree_lvl1 = octrees.compute_octree_level_0(octree_lvl0, grid.regular_grid, grid.dxdydz, compute_topology=True)
+    octree_lvl1 = octrees.compute_octree_root(octree_lvl0, grid.regular_grid, grid.dxdydz, compute_topology=True)
 
     n_levels = 3 # TODO: Move to options
     octree_list = [octree_lvl0, octree_lvl1]
@@ -76,11 +76,11 @@ def compute_octree_level_n(prev_octree: OctreeLevel, interp_input: InterpInput, 
     prev_octree.exported_fields = _evaluate_sys_eq(prev_octree.xyz_coords, interp_input, output.weights)
 
     values_block: ndarray = activator_interface.activate_formation_block(
-        output.exported_fields.scalar_field, output.scalar_field_at_sp, unit_values, sigmoid_slope=50000)
+        prev_octree.exported_fields.scalar_field, output.scalar_field_at_sp, unit_values, sigmoid_slope=50000)
     prev_octree.id_block = np.rint(values_block[0])
 
     # New octree
-    new_xyz = octrees.create_oct_level_sparse(prev_octree.id_block, prev_octree.xyz_coords, dxdydz, level=i)
+    new_xyz = octrees.compute_octree_leaf(prev_octree, dxdydz, level=i)
     new_octree_level = OctreeLevel(new_xyz)
 
     return new_octree_level
