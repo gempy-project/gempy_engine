@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from gempy_engine.core.data.exported_structs import OctreeLevel, InterpOutput
-from gempy_engine.core.data.internal_structs import InterpInput
+from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.integrations.interp_single.interp_single_interface import input_preprocess, solve_interpolation, \
     _evaluate_sys_eq, _get_scalar_field_at_surface_points, compute_octree_level_n
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
@@ -61,7 +61,7 @@ def test_octree_multiple_levels(simple_model, simple_grid_3d_more_points_grid):
 
     grid_internal, ori_internal, sp_internal = input_preprocess(data_shape, grid, orientations,
                                                                 surface_points)
-    interp_input = InterpInput(sp_internal, ori_internal, options)
+    interp_input = SolverInput(sp_internal, ori_internal, options)
 
     weights = solve_interpolation(interp_input)
 

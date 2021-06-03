@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
-from gempy_engine.core.data.internal_structs import InterpInput
+from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
 from gempy_engine.modules.kernel_constructor._covariance_assembler import create_grad_kernel, create_scalar_kernel, \
     _test_covariance_items
@@ -69,7 +69,7 @@ class TestCompareWithGempy_v2:
     @pytest.fixture(scope="class")
     def weights(self, internals):
         sp_internals, ori_internals, options = internals
-        cov = yield_covariance(InterpInput(sp_internals, ori_internals, options))
+        cov = yield_covariance(SolverInput(sp_internals, ori_internals, options))
         b_vec = yield_b_vector(ori_internals, cov.shape[0])
         weights = kernel_reduction(cov, b_vec)
         return weights
@@ -77,7 +77,7 @@ class TestCompareWithGempy_v2:
     def test_reduction(self, internals):
         sp_internals, ori_internals, options = internals
         # Test cov
-        cov = yield_covariance(InterpInput(sp_internals, ori_internals, options))
+        cov = yield_covariance(SolverInput(sp_internals, ori_internals, options))
         print("\n")
         print(cov)
 
@@ -95,7 +95,7 @@ class TestCompareWithGempy_v2:
     def test_export_to_scalar(self, internals, weights):
         sp_internals, ori_internals, options = internals
         # Test sigma 0 sp
-        kernel_data = evaluation_vectors_preparations(grid, InterpInput(sp_internals, ori_internals, options))
+        kernel_data = evaluation_vectors_preparations(grid, SolverInput(sp_internals, ori_internals, options))
         export_sp_contr = _test_covariance_items(kernel_data, options, item="sigma_0_sp")
         sp_contr = weights @ export_sp_contr
 
@@ -137,7 +137,7 @@ class TestCompareWithGempy_v2:
         sp_internals, ori_internals, options = internals
 
         # Gradient x
-        kernel_data = evaluation_vectors_preparations(grid, InterpInput(sp_internals, ori_internals, options),
+        kernel_data = evaluation_vectors_preparations(grid, SolverInput(sp_internals, ori_internals, options),
                                                       axis=0)
         export_grad_scalar = create_grad_kernel(kernel_data, options)
         grad_x = weights @ export_grad_scalar
@@ -145,7 +145,7 @@ class TestCompareWithGempy_v2:
         print(f"\n Grad x: {grad_x.reshape(4, 1, 4)}")
         np.testing.assert_array_almost_equal(grad_x, grad_x_sol, decimal=3)
 
-        kernel_data = evaluation_vectors_preparations(grid, InterpInput(sp_internals, ori_internals, options), axis=2)
+        kernel_data = evaluation_vectors_preparations(grid, SolverInput(sp_internals, ori_internals, options), axis=2)
         export_grad_scalar = create_grad_kernel(kernel_data, options)
         grad_z = weights @ export_grad_scalar
         print(grad_z)

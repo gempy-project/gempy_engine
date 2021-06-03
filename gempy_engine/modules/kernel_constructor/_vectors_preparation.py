@@ -1,5 +1,5 @@
 from ...core.backend_tensor import BackendTensor, AvailableBackends
-from ...core.data.internal_structs import InterpInput
+from ...core.data.internal_structs import SolverInput
 from ...core.data.options import InterpolationOptions
 from ...core.data.kernel_classes.surface_points import SurfacePointsInternals
 from ...core.data.kernel_classes.orientations import OrientationsInternals
@@ -10,7 +10,7 @@ from . import _structs
 
 import numpy as np
 
-def cov_vectors_preparation(interp_input: InterpInput) -> _structs.KernelInput:
+def cov_vectors_preparation(interp_input: SolverInput) -> _structs.KernelInput:
     sp_: SurfacePointsInternals = interp_input.sp_internal
     ori_: OrientationsInternals = interp_input.ori_internal
     options: InterpolationOptions = interp_input.options
@@ -30,7 +30,7 @@ def cov_vectors_preparation(interp_input: InterpInput) -> _structs.KernelInput:
     return _structs.KernelInput(*kernel_input_args)
 
 
-def evaluation_vectors_preparations(grid: np.array, interp_input: InterpInput, axis=None) -> _structs.KernelInput:
+def evaluation_vectors_preparations(grid: np.array, interp_input: SolverInput, axis=None) -> _structs.KernelInput:
 
     sp_: SurfacePointsInternals = interp_input.sp_internal
     ori_: OrientationsInternals = interp_input.ori_internal

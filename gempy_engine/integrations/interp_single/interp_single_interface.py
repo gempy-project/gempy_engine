@@ -6,7 +6,8 @@ from ...core import data
 from ...core.data import exported_structs, SurfacePointsInternals
 from ...core.data.exported_structs import InterpOutput, OctreeLevel
 from ...core.data.grid import Grid
-from ...core.data.internal_structs import InterpInput
+from ...core.data.internal_structs import SolverInput
+from ...core.data.interpolation_input import InterpolationInput
 from ...modules.activator import activator_interface
 from ...modules.data_preprocess import data_preprocess_interface
 from ...modules.kernel_constructor import kernel_constructor_interface as kernel_constructor
@@ -16,12 +17,15 @@ from ...modules.octrees_topology import octrees_topology_interface as octrees
 import numpy as np
 
 
-def interpolate_single_scalar(surface_points: data.SurfacePoints,
-                              orientations: data.Orientations,
-                              grid: Grid,
-                              unit_values: np.ndarray,
+def interpolate_single_scalar(interpolation_input: InterpolationInput,
                               options: data.InterpolationOptions,
                               data_shape: data.TensorsStructure):
+
+    surface_points = interpolation_input.surface_points
+    orientations = interpolation_input.orientations
+    grid = interpolation_input.grid
+    unit_values = interpolation_input.grid
+
     # Init InterpOutput Class empty
     output = InterpOutput()
     output.grid = grid
@@ -29,7 +33,7 @@ def interpolate_single_scalar(surface_points: data.SurfacePoints,
     # Within series
     xyz_lvl0, ori_internal, sp_internal = input_preprocess(data_shape, grid, orientations, surface_points)
 
-    interp_input = InterpInput(sp_internal, ori_internal, options)
+    interp_input = SolverInput(sp_internal, ori_internal, options)
     output.weights = solve_interpolation(interp_input)
 
     # Within octree level
@@ -69,7 +73,7 @@ def interpolate_single_scalar(surface_points: data.SurfacePoints,
     return output
 
 
-def compute_octree_level_n(prev_octree: OctreeLevel, interp_input: InterpInput, output: InterpOutput,
+def compute_octree_level_n(prev_octree: OctreeLevel, interp_input: SolverInput, output: InterpOutput,
                            unit_values, dxdydz, i):
 
     # Old octree
@@ -86,7 +90,7 @@ def compute_octree_level_n(prev_octree: OctreeLevel, interp_input: InterpInput, 
     return new_octree_level
 
 
-def solve_interpolation(interp_input: InterpInput):
+def solve_interpolation(interp_input: SolverInput):
     A_matrix = kernel_constructor.yield_covariance(interp_input)
     b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
     # TODO: Smooth should be taken from options
@@ -103,7 +107,7 @@ def input_preprocess(data_shape, grid, orientations, surface_points) -> \
     return grid_internal, ori_internal, sp_internal
 
 
-def _evaluate_sys_eq(xyz: np.ndarray, interp_input: InterpInput, weights: np.ndarray) -> exported_structs.ExportedFields:
+def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput, weights: np.ndarray) -> exported_structs.ExportedFields:
     options = interp_input.options
 
     eval_kernel = kernel_constructor.yield_evaluation_kernel(xyz, interp_input)

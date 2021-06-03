@@ -5,7 +5,7 @@ from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.data_shape import TensorsStructure
 from gempy_engine.core.data.exported_structs import InterpOutput
 from gempy_engine.core.data.grid import Grid
-from gempy_engine.core.data.internal_structs import InterpInput
+from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
@@ -236,7 +236,7 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
 
     grid_internal, ori_internal, sp_internal = input_preprocess(data_shape, grid, orientations,
                                                                 surface_points)
-    interp_input = InterpInput(sp_internal, ori_internal, options)
+    interp_input = SolverInput(sp_internal, ori_internal, options)
 
     weights = solve_interpolation(interp_input)
 

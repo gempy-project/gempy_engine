@@ -4,7 +4,7 @@ from . import SurfacePointsInternals, OrientationsInternals, InterpolationOption
 
 
 @dataclass
-class InterpInput:
+class SolverInput:
     sp_internal: SurfacePointsInternals
     ori_internal: OrientationsInternals
     options: InterpolationOptions

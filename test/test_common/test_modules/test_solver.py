@@ -1,6 +1,6 @@
 import pytest
 
-from gempy_engine.core.data.internal_structs import InterpInput
+from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.modules.kernel_constructor._vectors_preparation import evaluation_vectors_preparations
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, \
     yield_b_vector
@@ -12,7 +12,7 @@ import numpy as np
 def kriging_eq(simple_model_2_internals):
     sp_internal, ori_internal, options = simple_model_2_internals
 
-    A_matrix = yield_covariance(InterpInput(sp_internal, ori_internal, options))
+    A_matrix = yield_covariance(SolverInput(sp_internal, ori_internal, options))
     b_vector = yield_b_vector(ori_internal, A_matrix.shape[0])
     return A_matrix, b_vector
 
@@ -39,7 +39,7 @@ def test_solver(kriging_eq):
 def test_scalar_field_export(simple_model_2_internals, simple_grid_2d):
     sp_internal, ori_internal, options = simple_model_2_internals
 
-    evp = evaluation_vectors_preparations(simple_grid_2d, InterpInput(sp_internal, ori_internal, options))
+    evp = evaluation_vectors_preparations(simple_grid_2d, SolverInput(sp_internal, ori_internal, options))
 
 
 
