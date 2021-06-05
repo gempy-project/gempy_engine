@@ -4,7 +4,7 @@ import pytest
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.data_shape import TensorsStructure
 from gempy_engine.core.data.exported_structs import InterpOutput
-from gempy_engine.core.data.grid import Grid
+from gempy_engine.core.data.grid import Grid, RegularGrid
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
@@ -50,7 +50,7 @@ simple_grid_3d = np.array([
 
 
 
-def create_regular_grid(extent, resolution):
+def create_regular_grid(extent, resolution, faces = False):
     dx = (extent[1] - extent[0]) / resolution[0]
     dy = (extent[3] - extent[2]) / resolution[1]
     dz = (extent[5] - extent[4]) / resolution[2]
@@ -63,8 +63,16 @@ def create_regular_grid(extent, resolution):
                     dtype="float64")
     xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
     g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
+    if faces == False:
+        return g, dx, dy, dz
+    else:
+        x = np.linspace(extent[0], extent[1] , resolution[0] + 1, dtype="float64")
+        y = np.linspace(extent[2], extent[3] , resolution[1]  + 1,  dtype="float64")
+        z = np.linspace(extent[4], extent[5] , resolution[2] + 1,  dtype="float64")
+        xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
+        g_faces = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
+        return g, g_faces, dx, dy, dz
 
-    return g, dx, dy, dz
 
 
 
@@ -83,9 +91,21 @@ def simple_grid_3d_more_points():
 @pytest.fixture(scope="session")
 def simple_grid_3d_more_points_grid():
     resolution = [50, 5, 50]
-    g, dx, dy, dz = create_regular_grid([0.25, .75, 0.25, .75, 0.25, .75], resolution)
+    extent = [0.25, .75, 0.25, .75, 0.25, .75]
+    g, dx, dy, dz = create_regular_grid(extent, resolution)
 
-    grid = Grid(g, [g.shape[0]], [50, 5, 50], [dx, dy, dz])
+    regular_grid = RegularGrid(g, extent, resolution)
+    grid = Grid(g, [g.shape[0]], regular_grid = regular_grid)
+    return grid
+
+@pytest.fixture(scope="session")
+def simple_grid_3d_octree():
+    resolution = [2, 3, 3]
+    extent = [0.25, .75, 0.25, .75, 0.25, .75]
+    g,gf, dx, dy, dz = create_regular_grid([0.25, .75, 0.25, .75, 0.25, .75], resolution, faces=True)
+
+    regular_grid = RegularGrid(g, extent, resolution)
+    grid = Grid(g, [g.shape[0]], regular_grid = regular_grid)
     return grid
 
 

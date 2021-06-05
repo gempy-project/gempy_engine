@@ -44,15 +44,24 @@ class InterpOutput:
     def ids_block_regular_grid(self):
         return np.rint(self.values_block[0, :self.grid.len_grids[0]].reshape(self.grid.regular_grid_shape))
 
+    @property
+    def ids_block(self):
+        return np.rint(self.values_block[0, :self.grid.len_grids[0]])
+
 
 @dataclass(init=True)
 class OctreeLevel():
-    # Used for octree
-    xyz_coords: np.ndarray
-    id_block: np.ndarray = None
+    grid: Grid
 
-    # Used for dual contouring
-    exported_fields: ExportedFields = None
+    # TODO: Probably I want to just pass the full output too
+    output: InterpOutput
+
+
+    # Used for octree
+    # id_block: np.ndarray = None
+    # id_block_centers: np.ndarray = None
+    # # Used for dual contouring
+    # exported_fields: ExportedFields = None
 
     # topo
     edges_id: np.ndarray = None
@@ -60,3 +69,16 @@ class OctreeLevel():
     marked_edges: List[np.ndarray] = None # 3 arrays in x, y, z
 
     is_root: bool = False # When root is true arrays are dim 3
+
+
+    @property
+    def xyz_coords(self):
+        return self.grid.values
+
+    @property
+    def id_block(self):
+        return self.output.ids_block
+
+    @property
+    def exported_fields(self):
+        return self.output.exported_fields

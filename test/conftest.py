@@ -19,6 +19,7 @@ from test.fixtures.simple_models import\
     simple_model_3_layers,\
     simple_grid_3d_more_points,\
     simple_grid_3d_more_points_grid,\
+    simple_grid_3d_octree, \
     simple_model_values_block_output
 
 backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflow])

@@ -24,7 +24,7 @@ def interpolate_single_scalar(interpolation_input: InterpolationInput,
     surface_points = interpolation_input.surface_points
     orientations = interpolation_input.orientations
     grid = interpolation_input.grid
-    unit_values = interpolation_input.grid
+    unit_values = interpolation_input.unit_values
 
     # Init InterpOutput Class empty
     output = InterpOutput()
@@ -54,7 +54,7 @@ def interpolate_single_scalar(interpolation_input: InterpolationInput,
     octree_lvl0 = OctreeLevel(grid.values, output.ids_block_regular_grid, output.exported_fields_regular_grid,
                               is_root=True)
 
-    octree_lvl1 = octrees.compute_octree_root(octree_lvl0, grid.regular_grid, grid.dxdydz, compute_topology=True)
+    octree_lvl1 = octrees.compute_octree_root(octree_lvl0, grid.regular_grid_values, grid.dxdydz, compute_topology=True, )
 
     n_levels = 3 # TODO: Move to options
     octree_list = [octree_lvl0, octree_lvl1]
@@ -74,7 +74,29 @@ def interpolate_single_scalar(interpolation_input: InterpolationInput,
 
 
 def compute_octree_level_n(prev_octree: OctreeLevel, interp_input: SolverInput, output: InterpOutput,
-                           unit_values, dxdydz, i):
+                           unit_values, i):
+
+    # Old octree
+    prev_octree.exported_fields = _evaluate_sys_eq(prev_octree.xyz_coords, interp_input, output.weights)
+
+    values_block: ndarray = activator_interface.activate_formation_block(prev_octree.exported_fields.scalar_field, output.scalar_field_at_sp, unit_values, sigmoid_slope=50000)
+    prev_octree.id_block = np.rint(values_block[0])
+
+    # TODO: Probably we want to store either both or centers
+    exported_fields_ = _evaluate_sys_eq(prev_octree.grid.custom_grid["centers"], interp_input, output.weights)
+    values_block: ndarray = activator_interface.activate_formation_block(exported_fields_.scalar_field,
+                                                                         output.scalar_field_at_sp, unit_values,
+                                                                         sigmoid_slope=50000)
+    prev_octree.id_block_centers = np.rint(values_block[0])
+
+
+    # New octree
+    new_octree_level = octrees.compute_octree_branch(prev_octree, level=i)
+    return new_octree_level
+
+
+def compute_octree_last_level(prev_octree: OctreeLevel, interp_input: SolverInput, output: InterpOutput,
+                              unit_values):
 
     # Old octree
     prev_octree.exported_fields = _evaluate_sys_eq(prev_octree.xyz_coords, interp_input, output.weights)
@@ -83,12 +105,12 @@ def compute_octree_level_n(prev_octree: OctreeLevel, interp_input: SolverInput, 
         prev_octree.exported_fields.scalar_field, output.scalar_field_at_sp, unit_values, sigmoid_slope=50000)
     prev_octree.id_block = np.rint(values_block[0])
 
-    # New octree
-    new_xyz = octrees.compute_octree_leaf(prev_octree, dxdydz, level=i)
+    # New-Last octree
+    new_xyz = octrees.compute_octree_leaf(prev_octree)
     new_octree_level = OctreeLevel(new_xyz)
 
+    new_octree_level.exported_fields = _evaluate_sys_eq(new_octree_level.xyz_coords, interp_input, output.weights)
     return new_octree_level
-
 
 def solve_interpolation(interp_input: SolverInput):
     A_matrix = kernel_constructor.yield_covariance(interp_input)
