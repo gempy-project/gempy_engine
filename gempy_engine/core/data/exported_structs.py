@@ -3,7 +3,7 @@ from typing import List
 
 import numpy as np
 
-from gempy_engine.core.data.grid import Grid
+from gempy_engine.core.data.grid import Grid, RegularGrid
 
 
 @dataclass
@@ -25,7 +25,7 @@ class InterpOutput:
     final_block: np.ndarray  # Masked array containing only the active voxels
 
     # Remember this is only for regular grid
-    octrees: List[np.ndarray]
+    octrees: List[np.ndarray]  # TODO: This probably should be one level higher
 
     @property
     def exported_fields_regular_grid(self):
@@ -49,13 +49,39 @@ class InterpOutput:
         return np.rint(self.values_block[0, :self.grid.len_grids[0]])
 
 
+@dataclass(init=False)
+class OctreeLevel:
+    # Input
+    grid_centers: Grid
+    grid_faces: Grid
+    output_centers: InterpOutput
+    output_faces: InterpOutput
+    is_root: bool = False  # When root is true arrays are dim 3
+
+    # Topo
+    edges_id: np.ndarray = None
+    count_edges: np.ndarray = None
+    marked_edges: List[np.ndarray] = None  # 3 arrays in x, y, z
+
+    def set_interpolation(self, grid_centers: Grid, grid_faces: Grid,
+                          output_centers: InterpOutput, output_faces: InterpOutput):
+        self.grid_centers: Grid = grid_centers
+        self.grid_faces: Grid = grid_faces
+        self.output_centers: InterpOutput = output_centers
+        self.output_faces: InterpOutput = output_faces
+
+
+    @property
+    def dxdydz(self):
+        return self.grid_centers.dxdydz
+
+
 @dataclass(init=True)
-class OctreeLevel():
+class OctreeLevel_DEP():
     grid: Grid
 
     # TODO: Probably I want to just pass the full output too
     output: InterpOutput
-
 
     # Used for octree
     # id_block: np.ndarray = None
@@ -66,10 +92,9 @@ class OctreeLevel():
     # topo
     edges_id: np.ndarray = None
     count_edges: np.ndarray = None
-    marked_edges: List[np.ndarray] = None # 3 arrays in x, y, z
+    marked_edges: List[np.ndarray] = None  # 3 arrays in x, y, z
 
-    is_root: bool = False # When root is true arrays are dim 3
-
+    is_root: bool = False  # When root is true arrays are dim 3
 
     @property
     def xyz_coords(self):

@@ -12,13 +12,25 @@ def _check_and_convert_list_to_array(field):
 
 @dataclass
 class RegularGrid:
-    values: np.ndarray
+
     extent: Union[np.ndarray, List]
     regular_grid_shape: Union[np.ndarray, List]  # Shape(3)
-    active_cells: np.ndarray = None # Bool array
+    _active_cells: np.ndarray = None # Bool array
 
     def __post_init__(self):
         self.regular_grid_shape = _check_and_convert_list_to_array(self.regular_grid_shape)
+        self.values = self._create_regular_grid(self.extent, self.regular_grid_shape)
+
+    @property
+    def active_cells(self):
+        if self._active_cells is not None:
+            return self._active_cells
+        else:
+            return np.ones(self.regular_grid_shape, dtype=bool)
+
+    @active_cells.setter
+    def active_cells(self, value):
+        self._active_cells = value
 
     @property
     def resolution(self):
@@ -45,10 +57,10 @@ class RegularGrid:
         return cls(values, extent, regular_grid_shape)
 
     # TODO: This should be the constructor?
-    @classmethod
-    def init_regular_grid(cls, extent, regular_grid_shape):
-        values = cls._create_regular_grid(extent, regular_grid_shape)
-        return cls(values, extent, regular_grid_shape)
+    # @classmethod
+    # def init_regular_grid(cls, extent, regular_grid_shape):
+    #     values = cls._create_regular_grid(extent, regular_grid_shape)
+    #     return cls(values, extent, regular_grid_shape)
 
     @classmethod
     def _create_regular_grid(cls, extent, resolution):
@@ -83,6 +95,7 @@ class RegularGrid:
         return _generate_corners(self.values, self.dxdydz)
 
 
+
     @property
     def faces_values(self):
         def _generate_faces(xyz_coord, dxdydz, level=1):
@@ -101,7 +114,13 @@ class RegularGrid:
 
             new_xyz = np.stack((x, y, z)).T
             return new_xyz
-        return _generate_faces(self.values, self.dxdydz)
+
+        if self.active_cells is None:
+            voxels = self.values
+        else:
+            voxels = self.values[self.active_cells]
+
+        return _generate_faces(voxels, self.dxdydz)
 
     @property
     def faces_values_3d(self):

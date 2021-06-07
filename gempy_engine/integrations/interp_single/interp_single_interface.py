@@ -17,52 +17,72 @@ from ...modules.octrees_topology import octrees_topology_interface as octrees
 import numpy as np
 
 
+class Buffer:
+    weights = None
+
+    @classmethod
+    def clean(cls):
+        cls.weights = None
+
+
 def interpolate_single_scalar(interpolation_input: InterpolationInput,
                               options: data.InterpolationOptions,
-                              data_shape: data.TensorsStructure):
-
-    surface_points = interpolation_input.surface_points
-    orientations = interpolation_input.orientations
+                              data_shape: data.TensorsStructure,
+                              clean_buffer = True
+                              ):
     grid = interpolation_input.grid
     unit_values = interpolation_input.unit_values
 
-    # Init InterpOutput Class empty
-    output = InterpOutput()
-    output.grid = grid
+    surface_points = interpolation_input.surface_points
+    orientations = interpolation_input.orientations
 
-    # Within series
+        # Within series
     xyz_lvl0, ori_internal, sp_internal = input_preprocess(data_shape, grid, orientations, surface_points)
 
     interp_input = SolverInput(sp_internal, ori_internal, options)
-    output.weights = solve_interpolation(interp_input)
+
+    if Buffer.weights is None:
+        weights = solve_interpolation(interp_input)
+        Buffer.weights = weights
+    else:
+        weights = Buffer.weights
 
     # Within octree level
     # +++++++++++++++++++
-    output.exported_fields = _evaluate_sys_eq(xyz_lvl0, interp_input, output.weights)
+    exported_fields = _evaluate_sys_eq(xyz_lvl0, interp_input, weights)
 
-    output.scalar_field_at_sp = _get_scalar_field_at_surface_points(
-        output.exported_fields.scalar_field, data_shape.nspv, surface_points.n_points)
+    scalar_field_at_sp = _get_scalar_field_at_surface_points(
+        exported_fields.scalar_field, data_shape.nspv, surface_points.n_points)
 
     # -----------------
     # Export and Masking operations can happen even in parallel
     # TODO: [~X] Export block
-    output.values_block = activator_interface.activate_formation_block(
-        output.exported_fields.scalar_field, output.scalar_field_at_sp, unit_values, sigmoid_slope=50000)
+    values_block = activator_interface.activate_formation_block(
+        exported_fields.scalar_field, scalar_field_at_sp, unit_values, sigmoid_slope=50000)
+
+    # Init InterpOutput Class empty
+    output = InterpOutput()
+    output.grid = grid
+    output.weights = weights
+    output.exported_fields = exported_fields
+    output.scalar_field_at_sp = scalar_field_at_sp
+    output.values_block = values_block
+
     # -----------------
     # TODO: [ ] Octree - Topology
 
-    octree_lvl0 = OctreeLevel(grid.values, output.ids_block_regular_grid, output.exported_fields_regular_grid,
-                              is_root=True)
-
-    octree_lvl1 = octrees.compute_octree_root(octree_lvl0, grid.regular_grid_values, grid.dxdydz, compute_topology=True, )
-
-    n_levels = 3 # TODO: Move to options
-    octree_list = [octree_lvl0, octree_lvl1]
-    for i in range(2, n_levels):
-        next_octree = compute_octree_level_n(octree_list[-1], interp_input, output, unit_values, grid.dxdydz, i)
-        octree_list.append(next_octree)
-
-    output.octrees = octree_list
+    # octree_lvl0 = OctreeLevel(grid.values, output.ids_block_regular_grid, output.exported_fields_regular_grid,
+    #                           is_root=True)
+    #
+    # octree_lvl1 = octrees.compute_octree_root(octree_lvl0, grid.regular_grid_values, grid.dxdydz, compute_topology=True, )
+    #
+    # n_levels = 3 # TODO: Move to options
+    # octree_list = [octree_lvl0, octree_lvl1]
+    # for i in range(2, n_levels):
+    #     next_octree = compute_octree_level_n(octree_list[-1], interp_input, output, unit_values, grid.dxdydz, i)
+    #     octree_list.append(next_octree)
+    #
+    # output.octrees = octree_list
     # ------------------
 
     # TODO: [ ] Masking OPs. This is for series, i.e. which voxels are active. During development until we
@@ -70,47 +90,101 @@ def interpolate_single_scalar(interpolation_input: InterpolationInput,
     # mask_matrix = mask_matrix(exported_fields.scalar_field, scalar_at_surface_points, some_sort_of_array_with_erode_onlap)
     output.final_block = output.values_block.copy()  # TODO (dev hack May 2021): this should be values_block * mask_matrix
 
+    if clean_buffer: Buffer.clean()
+
     return output
 
+def interpolate_on_octree(octree:OctreeLevel, interpolation_input: InterpolationInput,
+                          options: data.InterpolationOptions, data_shape: data.TensorsStructure)-> OctreeLevel:
+    def _generate_faces(xyz_coord, dxdydz, level=1):
+        x_coord, y_coord, z_coord = xyz_coord[:, 0], xyz_coord[:, 1], xyz_coord[:, 2]
+        dx, dy, dz = dxdydz
 
-def compute_octree_level_n(prev_octree: OctreeLevel, interp_input: SolverInput, output: InterpOutput,
-                           unit_values, i):
+        x = np.array([[x_coord - dx / 2, x_coord + dx / 2],
+                      [x_coord, x_coord],
+                      [x_coord, x_coord]]).ravel()
+        y = np.array([[y_coord, y_coord],
+                      [y_coord - dy / 2, y_coord + dy / 2],
+                      [y_coord, y_coord]]).ravel()
+        z = np.array([[z_coord, z_coord],
+                      [z_coord, z_coord],
+                      [z_coord - dz / 2, z_coord + dz / 2]]).ravel()
 
-    # Old octree
-    prev_octree.exported_fields = _evaluate_sys_eq(prev_octree.xyz_coords, interp_input, output.weights)
-
-    values_block: ndarray = activator_interface.activate_formation_block(prev_octree.exported_fields.scalar_field, output.scalar_field_at_sp, unit_values, sigmoid_slope=50000)
-    prev_octree.id_block = np.rint(values_block[0])
-
-    # TODO: Probably we want to store either both or centers
-    exported_fields_ = _evaluate_sys_eq(prev_octree.grid.custom_grid["centers"], interp_input, output.weights)
-    values_block: ndarray = activator_interface.activate_formation_block(exported_fields_.scalar_field,
-                                                                         output.scalar_field_at_sp, unit_values,
-                                                                         sigmoid_slope=50000)
-    prev_octree.id_block_centers = np.rint(values_block[0])
-
-
-    # New octree
-    new_octree_level = octrees.compute_octree_branch(prev_octree, level=i)
-    return new_octree_level
+        new_xyz = np.stack((x, y, z)).T
+        return new_xyz
 
 
-def compute_octree_last_level(prev_octree: OctreeLevel, interp_input: SolverInput, output: InterpOutput,
-                              unit_values):
+    grid_0_centers = interpolation_input.grid
 
-    # Old octree
-    prev_octree.exported_fields = _evaluate_sys_eq(prev_octree.xyz_coords, interp_input, output.weights)
+    # interpolate level 0 - center
+    output_0_centers = interpolate_single_scalar(interpolation_input, options, data_shape, clean_buffer=False)
+    # Interpolate level 0 - faces
+    grid_0_faces = Grid(_generate_faces(grid_0_centers.values, grid_0_centers.dxdydz))
+    interpolation_input.grid = grid_0_faces
+    output_0_faces = interpolate_single_scalar(interpolation_input, options, data_shape, clean_buffer=False)
+    # Create octree level 0
 
-    values_block: ndarray = activator_interface.activate_formation_block(
-        prev_octree.exported_fields.scalar_field, output.scalar_field_at_sp, unit_values, sigmoid_slope=50000)
-    prev_octree.id_block = np.rint(values_block[0])
+    octree.set_interpolation(grid_0_centers, grid_0_faces, output_0_centers, output_0_faces)
+    return octree
 
-    # New-Last octree
-    new_xyz = octrees.compute_octree_leaf(prev_octree)
-    new_octree_level = OctreeLevel(new_xyz)
 
-    new_octree_level.exported_fields = _evaluate_sys_eq(new_octree_level.xyz_coords, interp_input, output.weights)
-    return new_octree_level
+def compute_n_octree_levels(n_levels, interpolation_input, options, data_shape):
+    octree_list = []
+    next_octree = OctreeLevel()
+    next_octree.is_root = True
+
+    for i in range(0, n_levels):
+
+        next_octree = interpolate_on_octree(next_octree, interpolation_input, options, data_shape)
+        grid_1_centers  = octrees.get_next_octree_grid(next_octree, compute_topology=False, debug=False)
+
+        interpolation_input.grid = grid_1_centers
+        octree_list.append(next_octree)
+
+        next_octree = OctreeLevel()
+    Buffer.clean()
+    return octree_list
+
+
+
+# def compute_octree_level_n(prev_octree: OctreeLevel, interp_input: SolverInput, output: InterpOutput,
+#                            unit_values, i):
+#     # Old octree
+#     prev_octree.exported_fields = _evaluate_sys_eq(prev_octree.xyz_coords, interp_input, output.weights)
+#
+#     values_block: ndarray = activator_interface.activate_formation_block(prev_octree.exported_fields.scalar_field,
+#                                                                          output.scalar_field_at_sp, unit_values,
+#                                                                          sigmoid_slope=50000)
+#     prev_octree.id_block = np.rint(values_block[0])
+#
+#     # TODO: Probably we want to store either both or centers
+#     exported_fields_ = _evaluate_sys_eq(prev_octree.grid.custom_grid["centers"], interp_input, output.weights)
+#     values_block: ndarray = activator_interface.activate_formation_block(exported_fields_.scalar_field,
+#                                                                          output.scalar_field_at_sp, unit_values,
+#                                                                          sigmoid_slope=50000)
+#     prev_octree.id_block_centers = np.rint(values_block[0])
+#
+#     # New octree
+#     new_octree_level = octrees.compute_octree_branch(prev_octree, level=i)
+#     return new_octree_level
+#
+#
+# def compute_octree_last_level(prev_octree: OctreeLevel, interp_input: SolverInput, output: InterpOutput,
+#                               unit_values):
+#     # Old octree
+#     prev_octree.exported_fields = _evaluate_sys_eq(prev_octree.xyz_coords, interp_input, output.weights)
+#
+#     values_block: ndarray = activator_interface.activate_formation_block(
+#         prev_octree.exported_fields.scalar_field, output.scalar_field_at_sp, unit_values, sigmoid_slope=50000)
+#     prev_octree.id_block = np.rint(values_block[0])
+#
+#     # New-Last octree
+#     new_xyz = octrees.compute_octree_leaf(prev_octree)
+#     new_octree_level = OctreeLevel(new_xyz)
+#
+#     new_octree_level.exported_fields = _evaluate_sys_eq(new_octree_level.xyz_coords, interp_input, output.weights)
+#     return new_octree_level
+
 
 def solve_interpolation(interp_input: SolverInput):
     A_matrix = kernel_constructor.yield_covariance(interp_input)
@@ -129,7 +203,8 @@ def input_preprocess(data_shape, grid, orientations, surface_points) -> \
     return grid_internal, ori_internal, sp_internal
 
 
-def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput, weights: np.ndarray) -> exported_structs.ExportedFields:
+def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput,
+                     weights: np.ndarray) -> exported_structs.ExportedFields:
     options = interp_input.options
 
     eval_kernel = kernel_constructor.yield_evaluation_kernel(xyz, interp_input)
