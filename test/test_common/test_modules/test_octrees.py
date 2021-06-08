@@ -46,26 +46,51 @@ def test_octree_and_topo_root(simple_model, simple_grid_3d_octree, pyvista_plot=
     output_0_centers = interp.interpolate_single_scalar(interpolation_input, options, data_shape)
 
     # Interpolate level 0 - faces
-    grid_0_faces = Grid(grid_0_centers.regular_grid.faces_values)
-    interpolation_input.grid = grid_0_faces
-    output_0_faces = interp.interpolate_single_scalar(interpolation_input, options, data_shape)
+    from gempy_engine.modules.octrees_topology._octree_common import _generate_corners
+    grid_0_corners = Grid(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
+    interpolation_input.grid = grid_0_corners
+    output_0_corners = interp.interpolate_single_scalar(interpolation_input, options, data_shape, clean_buffer=False)
 
     # Create octree level 0
-    octree_lvl0 = OctreeLevel(grid_0_faces, grid_0_centers.dxdydz, output_0_faces.ids_block)
+    octree_lvl0 = OctreeLevel()
+
+    octree_lvl0 = octree_lvl0.set_interpolation(grid_0_centers, grid_0_corners,
+                                                output_0_centers, output_0_corners)
 
     # Generate grid_1_centers
     debug_vals = get_next_octree_grid(octree_lvl0, compute_topology=False, debug=True)
     xyz, anch, select = debug_vals[:3]
 
+    grid_1_centers = debug_vals[-1]
+
+    # Level 2
+    octree_lvl1 = OctreeLevel()
+    interpolation_input.grid = grid_1_centers
+
+    output_1_centers = interp.interpolate_single_scalar(interpolation_input, options, data_shape, clean_buffer=False)
+    # Interpolate level 0 - faces
+    grid_1_corners = Grid(_generate_corners(grid_1_centers.values, grid_1_centers.dxdydz))
+    interpolation_input.grid = grid_1_corners
+    output_1_corners = interp.interpolate_single_scalar(interpolation_input, options, data_shape, clean_buffer=False)
+    # Create octree level 0
+
+    octree_lvl1.set_interpolation(grid_1_centers, grid_1_corners, output_1_centers, output_1_corners)
+
+    debug_vals = get_next_octree_grid(octree_lvl1, compute_topology=False, debug=True)
+    xyz1, anch1, select1 = debug_vals[:3]
+
     # Compute actual mesh
     resolution = [20, 20, 20]
     mesh = compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
-                               output_0_centers.scalar_field_at_sp, output_0_centers.weights)
+                               output_1_centers.scalar_field_at_sp, output_1_centers.weights)
 
     if pyvista_plot:
         import pyvista as pv
         p = pv.Plotter()
         rg = grid_0_centers.regular_grid
+
+        grid_0_faces = grid_0_corners
+
         if False:  # This only works for pseudo 2d
             dims = np.asarray((rg.regular_grid_shape)) + 1
             grid = pv.ExplicitStructuredGrid(dims, rg.corners_values)
@@ -74,46 +99,49 @@ def test_octree_and_topo_root(simple_model, simple_grid_3d_octree, pyvista_plot=
 
         p.add_mesh(mesh, opacity=.8, silhouette=True)
         p.add_mesh(pv.PolyData(grid_0_centers.values), color="black", point_size=12.0, render_points_as_spheres=False)
-        p.add_mesh(pv.PolyData(rg.corners_values), color="blue", point_size=10.0, render_points_as_spheres=False)
-        p.add_mesh(pv.PolyData(rg.faces_values), color="g", point_size=8.0, render_points_as_spheres=False)
+        p.add_mesh(pv.PolyData(rg.corners_values), color="blue", point_size=3.0, render_points_as_spheres=False)
+#        p.add_mesh(pv.PolyData(rg.faces_values), color="g", point_size=8.0, render_points_as_spheres=False)
 
-        z_left = grid_0_faces.values.reshape((6, -1, 3))[4][select[2]]
-        z_right = grid_0_faces.values.reshape((6, -1, 3))[5][select[2]]
+        z_left =grid_0_faces.values.reshape((-1,8,3))[:, ::2, :][select[2]]
+        z_right = grid_0_faces.values.reshape((-1,8,3))[:, 1::2, :][select[2]]
         try:
             p.add_mesh(pv.PolyData(z_left), color="c", point_size=6.0, render_points_as_spheres=False)
             p.add_mesh(pv.PolyData(z_right), color="y", point_size=5.0, render_points_as_spheres=False)
         except:
             pass
 
-        x_left = grid_0_faces.values.reshape((6, -1, 3))[0][select[0]]
-        x_right = grid_0_faces.values.reshape((6, -1, 3))[1][select[0]]
+        x_left = grid_0_faces.values.reshape((-1,8,3))[:,:4, :][select[0]]
+        x_right = grid_0_faces.values.reshape((-1,8,3))[:, 4:, :][select[0]]
         try:
             p.add_mesh(pv.PolyData(x_left), color="c", point_size=6.0, render_points_as_spheres=False)
             p.add_mesh(pv.PolyData(x_right), color="y", point_size=5.0, render_points_as_spheres=False)
         except:
             pass
-        y_left = grid_0_faces.values.reshape((6, -1, 3))[2][select[1]]
-        y_right = grid_0_faces.values.reshape((6, -1, 3))[3][select[1]]
+        y_left = grid_0_faces.values.reshape((-1,8,3))[:, [0, 1, 4, 5], :][select[1]]
+        y_right = grid_0_faces.values.reshape((-1,8,3))[:, [2, 3, 6, 7], :][select[1]]
         try:
             p.add_mesh(pv.PolyData(y_left), color="c", point_size=6.0, render_points_as_spheres=False)
             p.add_mesh(pv.PolyData(y_right), color="y", point_size=5.0, render_points_as_spheres=False)
         except:
             pass
         try:
-            p.add_mesh(pv.PolyData(anch), color="r", point_size=4.0, render_points_as_spheres=False)
-            p.add_mesh(pv.PolyData(xyz), color="w", point_size=3.0, render_points_as_spheres=False)
+            p.add_mesh(pv.PolyData(anch), color="r", point_size=10.0, render_points_as_spheres=False)
+            p.add_mesh(pv.PolyData(anch1), color="orange", point_size=8.0, render_points_as_spheres=False)
+            p.add_mesh(pv.PolyData(xyz), color="w", point_size=5.0, render_points_as_spheres=False)
+            p.add_mesh(pv.PolyData(xyz1), color="g", point_size=4.0, render_points_as_spheres=False)
+
         except:
             pass
         p.show()
 
 
-def test_octree_leaf(simple_model, simple_grid_3d_octree, pyvista_plot=True):
+def test_octree_leaf_on_faces(simple_model, simple_grid_3d_octree, pyvista_plot=True):
     spi, ori_i, options, data_shape = simple_model
     ids = np.array([1, 2])
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = interp.compute_n_octree_levels(7, interpolation_input, options, data_shape)
+    octree_list = interp.compute_n_octree_levels(5, interpolation_input, options, data_shape, on_faces=True)
     # Compute actual mesh
     resolution = [20, 20, 20]
     mesh = compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
@@ -126,11 +154,38 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree, pyvista_plot=True):
     if pyvista_plot:
         plot_points_in_vista(grid_centers, grid_faces, mesh)
 
+def test_octree_leaf(simple_model, simple_grid_3d_octree, pyvista_plot=True):
+    spi, ori_i, options, data_shape = simple_model
+    ids = np.array([1, 2])
+    grid_0_centers = simple_grid_3d_octree
+    interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
+
+    octree_list = interp.compute_n_octree_levels(6, interpolation_input, options, data_shape, on_faces=False)
+    # Compute actual mesh
+    resolution = [20, 20, 20]
+    mesh = compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
+                               octree_list[0].output_centers.scalar_field_at_sp,
+                               octree_list[0].output_centers.weights)
+
+
+
+    debug_vals = get_next_octree_grid(octree_list[-1], compute_topology=False, debug=True)
+    a = debug_vals[-2]
+
+    grid_centers = octree_list[-1].grid_centers
+    grid_centers.values = grid_centers.values[a]
+
+    grid_faces = octree_list[-1].grid_faces
+
+    if pyvista_plot:
+        plot_points_in_vista(grid_centers, grid_faces, mesh)
+
 
 def plot_points_in_vista(grid_0_centers, grid_0_faces, mesh):
     import pyvista as pv
     p = pv.Plotter()
     rg = grid_0_centers.regular_grid
+    xyz = grid_0_centers.values
 
     if False:  # This only works for pseudo 2d
         dims = np.asarray((rg.regular_grid_shape)) + 1
@@ -144,7 +199,7 @@ def plot_points_in_vista(grid_0_centers, grid_0_faces, mesh):
     #p.add_mesh(pv.PolyData(rg.corners_values), color="blue", point_size=10.0, render_points_as_spheres=False)
 #    p.add_mesh(pv.PolyData(rg.faces_values), color="g", point_size=8.0, render_points_as_spheres=False)
 
-    if True:
+    if False:
         z_left = grid_0_faces.values  # .reshape((6, -1, 3))[4][select[2]]
         z_right = grid_0_faces.values  # .reshape((6, -1, 3))[5][select[2]]
         try:
@@ -166,11 +221,11 @@ def plot_points_in_vista(grid_0_centers, grid_0_faces, mesh):
             p.add_mesh(pv.PolyData(y_right), color="y", point_size=5.0, render_points_as_spheres=False)
         except:
             pass
-    # try:
-    # # p.add_mesh(pv.PolyData(anch), color="r", point_size=4.0, render_points_as_spheres=False)
-    # # p.add_mesh(pv.PolyData(xyz), color="w", point_size=3.0, render_points_as_spheres=False)
-    # except:
-    #     pass
+    try:
+      #  p.add_mesh(pv.PolyData(anch), color="r", point_size=4.0, render_points_as_spheres=False)
+        p.add_mesh(pv.PolyData(xyz), color="w", point_size=3.0, render_points_as_spheres=False)
+    except:
+        pass
     p.show()
 
 

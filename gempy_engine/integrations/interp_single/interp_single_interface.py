@@ -113,6 +113,56 @@ def interpolate_on_octree(octree:OctreeLevel, interpolation_input: Interpolation
         new_xyz = np.stack((x, y, z)).T
         return new_xyz
 
+    def _generate_corners(xyz_coord, dxdydz, level=1):
+        x_coord, y_coord, z_coord = xyz_coord[:, 0], xyz_coord[:, 1], xyz_coord[:, 2]
+        dx, dy, dz = dxdydz
+
+        def stack_left_right(a_edg, d_a):
+            return np.stack((a_edg - d_a / level / 2, a_edg + d_a / level / 2), axis=1)
+
+        x_ = np.repeat(stack_left_right(x_coord, dx), 4, axis=1)
+        x = x_.ravel()
+        y_ = np.tile(np.repeat(stack_left_right(y_coord, dy), 2, axis=1), (1, 2))
+        y = y_.ravel()
+        z_ = np.tile(stack_left_right(z_coord, dz), (1, 4))
+        z = z_.ravel()
+
+        new_xyz = np.stack((x, y, z)).T
+        return new_xyz
+
+    grid_0_centers = interpolation_input.grid
+
+    # interpolate level 0 - center
+    output_0_centers = interpolate_single_scalar(interpolation_input, options, data_shape, clean_buffer=False)
+    # Interpolate level 0 - faces
+    grid_0_corners = Grid(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
+    interpolation_input.grid = grid_0_corners
+    output_0_corners = interpolate_single_scalar(interpolation_input, options, data_shape, clean_buffer=False)
+    # Create octree level 0
+
+    octree.set_interpolation(grid_0_centers, grid_0_corners, output_0_centers, output_0_corners)
+    return octree
+
+
+def interpolate_on_octree_faces(octree:OctreeLevel, interpolation_input: InterpolationInput,
+                          options: data.InterpolationOptions, data_shape: data.TensorsStructure)-> OctreeLevel:
+    def _generate_faces(xyz_coord, dxdydz, level=1):
+        x_coord, y_coord, z_coord = xyz_coord[:, 0], xyz_coord[:, 1], xyz_coord[:, 2]
+        dx, dy, dz = dxdydz
+
+        x = np.array([[x_coord - dx / 2, x_coord + dx / 2],
+                      [x_coord, x_coord],
+                      [x_coord, x_coord]]).ravel()
+        y = np.array([[y_coord, y_coord],
+                      [y_coord - dy / 2, y_coord + dy / 2],
+                      [y_coord, y_coord]]).ravel()
+        z = np.array([[z_coord, z_coord],
+                      [z_coord, z_coord],
+                      [z_coord - dz / 2, z_coord + dz / 2]]).ravel()
+
+        new_xyz = np.stack((x, y, z)).T
+        return new_xyz
+
 
     grid_0_centers = interpolation_input.grid
 
@@ -128,15 +178,21 @@ def interpolate_on_octree(octree:OctreeLevel, interpolation_input: Interpolation
     return octree
 
 
-def compute_n_octree_levels(n_levels, interpolation_input, options, data_shape):
+def compute_n_octree_levels(n_levels, interpolation_input, options, data_shape, on_faces = False):
     octree_list = []
     next_octree = OctreeLevel()
     next_octree.is_root = True
 
     for i in range(0, n_levels):
 
-        next_octree = interpolate_on_octree(next_octree, interpolation_input, options, data_shape)
-        grid_1_centers  = octrees.get_next_octree_grid(next_octree, compute_topology=False, debug=False)
+        if on_faces: # TODO: Probably this is useless
+            next_octree = interpolate_on_octree_faces(next_octree, interpolation_input, options, data_shape)
+            from gempy_engine.modules.octrees_topology._octree_root import compute_octree_root_on_faces
+            grid_1_centers = compute_octree_root_on_faces(next_octree, compute_topology=False, debug=False)
+        else:
+            next_octree = interpolate_on_octree(next_octree, interpolation_input, options, data_shape)
+
+            grid_1_centers  = octrees.get_next_octree_grid(next_octree, compute_topology=False, debug=False)
 
         interpolation_input.grid = grid_1_centers
         octree_list.append(next_octree)

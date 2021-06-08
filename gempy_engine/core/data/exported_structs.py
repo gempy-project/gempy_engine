@@ -70,6 +70,7 @@ class OctreeLevel:
         self.output_centers: InterpOutput = output_centers
         self.output_faces: InterpOutput = output_faces
 
+        return self
 
     @property
     def dxdydz(self):
