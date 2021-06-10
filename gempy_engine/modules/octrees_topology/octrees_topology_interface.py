@@ -46,10 +46,11 @@ def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):
 
         f1b = f1 * 2 ** (3 * n_rep)  # 64 #** 2**(n_rep-1) * 2**(n_rep-1)
         f2b = f2 * 2 ** (2 * n_rep)  # 16 #** 2**(n_rep-1)
+        f3b =      2 ** (1 * n_rep)
 
         d1 = (activ // f1) * f1b  # * 2
         d2 = (activ % f1 // f2) * f2b  # * 2
-        d3 = activ % f1 % f2 * 2 * n_rep
+        d3 = activ % f1 % f2 * f3b
 
         anchor = d1 + d2 + d3
         return anchor
@@ -82,10 +83,11 @@ def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):
 
                 f1b = f1 * 2 ** (3 * n_rep)  # 64 #** 2**(n_rep-1) * 2**(n_rep-1)
                 f2b = f2 * 2 ** (2 * n_rep)  # 16 #** 2**(n_rep-1)
+                f3b =      2 ** (1 * n_rep)
 
                 d1 = (activ // f1) * f1b  # * x
                 d2 = (activ % f1 // f2) * f2b  # y
-                d3 = activ % f1 % f2 * 2 * n_rep # z
+                d3 = activ % f1 % f2 * f3b # z
 
                 anchor = d1 + d2 + d3
                 return anchor
@@ -98,7 +100,15 @@ def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):
             active_cells_index = (c.reshape(-1, 1) + oct).ravel()
             active_cells_index_foo = active_cells_index
             ids = _expand_octree(octree.output_centers.ids_block.reshape(-1, 2, 2, 2), n_rep - 1)
-            regular_grid[active_cells_index_foo] = ids
+
+            regular_grid[active_cells_index_foo] = (e * 2)  + ids
+            # if e == 2:
+            #     n = -48
+            #     regular_grid[c[78+n]] = 10
+            #     regular_grid[c[79+n]] = 9
+            #     regular_grid[c[80+n]] = 8
+            #     regular_grid[c[81+n]] = 7
+            #     regular_grid[c[50:65]] = 6
             #regular_grid[active_cells_index] = ids
 
             #               ids = octree.output_centers.ids_block.reshape(-1, 2, 2)
@@ -159,7 +169,8 @@ def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):
                 active_cells_index_foo = active_cells_index_foo[active_cells_index]
 
             aci.append(active_cells_index)  # TODO: Unused
-            #regular_grid[active_cells_index_foo] = ids
+
+            regular_grid[active_cells_index_foo] = ids + (e * 2)
           #  regular_grid[active_cells_index_foo] = ids
   #       regular_grid[active_cells_index_foo] = ids[:] * (e * 2 +1)
   #

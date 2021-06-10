@@ -160,7 +160,7 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree, pyvista_plot=True):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = interp.compute_n_octree_levels(4, interpolation_input, options, data_shape, on_faces=False)
+    octree_list = interp.compute_n_octree_levels(5, interpolation_input, options, data_shape, on_faces=False)
     # Compute actual mesh
     resolution = [20, 20, 20]
     mesh = compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
@@ -170,14 +170,14 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree, pyvista_plot=True):
 
     if pyvista_plot:
         import pyvista as pv
-        n = 3
+        n = 4
 
         debug_vals = get_next_octree_grid(octree_list[n], compute_topology=False, debug=True)
         a = debug_vals[-2]
         grid_centers = octree_list[n].grid_centers
         debug_vals_prev = get_next_octree_grid(octree_list[n-1], compute_topology=False, debug=True)
         anch = debug_vals_prev[1]
-        grid_centers.values = grid_centers.values
+        grid_centers.values = grid_centers.values#[a]
         grid_faces = octree_list[n].grid_faces
 
         p = plot_points_in_vista(grid_centers, grid_faces, mesh, anch)
@@ -190,8 +190,10 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree, pyvista_plot=True):
         grid_3d = regular_grid_values.reshape(*(shape+1), 3).T
         regular_grid_mesh = pv.StructuredGrid(*grid_3d)
         regular_grid_mesh["lith"] = regular_grid_scalar
+        foo = regular_grid_mesh.threshold([0,10])
 
-        p.add_mesh(regular_grid_mesh, show_edges=True, opacity=1, cmap="tab10")
+
+        p.add_mesh(foo, show_edges=False, opacity=.5, cmap="tab10")
         p.add_axes()
         p.show()
 

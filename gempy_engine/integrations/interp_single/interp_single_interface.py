@@ -160,6 +160,8 @@ def interpolate_on_octree(octree:OctreeLevel, interpolation_input: Interpolation
     else:
         grid_0_corners = Grid(_generate_corners_branch(grid_0_centers.values, grid_0_centers.dxdydz))
     interpolation_input.grid = grid_0_corners
+
+    # TODO: This is unnecessary for the last level except for Dual contouring
     output_0_corners = interpolate_single_scalar(interpolation_input, options, data_shape, clean_buffer=False)
     # Create octree level 0
 
