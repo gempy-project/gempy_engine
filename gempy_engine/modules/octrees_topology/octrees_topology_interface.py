@@ -63,6 +63,8 @@ def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):
 
     # TODO: Here I add the lvl 0
     regular_grid = _expand_regular_grid(root.output_centers.ids_block.reshape(root.grid_centers.regular_grid_shape), level)
+    shape = root.grid_centers.regular_grid_shape
+
     aci = []
 
     for e, octree in enumerate(octree_list[1:level + 1]):
@@ -177,7 +179,7 @@ def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):
   # #  regular_grid[active_cells_index] = 150
   #  # regular_grid[a] = 300
 
-    return regular_grid
+    return regular_grid.reshape(shape)
 
 
 def _expand_regular_grid(active_cells, n_rep):

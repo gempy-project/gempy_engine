@@ -92,10 +92,9 @@ def simple_grid_3d_more_points():
 def simple_grid_3d_more_points_grid():
     resolution = [50, 5, 50]
     extent = [0.25, .75, 0.25, .75, 0.25, .75]
-    g, dx, dy, dz = create_regular_grid(extent, resolution)
 
-    regular_grid = RegularGrid(g, extent, resolution)
-    grid = Grid(g, [g.shape[0]], regular_grid = regular_grid)
+    regular_grid = RegularGrid(extent, resolution)
+    grid = Grid.from_regular_grid(regular_grid)
     return grid
 
 @pytest.fixture(scope="session")

@@ -161,6 +161,10 @@ class Grid:
 
         self.len_grids = _check_and_convert_list_to_array(self.len_grids)
 
+    @classmethod
+    def from_regular_grid(cls, regular_grid: RegularGrid):
+        return cls(regular_grid.values, regular_grid=regular_grid)
+
     @property
     def len_all_grids(self):
         return self.len_grids.sum(axis=0)
