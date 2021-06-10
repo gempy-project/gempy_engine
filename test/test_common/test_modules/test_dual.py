@@ -1,13 +1,14 @@
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+import pytest
 
 from gempy_engine.core.data.exported_structs import OctreeLevel
 from gempy_engine.modules.dual_contouring.dual_contouring_interface import solve_qef_3d, QEF
 
 dir_name = os.path.dirname(__file__)
 
-
+@pytest.mark.skip(reason="Not Implemented yet")
 def test_dual_contouring_from_octree(simple_model_output):
     octrees = simple_model_output.octrees
     last_level: OctreeLevel = octrees[1]
