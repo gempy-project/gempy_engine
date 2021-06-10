@@ -100,7 +100,7 @@ def simple_grid_3d_more_points_grid():
 
 @pytest.fixture(scope="session")
 def simple_grid_3d_octree():
-    resolution = [2, 1, 3]
+    resolution = [2, 2, 3]
     extent = [0.25, .75, 0.25, .75, 0.25, .75]
     g,gf, dx, dy, dz = create_regular_grid([0.25, .75, 0.25, .75, 0.25, .75], resolution, faces=True)
 

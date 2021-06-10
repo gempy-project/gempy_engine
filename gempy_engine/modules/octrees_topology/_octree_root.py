@@ -58,11 +58,11 @@ def compute_octree_root(prev_octree: OctreeLevel, compute_topology=False, debug=
     #xyz_anchor = _create_oct_level(shift_select_xyz, xyz_8)
     xyz_coords = _generate_next_level_centers(xyz_anchor, dxdydz, level=1)
 
-    bool_regular_grid = shift_select_xyz.sum(axis=0, dtype=bool)
-    # if prev_octree.is_root:
-    #     bool_regular_grid = bool_regular_grid.reshape(regular_grid_shape)
-    # else:
-    #     bool_regular_grid = bool_regular_grid.reshape(2, 2, 2, 2, -1)
+    bool_regular_grid = voxel_select
+    if prev_octree.is_root:
+        bool_regular_grid = bool_regular_grid.reshape(regular_grid_shape)
+    else:
+        bool_regular_grid = bool_regular_grid.reshape(-1, 2, 2, 2)
 
     grid_next_centers = Grid(
         xyz_coords,
@@ -118,9 +118,9 @@ def compute_octree_root_on_faces(prev_octree: OctreeLevel, compute_topology=Fals
 
     bool_regular_grid = shift_select_xyz.sum(axis=0, dtype=bool)
     if prev_octree.is_root:
-        bool_regular_grid = bool_regular_grid.reshape(regular_grid_shape)
+        bool_regular_grid = bool_regular_grid#.reshape(regular_grid_shape)
     else:
-        bool_regular_grid = bool_regular_grid.reshape(-1, 2, 2, 2)
+        bool_regular_grid = bool_regular_grid#.reshape(-1, 2, 2, 2)
 
     grid_next_centers = Grid(
         xyz_coords,

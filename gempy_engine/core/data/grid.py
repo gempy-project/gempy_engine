@@ -73,6 +73,22 @@ class RegularGrid:
         g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
 
         return g
+
+    @property
+    def values_vtk_format(self):
+        extent = self.extent
+        resolution = self.resolution + 1
+
+        dx, dy, dz = self._compute_dxdydz(extent, resolution)
+
+        x = np.linspace(extent[0] , extent[1] , resolution[0], dtype="float64")
+        y = np.linspace(extent[2] , extent[3] , resolution[1], dtype="float64")
+        z = np.linspace(extent[4] , extent[5] , resolution[2], dtype="float64")
+        xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
+        g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
+
+        return g
+
     @property
     def corners_values(self):
         def _generate_corners(xyz_coord, dxdydz, level=1):
@@ -118,7 +134,7 @@ class RegularGrid:
         if self.active_cells is None:
             voxels = self.values
         else:
-            voxels = self.values[self.active_cells]
+            voxels = self.values#[self.active_cells]
 
         return _generate_faces(voxels, self.dxdydz)
 

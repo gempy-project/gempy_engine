@@ -10,7 +10,7 @@ from gempy_engine.modules.activator.activator_interface import activate_formatio
 import matplotlib.pyplot as plt
 
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_next_octree_grid, \
-    get_regular_grid_for_level
+    get_regular_grid_for_level, _expand_octree, _expand_regular_grid
 
 
 def test_regular_grid_preparation(simple_grid_3d_more_points_grid):
@@ -160,7 +160,7 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree, pyvista_plot=True):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = interp.compute_n_octree_levels(6, interpolation_input, options, data_shape, on_faces=False)
+    octree_list = interp.compute_n_octree_levels(4, interpolation_input, options, data_shape, on_faces=False)
     # Compute actual mesh
     resolution = [20, 20, 20]
     mesh = compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
@@ -168,20 +168,35 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree, pyvista_plot=True):
                                octree_list[0].output_centers.weights)
 
 
-
-    debug_vals = get_next_octree_grid(octree_list[-1], compute_topology=False, debug=True)
-    a = debug_vals[-2]
-
-    grid_centers = octree_list[-1].grid_centers
-    grid_centers.values = grid_centers.values[a]
-
-    grid_faces = octree_list[-1].grid_faces
-
     if pyvista_plot:
-        plot_points_in_vista(grid_centers, grid_faces, mesh)
+        import pyvista as pv
+        n = 3
+
+        debug_vals = get_next_octree_grid(octree_list[n], compute_topology=False, debug=True)
+        a = debug_vals[-2]
+        grid_centers = octree_list[n].grid_centers
+        debug_vals_prev = get_next_octree_grid(octree_list[n-1], compute_topology=False, debug=True)
+        anch = debug_vals_prev[1]
+        grid_centers.values = grid_centers.values
+        grid_faces = octree_list[n].grid_faces
+
+        p = plot_points_in_vista(grid_centers, grid_faces, mesh, anch)
 
 
-def plot_points_in_vista(grid_0_centers, grid_0_faces, mesh):
+        shape = octree_list[n].grid_centers.regular_grid_shape
+        regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
+        regular_grid_scalar = get_regular_grid_for_level(octree_list, n)
+
+        grid_3d = regular_grid_values.reshape(*(shape+1), 3).T
+        regular_grid_mesh = pv.StructuredGrid(*grid_3d)
+        regular_grid_mesh["lith"] = regular_grid_scalar
+
+        p.add_mesh(regular_grid_mesh, show_edges=True, opacity=1, cmap="tab10")
+        p.add_axes()
+        p.show()
+
+
+def plot_points_in_vista(grid_0_centers, grid_0_faces, mesh, anch=None):
     import pyvista as pv
     p = pv.Plotter()
     rg = grid_0_centers.regular_grid
@@ -222,11 +237,12 @@ def plot_points_in_vista(grid_0_centers, grid_0_faces, mesh):
         except:
             pass
     try:
-      #  p.add_mesh(pv.PolyData(anch), color="r", point_size=4.0, render_points_as_spheres=False)
+        if anch is not None:
+            p.add_mesh(pv.PolyData(anch), color="black", point_size=10.0, render_points_as_spheres=False)
         p.add_mesh(pv.PolyData(xyz), color="w", point_size=3.0, render_points_as_spheres=False)
     except:
         pass
-    p.show()
+    return p
 
 
 def test_octree_api(simple_model, simple_grid_3d_octree):
@@ -235,7 +251,7 @@ def test_octree_api(simple_model, simple_grid_3d_octree):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = interp.compute_n_octree_levels(7, interpolation_input, options, data_shape)
+    octree_list = interp.compute_n_octree_levels(5, interpolation_input, options, data_shape)
     return octree_list
 
 
@@ -244,6 +260,9 @@ def test_octree_2d_plot(simple_model, simple_grid_3d_octree):
     slice = 0
     # Lith - Only Level 0
     lvl0 = octree_list[0].output_centers
+    bool_array0 = octree_list[0].grid_centers.regular_grid.active_cells
+    w_0 = np.where(bool_array0)
+
     plt.imshow(lvl0.ids_block_regular_grid[:, slice, :].T, origin="lower")
     plt.colorbar()
     plt.show()
@@ -251,57 +270,95 @@ def test_octree_2d_plot(simple_model, simple_grid_3d_octree):
     # Lith - Only Level 1
     lvl1 = octree_list[1].output_centers
     shape = octree_list[1].grid_centers.regular_grid_shape
-    empty_regular_grid = np.zeros(shape,  dtype=float)
-    bool_array = octree_list[1].grid_centers.regular_grid.active_cells
+    empty_regular_grid = np.zeros(shape,  dtype=float).ravel()
+    bool_array = octree_list[1].grid_centers.regular_grid.active_cells#.ravel(order="C")
+    # from gempy_engine.modules.octrees_topology._octree_common import _expand
+    # f = np.repeat(bool_array, 2).reshape(-1, 1)
+    # bool_array = _expand(f, f, f)
+    #bool_array = np.tile(bool_array, (8))
+    # bool_array = np.tile(np.repeat(bool_array, 2), (4))
+    #bool_array0 = np.repeat(bool_array0, 8)
 
+    bool_array = bool_array.reshape(2,1,3)
+    bool_array = _expand_regular_grid(bool_array, 1)
+
+    bool_array0 = _expand_regular_grid(bool_array0, 1)
+    #
+    # bool_array0 = np.repeat(bool_array0, 2, axis=0)
+    # bool_array0 = np.repeat(bool_array0, 2, axis=1)
+    # bool_array0 = np.repeat(bool_array0, 2, axis=2)
+    w_0 = np.where(bool_array0)
     w_ = np.where(bool_array)
 
     empty_regular_grid[w_] = lvl1.ids_block
 
-    plt.imshow(empty_regular_grid[:, slice, :].T, origin="lower")
+    plt.imshow(empty_regular_grid.reshape(shape)[:, 1, :].T, origin="lower")
     plt.colorbar()
     plt.show()
 
-    # Lith - Only Level 2
-    lvl2 = octree_list[2].output_centers
-    shape = octree_list[2].grid_centers.regular_grid_shape
-    empty_regular_grid = np.zeros(shape, dtype=float)
-
-    bool_array = octree_list[2].grid_centers.regular_grid.active_cells.ravel()
-    w_1 = np.where(bool_array)
-
-    bool_regular_grid2 = octree_list[1].grid_centers.regular_grid.active_cells
-    bool_regular_grid2 = np.repeat(bool_regular_grid2, 2, axis=0)
-    bool_regular_grid2 = np.repeat(bool_regular_grid2, 2, axis=1)
-    bool_regular_grid2 = np.repeat(bool_regular_grid2, 2, axis=2)
-    w_2 = np.where(bool_regular_grid2)
-
-    empty_regular_grid[(w_2[0][w_1], w_2[1][w_1], w_2[2][w_1])] = lvl2.ids_block
-
-    plt.imshow(empty_regular_grid[:, 0, :].T, origin="lower")
+    plt.imshow(empty_regular_grid.reshape(shape)[1, :, :].T, origin="lower")
     plt.colorbar()
     plt.show()
 
-    # Plot raveling
-    w_3 = np.where(bool_regular_grid2.ravel())
-    empty_regular_grid2 = empty_regular_grid.copy().ravel()
-    empty_regular_grid2[w_3[0][w_1]] = lvl2.ids_block
-    plt.imshow(empty_regular_grid2.reshape(shape)[:, 0, :].T, origin="lower")
+    plt.imshow(empty_regular_grid.reshape(shape)[:, :, 1].T, origin="lower")
     plt.colorbar()
     plt.show()
+
+
+    # # Lith - Only Level 2
+    # lvl2 = octree_list[2].output_centers
+    # shape = octree_list[2].grid_centers.regular_grid_shape
+    # empty_regular_grid = np.zeros(shape, dtype=float)
+    #
+    # bool_array = octree_list[2].grid_centers.regular_grid.active_cells.ravel()
+    # w_1 = np.where(bool_array)
+    #
+    # bool_regular_grid2 = octree_list[1].grid_centers.regular_grid.active_cells
+    # bool_regular_grid2 = np.repeat(bool_regular_grid2, 4, axis=0)
+    # bool_regular_grid2 = np.repeat(bool_regular_grid2, 4, axis=1)
+    # bool_regular_grid2 = np.repeat(bool_regular_grid2, 4, axis=2)
+    # w_2 = np.where(bool_regular_grid2)
+    #
+    # empty_regular_grid[(w_2[0][w_1], w_2[1][w_1], w_2[2][w_1])] = lvl2.ids_block
+    #
+    # plt.imshow(empty_regular_grid[:, 0, :].T, origin="lower")
+    # plt.colorbar()
+    # plt.show()
+    #
+    # # Plot raveling
+    # w_3 = np.where(bool_regular_grid2.ravel())
+    # empty_regular_grid2 = empty_regular_grid.copy().ravel()
+    # empty_regular_grid2[w_3[0][w_1]] = lvl2.ids_block
+    # plt.imshow(empty_regular_grid2.reshape(shape)[:, 0, :].T, origin="lower")
+    # plt.colorbar()
+    # plt.show()
 
 
 def test_octree_lvl_collapse(simple_model, simple_grid_3d_octree):
     octree_list = test_octree_api(simple_model, simple_grid_3d_octree)
     slice = 2
 
-    for i in range(7):
+    for i in range(len(octree_list)):
         # # Level 0
         shape = octree_list[i].grid_centers.regular_grid_shape
         regular_grid_values = get_regular_grid_for_level(octree_list, i)
+
         plt.imshow(regular_grid_values.reshape(shape)[:, int(shape[1] / slice), :].T, origin="lower")
         plt.colorbar()
         plt.show()
+
+        # plt.imshow(regular_grid_values.reshape(shape)[:, int(shape[1] / slice), :].T, origin="lower")
+        # plt.colorbar()
+        # plt.show()
+        #
+        # plt.imshow(regular_grid_values.reshape(shape)[int(shape[1] / slice), :, :].T, origin="lower")
+        # plt.colorbar()
+        # plt.show()
+        #
+        # plt.imshow(regular_grid_values.reshape(shape)[:, :, int(shape[1] / slice)].T, origin="lower")
+        # plt.colorbar()
+        # plt.show()
+
     #
     # # # Level 0
     # shape = octree_list[0].grid_centers.regular_grid_shape
