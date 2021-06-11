@@ -19,7 +19,15 @@ class RegularGrid:
 
     def __post_init__(self):
         self.regular_grid_shape = _check_and_convert_list_to_array(self.regular_grid_shape)
+        self.extent = _check_and_convert_list_to_array(self.extent)
+
         self.values = self._create_regular_grid(self.extent, self.regular_grid_shape)
+
+    @classmethod
+    def from_dxdydz(cls, values, extent, dxdydz):
+        raise NotImplementedError
+        regular_grid_shape = -1  # TODO: add logic here
+        return cls(values, extent, regular_grid_shape)
 
     @property
     def active_cells(self):
@@ -43,43 +51,22 @@ class RegularGrid:
         dx, dy, dz = self._compute_dxdydz(extent, resolution)
         return dx, dy, dz
 
-    @classmethod
-    def _compute_dxdydz(cls, extent, resolution):
-        dx = (extent[1] - extent[0]) / resolution[0]
-        dy = (extent[3] - extent[2]) / resolution[1]
-        dz = (extent[5] - extent[4]) / resolution[2]
-        return dx, dy, dz
+    @property
+    def regular_grid_dx(self):
+        return self.dxdydz[0]
 
-    @classmethod
-    def from_dxdydz(cls, values, extent, dxdydz):
-        raise NotImplementedError
-        regular_grid_shape = -1  # TODO: add logic here
-        return cls(values, extent, regular_grid_shape)
+    @property
+    def regular_grid_dy(self):
+        return self.dxdydz[1]
 
-    # TODO: This should be the constructor?
-    # @classmethod
-    # def init_regular_grid(cls, extent, regular_grid_shape):
-    #     values = cls._create_regular_grid(extent, regular_grid_shape)
-    #     return cls(values, extent, regular_grid_shape)
-
-    @classmethod
-    def _create_regular_grid(cls, extent, resolution):
-        dx, dy, dz = cls._compute_dxdydz(extent, resolution)
-
-        x = np.linspace(extent[0] + dx / 2, extent[1] - dx / 2, resolution[0], dtype="float64")
-        y = np.linspace(extent[2] + dy / 2, extent[3] - dy / 2, resolution[1], dtype="float64")
-        z = np.linspace(extent[4] + dz / 2, extent[5] - dz / 2, resolution[2], dtype="float64")
-        xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
-        g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
-
-        return g
+    @property
+    def regular_grid_dz(self):
+        return self.dxdydz[2]
 
     @property
     def values_vtk_format(self):
         extent = self.extent
         resolution = self.resolution + 1
-
-        dx, dy, dz = self._compute_dxdydz(extent, resolution)
 
         x = np.linspace(extent[0] , extent[1] , resolution[0], dtype="float64")
         y = np.linspace(extent[2] , extent[3] , resolution[1], dtype="float64")
@@ -110,18 +97,17 @@ class RegularGrid:
 
         return _generate_corners(self.values, self.dxdydz)
 
-
     @property
     def faces_values(self):
         def _generate_faces(xyz_coord, dxdydz):
             x_coord, y_coord, z_coord = xyz_coord[:, 0], xyz_coord[:, 1], xyz_coord[:, 2]
             dx, dy, dz = dxdydz
 
-            x = np.array([[x_coord - dx/2, x_coord + dx/2],
+            x = np.array([[x_coord - dx / 2, x_coord + dx / 2],
                           [x_coord, x_coord],
                           [x_coord, x_coord]]).ravel()
             y = np.array([[y_coord, y_coord],
-                          [y_coord - dy/2, y_coord + dy/2],
+                          [y_coord - dy / 2, y_coord + dy / 2],
                           [y_coord, y_coord]]).ravel()
             z = np.array([[z_coord, z_coord],
                           [z_coord, z_coord],
@@ -130,23 +116,34 @@ class RegularGrid:
             new_xyz = np.stack((x, y, z)).T
             return new_xyz
 
-        if self.active_cells is None:
-            voxels = self.values
-        else:
-            voxels = self.values#[self.active_cells]
-
-        return _generate_faces(voxels, self.dxdydz)
+        return _generate_faces(self.values, self.dxdydz)
 
     @property
     def faces_values_3d(self):
         face_values = self.faces_values
         return face_values.reshape(*self.regular_grid_shape, 6, 3)
 
+    @classmethod
+    def _compute_dxdydz(cls, extent, resolution):
+        dx = (extent[1] - extent[0]) / resolution[0]
+        dy = (extent[3] - extent[2]) / resolution[1]
+        dz = (extent[5] - extent[4]) / resolution[2]
+        return dx, dy, dz
 
+    @classmethod
+    def _create_regular_grid(cls, extent, resolution):
+        dx, dy, dz = cls._compute_dxdydz(extent, resolution)
 
-# TODO: At the moment values is independent of regular grid and custom grid. What we need is:
-# TODO: [ ] values is a property depending on regular grid and custom grid
-# TODO: [ ] Regular grids can be set but inactive
+        x = np.linspace(extent[0] + dx / 2, extent[1] - dx / 2, resolution[0], dtype="float64")
+        y = np.linspace(extent[2] + dy / 2, extent[3] - dy / 2, resolution[1], dtype="float64")
+        z = np.linspace(extent[4] + dz / 2, extent[5] - dz / 2, resolution[2], dtype="float64")
+        xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
+        g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
+
+        return g
+
+# TODO: [ ] values is independent field to regular grid. Proabably we want to have an extra field for them
+# TODO: (custom_grid?) and then having a values as a property that brings both together?
 @dataclass
 class Grid:
     values: np.ndarray
@@ -186,14 +183,3 @@ class Grid:
     def dxdydz(self):
         return self.regular_grid.dxdydz
 
-    @property
-    def regular_grid_dx(self):
-        return self.dxdydz[0]
-
-    @property
-    def regular_grid_dy(self):
-        return self.dxdydz[1]
-
-    @property
-    def regular_grid_dz(self):
-        return self.dxdydz[2]
