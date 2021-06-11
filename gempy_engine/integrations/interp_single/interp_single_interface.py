@@ -132,7 +132,7 @@ def compute_n_octree_levels(n_levels:int, interpolation_input: InterpolationInpu
 
 
 def compute_n_octree_levels_on_faces(n_levels, interpolation_input, options, data_shape):
-    from gempy_engine.modules.octrees_topology._octree_root import compute_octree_root_on_faces
+    from gempy_engine.modules.octrees_topology._octree_internals import compute_octree_root_on_faces
     def interpolate_on_octree_faces(octree: OctreeLevel, interpolation_input: InterpolationInput,
                                     options: data.InterpolationOptions,
                                     data_shape: data.TensorsStructure) -> OctreeLevel:

@@ -7,7 +7,7 @@ from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.modules.octrees_topology._octree_common import _generate_next_level_centers
 
 
-def compute_octree_root(prev_octree: OctreeLevel, compute_topology=False, debug=False) -> Grid:
+def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=False, debug=False) -> Grid:
     def _mark_voxel(uv_8):
         shift_x = uv_8[:, :4] - uv_8[:, 4:]
         shift_y = uv_8[:, [0, 1, 4, 5]] - uv_8[:, [2, 3, 6, 7]]
@@ -104,6 +104,7 @@ def _calculate_topology(shift_select_xyz: List[np.ndarray], ids: np.ndarray):
     """This is for the typology of level 0. Probably for the rest of octtrees
     levels it will be a bit different
     """
+    raise NotImplementedError
 
     shift_x_select, shift_y_select, shift_z_select = shift_select_xyz
 

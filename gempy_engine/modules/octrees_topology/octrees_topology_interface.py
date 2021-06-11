@@ -2,9 +2,9 @@ from typing import List
 
 import numpy as np
 
+from ._octree_internals import compute_next_octree_locations
 from ...core.data.exported_structs import OctreeLevel
-from ...core.data.grid import Grid, RegularGrid
-from . import _octree_root
+from ...core.data.grid import Grid
 
 
 # TODO: [ ] Check if fortran order speeds up this function
@@ -13,7 +13,7 @@ from . import _octree_root
 
 
 def get_next_octree_grid(prev_octree: OctreeLevel, compute_topology=False, **kwargs) -> Grid:
-    return _octree_root.compute_octree_root(prev_octree, compute_topology, **kwargs)
+    return compute_next_octree_locations(prev_octree, compute_topology, **kwargs)
 
 
 def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):

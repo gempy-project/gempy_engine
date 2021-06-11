@@ -16,6 +16,7 @@ dir_name = os.path.dirname(__file__)
 
 plot_pyvista = False
 try:
+    # noinspection PyUnresolvedReferences
     import pyvista as pv
 except ImportError:
     plot_pyvista = False
@@ -248,9 +249,9 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
     def _compute_high_res_model(data_shape, ids, interp_input, orientations, resolution, scalar_at_surface_points,
                                 surface_points, weights):
         from test.fixtures.simple_models import create_regular_grid
-        from gempy_engine.core.data.grid import Grid
-        g, dx, dy, dz = create_regular_grid([0.25, .75, 0.25, .75, 0.25, .75], resolution)
-        grid_high_res = Grid(g, [g.shape[0]], resolution, [dx, dy, dz])
+        from gempy_engine.core.data.grid import Grid, RegularGrid
+
+        grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
         grid_internal_high_res, ori_internal, sp_internal = interp.input_preprocess(data_shape, grid_high_res,
                                                                                     orientations,
                                                                                     surface_points)
@@ -258,7 +259,7 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
         values_block_high_res = activate_formation_block(exported_fields_high_res.scalar_field,
                                                          scalar_at_surface_points,
                                                          ids, sigmoid_slope=50000)
-        return values_block_high_res, exported_fields_high_res, [dx, dy, dz]
+        return values_block_high_res, exported_fields_high_res, grid_high_res.dxdydz
 
     surface_points = simple_model[0]
     orientations = simple_model[1]
