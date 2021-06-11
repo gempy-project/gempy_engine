@@ -166,7 +166,7 @@ def test_octree_leaf_on_faces(simple_model, simple_grid_3d_octree):
         p.show()
 
 
-def test_octree_leaf(simple_model, simple_grid_3d_octree, ):
+def test_octree_leaf(simple_model, simple_grid_3d_octree):
     spi, ori_i, options, data_shape = simple_model
     ids = np.array([1, 2])
     grid_0_centers = simple_grid_3d_octree
