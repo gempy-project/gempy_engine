@@ -152,7 +152,7 @@ def test_octree_leaf_on_faces(simple_model, simple_grid_3d_octree):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = interp.compute_n_octree_levels(3, interpolation_input, options, data_shape, on_faces=True)
+    octree_list = interp.compute_n_octree_levels_on_faces(3, interpolation_input, options, data_shape)
     # Compute actual mesh
     resolution = [20, 20, 20]
     mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
@@ -171,7 +171,7 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree, ):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = interp.compute_n_octree_levels(5, interpolation_input, options, data_shape, on_faces=False)
+    octree_list = interp.compute_n_octree_levels(5, interpolation_input, options, data_shape)
 
     # Assert
     n = 4

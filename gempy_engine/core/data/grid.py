@@ -111,10 +111,9 @@ class RegularGrid:
         return _generate_corners(self.values, self.dxdydz)
 
 
-
     @property
     def faces_values(self):
-        def _generate_faces(xyz_coord, dxdydz, level=1):
+        def _generate_faces(xyz_coord, dxdydz):
             x_coord, y_coord, z_coord = xyz_coord[:, 0], xyz_coord[:, 1], xyz_coord[:, 2]
             dx, dy, dz = dxdydz
 

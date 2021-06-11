@@ -72,7 +72,7 @@ def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):
         # n_rep = 1
         active_cells = octree.grid_centers.regular_grid.active_cells
 
-        is_branch = len(active_cells.shape) == 4
+        is_branch = e > 0
 
         # # if n_rep > 0:
         if is_branch:
@@ -168,7 +168,7 @@ def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):
             if active_cells_index_foo is None:
                 active_cells_index_foo = active_cells_index
             else:
-                active_cells_index_foo = active_cells_index_foo[active_cells_index]
+                active_cells_index_foo = active_cells_index_foo[active_cells_index] # TODO: We should never get here
 
             aci.append(active_cells_index)  # TODO: Unused
 
