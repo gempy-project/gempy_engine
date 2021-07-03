@@ -3,9 +3,6 @@ import tensorflow as tf
 import numpy as np
 
 
-def test_gpu_available():
-    tf.test.is_gpu_available()
-
 @pytest.mark.skip('Only trigger manually when there is something wrong with'
                   'pykeops compilation', )
 def test_tensor_vs_variable():
