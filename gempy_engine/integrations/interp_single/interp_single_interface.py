@@ -98,8 +98,8 @@ def compute_n_octree_levels(n_levels:int, interpolation_input: InterpolationInpu
             return new_xyz
 
         grid_0_centers = interpolation_input.grid
-
         # interpolate - centers
+
         output_0_centers = interpolate_single_scalar(interpolation_input, options, data_shape, clean_buffer=False)
 
         # Interpolate - corners

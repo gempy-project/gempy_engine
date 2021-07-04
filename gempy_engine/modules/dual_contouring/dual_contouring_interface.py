@@ -62,7 +62,7 @@ def find_intersection_on_edge(_xyz_8: numpy.ndarray, scalar_field: numpy.ndarray
 
     
     
-
+# TODO: Unused
 def solve_qef_3d(x, y, z, positions, normals):
     # The error term we are trying to minimize is sum( dot(y-v[i], n[i]) ^ 2)
     # This should be minimized over the unit square with top left point (x, y)

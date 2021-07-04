@@ -23,7 +23,7 @@ try:
 except ImportError:
     plot_pyvista = False
 
-def test_find_edges_intersection(simple_model, simple_grid_3d_octree):
+def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octree):
     
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
@@ -56,12 +56,75 @@ def test_find_edges_intersection(simple_model, simple_grid_3d_octree):
         output_on_edges.exported_fields.gz_field), axis=0).T[:-7]
 
     # endregion
+    
+
+    # region Prepare data for vectorized QEF
+    
+    n_edges = valid_edges.shape[0]
+
+    # Coordinates for all posible edges (12) and 3 dummy normals in the center
+    xyz = np.zeros((n_edges, 15, 3))
+    normals = np.zeros((n_edges, 15, 3))
+
+    xyz[:, :12][valid_edges] = xyz_on_edge
+    normals[:, :12][valid_edges] = gradients
+    
+
+    BIAS_STRENGTH = 0.1
+
+    xyz_aux = np.copy(xyz[:, :12])
+
+    # Numpy zero values to nans
+    xyz_aux[np.isclose(xyz_aux, 0)] = np.nan
+    # Mean ignoring nans
+    mass_points = np.nanmean(xyz_aux, axis=1)
+
+    
+    #mass_points = np.mean(xyz[:, :12], axis= 1)
+    xyz[:, 12] = mass_points
+    xyz[:, 13] = mass_points
+    xyz[:, 14] = mass_points
+
+
+    normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])   
+    normals[:, 13] = np.array([0, BIAS_STRENGTH, 0])
+    normals[:, 14] = np.array([0, 0, BIAS_STRENGTH])
+
+    # Remove unused voxels
+    bo = valid_edges.sum(axis=1, dtype=bool)
+    xyz = xyz[bo]
+    normals = normals[bo]
+    
+    # NOTE(miguel): I leave the code for the first voxel here to understand what is happening bellow
+    # Compute first QEF
+    
+    qef = QEF.make_3d(xyz[0], normals[0])
+    residual, v_pro = qef.solve()
+
+    #Linear list square fitting of A and B
+    
+    A = normals[0]
+    B = xyz[0]
+    BB = (A * B).sum(axis=1)
+    v_pro = np.dot(np.linalg.inv(np.dot(A.T, A)), np.dot(A.T, BB))
+
+
+    # Compute LSTSQS in all voxels at the same time
+    A1 = normals
+    b1 = xyz
+    bb1 = (A1 * b1).sum(axis=2)
+    s1 = np.einsum("ijk, ilj->ikl", A1, np.transpose(A1, (0, 2, 1)))
+    s2 = np.linalg.inv(s1)
+    s3 = np.einsum("ijk,ik->ij",np.transpose(A1, (0, 2, 1)), bb1)
+    v_pro = np.einsum("ijk, ij->ik", s2, s3)
+
+    # endregion
 
 
     # Compute QEF
     v_mesh = []
     indeces = valid_edges.sum(axis=1).cumsum()
-    indices = np.unique(indeces)[:]
+    indices = np.unique(indeces)[0:2]
 
     for i in range(len(indices) - 1):
         i_0 = indices[i]
@@ -133,17 +196,153 @@ def test_find_edges_intersection(simple_model, simple_grid_3d_octree):
         # Plot QEF
         p.add_mesh(pv.PolyData(v_mesh), color="b", point_size=15.0, render_points_as_spheres=False)
 
+        p.add_mesh(pv.PolyData(v_pro), color="w", point_size=15.0, render_points_as_spheres=True)
+
         p.add_axes()
         p.show()
 
     return xyz_on_edge, gradients
 
 
-def test_QEF(simple_model, simple_grid_3d_octree):
-    xyz_on_edge, gradients = test_find_edges_intersection(simple_model, simple_grid_3d_octree)
-    qef = QEF.make_3d(xyz_on_edge, gradients)
-    residual, v = qef.solve()
-    print(v)
+def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
+    
+    # region Test find_intersection_on_edge
+    spi, ori_i, options, data_shape = simple_model
+    ids = np.array([1, 2])
+    grid_0_centers = simple_grid_3d_octree
+    interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
+
+    octree_list = compute_n_octree_levels(2, interpolation_input, options, data_shape)
+
+    last_octree_level: OctreeLevel = octree_list[-1]
+
+    sfsp = last_octree_level.output_corners.scalar_field_at_sp
+    sfsp = np.append(sfsp, -0.1)
+    xyz_on_edge, valid_edges = find_intersection_on_edge(
+        last_octree_level.grid_corners.values,
+        last_octree_level.output_corners.exported_fields.scalar_field,
+        sfsp        
+    )
+    
+    # endregion
+
+    # region Get Normals
+
+    interpolation_input.grid = Grid(xyz_on_edge)
+    output_on_edges = interpolate_single_scalar(interpolation_input, options, data_shape)
+    # stack gradients output_on_edges.exported_fields.gx_field
+    gradients = np.stack(
+        (output_on_edges.exported_fields.gx_field,
+        output_on_edges.exported_fields.gy_field,
+        output_on_edges.exported_fields.gz_field), axis=0).T[:-7]
+
+    # endregion
+    
+
+    # region Prepare data for vectorized QEF
+    
+    n_edges = valid_edges.shape[0]
+
+    # Coordinates for all posible edges (12) and 3 dummy normals in the center
+    xyz = np.zeros((n_edges, 15, 3))
+    normals = np.zeros((n_edges, 15, 3))
+
+    xyz[:, :12][valid_edges] = xyz_on_edge
+    normals[:, :12][valid_edges] = gradients
+    
+
+    BIAS_STRENGTH = 0.1
+
+    xyz_aux = np.copy(xyz[:, :12])
+
+    # Numpy zero values to nans
+    xyz_aux[np.isclose(xyz_aux, 0)] = np.nan
+    # Mean ignoring nans
+    mass_points = np.nanmean(xyz_aux, axis=1)
+
+    
+    #mass_points = np.mean(xyz[:, :12], axis= 1)
+    xyz[:, 12] = mass_points
+    xyz[:, 13] = mass_points
+    xyz[:, 14] = mass_points
+
+
+    normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])   
+    normals[:, 13] = np.array([0, BIAS_STRENGTH, 0])
+    normals[:, 14] = np.array([0, 0, BIAS_STRENGTH])
+
+    # Remove unused voxels
+    bo = valid_edges.sum(axis=1, dtype=bool)
+    xyz = xyz[bo]
+    normals = normals[bo]
+    
+    # NOTE(miguel): I leave the code for the first voxel here to understand what is happening bellow
+    # Compute first QEF
+    
+    qef = QEF.make_3d(xyz[0], normals[0])
+    residual, v_pro = qef.solve()
+
+    #Linear list square fitting of A and B
+    
+    A = normals[0]
+    B = xyz[0]
+    BB = (A * B).sum(axis=1)
+    v_pro = np.dot(np.linalg.inv(np.dot(A.T, A)), np.dot(A.T, BB))
+
+
+    # Compute LSTSQS in all voxels at the same time
+    A1 = normals
+    b1 = xyz
+    bb1 = (A1 * b1).sum(axis=2)
+    s1 = np.einsum("ijk, ilj->ikl", A1, np.transpose(A1, (0, 2, 1)))
+    s2 = np.linalg.inv(s1)
+    s3 = np.einsum("ijk,ik->ij",np.transpose(A1, (0, 2, 1)), bb1)
+    v_pro = np.einsum("ijk, ij->ik", s2, s3)
+
+    # endregion
+
+
+    # Compute QEF
+    v_mesh = []
+    indeces = valid_edges.sum(axis=1).cumsum()
+    indices = np.unique(indeces)[0:2]
+
+    for i in range(len(indices) - 1):
+        i_0 = indices[i]
+        i_1 = indices[i+1]
+
+        a = xyz_on_edge[i_0:i_1]
+        b = gradients[i_0:i_1]
+        
+        mass_point = np.mean(a, axis=0)
+        BIAS_STRENGTH = 0.1
+
+        a = np.vstack((a, mass_point))
+        a = np.vstack((a, mass_point))
+        a = np.vstack((a, mass_point))
+        b = np.vstack((b, np.array([BIAS_STRENGTH, 0, 0])))
+        b = np.vstack((b, np.array([0, BIAS_STRENGTH, 0])))
+        b = np.vstack((b, np.array([0, 0, BIAS_STRENGTH])))
+        
+        qef = QEF.make_3d(a, b)
+        residual, v = qef.solve()
+        
+
+        v_mesh.append(v)
+
+    if plot_pyvista:
+       _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers, 
+    xyz_on_edge, gradients, a, b, v_mesh, v_pro)
+
+    return xyz_on_edge, gradients
+
+
+
+# def test_QEF(simple_model, simple_grid_3d_octree):
+#     xyz_on_edge, gradients = test_find_edges_intersection(simple_model, simple_grid_3d_octree)
+#     qef = QEF.make_3d(xyz_on_edge, gradients)
+#     residual, v = qef.solve()
+#     print(v)
 
 
 
@@ -151,7 +350,58 @@ def test_QEF(simple_model, simple_grid_3d_octree):
 # =======================
 
 
+def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers, 
+    xyz_on_edge, gradients, a, b, v_mesh, v_pro):
+    n = 1
+    p = pv.Plotter()
+    
+    # Plot Actual mesh (from marching cubes)
+    output_1_centers = last_octree_level.output_centers
+    resolution = [20, 20, 20]
+    mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
+    output_1_centers.scalar_field_at_sp,  output_1_centers.weights)
 
+    p.add_mesh(mesh, opacity=1, silhouette=True)
+
+
+    # Plot Regular grid Octree
+    regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
+    regular_grid_scalar = get_regular_grid_for_level(octree_list, n)
+
+    shape = octree_list[n].grid_centers.regular_grid_shape
+    grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T
+    regular_grid_mesh = pv.StructuredGrid(*grid_3d)
+    regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
+    foo = regular_grid_mesh.threshold([0, 10])
+
+    p.add_mesh(foo, show_edges=True, opacity=.5, cmap="tab10")
+
+    # # Plot corners
+    points = octree_list[n].grid_corners.values
+    #p.add_mesh(pv.PolyData(xyz_on_edge), color="r", point_size=10.0, render_points_as_spheres=False)
+
+
+    # Plot gradients
+    poly = pv.PolyData(xyz_on_edge)
+    poly['vectors'] = gradients
+    arrows = poly.glyph(orient='vectors', scale=False, factor=.05)
+    p.add_mesh(arrows, color="k", point_size=10.0, render_points_as_spheres=False)
+
+    poly = pv.PolyData(a)
+    poly['vectors'] = b
+
+    arrows = poly.glyph(orient='vectors', scale=False, factor=.05)
+
+    p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
+
+
+    # Plot QEF
+    p.add_mesh(pv.PolyData(v_mesh), color="b", point_size=15.0, render_points_as_spheres=False)
+
+    p.add_mesh(pv.PolyData(v_pro), color="w", point_size=15.0, render_points_as_spheres=True)
+
+    p.add_axes()
+    p.show()
 
 def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_points, weights):
     def _compute_high_res_model(data_shape, ids, interp_input, orientations, resolution, scalar_at_surface_points,
