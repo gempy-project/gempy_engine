@@ -40,35 +40,28 @@ def find_intersection_on_edge(_xyz_8: numpy.ndarray, scalar_field: numpy.ndarray
     valid_edge_y = np.logical_and(weight_y > 0, weight_y < 1)[:,:,0]
     valid_edge_z = np.logical_and(weight_z > 0, weight_z < 1)[:,:,0]
 
-    interection_x = xyz_8[:, 4:][valid_edge_x] + intersect_dx[valid_edge_x]
-    interection_y = xyz_8[:, [2, 3, 6, 7]][valid_edge_y] + intersect_dy[valid_edge_y]
-    interection_z = xyz_8[:, 1::2][valid_edge_z] + intersect_dz[valid_edge_z]
-
-    # Stack interections
-    interection_xyz = np.vstack([interection_x, interection_y, interection_z])
-    return interection_xyz.reshape(-1, 3)
+    #valid_edges = np.vstack([valid_edge_x, valid_edge_y,  valid_edge_z]).ravel()
 
 
-def values_outside_0_1_to_zero(values: numpy.ndarray):
-    """Set all values outside 0 and 1 to zero"""
-    values[values < 0] = 0
-    values[values > 1] = 0
-    return values
+    #Note(miguel) From this point on the arrays become sparse
+    
+    xyz_8_edges = np.hstack([xyz_8[:, 4:], xyz_8[:, [2, 3, 6, 7]], xyz_8[:, 1::2]])
+    intersect_segment = np.hstack([intersect_dx, intersect_dy, intersect_dz])
+    valid_edges = np.hstack([valid_edge_x, valid_edge_y, valid_edge_z])
 
-def select_valid_corners(weight_x: np.array, weight_y:np.ndarray, weight_z:np.ndarray):
-    """Return  boolean intersection for the values of weight_x, weight_y and 
-    weight_z that are True if value is between 0 and 1"""
-    # return np.logical_or(#np.logical_and(weight_x > 0, weight_x < 1),
-    #                      np.logical_and(weight_y > 0, weight_y < 1),
-    #                       #np.logical_and(weight_z > 0, weight_z < 1)
-    #                       )
+    intersection_xyz = xyz_8_edges[valid_edges] + intersect_segment[valid_edges]
 
-    return np.logical_and(weight_x > 0, weight_x < 1)
-   
+
+    # interection_x = xyz_8[:, 4:][valid_edge_x] + intersect_dx[valid_edge_x]
+    # interection_y = xyz_8[:, [2, 3, 6, 7]][valid_edge_y] + intersect_dy[valid_edge_y]
+    # interection_z = xyz_8[:, 1::2][valid_edge_z] + intersect_dz[valid_edge_z]
+
+    # # Stack interections
+    # interection_xyz = np.vstack([interection_x, interection_y, interection_z])
+    return intersection_xyz, valid_edges
+
     
     
-    
-
 
 def solve_qef_3d(x, y, z, positions, normals):
     # The error term we are trying to minimize is sum( dot(y-v[i], n[i]) ^ 2)
@@ -82,7 +75,7 @@ def solve_qef_3d(x, y, z, positions, normals):
     # This is demonstration code and isn't optimized, there are many good C++ implementations
     # out there if you need speed.
 
-    if False:#settings.BIAS:
+    if True:#settings.BIAS:
         # Add extra normals that add extra error the further we go
         # from the cell, this encourages the final result to be
         # inside the cell
@@ -93,19 +86,20 @@ def solve_qef_3d(x, y, z, positions, normals):
         # Take a simple average of positions as the point we will
         # pull towards.
         mass_point = numpy.mean(positions, axis=0)
+        BIAS_STRENGTH = 0.01
 
-        normals.append([settings.BIAS_STRENGTH, 0, 0])
+        normals.append([BIAS_STRENGTH, 0, 0])
         positions.append(mass_point)
-        normals.append([0, settings.BIAS_STRENGTH, 0])
+        normals.append([0, BIAS_STRENGTH, 0])
         positions.append(mass_point)
-        normals.append([0, 0, settings.BIAS_STRENGTH])
+        normals.append([0, 0, BIAS_STRENGTH])
         positions.append(mass_point)
 
     qef = QEF.make_3d(positions, normals)
 
     residual, v = qef.solve()
 
-    if settings.BOUNDARY:
+    if False:#settings.BOUNDARY:
         def inside(r):
             return x <= r[1][0] <= x + 1 and y <= r[1][1] <= y + 1 and z <= r[1][2] <= z + 1
 
@@ -159,13 +153,13 @@ def solve_qef_3d(x, y, z, positions, normals):
             # Pick the best of the available options
             residual, v = min(rs)
 
-    if settings.CLIP:
+    if False:#settings.CLIP:
         # Crudely force v to be inside the cell
         v[0] = numpy.clip(v[0], x, x + 1)
         v[1] = numpy.clip(v[1], y, y + 1)
         v[2] = numpy.clip(v[2], z, z + 1)
 
-    return V3(v[0], v[1], v[2])
+    return residual, v
 
 
 
