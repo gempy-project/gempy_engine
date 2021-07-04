@@ -11,93 +11,38 @@ def compute_dual_contouring():
 
 def find_intersection_on_edge(_xyz_8: numpy.ndarray, scalar_field: numpy.ndarray, scalar_at_sp: numpy.ndarray):
     # I have to do the topology analysis anyway because is the last octree
-    scalar_8_ = scalar_field[:-7]
+    scalar_8_ = scalar_field[:-7] #TODO: Generalize this
     scalar_8 = scalar_8_.reshape(-1, 8, 1)
-
-    # # TODO: scalar_8_left - scalar_field_at_corners. Find if positive
-    # shift_x_l = scalar_8[:, :4]           - scalar_at_sp.reshape(1, 1, -1)
-    # shift_y_l = scalar_8[:, [0, 1, 4, 5]] - scalar_at_sp.reshape(1, 1, -1)
-    # shift_z_l = scalar_8[:, ::2]          - scalar_at_sp.reshape(1, 1, -1)
-
-    # # TODO: scalar_8_right - scalar_field_at_corners. Find if Positive
-    # shift_x_r = scalar_8[:, 4:]           - scalar_at_sp.reshape(1, 1, -1)
-    # shift_y_r = scalar_8[:, [2, 3, 6, 7]] - scalar_at_sp.reshape(1, 1, -1)
-    # shift_z_r = scalar_8[:, 1::2]         - scalar_at_sp.reshape(1, 1, -1)
-
-    # Find if values are positive
-    # shift_x_l_pos = shift_x_l > 0
-    # shift_y_l_pos = shift_y_l > 0
-    # shift_z_l_pos = shift_z_l > 0
-    # shift_x_r_pos = shift_x_r > 0
-    # shift_y_r_pos = shift_y_r > 0
-    # shift_z_r_pos = shift_z_r > 0
-
-    # Intersection
-    # selected_edges_x = np.logical_xor(shift_x_l_pos, shift_x_r_pos)
-    # selected_edges_y = np.logical_xor(shift_y_l_pos, shift_y_r_pos)
-    # selected_edges_z = np.logical_xor(shift_z_l_pos, shift_z_r_pos)
-
-    # [X] TODO: Compute distance of scalar field on the corners
-    d_x = scalar_8[:, :4] - scalar_8[:, 4:]
-    d_y = scalar_8[:, [0, 1, 4, 5]] - scalar_8[:, [2, 3, 6, 7]]
-    d_z = scalar_8[:, ::2] - scalar_8[:, 1::2]
-    
-
-    # TODO: 
-
-    weight_x =  (scalar_at_sp - scalar_8[:, 4:]) / d_x 
-    weight_y =  (scalar_at_sp -  scalar_8[:, [2, 3, 6, 7]]) / d_y 
-    weight_z =  (scalar_at_sp - scalar_8[:, 1::2]) / d_z 
-    
-    # weight_x = values_outside_0_1_to_zero(weight_x)
-    # weight_y = values_outside_0_1_to_zero(weight_y)
-    # weight_z = values_outside_0_1_to_zero(weight_z)
-    
-    #valid_corners = select_valid_corners(weight_x, weight_y, weight_z)
-
-    # Need to end up with a XYZ list per voxel
     xyz_8 = _xyz_8.reshape(-1, 8, 3)
+
+    # Compute distance of scalar field on the corners
+    scalar_dx = scalar_8[:, :4] - scalar_8[:, 4:]
+    scalar_d_y = scalar_8[:, [0, 1, 4, 5]] - scalar_8[:, [2, 3, 6, 7]]
+    scalar_d_z = scalar_8[:, ::2] - scalar_8[:, 1::2]
     
-    # TODO: dx, dy, dz are constant in a regular grid.
-
-    d_xx = xyz_8[:, :4]           - xyz_8[:, 4:]
-    d_yy = xyz_8[:, [0, 1, 4, 5]] - xyz_8[:, [2, 3, 6, 7]]
-    d_zz = xyz_8[:, ::2]          - xyz_8[:, 1::2]
-
-    dxxx = d_xx[:, :, :] * weight_x[:,:, [0]]
-    dyyy = d_yy[:, :, :] * weight_y[:,:, [0]]
-    dzzz = d_zz[:, :, :] * weight_z[:,:, [0]]
-
-    # xyz_8[:, 4:]           += dxxx
-    # xyz_8[:, [2 ,3 ,6 ,7]] += dyyy
-    # xyz_8[:, 1::2]          += dzzz
+    # Compute the weights
+    weight_x =  (scalar_at_sp - scalar_8[:, 4:]) / scalar_dx 
+    weight_y =  (scalar_at_sp -  scalar_8[:, [2, 3, 6, 7]]) / scalar_d_y 
+    weight_z =  (scalar_at_sp - scalar_8[:, 1::2]) / scalar_d_z 
     
-    foox =  np.logical_and(weight_x > 0, weight_x < 1)[:,:,0]
-    fooy = np.logical_and(weight_y > 0, weight_y < 1)[:,:,0]
-    fooz = np.logical_and(weight_z > 0, weight_z < 1)[:,:,0]
+    # Calculate eucledian distance between the corners
+    d_x = xyz_8[:, :4]           - xyz_8[:, 4:]
+    d_y = xyz_8[:, [0, 1, 4, 5]] - xyz_8[:, [2, 3, 6, 7]]
+    d_z = xyz_8[:, ::2]          - xyz_8[:, 1::2]
 
+    # Compute the weighted distance
+    intersect_dx = d_x[:, :, :] * weight_x[:,:, [0]]
+    intersect_dy = d_y[:, :, :] * weight_y[:,:, [0]]
+    intersect_dz = d_z[:, :, :] * weight_z[:,:, [0]]
 
- 
-#     xyz_8[:, 4:] += dxxx
-#     xyz_8[:, [2, 3, 6, 7]] += dyyy
-#     xyz_8[:, 1::2][fooz] += dzzz[fooz]
+    # Mask invalid edges
+    valid_edge_x = np.logical_and(weight_x > 0, weight_x < 1)[:,:,0]
+    valid_edge_y = np.logical_and(weight_y > 0, weight_y < 1)[:,:,0]
+    valid_edge_z = np.logical_and(weight_z > 0, weight_z < 1)[:,:,0]
 
-
-#     interection_xyz[:][foox] += xyz_8[:, 4:][foox] + dxxx[foox]
-#     interection_xyz[: ][fooy] += xyz_8[:, [2 ,3 ,6 ,7]][fooy] + dyyy[fooy]
-#     interection_xyz[: ][fooz] += xyz_8[:, 1::2][fooz] + dzzz[fooz]
-# #  #   interection_xyz[foo] = xyz_8[:, 1::2][foo] + dzzz[foo]
-
-
-# #     interection_xyz = interection_xyz[valid_corners[:,:,0]]
-#     return interection_xyz.reshape(-1, 3)
-    
-    #interection_x = np.zeros_like(xyz_8[:, 4:])
-    interection_x = xyz_8[:, 4:][foox] + dxxx[foox]
-  #  interection_y = np.zeros_like(xyz_8[:, [2, 3, 6, 7]])
-    interection_y = xyz_8[:, [2, 3, 6, 7]][fooy] + dyyy[fooy]
-  #  interection_z = np.zeros_like(xyz_8[:, 1::2])
-    interection_z = xyz_8[:, 1::2][fooz] + dzzz[fooz]
+    interection_x = xyz_8[:, 4:][valid_edge_x] + intersect_dx[valid_edge_x]
+    interection_y = xyz_8[:, [2, 3, 6, 7]][valid_edge_y] + intersect_dy[valid_edge_y]
+    interection_z = xyz_8[:, 1::2][valid_edge_z] + intersect_dz[valid_edge_z]
 
     # Stack interections
     interection_xyz = np.vstack([interection_x, interection_y, interection_z])
