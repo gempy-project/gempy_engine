@@ -14,7 +14,7 @@ import os
 
 dir_name = os.path.dirname(__file__)
 
-plot_pyvista = False
+plot_pyvista = True
 try:
     # noinspection PyUnresolvedReferences
     import pyvista as pv
@@ -154,14 +154,16 @@ def test_octree_leaf_on_faces(simple_model, simple_grid_3d_octree):
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
     octree_list = interp.compute_n_octree_levels_on_faces(3, interpolation_input, options, data_shape)
-    # Compute actual mesh
-    resolution = [20, 20, 20]
-    mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
-                                octree_list[0].output_centers.scalar_field_at_sp, octree_list[0].output_centers.weights)
-
-    grid_centers = octree_list[-1].grid_centers
 
     if plot_pyvista:
+        # Compute actual mesh
+        resolution = [20, 20, 20]
+        mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
+                                    octree_list[0].output_centers.scalar_field_at_sp,
+                                    octree_list[0].output_centers.weights)
+
+        grid_centers = octree_list[-1].grid_centers
+
         p = _plot_points_in_vista(grid_centers, mesh)
         p.show()
 

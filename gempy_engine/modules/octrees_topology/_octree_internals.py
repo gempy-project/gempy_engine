@@ -22,7 +22,7 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
         return shift_select_xyz, voxel_select
 
     dxdydz = prev_octree.dxdydz
-    ids = prev_octree.output_faces.ids_block
+    ids = prev_octree.output_corners.ids_block
 
     uv_8 = ids.reshape((-1, 8))
 
@@ -68,9 +68,9 @@ def compute_octree_root_on_faces(prev_octree: OctreeLevel, debug=False) -> Grid:
     def _create_oct_level(shift_select_xyz, xyz_6):
         return ((xyz_6[::2] + xyz_6[1::2]) / 2)[shift_select_xyz]
 
-    xyz = prev_octree.grid_faces.values
+    xyz = prev_octree.grid_corners.values
     dxdydz = prev_octree.dxdydz
-    ids = prev_octree.output_faces.ids_block
+    ids = prev_octree.output_corners.ids_block
 
     xyz_6 = xyz.reshape((6, -1, 3))
     uv_6 = ids.reshape((6, -1))

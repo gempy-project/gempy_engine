@@ -1,13 +1,132 @@
+
+from numpy.core.numerictypes import ScalarType
+from gempy_engine.core.data.exported_structs import ExportedFields, InterpOutput
 import numpy
+import numpy as np
+
 
 def compute_dual_contouring():
     return
 
 
+def find_intersection_on_edge(_xyz_8: numpy.ndarray, scalar_field: numpy.ndarray, scalar_at_sp: numpy.ndarray):
+    # I have to do the topology analysis anyway because is the last octree
+    scalar_8_ = scalar_field[:-7]
+    scalar_8 = scalar_8_.reshape(-1, 8, 1)
+
+    # # TODO: scalar_8_left - scalar_field_at_corners. Find if positive
+    # shift_x_l = scalar_8[:, :4]           - scalar_at_sp.reshape(1, 1, -1)
+    # shift_y_l = scalar_8[:, [0, 1, 4, 5]] - scalar_at_sp.reshape(1, 1, -1)
+    # shift_z_l = scalar_8[:, ::2]          - scalar_at_sp.reshape(1, 1, -1)
+
+    # # TODO: scalar_8_right - scalar_field_at_corners. Find if Positive
+    # shift_x_r = scalar_8[:, 4:]           - scalar_at_sp.reshape(1, 1, -1)
+    # shift_y_r = scalar_8[:, [2, 3, 6, 7]] - scalar_at_sp.reshape(1, 1, -1)
+    # shift_z_r = scalar_8[:, 1::2]         - scalar_at_sp.reshape(1, 1, -1)
+
+    # Find if values are positive
+    # shift_x_l_pos = shift_x_l > 0
+    # shift_y_l_pos = shift_y_l > 0
+    # shift_z_l_pos = shift_z_l > 0
+    # shift_x_r_pos = shift_x_r > 0
+    # shift_y_r_pos = shift_y_r > 0
+    # shift_z_r_pos = shift_z_r > 0
+
+    # Intersection
+    # selected_edges_x = np.logical_xor(shift_x_l_pos, shift_x_r_pos)
+    # selected_edges_y = np.logical_xor(shift_y_l_pos, shift_y_r_pos)
+    # selected_edges_z = np.logical_xor(shift_z_l_pos, shift_z_r_pos)
+
+    # [X] TODO: Compute distance of scalar field on the corners
+    d_x = scalar_8[:, :4] - scalar_8[:, 4:]
+    d_y = scalar_8[:, [0, 1, 4, 5]] - scalar_8[:, [2, 3, 6, 7]]
+    d_z = scalar_8[:, ::2] - scalar_8[:, 1::2]
+    
+
+    # TODO: 
+
+    weight_x =  (scalar_at_sp - scalar_8[:, 4:]) / d_x 
+    weight_y =  (scalar_at_sp -  scalar_8[:, [2, 3, 6, 7]]) / d_y 
+    weight_z =  (scalar_at_sp - scalar_8[:, 1::2]) / d_z 
+    
+    # weight_x = values_outside_0_1_to_zero(weight_x)
+    # weight_y = values_outside_0_1_to_zero(weight_y)
+    # weight_z = values_outside_0_1_to_zero(weight_z)
+    
+    #valid_corners = select_valid_corners(weight_x, weight_y, weight_z)
+
+    # Need to end up with a XYZ list per voxel
+    xyz_8 = _xyz_8.reshape(-1, 8, 3)
+    
+    # TODO: dx, dy, dz are constant in a regular grid.
+
+    d_xx = xyz_8[:, :4]           - xyz_8[:, 4:]
+    d_yy = xyz_8[:, [0, 1, 4, 5]] - xyz_8[:, [2, 3, 6, 7]]
+    d_zz = xyz_8[:, ::2]          - xyz_8[:, 1::2]
+
+    dxxx = d_xx[:, :, :] * weight_x[:,:, [0]]
+    dyyy = d_yy[:, :, :] * weight_y[:,:, [0]]
+    dzzz = d_zz[:, :, :] * weight_z[:,:, [0]]
+
+    # xyz_8[:, 4:]           += dxxx
+    # xyz_8[:, [2 ,3 ,6 ,7]] += dyyy
+    # xyz_8[:, 1::2]          += dzzz
+    
+    foox =  np.logical_and(weight_x > 0, weight_x < 1)[:,:,0]
+    fooy = np.logical_and(weight_y > 0, weight_y < 1)[:,:,0]
+    fooz = np.logical_and(weight_z > 0, weight_z < 1)[:,:,0]
+
+
+ 
+#     xyz_8[:, 4:] += dxxx
+#     xyz_8[:, [2, 3, 6, 7]] += dyyy
+#     xyz_8[:, 1::2][fooz] += dzzz[fooz]
+
+
+#     interection_xyz[:][foox] += xyz_8[:, 4:][foox] + dxxx[foox]
+#     interection_xyz[: ][fooy] += xyz_8[:, [2 ,3 ,6 ,7]][fooy] + dyyy[fooy]
+#     interection_xyz[: ][fooz] += xyz_8[:, 1::2][fooz] + dzzz[fooz]
+# #  #   interection_xyz[foo] = xyz_8[:, 1::2][foo] + dzzz[foo]
+
+
+# #     interection_xyz = interection_xyz[valid_corners[:,:,0]]
+#     return interection_xyz.reshape(-1, 3)
+    
+    #interection_x = np.zeros_like(xyz_8[:, 4:])
+    interection_x = xyz_8[:, 4:][foox] + dxxx[foox]
+  #  interection_y = np.zeros_like(xyz_8[:, [2, 3, 6, 7]])
+    interection_y = xyz_8[:, [2, 3, 6, 7]][fooy] + dyyy[fooy]
+  #  interection_z = np.zeros_like(xyz_8[:, 1::2])
+    interection_z = xyz_8[:, 1::2][fooz] + dzzz[fooz]
+
+    # Stack interections
+    interection_xyz = np.vstack([interection_x, interection_y, interection_z])
+    return interection_xyz.reshape(-1, 3)
+
+
+def values_outside_0_1_to_zero(values: numpy.ndarray):
+    """Set all values outside 0 and 1 to zero"""
+    values[values < 0] = 0
+    values[values > 1] = 0
+    return values
+
+def select_valid_corners(weight_x: np.array, weight_y:np.ndarray, weight_z:np.ndarray):
+    """Return  boolean intersection for the values of weight_x, weight_y and 
+    weight_z that are True if value is between 0 and 1"""
+    # return np.logical_or(#np.logical_and(weight_x > 0, weight_x < 1),
+    #                      np.logical_and(weight_y > 0, weight_y < 1),
+    #                       #np.logical_and(weight_z > 0, weight_z < 1)
+    #                       )
+
+    return np.logical_and(weight_x > 0, weight_x < 1)
+   
+    
+    
+    
 
 
 def solve_qef_3d(x, y, z, positions, normals):
-    # The error term we are trying to minimize is sum( dot(x-v[i], n[i]) ^ 2)
+    # The error term we are trying to minimize is sum( dot(y-v[i], n[i]) ^ 2)
     # This should be minimized over the unit square with top left point (x, y)
 
     # In other words, minimize || A * x - b || ^2 where A and b are a matrix and vector

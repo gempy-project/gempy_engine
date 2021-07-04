@@ -1,4 +1,7 @@
-numpy
-
+matplotlib
 pandas
 pytest
+
+# For better visualization of the test results:
+# pyvista
+# scikit image

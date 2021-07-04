@@ -45,7 +45,7 @@ class InterpOutput:
         return np.rint(self.values_block[0, :self.grid.len_grids[0]].reshape(self.grid.regular_grid_shape))
 
     @property
-    def ids_block(self):
+    def ids_block(self) -> np.ndarray:
         return np.rint(self.values_block[0, :self.grid.len_grids[0]])
 
 
@@ -53,9 +53,9 @@ class InterpOutput:
 class OctreeLevel:
     # Input
     grid_centers: Grid
-    grid_faces: Grid
+    grid_corners: Grid
     output_centers: InterpOutput
-    output_faces: InterpOutput
+    output_corners: InterpOutput
     is_root: bool = False  # When root is true arrays are dim 3
 
     # Topo
@@ -66,9 +66,9 @@ class OctreeLevel:
     def set_interpolation(self, grid_centers: Grid, grid_faces: Grid,
                           output_centers: InterpOutput, output_faces: InterpOutput):
         self.grid_centers: Grid = grid_centers
-        self.grid_faces: Grid = grid_faces
+        self.grid_corners: Grid = grid_faces
         self.output_centers: InterpOutput = output_centers
-        self.output_faces: InterpOutput = output_faces
+        self.output_corners: InterpOutput = output_faces
 
         return self
 
