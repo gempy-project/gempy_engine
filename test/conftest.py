@@ -20,7 +20,8 @@ from test.fixtures.simple_models import\
     simple_grid_3d_more_points,\
     simple_grid_3d_more_points_grid,\
     simple_grid_3d_octree, \
-    simple_model_values_block_output
+    simple_model_values_block_output, \
+    simple_model_interpolation_input
 
 backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflow])
 using_gpu = bool(np.random.choice([True, False]))
@@ -29,6 +30,8 @@ using_pykeops = bool(np.random.choice([True, False]))
 # TODO: For now pykeops is always disabled
 BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=True,
                              pykeops_enabled=False)
+
+plot_pyvista = True
 
 
 @pytest.fixture(scope='session')

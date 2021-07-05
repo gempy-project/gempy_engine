@@ -1,3 +1,4 @@
+import gempy_engine.integrations.interp_single._interp_single_internals
 from gempy_engine.core.data.grid import Grid
 import numpy as np
 import os
@@ -324,10 +325,10 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
         from gempy_engine.core.data.grid import Grid, RegularGrid
 
         grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
-        grid_internal_high_res, ori_internal, sp_internal = interp.input_preprocess(data_shape, grid_high_res,
-                                                                                    orientations,
-                                                                                    surface_points)
-        exported_fields_high_res = interp._evaluate_sys_eq(grid_internal_high_res, interp_input, weights)
+        grid_internal_high_res, ori_internal, sp_internal = gempy_engine.integrations.interp_single._interp_single_internals._input_preprocess(
+            data_shape, grid_high_res, orientations, surface_points)
+        exported_fields_high_res = gempy_engine.integrations.interp_single._interp_single_internals._evaluate_sys_eq(
+            grid_internal_high_res, interp_input, weights)
         values_block_high_res = activate_formation_block(exported_fields_high_res.scalar_field,
                                                          scalar_at_surface_points,
                                                          ids, sigmoid_slope=50000)
@@ -337,8 +338,8 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
     orientations = simple_model[1]
     options = simple_model[2]
     data_shape = simple_model[3]
-    grid_internal, ori_internal, sp_internal = interp.input_preprocess(data_shape, grid, orientations,
-                                                                       surface_points)
+    grid_internal, ori_internal, sp_internal = gempy_engine.integrations.interp_single._interp_single_internals._input_preprocess(
+        data_shape, grid, orientations, surface_points)
     interp_input = SolverInput(sp_internal, ori_internal, options)
     values_block_high_res, scalar_high_res, dxdydz = _compute_high_res_model(data_shape, ids, interp_input,
                                                                              orientations, resolution,

@@ -11,8 +11,9 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
 from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_single_scalar, input_preprocess, \
-    solve_interpolation, _evaluate_sys_eq, _get_scalar_field_at_surface_points
+from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_single_scalar
+from gempy_engine.integrations.interp_single._interp_single_internals import _solve_interpolation, \
+    _input_preprocess, _evaluate_sys_eq, _get_scalar_field_at_surface_points
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
 
@@ -196,6 +197,50 @@ def simple_model():
     tensor_structure = TensorsStructure(np.array([7]))
     return spi, ori_i, kri, tensor_structure
 
+@pytest.fixture(scope="session")
+def simple_model_interpolation_input(simple_grid_3d_octree):
+    import numpy
+
+    numpy.set_printoptions(precision=3, linewidth=200)
+
+    dip_positions = np.array([
+        [0.25010, 0.50010, 0.54177],
+        [0.66677, 0.50010, 0.62510],
+    ])
+    sp = np.array([
+        [0.25010, 0.50010, 0.37510],
+        [0.50010, 0.50010, 0.37510],
+        [0.66677, 0.50010, 0.41677],
+        [0.70843, 0.50010, 0.47510],
+        [0.75010, 0.50010, 0.54177],
+        [0.58343, 0.50010, 0.39177],
+        [0.73343, 0.50010, 0.50010],
+    ])
+
+    nugget_effect_scalar = 0
+    spi = SurfacePoints(sp, nugget_effect_scalar)
+
+    dip_gradients = np.array([[0, 0, 1],
+                              [-.6, 0, .8]])
+    nugget_effect_grad = 0
+
+    range_ = 4.166666666667
+    co = 0.1428571429
+
+    ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
+
+    interpolation_options = InterpolationOptions(range_, co, 0, i_res=1, gi_res=1,
+                                                 number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+    _ = np.ones(3)
+    tensor_structure = TensorsStructure(np.array([7]))
+
+    ids = np.array([1, 2])
+    grid_0_centers = simple_grid_3d_octree
+
+    interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
+
+    return interpolation_input, interpolation_options, tensor_structure
+
 
 @pytest.fixture(scope="session")
 def simple_model_3_layers():
@@ -253,11 +298,11 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
 
 
 
-    grid_internal, ori_internal, sp_internal = input_preprocess(data_shape, grid, orientations,
-                                                                surface_points)
+    grid_internal, ori_internal, sp_internal = _input_preprocess(data_shape, grid, orientations,
+                                                                 surface_points)
     interp_input = SolverInput(sp_internal, ori_internal, options)
 
-    weights = solve_interpolation(interp_input)
+    weights = _solve_interpolation(interp_input)
 
     exported_fields = _evaluate_sys_eq(grid_internal, interp_input, weights)
 

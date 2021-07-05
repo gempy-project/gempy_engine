@@ -12,6 +12,7 @@ class InterpolationOptions:
     i_res: float = 4.
     gi_res: float = 2.
     number_dimensions: int = 3
+    number_octree_levels:int = 1
     kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.exponential
 
     @property
