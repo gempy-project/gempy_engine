@@ -150,56 +150,8 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
         v_mesh.append(v)
 
     if plot_pyvista:
-        n = 1
-        p = pv.Plotter()
-        
-        # Plot Actual mesh (from marching cubes)
-        output_1_centers = last_octree_level.output_centers
-        resolution = [20, 20, 20]
-        mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
-        output_1_centers.scalar_field_at_sp,  output_1_centers.weights)
-
-        p.add_mesh(mesh, opacity=1, silhouette=True)
-
-
-        # Plot Regular grid Octree
-        regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
-        regular_grid_scalar = get_regular_grid_for_level(octree_list, n)
-
-        shape = octree_list[n].grid_centers.regular_grid_shape
-        grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T
-        regular_grid_mesh = pv.StructuredGrid(*grid_3d)
-        regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
-        foo = regular_grid_mesh.threshold([0, 10])
-
-        p.add_mesh(foo, show_edges=True, opacity=.5, cmap="tab10")
-
-        # # Plot corners
-        points = octree_list[n].grid_corners.values
-        #p.add_mesh(pv.PolyData(xyz_on_edge), color="r", point_size=10.0, render_points_as_spheres=False)
-
-
-        # Plot gradients
-        poly = pv.PolyData(xyz_on_edge)
-        poly['vectors'] = gradients
-        arrows = poly.glyph(orient='vectors', scale=False, factor=.05)
-        p.add_mesh(arrows, color="k", point_size=10.0, render_points_as_spheres=False)
-
-        poly = pv.PolyData(a)
-        poly['vectors'] = b
-
-        arrows = poly.glyph(orient='vectors', scale=False, factor=.05)
-
-        p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
-
-
-        # Plot QEF
-        p.add_mesh(pv.PolyData(v_mesh), color="b", point_size=15.0, render_points_as_spheres=False)
-
-        p.add_mesh(pv.PolyData(v_pro), color="w", point_size=15.0, render_points_as_spheres=True)
-
-        p.add_axes()
-        p.show()
+       _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers, 
+                    xyz_on_edge, gradients, a, b, v_mesh, v_pro)
 
     return xyz_on_edge, gradients
 
@@ -276,19 +228,6 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     xyz = xyz[bo]
     normals = normals[bo]
     
-    # NOTE(miguel): I leave the code for the first voxel here to understand what is happening bellow
-    # Compute first QEF
-    
-    qef = QEF.make_3d(xyz[0], normals[0])
-    residual, v_pro = qef.solve()
-
-    #Linear list square fitting of A and B
-    
-    A = normals[0]
-    B = xyz[0]
-    BB = (A * B).sum(axis=1)
-    v_pro = np.dot(np.linalg.inv(np.dot(A.T, A)), np.dot(A.T, BB))
-
 
     # Compute LSTSQS in all voxels at the same time
     A1 = normals
@@ -302,47 +241,11 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     # endregion
 
 
-    # Compute QEF
-    v_mesh = []
-    indeces = valid_edges.sum(axis=1).cumsum()
-    indices = np.unique(indeces)[0:2]
-
-    for i in range(len(indices) - 1):
-        i_0 = indices[i]
-        i_1 = indices[i+1]
-
-        a = xyz_on_edge[i_0:i_1]
-        b = gradients[i_0:i_1]
-        
-        mass_point = np.mean(a, axis=0)
-        BIAS_STRENGTH = 0.1
-
-        a = np.vstack((a, mass_point))
-        a = np.vstack((a, mass_point))
-        a = np.vstack((a, mass_point))
-        b = np.vstack((b, np.array([BIAS_STRENGTH, 0, 0])))
-        b = np.vstack((b, np.array([0, BIAS_STRENGTH, 0])))
-        b = np.vstack((b, np.array([0, 0, BIAS_STRENGTH])))
-        
-        qef = QEF.make_3d(a, b)
-        residual, v = qef.solve()
-        
-
-        v_mesh.append(v)
-
     if plot_pyvista:
        _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers, 
-    xyz_on_edge, gradients, a, b, v_mesh, v_pro)
+    xyz_on_edge, gradients, v_pro= v_pro)
 
     return xyz_on_edge, gradients
-
-
-
-# def test_QEF(simple_model, simple_grid_3d_octree):
-#     xyz_on_edge, gradients = test_find_edges_intersection(simple_model, simple_grid_3d_octree)
-#     qef = QEF.make_3d(xyz_on_edge, gradients)
-#     residual, v = qef.solve()
-#     print(v)
 
 
 
@@ -351,7 +254,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
 
 
 def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers, 
-    xyz_on_edge, gradients, a, b, v_mesh, v_pro):
+    xyz_on_edge, gradients, a=None, b=None, v_mesh=None, v_pro=None):
     n = 1
     p = pv.Plotter()
     
@@ -376,27 +279,24 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
 
     p.add_mesh(foo, show_edges=True, opacity=.5, cmap="tab10")
 
-    # # Plot corners
-    points = octree_list[n].grid_corners.values
-    #p.add_mesh(pv.PolyData(xyz_on_edge), color="r", point_size=10.0, render_points_as_spheres=False)
-
-
     # Plot gradients
     poly = pv.PolyData(xyz_on_edge)
     poly['vectors'] = gradients
     arrows = poly.glyph(orient='vectors', scale=False, factor=.05)
     p.add_mesh(arrows, color="k", point_size=10.0, render_points_as_spheres=False)
 
-    poly = pv.PolyData(a)
-    poly['vectors'] = b
+    if a is not None and b is not None:
+        poly = pv.PolyData(a)
+        poly['vectors'] = b
 
-    arrows = poly.glyph(orient='vectors', scale=False, factor=.05)
+        arrows = poly.glyph(orient='vectors', scale=False, factor=.05)
 
-    p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
+        p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
 
 
     # Plot QEF
-    p.add_mesh(pv.PolyData(v_mesh), color="b", point_size=15.0, render_points_as_spheres=False)
+    if v_mesh is not None:
+        p.add_mesh(pv.PolyData(v_mesh), color="b", point_size=15.0, render_points_as_spheres=False)
 
     p.add_mesh(pv.PolyData(v_pro), color="w", point_size=15.0, render_points_as_spheres=True)
 
