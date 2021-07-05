@@ -10,13 +10,13 @@ from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.core.data.exported_structs import OctreeLevel
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.integrations.interp_single.interp_single_interface import compute_n_octree_levels, interpolate_single_scalar
-from gempy_engine.modules.dual_contouring.dual_contouring_interface import solve_qef_3d, QEF, find_intersection_on_edge
+from gempy_engine.modules.dual_contouring.dual_contouring_interface import  QEF, find_intersection_on_edge
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import \
     get_regular_grid_for_level
 
 dir_name = os.path.dirname(__file__)
 
-plot_pyvista = True
+plot_pyvista = False
 try:
     # noinspection PyPackageRequirements
     import pyvista as pv
@@ -108,15 +108,6 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     BB = (A * B).sum(axis=1)
     v_pro = np.dot(np.linalg.inv(np.dot(A.T, A)), np.dot(A.T, BB))
 
-
-    # Compute LSTSQS in all voxels at the same time
-    A1 = normals
-    b1 = xyz
-    bb1 = (A1 * b1).sum(axis=2)
-    s1 = np.einsum("ijk, ilj->ikl", A1, np.transpose(A1, (0, 2, 1)))
-    s2 = np.linalg.inv(s1)
-    s3 = np.einsum("ijk,ik->ij",np.transpose(A1, (0, 2, 1)), bb1)
-    v_pro = np.einsum("ijk, ij->ik", s2, s3)
 
     # endregion
 
@@ -213,7 +204,6 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     mass_points = np.nanmean(xyz_aux, axis=1)
 
     
-    #mass_points = np.mean(xyz[:, :12], axis= 1)
     xyz[:, 12] = mass_points
     xyz[:, 13] = mass_points
     xyz[:, 14] = mass_points
@@ -238,12 +228,32 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     s3 = np.einsum("ijk,ik->ij",np.transpose(A1, (0, 2, 1)), bb1)
     v_pro = np.einsum("ijk, ij->ik", s2, s3)
 
+    np.testing.assert_array_almost_equal(
+        v_pro[::10],
+        np.array(
+                [[0.32 , 0.307, 0.361],
+                [0.583, 0.309, 0.362],
+                [0.651, 0.728, 0.33 ]]), 3
+        )
+
+    # endregion
+
+    # region Compute triangles
+    # For each edge that exhibits a sign change, generate a quad
+    # connecting the minimizing vertices of the four cubes containing the edge.
+    from scipy.spatial import ConvexHull
+
+    hull = ConvexHull(v_pro)
+    indices = hull.simplices
+    #vertices = points[indices]
+
+
     # endregion
 
 
     if plot_pyvista:
-       _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers, 
-    xyz_on_edge, gradients, v_pro= v_pro)
+        _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers, 
+    xyz_on_edge, gradients, v_pro= v_pro, indices=indices)
 
     return xyz_on_edge, gradients
 
@@ -254,7 +264,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
 
 
 def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers, 
-    xyz_on_edge, gradients, a=None, b=None, v_mesh=None, v_pro=None):
+    xyz_on_edge, gradients, a=None, b=None, v_mesh=None, v_pro=None, indices=None):
     n = 1
     p = pv.Plotter()
     
@@ -264,7 +274,7 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
     mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
     output_1_centers.scalar_field_at_sp,  output_1_centers.weights)
 
-    p.add_mesh(mesh, opacity=1, silhouette=True)
+    p.add_mesh(mesh, opacity=.8, silhouette=True)
 
 
     # Plot Regular grid Octree
@@ -299,6 +309,10 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
         p.add_mesh(pv.PolyData(v_mesh), color="b", point_size=15.0, render_points_as_spheres=False)
 
     p.add_mesh(pv.PolyData(v_pro), color="w", point_size=15.0, render_points_as_spheres=True)
+
+    if indices is not None:
+        dual_mesh = pv.PolyData(v_pro, np.insert(indices, 0, 3, axis=1).ravel())
+        p.add_mesh(dual_mesh, opacity=1, silhouette=True, color="green")
 
     p.add_axes()
     p.show()

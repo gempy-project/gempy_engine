@@ -14,7 +14,7 @@ import os
 
 dir_name = os.path.dirname(__file__)
 
-plot_pyvista = True
+plot_pyvista = False
 try:
     # noinspection PyUnresolvedReferences
     import pyvista as pv

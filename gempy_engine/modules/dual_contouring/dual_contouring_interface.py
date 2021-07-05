@@ -60,4 +60,55 @@ def find_intersection_on_edge(_xyz_8: numpy.ndarray, scalar_field: numpy.ndarray
     # interection_xyz = np.vstack([interection_x, interection_y, interection_z])
     return intersection_xyz, valid_edges
 
-    
+
+
+
+class QEF:
+    """Represents and solves the quadratic error function"""
+    def __init__(self, A, b, fixed_values):
+        self.A = A
+        self.b = b
+        self.fixed_values = fixed_values
+
+    def evaluate(self, x):
+        """Evaluates the function at a given point.
+        This is what the solve method is trying to minimize.
+        NB: Doesn't work with fixed axes."""
+        x = numpy.array(x)
+        return numpy.linalg.norm(numpy.matmul(self.A, x) - self.b)
+
+    def eval_with_pos(self, x):
+        """Evaluates the QEF at a position, returning the same format solve does."""
+        return self.evaluate(x), x
+
+
+    @staticmethod
+    def make_3d(positions, normals):
+        """Returns a QEF that measures the the error from a bunch of normals, each emanating
+         from given positions"""
+        A = numpy.array(normals)
+        b = [v[0] * n[0] + v[1] * n[1] + v[2] * n[2] for v, n in zip(positions, normals)]
+        fixed_values = [None] * A.shape[1]
+        return QEF(A, b, fixed_values)
+
+
+
+    def solve(self):
+        """Finds the point that minimizes the error of this QEF,
+        and returns a tuple of the error squared and the point itself"""
+        result, residual, rank, s = numpy.linalg.lstsq(self.A, self.b)
+        if len(residual) == 0:
+            residual = self.evaluate(result)
+        else:
+            residual = residual[0]
+        # Result only contains the solution for the unfixed axis,
+        # we need to add back all the ones we previously fixed.
+        position = []
+        i = 0
+        for value in self.fixed_values:
+            if value is None:
+                position.append(result[i])
+                i += 1
+            else:
+                position.append(value)
+        return residual, position
