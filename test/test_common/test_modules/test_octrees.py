@@ -1,11 +1,12 @@
 import numpy as np
 
-import gempy_engine.integrations.interp_single._interp_single_internals
 from gempy_engine.core.data.exported_structs import OctreeLevel
 from gempy_engine.core.data.grid import Grid
 from gempy_engine.core.data.internal_structs import SolverInput
 import gempy_engine.integrations.interp_single.interp_single_interface as interp
 from gempy_engine.core.data.interpolation_input import InterpolationInput
+from gempy_engine.integrations.interp_single._interp_single_internals import _input_preprocess, \
+    _evaluate_sys_eq
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 import matplotlib.pyplot as plt
 
@@ -13,9 +14,10 @@ from gempy_engine.modules.octrees_topology.octrees_topology_interface import get
     get_regular_grid_for_level
 import os
 
+from ...conftest import plot_pyvista
+
 dir_name = os.path.dirname(__file__)
 
-plot_pyvista = True
 try:
     # noinspection PyUnresolvedReferences
     import pyvista as pv
@@ -64,13 +66,14 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
     # interpolate level 0 - center
-    output_0_centers = interp.interpolate_single_scalar(interpolation_input, options, data_shape)
+    output_0_centers = interp.interpolate_and_segment(interpolation_input, options, data_shape)
 
     # Interpolate level 0 - corners
     from gempy_engine.modules.octrees_topology._octree_common import _generate_corners
     grid_0_corners = Grid(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
     interpolation_input.grid = grid_0_corners
-    output_0_corners = interp.interpolate_single_scalar(interpolation_input, options, data_shape, clean_buffer=False)
+    output_0_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape,
+                                                      clean_buffer=False)
 
     # Create octree level 0
     octree_lvl0 = OctreeLevel()
@@ -87,12 +90,14 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     # Level 1
     octree_lvl1 = OctreeLevel()
     interpolation_input.grid = grid_1_centers
-    output_1_centers = interp.interpolate_single_scalar(interpolation_input, options, data_shape, clean_buffer=False)
+    output_1_centers = interp.interpolate_and_segment(interpolation_input, options, data_shape,
+                                                      clean_buffer=False)
 
     # Interpolate level 1 - Corners
     grid_1_corners = Grid(_generate_corners(grid_1_centers.values, grid_1_centers.dxdydz))
     interpolation_input.grid = grid_1_corners
-    output_1_corners = interp.interpolate_single_scalar(interpolation_input, options, data_shape, clean_buffer=False)
+    output_1_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape,
+                                                      clean_buffer=False)
 
     # Create octree level 1
     octree_lvl1.set_interpolation(grid_1_centers, grid_1_corners, output_1_centers, output_1_corners)
@@ -144,28 +149,6 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
 
         except:
             pass
-        p.show()
-
-
-def test_octree_leaf_on_faces(simple_model, simple_grid_3d_octree):
-    """ It is unclear if we will ever use this."""
-    spi, ori_i, options, data_shape = simple_model
-    ids = np.array([1, 2])
-    grid_0_centers = simple_grid_3d_octree
-    interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
-
-    octree_list = interp.compute_n_octree_levels_on_faces(3, interpolation_input, options, data_shape)
-
-    if plot_pyvista:
-        # Compute actual mesh
-        resolution = [20, 20, 20]
-        mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
-                                    octree_list[0].output_centers.scalar_field_at_sp,
-                                    octree_list[0].output_centers.weights)
-
-        grid_centers = octree_list[-1].grid_centers
-
-        p = _plot_points_in_vista(grid_centers, mesh)
         p.show()
 
 
@@ -255,12 +238,13 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
         from gempy_engine.core.data.grid import Grid, RegularGrid
 
         grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
-        grid_internal_high_res, ori_internal, sp_internal = gempy_engine.integrations.interp_single._interp_single_internals._input_preprocess(
+        grid_internal_high_res, ori_internal, sp_internal = _input_preprocess(
             data_shape, grid_high_res, orientations, surface_points)
-        exported_fields_high_res = gempy_engine.integrations.interp_single._interp_single_internals._evaluate_sys_eq(
-            grid_internal_high_res, interp_input, weights)
-        values_block_high_res = activate_formation_block(exported_fields_high_res.scalar_field,
-                                                         scalar_at_surface_points,
+        exported_fields_high_res = _evaluate_sys_eq( grid_internal_high_res, interp_input, weights)
+        exported_fields_high_res.n_points_per_surface = data_shape.nspv
+        exported_fields_high_res.n_surface_points = surface_points.n_points
+
+        values_block_high_res = activate_formation_block(exported_fields_high_res,
                                                          ids, sigmoid_slope=50000)
         return values_block_high_res, exported_fields_high_res, grid_high_res.dxdydz
 
@@ -268,7 +252,7 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
     orientations = simple_model[1]
     options = simple_model[2]
     data_shape = simple_model[3]
-    grid_internal, ori_internal, sp_internal = gempy_engine.integrations.interp_single._interp_single_internals._input_preprocess(
+    grid_internal, ori_internal, sp_internal = _input_preprocess(
         data_shape, grid, orientations, surface_points)
     interp_input = SolverInput(sp_internal, ori_internal, options)
     values_block_high_res, scalar_high_res, dxdydz = _compute_high_res_model(data_shape, ids, interp_input,
@@ -277,9 +261,10 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
                                                                              weights)
     from skimage.measure import marching_cubes
     import pyvista as pv
-    vert, edges, _, _ = marching_cubes(scalar_high_res.scalar_field[:-7].reshape(resolution),
+    vert, edges, _, _ = marching_cubes(scalar_high_res.scalar_field.reshape(resolution),
                                        scalar_at_surface_points[0],
                                        spacing=dxdydz)
+
     loc_0 = np.array([0.25, .25, .25]) + np.array(dxdydz) / 2
     vert += np.array(loc_0).reshape(1, 3)
     mesh = pv.PolyData(vert, np.insert(edges, 0, 3, axis=1).ravel())

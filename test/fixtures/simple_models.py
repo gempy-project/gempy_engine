@@ -11,16 +11,18 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
 from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_single_scalar
 from gempy_engine.integrations.interp_single._interp_single_internals import _solve_interpolation, \
     _input_preprocess, _evaluate_sys_eq, _get_scalar_field_at_surface_points
+from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_and_segment
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
-from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
+from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
+    orientations_preprocess
 
 
 @pytest.fixture(scope='session')
 def simple_grid_2d():
     return simple_grid_2d_f()
+
 
 def simple_grid_2d_f():
     nx, ny = (5, 5)
@@ -296,8 +298,6 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
 
     ids = np.array([1, 2])
 
-
-
     grid_internal, ori_internal, sp_internal = _input_preprocess(data_shape, grid, orientations,
                                                                  surface_points)
     interp_input = SolverInput(sp_internal, ori_internal, options)
@@ -306,20 +306,21 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
 
     exported_fields = _evaluate_sys_eq(grid_internal, interp_input, weights)
 
-    scalar_at_surface_points = _get_scalar_field_at_surface_points(
-        exported_fields.scalar_field, data_shape.nspv, surface_points.n_points)
+    exported_fields.n_points_per_surface = data_shape.nspv
+    exported_fields.n_surface_points = surface_points.n_points
 
+    # scalar_at_surface_points = _get_scalar_field_at_surface_points(
+    #     exported_fields._scalar_field, data_shape.nspv, surface_points.n_points)
+    # #
     # -----------------
     # Export and Masking operations can happen even in parallel
     # TODO: [~X] Export block
-    values_block: np.ndarray = activate_formation_block(exported_fields.scalar_field, scalar_at_surface_points,
-                                                         ids, sigmoid_slope=50000)
+    values_block: np.ndarray = activate_formation_block(exported_fields, ids, sigmoid_slope=50000)
 
     output = InterpOutput()
     output.grid = grid
     output.exported_fields = exported_fields
     output.weights = weights
-    output.scalar_field_at_sp = scalar_at_surface_points
     output.values_block = values_block
 
     return output
@@ -334,7 +335,6 @@ def simple_model_output(simple_model, simple_grid_3d_more_points_grid):
     data_shape = simple_model[3]
 
     ids = np.array([1, 2])
-    return interpolate_single_scalar(
-        InterpolationInput(surface_points, orientations, simple_grid_3d_more_points_grid,ids),
-        options, data_shape
-    )
+    return interpolate_and_segment(
+        InterpolationInput(surface_points, orientations, simple_grid_3d_more_points_grid, ids),
+        options, data_shape)

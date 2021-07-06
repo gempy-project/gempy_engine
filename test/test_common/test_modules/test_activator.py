@@ -18,17 +18,21 @@ def test_activator(simple_model_values_block_output):
     print(Z_x, Z_x.shape[0])
     print(sasp)
 
-    ids_block = activate_formation_block(Z_x, sasp, ids, 50000)
+    ids_block = activate_formation_block(simple_model_values_block_output.exported_fields,
+                                         ids, 50000)
     print(ids_block)
     # np.save(dir_name+"/solutions/test_activator", np.round(ids_block))
 
     ids_sol = np.load(dir_name+"/solutions/test_activator.npy")
-    np.testing.assert_almost_equal(np.round(ids_block), ids_sol, decimal=3)
+    np.testing.assert_almost_equal(
+        np.round(ids_block),
+        ids_sol[:, :-7], # NOTE(miguel) Now we only segment on the grid
+        decimal=3)
     if plot:
-        plt.contourf(Z_x[:-7].reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
+        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
         plt.colorbar()
         plt.show()
 
-        plt.contourf(ids_block[0][:-7].reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="viridis")
+        plt.contourf(ids_block[0].reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="viridis")
         plt.colorbar()
         plt.show()

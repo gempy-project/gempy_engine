@@ -11,6 +11,7 @@ from ...modules.data_preprocess import data_preprocess_interface
 from ...modules.kernel_constructor import kernel_constructor_interface as kernel_constructor
 from ...modules.solver import solver_interface
 
+
 class Buffer:
     weights = None
 
@@ -19,20 +20,37 @@ class Buffer:
         cls.weights = None
 
 
-def interpolate(interpolation_input: InterpolationInput,
-                options: data.InterpolationOptions,
-                data_shape: data.TensorsStructure,
-                clean_buffer=True
-                ) -> InterpOutput:
+def interpolate(
+        interpolation_input: InterpolationInput,
+        options: data.InterpolationOptions,
+        data_shape: data.TensorsStructure,
+        clean_buffer=True
+) -> InterpOutput:
 
+    output = InterpOutput()
+    output.grid = interpolation_input.grid
+
+    output.weights, output.exported_fields = interpolate_scalar_field(
+        interpolation_input, options, data_shape)
+
+    output.values_block = _segment_scalar_field(output, interpolation_input.unit_values)
+    if clean_buffer: Buffer.clean()
+
+    return output
+
+
+def interpolate_scalar_field(
+        interpolation_input: InterpolationInput,
+        options: data.InterpolationOptions,
+        data_shape: data.TensorsStructure) -> Tuple[np.ndarray, ExportedFields]:
     grid = interpolation_input.grid
-    unit_values = interpolation_input.unit_values
     surface_points = interpolation_input.surface_points
     orientations = interpolation_input.orientations
     # Within series
     xyz_lvl0, ori_internal, sp_internal = _input_preprocess(data_shape, grid, orientations,
                                                             surface_points)
     interp_input = SolverInput(sp_internal, ori_internal, options)
+
     if Buffer.weights is None:
         weights = _solve_interpolation(interp_input)
         Buffer.weights = weights
@@ -41,26 +59,15 @@ def interpolate(interpolation_input: InterpolationInput,
     # Within octree level
     # +++++++++++++++++++
     exported_fields = _evaluate_sys_eq(xyz_lvl0, interp_input, weights)
-    scalar_field_at_sp = _get_scalar_field_at_surface_points(
-        exported_fields.scalar_field, data_shape.nspv, surface_points.n_points)
-    # -----------------
-    # Export and Masking operations can happen even in parallel
-    # TODO: [~X] Export block
+    exported_fields.n_points_per_surface = data_shape.nspv
+    exported_fields.n_surface_points = surface_points.n_points
+    return weights, exported_fields
+
+
+def _segment_scalar_field(output: InterpOutput, unit_values: np.ndarray) -> np.ndarray:
     values_block = activator_interface.activate_formation_block(
-        exported_fields.scalar_field, scalar_field_at_sp, unit_values, sigmoid_slope=50000)
-    # Init InterpOutput Class empty
-    output = InterpOutput()  # TODO: Add values in constructor
-    output.grid = grid
-    output.weights = weights
-    output.exported_fields = exported_fields
-    output.scalar_field_at_sp = scalar_field_at_sp
-    output.values_block = values_block
-    # TODO: [ ] Masking OPs. This is for series, i.e. which voxels are active. During development until we
-    # TODO: multiple series we can assume all true so final_block = values_block
-    # mask_matrix = mask_matrix(exported_fields.scalar_field, scalar_at_surface_points, some_sort_of_array_with_erode_onlap)
-    output.final_block = output.values_block.copy()  # TODO (dev hack May 2021): this should be values_block * mask_matrix
-    if clean_buffer: Buffer.clean()
-    return output
+        output.exported_fields, unit_values, sigmoid_slope=50000)
+    return values_block
 
 
 def _solve_interpolation(interp_input: SolverInput):
@@ -109,3 +116,10 @@ def _get_scalar_field_at_surface_points(Z_x: np.ndarray, number_of_points_per_su
     scalar_field_at_surface_points_values = Z_x[-n_surface_points:][npf]
 
     return scalar_field_at_surface_points_values
+
+
+def _set_scalar_field_at_surface_points(exported_fields: ExportedFields,
+                                        number_of_points_per_surface: np.ndarray,
+                                        n_surface_points: int):
+    exported_fields.n_points_per_surface = number_of_points_per_surface
+    exported_fields.n_surface_points = n_surface_points

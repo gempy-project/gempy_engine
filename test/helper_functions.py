@@ -1,6 +1,7 @@
 from typing import List
+import numpy as np
 
-from gempy_engine.core.data.exported_structs import OctreeLevel
+from gempy_engine.core.data.exported_structs import OctreeLevel, DualContouringMesh
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import \
     get_regular_grid_for_level
 
@@ -13,13 +14,10 @@ except ImportError:
     plot_pyvista = False
 
 
-def plot_octree_pyvista(octree_list: List[OctreeLevel], n_octree: int):
+def plot_octree_pyvista(p: pv.Plotter, octree_list: List[OctreeLevel], n_octree: int):
     if plot_pyvista is False: return
 
     n = n_octree
-
-    p = pv.Plotter()
-
 
     shape = octree_list[n].grid_centers.regular_grid_shape
     regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
@@ -32,4 +30,11 @@ def plot_octree_pyvista(octree_list: List[OctreeLevel], n_octree: int):
 
     p.add_mesh(foo, show_edges=False, opacity=.5, cmap="tab10")
     p.add_axes()
-    p.show()
+
+
+def plot_dc_meshes(p: pv.Plotter, dc_mesh: DualContouringMesh):
+
+    vtk_edges = np.insert(dc_mesh.edges, 0, 3, axis=1).ravel()
+    dual_mesh = pv.PolyData(dc_mesh.vertices, vtk_edges)
+    p.add_mesh(dual_mesh, opacity=1, silhouette=True, color="green")
+

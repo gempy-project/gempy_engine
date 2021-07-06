@@ -2,8 +2,10 @@ from gempy_engine.core.data import TensorsStructure
 from gempy_engine.core.backend_tensor import BackendTensor as bt
 import numpy as np
 
-def activate_formation_block(Z_x: np.ndarray,
-                             scalar_value_at_sp:np.ndarray,
+from gempy_engine.core.data.exported_structs import ExportedFields
+
+
+def activate_formation_block(exported_fields: ExportedFields,
                              ids: np.ndarray,
                              sigmoid_slope:float) -> np.ndarray:
     def _compute_sigmoid(Z_x, scale_0, scale_1, drift_0, drift_1, drift_id, sigmoid_slope):
@@ -16,6 +18,8 @@ def activate_formation_block(Z_x: np.ndarray,
         sigm = activation_sig + drift_id.reshape((-1, 1))
         return sigm
 
+    Z_x: np.ndarray = exported_fields.scalar_field
+    scalar_value_at_sp: np.ndarray = exported_fields.scalar_field_at_surface_points
     drift_0_v = bt.tfnp.concatenate([np.array([0]), scalar_value_at_sp])
     drift_1_v = bt.tfnp.concatenate([scalar_value_at_sp, np.array([0])])
 

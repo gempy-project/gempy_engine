@@ -1,25 +1,35 @@
 from typing import List
 
 from . import _interp_single_internals
+from ._interp_single_internals import interpolate_scalar_field
 from ._octree_generation import interpolate_on_octree
 from ...core import data
 from ...core.data.exported_structs import InterpOutput, OctreeLevel
-
 from ...core.data.interpolation_input import InterpolationInput
-
 from ...modules.octrees_topology import octrees_topology_interface as octrees
 
-def interpolate_single_scalar(interpolation_input: InterpolationInput,
-                              options: data.InterpolationOptions,
-                              data_shape: data.TensorsStructure,
-                              clean_buffer=True
-                              ) -> InterpOutput:
 
+def interpolate_and_segment(interpolation_input: InterpolationInput,
+                            options: data.InterpolationOptions,
+                            data_shape: data.TensorsStructure,
+                            clean_buffer=True
+                            ) -> InterpOutput:
     output = _interp_single_internals.interpolate(interpolation_input, options,
                                                   data_shape, clean_buffer)
     return output
 
 
+def interpolate_single_field(interpolation_input: InterpolationInput,
+                             options: data.InterpolationOptions,
+                             data_shape: data.TensorsStructure,
+
+                             ) -> InterpOutput:
+    output = InterpOutput()
+    output.grid = interpolation_input.grid
+    output.weights, output.exported_fields = interpolate_scalar_field(interpolation_input, options,
+                                                                      data_shape)
+
+    return output
 
 
 def compute_n_octree_levels(n_levels:int, interpolation_input: InterpolationInput,

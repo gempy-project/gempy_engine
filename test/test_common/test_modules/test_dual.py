@@ -10,7 +10,7 @@ from gempy_engine.core.data.internal_structs import SolverInput
 
 from gempy_engine.core.data.exported_structs import OctreeLevel
 from gempy_engine.core.data.interpolation_input import InterpolationInput
-from gempy_engine.integrations.interp_single.interp_single_interface import compute_n_octree_levels, interpolate_single_scalar
+from gempy_engine.integrations.interp_single.interp_single_interface import compute_n_octree_levels, interpolate_and_segment
 from gempy_engine.modules.dual_contouring.dual_contouring_interface import  QEF, find_intersection_on_edge
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import \
     get_regular_grid_for_level
@@ -38,23 +38,25 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
 
     sfsp = last_octree_level.output_corners.scalar_field_at_sp
     sfsp = np.append(sfsp, -0.1)
-    xyz_on_edge, valid_edges = find_intersection_on_edge(
+    dc_data = find_intersection_on_edge(
         last_octree_level.grid_corners.values,
         last_octree_level.output_corners.exported_fields.scalar_field,
         sfsp        
     )
-    
+
+
+    xyz_on_edge, valid_edges = dc_data.xyz_on_edge, dc_data.valid_edges
     # endregion
 
     # region Get Normals
 
     interpolation_input.grid = Grid(xyz_on_edge)
-    output_on_edges = interpolate_single_scalar(interpolation_input, options, data_shape)
+    output_on_edges = interpolate_and_segment(interpolation_input, options, data_shape)
     # stack gradients output_on_edges.exported_fields.gx_field
     gradients = np.stack(
         (output_on_edges.exported_fields.gx_field,
         output_on_edges.exported_fields.gy_field,
-        output_on_edges.exported_fields.gz_field), axis=0).T[:-7]
+        output_on_edges.exported_fields.gz_field), axis=0).T
 
     # endregion
     
@@ -162,23 +164,23 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
 
     sfsp = last_octree_level.output_corners.scalar_field_at_sp
     sfsp = np.append(sfsp, -0.1)
-    xyz_on_edge, valid_edges = find_intersection_on_edge(
+    dc_data = find_intersection_on_edge(
         last_octree_level.grid_corners.values,
         last_octree_level.output_corners.exported_fields.scalar_field,
         sfsp        
     )
-    
+    xyz_on_edge, valid_edges = dc_data.xyz_on_edge, dc_data.valid_edges
     # endregion
 
     # region Get Normals
 
     interpolation_input.grid = Grid(xyz_on_edge)
-    output_on_edges = interpolate_single_scalar(interpolation_input, options, data_shape)
+    output_on_edges = interpolate_and_segment(interpolation_input, options, data_shape)
     # stack gradients output_on_edges.exported_fields.gx_field
     gradients = np.stack(
         (output_on_edges.exported_fields.gx_field,
         output_on_edges.exported_fields.gy_field,
-        output_on_edges.exported_fields.gz_field), axis=0).T[:-7]
+        output_on_edges.exported_fields.gz_field), axis=0).T
 
     # endregion
     
@@ -329,9 +331,13 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
             data_shape, grid_high_res, orientations, surface_points)
         exported_fields_high_res = gempy_engine.integrations.interp_single._interp_single_internals._evaluate_sys_eq(
             grid_internal_high_res, interp_input, weights)
-        values_block_high_res = activate_formation_block(exported_fields_high_res.scalar_field,
-                                                         scalar_at_surface_points,
+
+        exported_fields_high_res.n_points_per_surface = data_shape.nspv
+        exported_fields_high_res.n_surface_points = surface_points.n_points
+
+        values_block_high_res = activate_formation_block(exported_fields_high_res,
                                                          ids, sigmoid_slope=50000)
+
         return values_block_high_res, exported_fields_high_res, grid_high_res.dxdydz
 
     surface_points = simple_model[0]
@@ -347,7 +353,7 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
                                                                              weights)
     from skimage.measure import marching_cubes
     import pyvista as pv
-    vert, edges, _, _ = marching_cubes(scalar_high_res.scalar_field[:-7].reshape(resolution),
+    vert, edges, _, _ = marching_cubes(scalar_high_res.scalar_field.reshape(resolution),
                                        scalar_at_surface_points[0],
                                        spacing=dxdydz)
     loc_0 = np.array([0.25, .25, .25]) + np.array(dxdydz) / 2

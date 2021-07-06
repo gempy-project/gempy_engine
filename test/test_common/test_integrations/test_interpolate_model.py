@@ -1,5 +1,13 @@
 from gempy_engine.integrations.interp_manager.interp_manager_api import interpolate_model
-from test.helper_functions import plot_octree_pyvista
+from test.helper_functions import plot_octree_pyvista, plot_dc_meshes
+
+from ...conftest import plot_pyvista
+
+try:
+    # noinspection PyUnresolvedReferences
+    import pyvista as pv
+except ImportError:
+    plot_pyvista = False
 
 
 def test_interpolate_model(simple_model_interpolation_input, n_oct_levels = 4):
@@ -7,5 +15,14 @@ def test_interpolate_model(simple_model_interpolation_input, n_oct_levels = 4):
     print(interpolation_input)
 
     options.number_octree_levels = n_oct_levels
-    output = interpolate_model(interpolation_input, options ,structure)
-    plot_octree_pyvista(output, n_oct_levels - 1)
+    solutions = interpolate_model(interpolation_input, options ,structure)
+
+    if plot_pyvista:
+        p = pv.Plotter()
+        #plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
+        plot_dc_meshes(p, solutions.dc_meshes[0])
+        p.show()
+
+# TODO:
+def test_interpolate_model_several_surfaces():
+    pass
