@@ -160,14 +160,9 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = compute_n_octree_levels(2, interpolation_input, options, data_shape)
+    octree_list = compute_n_octree_levels(4, interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
-    regular_grid_scalar = get_regular_grid_for_level(octree_list, 1)
-
-
-    d_diagonal = last_octree_level.grid_centers.dxdydz
-    centers = last_octree_level.grid_centers.values
 
     dc_data = get_intersection_on_edges(last_octree_level)
     interpolation_input.grid = Grid(dc_data.xyz_on_edge)
@@ -175,7 +170,17 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
                                                                     data_shape)
     dc_data.gradients = output_on_edges.exported_fields
 
-    mesh = compute_dual_contouring(dc_data, d_diagonal, centers)
+    mesh = compute_dual_contouring(dc_data)
+
+    if plot_pyvista or False:
+        pv.global_theme.show_edges = True
+        p = pv.Plotter()
+
+        from test.helper_functions import plot_dc_meshes
+        plot_dc_meshes(p, mesh[0])
+        p.show()
+
+
     print(mesh)
 
 
@@ -283,7 +288,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     # endregion
 
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers, 
     xyz_on_edge, gradients, v_pro= v_pro, indices=indices)
 

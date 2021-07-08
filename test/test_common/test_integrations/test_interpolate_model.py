@@ -10,7 +10,7 @@ except ImportError:
     plot_pyvista = False
 
 
-def test_interpolate_model(simple_model_interpolation_input, n_oct_levels = 2):
+def test_interpolate_model(simple_model_interpolation_input, n_oct_levels = 3):
     interpolation_input, options, structure = simple_model_interpolation_input
     print(interpolation_input)
 

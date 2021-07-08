@@ -21,7 +21,6 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
                                                        options, data_shape)
     solutions.octrees_output = output
 
-
     # Dual Contouring prep:
     dc_data: DualContouringData = get_intersection_on_edges(output[-1])
     interpolation_input.grid = Grid(dc_data.xyz_on_edge)
@@ -35,11 +34,7 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
     # TODO: [ ] Dual contouring. This method only make one vertex per voxel. It is possible to make water tight surfaces?
     # compute_dual_contouring
     # TODO [ ] The api should grab an octree level
-    meshes: List[DualContouringMesh] = compute_dual_contouring(
-        dc_data,
-        output[-1].grid_centers.regular_grid.dxdydz,
-        output[-1].grid_centers.values
-    )
+    meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data)
     solutions.dc_meshes = meshes
 
     # ---------------------

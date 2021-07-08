@@ -119,7 +119,9 @@ class OctreeLevel:
 class DualContouringData:
     xyz_on_edge: np.ndarray
     valid_edges: np.ndarray
+    grid_centers: Grid = None
     _gradients: np.ndarray = None
+
 
     @property
     def gradients(self):

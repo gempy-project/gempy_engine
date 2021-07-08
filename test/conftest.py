@@ -31,7 +31,7 @@ using_pykeops = bool(np.random.choice([True, False]))
 BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=True,
                              pykeops_enabled=False)
 
-plot_pyvista = True
+plot_pyvista = False
 
 
 @pytest.fixture(scope='session')

@@ -34,13 +34,14 @@ def plot_octree_pyvista(p: pv.Plotter, octree_list: List[OctreeLevel], n_octree:
     p.add_axes()
 
 
-def plot_dc_meshes(p: pv.Plotter, dc_mesh: DualContouringMesh):
+def plot_dc_meshes(p: pv.Plotter, dc_mesh: DualContouringMesh, plot_labels=False):
 
     vtk_edges = np.insert(dc_mesh.edges.reshape(-1, 3), 0, 3, axis=1).ravel()
     dual_mesh = pv.PolyData(dc_mesh.vertices, vtk_edges)
-    p.add_mesh(dual_mesh, opacity=1, silhouette=True, color="green")
+    p.add_mesh(dual_mesh, opacity=1, silhouette=False, color="green")
 
     vertex = pv.PolyData(dc_mesh.vertices)
-    p.add_mesh(vertex, color="w", point_size=15.0, render_points_as_spheres=True)
-    p.add_point_labels(vertex, list(range(dc_mesh.vertices.shape[0])), point_size=20, font_size=36)
+    p.add_mesh(vertex, color="w", point_size=5.0, render_points_as_spheres=True)
+    if plot_labels:
+        p.add_point_labels(vertex, list(range(dc_mesh.vertices.shape[0])), point_size=20, font_size=36)
 
