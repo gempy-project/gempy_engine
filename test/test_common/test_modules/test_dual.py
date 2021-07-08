@@ -4,6 +4,9 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import pytest
+
+from gempy_engine.integrations.dual_contouring.dual_contouring import get_intersection_on_edges, \
+    compute_dual_contouring
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 import gempy_engine.integrations.interp_single.interp_single_interface as interp
 from gempy_engine.core.data.internal_structs import SolverInput
@@ -150,6 +153,32 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     return xyz_on_edge, gradients
 
 
+def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
+    # region Test find_intersection_on_edge
+    spi, ori_i, options, data_shape = simple_model
+    ids = np.array([1, 2])
+    grid_0_centers = simple_grid_3d_octree
+    interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
+
+    octree_list = compute_n_octree_levels(2, interpolation_input, options, data_shape)
+
+    last_octree_level: OctreeLevel = octree_list[-1]
+    regular_grid_scalar = get_regular_grid_for_level(octree_list, 1)
+
+
+    d_diagonal = last_octree_level.grid_centers.dxdydz
+    centers = last_octree_level.grid_centers.values
+
+    dc_data = get_intersection_on_edges(last_octree_level)
+    interpolation_input.grid = Grid(dc_data.xyz_on_edge)
+    output_on_edges = interp.interpolate_single_field(interpolation_input, options,
+                                                                    data_shape)
+    dc_data.gradients = output_on_edges.exported_fields
+
+    mesh = compute_dual_contouring(dc_data, d_diagonal, centers)
+    print(mesh)
+
+
 def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     
     # region Test find_intersection_on_edge
@@ -167,7 +196,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     dc_data = find_intersection_on_edge(
         last_octree_level.grid_corners.values,
         last_octree_level.output_corners.exported_fields.scalar_field,
-        sfsp        
+        sfsp
     )
     xyz_on_edge, valid_edges = dc_data.xyz_on_edge, dc_data.valid_edges
     # endregion
@@ -254,7 +283,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     # endregion
 
 
-    if plot_pyvista:
+    if plot_pyvista or True:
         _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers, 
     xyz_on_edge, gradients, v_pro= v_pro, indices=indices)
 
@@ -297,6 +326,7 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
     poly['vectors'] = gradients
     arrows = poly.glyph(orient='vectors', scale=False, factor=.05)
     p.add_mesh(arrows, color="k", point_size=10.0, render_points_as_spheres=False)
+    p.add_point_labels(xyz_on_edge, list(range(xyz_on_edge.shape[0])), point_size=20, font_size=36)
 
     if a is not None and b is not None:
         poly = pv.PolyData(a)
@@ -360,6 +390,13 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
     vert += np.array(loc_0).reshape(1, 3)
     mesh = pv.PolyData(vert, np.insert(edges, 0, 3, axis=1).ravel())
     return mesh
+
+
+
+
+        
+    
+
 
 
 

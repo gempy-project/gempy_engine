@@ -52,6 +52,11 @@ class RegularGrid:
         return dx, dy, dz
 
     @property
+    def d_diagonal(self):
+        dx, dy,dz = self.dxdydz
+        return np.sqrt(dx**2+dy**2+dz**2)
+
+    @property
     def regular_grid_dx(self):
         return self.dxdydz[0]
 

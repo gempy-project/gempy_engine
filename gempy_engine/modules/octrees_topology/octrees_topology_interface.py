@@ -64,6 +64,8 @@ def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):
         return active_cells.ravel()
 
     # endregion
+    if level > len(octree_list):
+        raise ValueError("Level cannot be larger than the number of octrees.")
 
     # Octree - Level 0
     root = octree_list[0]
