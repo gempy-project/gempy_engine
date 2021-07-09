@@ -46,19 +46,20 @@ def interpolate_scalar_field(
     grid = interpolation_input.grid
     surface_points = interpolation_input.surface_points
     orientations = interpolation_input.orientations
+
     # Within series
     xyz_lvl0, ori_internal, sp_internal = _input_preprocess(data_shape, grid, orientations,
                                                             surface_points)
-    interp_input = SolverInput(sp_internal, ori_internal, options)
+    solver_input = SolverInput(sp_internal, ori_internal, options)
 
     if Buffer.weights is None:
-        weights = _solve_interpolation(interp_input)
+        weights = _solve_interpolation(solver_input)
         Buffer.weights = weights
     else:
         weights = Buffer.weights
     # Within octree level
     # +++++++++++++++++++
-    exported_fields = _evaluate_sys_eq(xyz_lvl0, interp_input, weights)
+    exported_fields = _evaluate_sys_eq(xyz_lvl0, solver_input, weights)
     exported_fields.n_points_per_surface = data_shape.nspv
     exported_fields.n_surface_points = surface_points.n_points
     return weights, exported_fields

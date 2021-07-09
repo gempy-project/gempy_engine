@@ -15,7 +15,6 @@ except ImportError:
 
 
 def plot_octree_pyvista(p: pv.Plotter, octree_list: List[OctreeLevel], n_octree: int):
-    if plot_pyvista is False: return
 
     n = n_octree
 
@@ -44,4 +43,22 @@ def plot_dc_meshes(p: pv.Plotter, dc_mesh: DualContouringMesh, plot_labels=False
     p.add_mesh(vertex, color="w", point_size=5.0, render_points_as_spheres=True)
     if plot_labels:
         p.add_point_labels(vertex, list(range(dc_mesh.vertices.shape[0])), point_size=20, font_size=36)
+
+
+def plot_points(p: pv.Plotter, xyz: np.ndarray, plot_labels=False):
+    coords = pv.PolyData(xyz)
+    p.add_mesh(coords, color="w", point_size=10.0, render_points_as_spheres=True)
+    if plot_labels:
+        p.add_point_labels(coords, list(range(xyz.shape[0])), point_size=20,
+                           font_size=36)
+
+
+def plot_vector(p: pv.Plotter, xyz, gradients):
+    poly = pv.PolyData(xyz)
+    poly['vectors'] = gradients
+
+    arrows = poly.glyph(orient='vectors', scale=False, factor=.05)
+
+    p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
+
 

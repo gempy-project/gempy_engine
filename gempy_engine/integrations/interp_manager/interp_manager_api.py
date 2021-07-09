@@ -15,10 +15,9 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
     solutions = Solutions()
 
     # TODO: [ ] Looping scalars
-    s = interpolate_and_segment(interpolation_input, options, data_shape) # TODO: Obsolete?
     number_octree_levels = options.number_octree_levels
     output: List[OctreeLevel] = compute_n_octree_levels(number_octree_levels, interpolation_input,
-                                                       options, data_shape)
+                                                        options, data_shape)
     solutions.octrees_output = output
 
     # Dual Contouring prep:

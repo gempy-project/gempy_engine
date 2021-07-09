@@ -101,7 +101,7 @@ class OctreeLevel:
     count_edges: np.ndarray = None
     marked_edges: List[np.ndarray] = None  # 3 arrays in x, y, z
 
-    def set_interpolation(self, grid_centers: Grid, grid_faces: Grid,
+    def set_interpolation_values(self, grid_centers: Grid, grid_faces: Grid,
                           output_centers: InterpOutput, output_faces: InterpOutput):
         self.grid_centers: Grid = grid_centers
         self.grid_corners: Grid = grid_faces

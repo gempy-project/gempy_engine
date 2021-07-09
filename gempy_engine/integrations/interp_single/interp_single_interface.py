@@ -21,8 +21,7 @@ def interpolate_and_segment(interpolation_input: InterpolationInput,
 
 def interpolate_single_field(interpolation_input: InterpolationInput,
                              options: data.InterpolationOptions,
-                             data_shape: data.TensorsStructure,
-
+                             data_shape: data.TensorsStructure
                              ) -> InterpOutput:
     output = InterpOutput()
     output.grid = interpolation_input.grid
@@ -35,7 +34,6 @@ def interpolate_single_field(interpolation_input: InterpolationInput,
 def compute_n_octree_levels(n_levels:int, interpolation_input: InterpolationInput,
                             options: data.InterpolationOptions, data_shape: data.TensorsStructure)\
         -> List[OctreeLevel]:
-
 
     octree_list = []
     next_octree = OctreeLevel()

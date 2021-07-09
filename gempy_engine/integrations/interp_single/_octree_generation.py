@@ -25,7 +25,8 @@ def interpolate_on_octree(octree: OctreeLevel, interpolation_input: Interpolatio
                                                  clean_buffer=False)  # TODO: This is unnecessary for the last level except for Dual contouring
 
     # Set values to octree
-    octree.set_interpolation(grid_0_centers, grid_0_corners, output_0_centers, output_0_corners)
+    octree.set_interpolation_values(grid_0_centers, grid_0_corners,
+                                    output_0_centers, output_0_corners)
     return octree
 
 

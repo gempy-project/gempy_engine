@@ -79,8 +79,8 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     octree_lvl0 = OctreeLevel()
     octree_lvl0.is_root = True
 
-    octree_lvl0 = octree_lvl0.set_interpolation(grid_0_centers, grid_0_corners,
-                                                output_0_centers, output_0_corners)
+    octree_lvl0 = octree_lvl0.set_interpolation_values(grid_0_centers, grid_0_corners,
+                                                       output_0_centers, output_0_corners)
 
     # Generate grid_1_centers
     debug_vals = get_next_octree_grid(octree_lvl0, compute_topology=False, debug=True)
@@ -100,7 +100,8 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
                                                       clean_buffer=False)
 
     # Create octree level 1
-    octree_lvl1.set_interpolation(grid_1_centers, grid_1_corners, output_1_centers, output_1_corners)
+    octree_lvl1.set_interpolation_values(grid_1_centers, grid_1_corners, output_1_centers,
+                                         output_1_corners)
 
     debug_vals = get_next_octree_grid(octree_lvl1, compute_topology=False, debug=True)
     xyz1, anch1, select1 = debug_vals[:3]
