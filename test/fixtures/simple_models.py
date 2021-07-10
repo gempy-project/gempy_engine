@@ -1,10 +1,12 @@
 import numpy as np
+np.set_printoptions(precision=3, linewidth=200)
+
 import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.data_shape import TensorsStructure
 from gempy_engine.core.data.exported_structs import InterpOutput
-from gempy_engine.core.data.grid import Grid, RegularGrid
+
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
@@ -12,107 +14,72 @@ from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
 from gempy_engine.core.data.options import InterpolationOptions
 from gempy_engine.integrations.interp_single._interp_single_internals import _solve_interpolation, \
-    _input_preprocess, _evaluate_sys_eq, _get_scalar_field_at_surface_points
-from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_and_segment
+    _input_preprocess, _evaluate_sys_eq
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
 
 
-@pytest.fixture(scope='session')
-def simple_grid_2d():
-    return simple_grid_2d_f()
-
-
-def simple_grid_2d_f():
-    nx, ny = (5, 5)
-    x = np.linspace(0, 5, nx)
-    y = np.linspace(0, 5, ny)
-    xv, yv = np.meshgrid(x, y)
-    g = np.vstack((xv.ravel(), yv.ravel())).T
-    return g
-
-simple_grid_3d = np.array([
-    [0.25010, 0.50010, 0.12510],
-    [0.25010, 0.50010, 0.29177],
-    [0.25010, 0.50010, 0.45843],
-    [0.25010, 0.50010, 0.62510],
-    [0.41677, 0.50010, 0.12510],
-    [0.41677, 0.50010, 0.29177],
-    [0.41677, 0.50010, 0.45843],
-    [0.41677, 0.50010, 0.62510],
-    [0.58343, 0.50010, 0.12510],
-    [0.58343, 0.50010, 0.29177],
-    [0.58343, 0.50010, 0.45843],
-    [0.58343, 0.50010, 0.62510],
-    [0.75010, 0.50010, 0.12510],
-    [0.75010, 0.50010, 0.29177],
-    [0.75010, 0.50010, 0.45843],
-    [0.75010, 0.50010, 0.62510]
-])
-
-
-
-def create_regular_grid(extent, resolution, faces = False):
-    dx = (extent[1] - extent[0]) / resolution[0]
-    dy = (extent[3] - extent[2]) / resolution[1]
-    dz = (extent[5] - extent[4]) / resolution[2]
-
-    x = np.linspace(extent[0] + dx / 2, extent[1] - dx / 2, resolution[0],
-                    dtype="float64")
-    y = np.linspace(extent[2] + dy / 2, extent[3] - dy / 2, resolution[1],
-                    dtype="float64")
-    z = np.linspace(extent[4] + dz / 2, extent[5] - dz / 2, resolution[2],
-                    dtype="float64")
-    xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
-    g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
-    if faces == False:
-        return g, dx, dy, dz
-    else:
-        x = np.linspace(extent[0], extent[1] , resolution[0] + 1, dtype="float64")
-        y = np.linspace(extent[2], extent[3] , resolution[1]  + 1,  dtype="float64")
-        z = np.linspace(extent[4], extent[5] , resolution[2] + 1,  dtype="float64")
-        xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
-        g_faces = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
-        return g, g_faces, dx, dy, dz
 
 
 
 
-@pytest.fixture(scope='session')
-def simple_grid_3d_more_points():
-    nx, ny, nz = (50, 5, 50)
-
-    x = np.linspace(0.25, 0.75, nx)
-    y = np.linspace(0.25, 0.75, ny)
-    z = np.linspace(0.25, .75, nz)
-    xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
-    g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
-    return g
-
-
-@pytest.fixture(scope="session")
-def simple_grid_3d_more_points_grid():
-    resolution = [50, 5, 50]
-    extent = [0.25, .75, 0.25, .75, 0.25, .75]
-
-    regular_grid = RegularGrid(extent, resolution)
-    grid = Grid.from_regular_grid(regular_grid)
-    return grid
-
-@pytest.fixture(scope="session")
-def simple_grid_3d_octree():
-    resolution = [2, 2, 3]
-    extent = [0.25, .75, 0.25, .75, 0.25, .75]
-
-    regular_grid = RegularGrid(extent, resolution)
-    grid = Grid.from_regular_grid(regular_grid)
-    return grid
+# simple_grid_3d = np.array([
+#     [0.25010, 0.50010, 0.12510],
+#     [0.25010, 0.50010, 0.29177],
+#     [0.25010, 0.50010, 0.45843],
+#     [0.25010, 0.50010, 0.62510],
+#     [0.41677, 0.50010, 0.12510],
+#     [0.41677, 0.50010, 0.29177],
+#     [0.41677, 0.50010, 0.45843],
+#     [0.41677, 0.50010, 0.62510],
+#     [0.58343, 0.50010, 0.12510],
+#     [0.58343, 0.50010, 0.29177],
+#     [0.58343, 0.50010, 0.45843],
+#     [0.58343, 0.50010, 0.62510],
+#     [0.75010, 0.50010, 0.12510],
+#     [0.75010, 0.50010, 0.29177],
+#     [0.75010, 0.50010, 0.45843],
+#     [0.75010, 0.50010, 0.62510]
+# ])
 
 
-def tensor_structure_simple_model_2(simple_grid_2d):
-    _ = np.ones(3)
-    return TensorsStructure(number_of_points_per_surface=np.array([4, 3]))
+
+# def create_regular_grid(extent, resolution, faces = False):
+#     dx = (extent[1] - extent[0]) / resolution[0]
+#     dy = (extent[3] - extent[2]) / resolution[1]
+#     dz = (extent[5] - extent[4]) / resolution[2]
+#
+#     x = np.linspace(extent[0] + dx / 2, extent[1] - dx / 2, resolution[0],
+#                     dtype="float64")
+#     y = np.linspace(extent[2] + dy / 2, extent[3] - dy / 2, resolution[1],
+#                     dtype="float64")
+#     z = np.linspace(extent[4] + dz / 2, extent[5] - dz / 2, resolution[2],
+#                     dtype="float64")
+#     xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
+#     g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
+#     if faces == False:
+#         return g, dx, dy, dz
+#     else:
+#         x = np.linspace(extent[0], extent[1] , resolution[0] + 1, dtype="float64")
+#         y = np.linspace(extent[2], extent[3] , resolution[1]  + 1,  dtype="float64")
+#         z = np.linspace(extent[4], extent[5] , resolution[2] + 1,  dtype="float64")
+#         xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
+#         g_faces = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
+#         return g, g_faces, dx, dy, dz
+
+
+
+
+
+
+
+
+
+
+# def tensor_structure_simple_model_2(simple_grid_2d):
+#     _ = np.ones(3)
+#     return TensorsStructure(number_of_points_per_surface=np.array([4, 3]))
 
 
 @pytest.fixture(scope='session')
@@ -120,7 +87,7 @@ def simple_model_2():
 
     print(BackendTensor.describe_conf())
 
-    tensor_struct = tensor_structure_simple_model_2(simple_grid_2d_f())
+    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([4, 3]))
 
     sp_coords = np.array([[4, 0],
                           [0, 0],
@@ -163,9 +130,6 @@ def simple_model_2_internals(simple_model_2):
 
 @pytest.fixture(scope="session")
 def simple_model():
-    import numpy
-
-    numpy.set_printoptions(precision=3, linewidth=200)
 
     dip_positions = np.array([
         [0.25010, 0.50010, 0.54177],
@@ -201,9 +165,6 @@ def simple_model():
 
 @pytest.fixture(scope="session")
 def simple_model_interpolation_input(simple_grid_3d_octree):
-    import numpy
-
-    numpy.set_printoptions(precision=3, linewidth=200)
 
     dip_positions = np.array([
         [0.25010, 0.50010, 0.54177],
@@ -233,7 +194,7 @@ def simple_model_interpolation_input(simple_grid_3d_octree):
 
     interpolation_options = InterpolationOptions(range_, co, 0, i_res=1, gi_res=1,
                                                  number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
-    _ = np.ones(3)
+
     tensor_structure = TensorsStructure(np.array([7]))
 
     ids = np.array([1, 2])
@@ -245,13 +206,13 @@ def simple_model_interpolation_input(simple_grid_3d_octree):
 
 
 @pytest.fixture(scope="session")
-def simple_model_3_layers(simple_grid_3d_more_points_grid):
-    grid_0_centers = simple_grid_3d_more_points_grid
+def simple_model_3_layers(simple_grid_3d_octree):
+    grid_0_centers = simple_grid_3d_octree
 
     np.set_printoptions(precision=3, linewidth=200)
 
     dip_positions = np.array([
-        [0.25010, 0.50010, 0.54177],
+        [0.28010, 0.50010, 0.54177],
         [0.66677, 0.50010, 0.62510],
     ])
     sp = np.array([
@@ -262,10 +223,10 @@ def simple_model_3_layers(simple_grid_3d_more_points_grid):
         [0.75010, 0.50010, 0.54177],
         [0.58343, 0.50010, 0.39177],
         [0.73343, 0.50010, 0.50010],
-        [0.251, 0.60010, 0.457510],
-        [0.250010, 0.60010, 0.45510],
-        # [0.25010, 0.50010, 0.7510],
-        # [0.50010, 0.50010, 0.7510],
+        [0.25010, 0.50010, 0.47510],
+        [0.5010, 0.50010, 0.47510],
+        [0.25010, 0.50010, 0.7510],
+        [0.50010, 0.50010, 0.7510],
 
     ])
 
@@ -284,9 +245,7 @@ def simple_model_3_layers(simple_grid_3d_more_points_grid):
     interpolation_options = InterpolationOptions(range_, co, 0, i_res=1, gi_res=1,
                                number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
 
-    tensor_structure = TensorsStructure(np.array([7, 2
-                                                  #   , 2, 2
-                                                  ]))
+    tensor_structure = TensorsStructure(np.array([7, 2, 2]))
 
     ids = np.array([1, 2, 3, 4])
 
@@ -316,9 +275,6 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
     exported_fields.n_points_per_surface = data_shape.nspv
     exported_fields.n_surface_points = surface_points.n_points
 
-    # scalar_at_surface_points = _get_scalar_field_at_surface_points(
-    #     exported_fields._scalar_field, data_shape.nspv, surface_points.n_points)
-    # #
     # -----------------
     # Export and Masking operations can happen even in parallel
     # TODO: [~X] Export block
@@ -334,14 +290,14 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
 
 
 
-@pytest.fixture(scope="session")
-def simple_model_output(simple_model, simple_grid_3d_more_points_grid):
-    surface_points = simple_model[0]
-    orientations = simple_model[1]
-    options = simple_model[2]
-    data_shape = simple_model[3]
-
-    ids = np.array([1, 2])
-    return interpolate_and_segment(
-        InterpolationInput(surface_points, orientations, simple_grid_3d_more_points_grid, ids),
-        options, data_shape)
+# @pytest.fixture(scope="session")
+# def simple_model_output(simple_model, simple_grid_3d_more_points_grid):
+#     surface_points = simple_model[0]
+#     orientations = simple_model[1]
+#     options = simple_model[2]
+#     data_shape = simple_model[3]
+#
+#     ids = np.array([1, 2])
+#     return interpolate_and_segment(
+#         InterpolationInput(surface_points, orientations, simple_grid_3d_more_points_grid, ids),
+#         options, data_shape)

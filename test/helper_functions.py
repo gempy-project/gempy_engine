@@ -2,10 +2,11 @@ from typing import List
 import numpy as np
 
 from gempy_engine.core.data.exported_structs import OctreeLevel, DualContouringMesh
+from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import \
     get_regular_grid_for_level
 
-from .conftest import plot_pyvista
+import matplotlib.pyplot as plt
 
 try:
     # noinspection PyUnresolvedReferences
@@ -27,7 +28,7 @@ def plot_octree_pyvista(p: pv.Plotter, octree_list: List[OctreeLevel], n_octree:
     regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
     foo = regular_grid_mesh.threshold([0, 10])
 
-    p.add_mesh(foo, show_edges=True, opacity=.5, cmap="tab10")
+    p.add_mesh(foo, show_edges=False, opacity=.5, cmap="tab10")
 
 
     p.add_axes()
@@ -60,5 +61,43 @@ def plot_vector(p: pv.Plotter, xyz, gradients):
     arrows = poly.glyph(orient='vectors', scale=False, factor=.05)
 
     p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
+
+def plot_2d_scalar_y_direction(interpolation_input: InterpolationInput, Z_x):
+
+    resolution = interpolation_input.grid.regular_grid.resolution
+    extent = interpolation_input.grid.regular_grid.extent
+
+    plt.contourf(Z_x.reshape(resolution)[:, resolution[1]//2, :].T, N=40, cmap="autumn",
+                 extent=extent[[0,1,4,5]]
+                 )
+
+    xyz = interpolation_input.surface_points.sp_coords
+    plt.plot(xyz[:, 0], xyz[:, 2], "o")
+    plt.colorbar()
+
+    plt.quiver(interpolation_input.orientations.dip_positions[:, 0],
+               interpolation_input.orientations.dip_positions[:, 2],
+               interpolation_input.orientations.dip_gradients[:, 0],
+               interpolation_input.orientations.dip_gradients[:, 2],
+               scale=10
+               )
+
+    # plt.quiver(
+    #      gx.reshape(50, 5, 50)[:, 2, :].T,
+    #      gz.reshape(50, 5, 50)[:, 2, :].T,
+    #      scale=1
+    #  )
+
+    plt.savefig("foo")
+    plt.show()
+
+
+
+def calculate_gradient(dip, az, pol):
+    """Calculates the gradient from dip, azimuth and polarity values."""
+    g_x = np.sin(np.deg2rad(dip)) * np.sin(np.deg2rad(az)) * pol
+    g_y = np.sin(np.deg2rad(dip)) * np.cos(np.deg2rad(az)) * pol
+    g_z = np.cos(np.deg2rad(dip)) * pol
+    return g_x, g_y, g_z
 
 

@@ -9,7 +9,7 @@ from gempy_engine.modules.kernel_constructor._structs import tensor_types
 @dataclass(frozen=False)
 class SurfacePoints:
     sp_coords: np.ndarray
-    nugget_effect_scalar: Union[np.ndarray, float]
+    nugget_effect_scalar: Union[np.ndarray, float] = 0.0000001
 
     def __post_init__(self):
         if type(self.nugget_effect_scalar) is float or type(self.nugget_effect_scalar) is int:

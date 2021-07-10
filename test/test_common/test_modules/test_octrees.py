@@ -235,7 +235,7 @@ def _plot_points_in_vista(grid_0_centers, mesh, anch=None):
 def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_points, weights):
     def _compute_high_res_model(data_shape, ids, interp_input, orientations, resolution, scalar_at_surface_points,
                                 surface_points, weights):
-        from test.fixtures.simple_models import create_regular_grid
+
         from gempy_engine.core.data.grid import Grid, RegularGrid
 
         grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
