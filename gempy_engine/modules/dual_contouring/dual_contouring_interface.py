@@ -6,18 +6,27 @@ def find_intersection_on_edge(_xyz_8: np.ndarray, scalar_field: np.ndarray,
                               scalar_at_sp: np.ndarray) -> DualContouringData:
     # I have to do the topology analysis anyway because is the last octree
     scalar_8_ = scalar_field
-    scalar_8 = scalar_8_.reshape((-1, 8, 1))
+    scalar_8 = scalar_8_.reshape((1, -1, 8))
+    scalar_at_sp = scalar_at_sp.reshape((-1, 1, 1))
+
     xyz_8 = _xyz_8.reshape((-1, 8, 3))
+    n_isosurface = scalar_at_sp.shape[0]
+    xyz_8 = np.tile(xyz_8, (n_isosurface, 1, 1)) # TODO: Generalize
 
     # Compute distance of scalar field on the corners
-    scalar_dx = scalar_8[:, :4] - scalar_8[:, 4:]
-    scalar_d_y = scalar_8[:, [0, 1, 4, 5]] - scalar_8[:, [2, 3, 6, 7]]
-    scalar_d_z = scalar_8[:, ::2] - scalar_8[:, 1::2]
-    
+    scalar_dx = scalar_8[:, :, :4] - scalar_8[:, :, 4:]
+    scalar_d_y = scalar_8[:, :, [0, 1, 4, 5]] - scalar_8[:, :, [2, 3, 6, 7]]
+    scalar_d_z = scalar_8[:,:, ::2] - scalar_8[:, :, 1::2]
+
+    """
+    -4.31216,-1.87652,-4.19625,-2.57581
+    -1.87652,-13.91019,-2.57581,-30.15220
+    """
+
     # Compute the weights
-    weight_x =  (scalar_at_sp - scalar_8[:, 4:]) / scalar_dx 
-    weight_y =  (scalar_at_sp -  scalar_8[:, [2, 3, 6, 7]]) / scalar_d_y 
-    weight_z =  (scalar_at_sp - scalar_8[:, 1::2]) / scalar_d_z 
+    weight_x = ((scalar_at_sp - scalar_8[:, :, 4:]) / scalar_dx).reshape(-1, 4, 1)
+    weight_y = ((scalar_at_sp -  scalar_8[:, :, [2, 3, 6, 7]]) / scalar_d_y).reshape(-1, 4, 1)
+    weight_z = ((scalar_at_sp - scalar_8[:, :, 1::2]) / scalar_d_z).reshape(-1, 4, 1)
     
     # Calculate eucledian distance between the corners
     d_x = xyz_8[:, :4]           - xyz_8[:, 4:]
@@ -25,24 +34,24 @@ def find_intersection_on_edge(_xyz_8: np.ndarray, scalar_field: np.ndarray,
     d_z = xyz_8[:, ::2]          - xyz_8[:, 1::2]
 
     # Compute the weighted distance
-    intersect_dx = d_x[:, :, :] * weight_x[:,:, [0]]
-    intersect_dy = d_y[:, :, :] * weight_y[:,:, [0]]
-    intersect_dz = d_z[:, :, :] * weight_z[:,:, [0]]
+    intersect_dx = d_x[:, :, :] * weight_x[:,:, :]
+    intersect_dy = d_y[:, :, :] * weight_y[:,:, :]
+    intersect_dz = d_z[:, :, :] * weight_z[:,:, :]
 
     # Mask invalid edges
     # TODO: This still only works for the first layer of a sequence
-    valid_edge_x = np.logical_and(weight_x > 0, weight_x < 1)[:,:,0]
-    valid_edge_y = np.logical_and(weight_y > 0, weight_y < 1)[:,:,0]
-    valid_edge_z = np.logical_and(weight_z > 0, weight_z < 1)[:,:,0]
+    valid_edge_x = np.logical_and(weight_x > 0, weight_x < 1)
+    valid_edge_y = np.logical_and(weight_y > 0, weight_y < 1)
+    valid_edge_z = np.logical_and(weight_z > 0, weight_z < 1)
 
     #Note(miguel) From this point on the arrays become sparse
     xyz_8_edges = np.hstack([xyz_8[:, 4:], xyz_8[:, [2, 3, 6, 7]], xyz_8[:, 1::2]])
     intersect_segment = np.hstack([intersect_dx, intersect_dy, intersect_dz])
-    valid_edges = np.hstack([valid_edge_x, valid_edge_y, valid_edge_z])
+    valid_edges = np.hstack([valid_edge_x, valid_edge_y, valid_edge_z])[:, :, 0]
 
     intersection_xyz = xyz_8_edges[valid_edges] + intersect_segment[valid_edges]
 
-    return DualContouringData(intersection_xyz, valid_edges)
+    return DualContouringData(intersection_xyz, valid_edges) # TODO: Add attributes?
 
 
 def triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels):
@@ -104,7 +113,7 @@ def generate_dual_contouring_vertices(gradients, n_edges, valid_edges, xyz_on_ed
     edges_normals = np.zeros((n_edges, 15, 3))
     edges_xyz[:, :12][valid_edges] = xyz_on_edge
     edges_normals[:, :12][valid_edges] = gradients
-    BIAS_STRENGTH = 0.1
+    BIAS_STRENGTH = 10
     bias_xyz = np.copy(edges_xyz[:, :12])
     # np zero values to nans
     bias_xyz[np.isclose(bias_xyz, 0)] = np.nan

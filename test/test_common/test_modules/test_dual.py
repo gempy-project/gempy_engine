@@ -13,8 +13,10 @@ from gempy_engine.core.data.internal_structs import SolverInput
 
 from gempy_engine.core.data.exported_structs import OctreeLevel
 from gempy_engine.core.data.interpolation_input import InterpolationInput
-from gempy_engine.integrations.interp_single.interp_single_interface import compute_n_octree_levels, interpolate_and_segment
-from gempy_engine.modules.dual_contouring.dual_contouring_interface import  QEF, find_intersection_on_edge
+from gempy_engine.integrations.interp_single.interp_single_interface import compute_n_octree_levels, \
+    interpolate_and_segment
+from gempy_engine.modules.dual_contouring.dual_contouring_interface import QEF, \
+    find_intersection_on_edge
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import \
     get_regular_grid_for_level
 
@@ -27,26 +29,25 @@ try:
 except ImportError:
     plot_pyvista = False
 
+
 def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octree):
-    
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
     ids = np.array([1, 2])
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = compute_n_octree_levels(2, interpolation_input, options, data_shape)
+    octree_list = compute_n_octree_levels(3, interpolation_input, options, data_shape)
 
-    last_octree_level: OctreeLevel = octree_list[-1]
+    last_octree_level: OctreeLevel = octree_list[2]
 
     sfsp = last_octree_level.output_corners.scalar_field_at_sp
-    sfsp = np.append(sfsp, -0.1)
+
     dc_data = find_intersection_on_edge(
         last_octree_level.grid_corners.values,
         last_octree_level.output_corners.exported_fields.scalar_field,
-        sfsp        
+        sfsp
     )
-
 
     xyz_on_edge, valid_edges = dc_data.xyz_on_edge, dc_data.valid_edges
     # endregion
@@ -58,14 +59,13 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     # stack gradients output_on_edges.exported_fields.gx_field
     gradients = np.stack(
         (output_on_edges.exported_fields.gx_field,
-        output_on_edges.exported_fields.gy_field,
-        output_on_edges.exported_fields.gz_field), axis=0).T
+         output_on_edges.exported_fields.gy_field,
+         output_on_edges.exported_fields.gz_field), axis=0).T
 
     # endregion
-    
 
     # region Prepare data for vectorized QEF
-    
+
     n_edges = valid_edges.shape[0]
 
     # Coordinates for all posible edges (12) and 3 dummy normals in the center
@@ -74,7 +74,6 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
 
     xyz[:, :12][valid_edges] = xyz_on_edge
     normals[:, :12][valid_edges] = gradients
-    
 
     BIAS_STRENGTH = 0.1
 
@@ -85,14 +84,12 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     # Mean ignoring nans
     mass_points = np.nanmean(xyz_aux, axis=1)
 
-    
-    #mass_points = np.mean(xyz[:, :12], axis= 1)
+    # mass_points = np.mean(xyz[:, :12], axis= 1)
     xyz[:, 12] = mass_points
     xyz[:, 13] = mass_points
     xyz[:, 14] = mass_points
 
-
-    normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])   
+    normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])
     normals[:, 13] = np.array([0, BIAS_STRENGTH, 0])
     normals[:, 14] = np.array([0, 0, BIAS_STRENGTH])
 
@@ -100,23 +97,21 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     bo = valid_edges.sum(axis=1, dtype=bool)
     xyz = xyz[bo]
     normals = normals[bo]
-    
+
     # NOTE(miguel): I leave the code for the first voxel here to understand what is happening bellow
     # Compute first QEF
-    
+
     qef = QEF.make_3d(xyz[0], normals[0])
     residual, v_pro = qef.solve()
 
-    #Linear list square fitting of A and B
-    
+    # Linear list square fitting of A and B
+
     A = normals[0]
     B = xyz[0]
     BB = (A * B).sum(axis=1)
     v_pro = np.dot(np.linalg.inv(np.dot(A.T, A)), np.dot(A.T, BB))
 
-
     # endregion
-
 
     # Compute QEF
     v_mesh = []
@@ -125,11 +120,11 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
 
     for i in range(len(indices) - 1):
         i_0 = indices[i]
-        i_1 = indices[i+1]
+        i_1 = indices[i + 1]
 
         a = xyz_on_edge[i_0:i_1]
         b = gradients[i_0:i_1]
-        
+
         mass_point = np.mean(a, axis=0)
         BIAS_STRENGTH = 0.1
 
@@ -139,16 +134,15 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
         b = np.vstack((b, np.array([BIAS_STRENGTH, 0, 0])))
         b = np.vstack((b, np.array([0, BIAS_STRENGTH, 0])))
         b = np.vstack((b, np.array([0, 0, BIAS_STRENGTH])))
-        
+
         qef = QEF.make_3d(a, b)
         residual, v = qef.solve()
-        
 
         v_mesh.append(v)
 
-    if plot_pyvista:
-       _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers, 
-                    xyz_on_edge, gradients, a, b, v_mesh, v_pro)
+    if plot_pyvista or True:
+        _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers,
+                      xyz_on_edge, gradients, a, b, v_mesh, v_pro, plot_label=False)
 
     return xyz_on_edge, gradients
 
@@ -160,19 +154,19 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = compute_n_octree_levels(4, interpolation_input, options, data_shape)
+    octree_list = compute_n_octree_levels(2, interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
     dc_data = get_intersection_on_edges(last_octree_level)
     interpolation_input.grid = Grid(dc_data.xyz_on_edge)
     output_on_edges = interp.interpolate_single_field(interpolation_input, options,
-                                                                    data_shape)
+                                                      data_shape)
     dc_data.gradients = output_on_edges.exported_fields
 
     mesh = compute_dual_contouring(dc_data)
 
-    if plot_pyvista or False:
+    if plot_pyvista or True:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
 
@@ -181,11 +175,44 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
         p.show()
 
 
-    print(mesh)
+def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_grid_3d_octree):
+    # region Test find_intersection_on_edge
+    interpolation_input, options, data_shape = simple_model_3_layers
+    ids = np.array([1, 2, 3, 4])
+    grid_0_centers = simple_grid_3d_octree
+    # interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
+
+    octree_list = compute_n_octree_levels(4, interpolation_input, options, data_shape)
+
+    last_octree_level: OctreeLevel = octree_list[-1]
+
+    dc_data = get_intersection_on_edges(last_octree_level)
+    interpolation_input.grid = Grid(dc_data.xyz_on_edge)
+    output_on_edges = interp.interpolate_single_field(interpolation_input, options,
+                                                      data_shape)
+    dc_data.gradients = output_on_edges.exported_fields
+
+    mesh = compute_dual_contouring(dc_data)
+
+    if plot_pyvista or True:
+        _plot_pyvista(last_octree_level, octree_list, simple_model_3_layers,
+                      ids, grid_0_centers,
+                      dc_data.xyz_on_edge,
+                      dc_data.gradients,
+                      v_pro = mesh[0].vertices,
+                      indices = mesh[0].edges,
+                      plot_label=False, plot_marching_cubes=False)
+
+    # if plot_pyvista or True:
+    #     pv.global_theme.show_edges = True
+    #     p = pv.Plotter()
+    #
+    #     from test.helper_functions import plot_dc_meshes
+    #     plot_dc_meshes(p, mesh[0])
+    #     p.show()
 
 
 def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
-    
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
     ids = np.array([1, 2])
@@ -213,14 +240,13 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     # stack gradients output_on_edges.exported_fields.gx_field
     gradients = np.stack(
         (output_on_edges.exported_fields.gx_field,
-        output_on_edges.exported_fields.gy_field,
-        output_on_edges.exported_fields.gz_field), axis=0).T
+         output_on_edges.exported_fields.gy_field,
+         output_on_edges.exported_fields.gz_field), axis=0).T
 
     # endregion
-    
 
     # region Prepare data for vectorized QEF
-    
+
     n_edges = valid_edges.shape[0]
 
     # Coordinates for all posible edges (12) and 3 dummy normals in the center
@@ -229,7 +255,6 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
 
     xyz[:, :12][valid_edges] = xyz_on_edge
     normals[:, :12][valid_edges] = gradients
-    
 
     BIAS_STRENGTH = 0.1
 
@@ -240,13 +265,11 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     # Mean ignoring nans
     mass_points = np.nanmean(xyz_aux, axis=1)
 
-    
     xyz[:, 12] = mass_points
     xyz[:, 13] = mass_points
     xyz[:, 14] = mass_points
 
-
-    normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])   
+    normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])
     normals[:, 13] = np.array([0, BIAS_STRENGTH, 0])
     normals[:, 14] = np.array([0, 0, BIAS_STRENGTH])
 
@@ -254,7 +277,6 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     bo = valid_edges.sum(axis=1, dtype=bool)
     xyz = xyz[bo]
     normals = normals[bo]
-    
 
     # Compute LSTSQS in all voxels at the same time
     A1 = normals
@@ -262,16 +284,16 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     bb1 = (A1 * b1).sum(axis=2)
     s1 = np.einsum("ijk, ilj->ikl", A1, np.transpose(A1, (0, 2, 1)))
     s2 = np.linalg.inv(s1)
-    s3 = np.einsum("ijk,ik->ij",np.transpose(A1, (0, 2, 1)), bb1)
+    s3 = np.einsum("ijk,ik->ij", np.transpose(A1, (0, 2, 1)), bb1)
     v_pro = np.einsum("ijk, ij->ik", s2, s3)
 
     np.testing.assert_array_almost_equal(
         v_pro[::10],
         np.array(
-                [[0.32 , 0.307, 0.361],
-                [0.583, 0.309, 0.362],
-                [0.651, 0.728, 0.33 ]]), 3
-        )
+            [[0.32, 0.307, 0.361],
+             [0.583, 0.309, 0.362],
+             [0.651, 0.728, 0.33]]), 3
+    )
 
     # endregion
 
@@ -282,37 +304,35 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
 
     hull = ConvexHull(v_pro)
     indices = hull.simplices
-    #vertices = points[indices]
-
+    # vertices = points[indices]
 
     # endregion
 
-
-    if plot_pyvista or False:
-        _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers, 
-    xyz_on_edge, gradients, v_pro= v_pro, indices=indices)
+    if plot_pyvista or True:
+        _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers,
+                      xyz_on_edge, gradients, v_pro=v_pro, indices=indices)
 
     return xyz_on_edge, gradients
-
-
 
 
 # =======================
 
 
-def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers, 
-    xyz_on_edge, gradients, a=None, b=None, v_mesh=None, v_pro=None, indices=None):
+def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers,
+                  xyz_on_edge, gradients, a=None, b=None, v_mesh=None, v_pro=None, indices=None,
+                  plot_label=False, plot_marching_cubes = True
+                  ):
     n = 1
     p = pv.Plotter()
-    
+
     # Plot Actual mesh (from marching cubes)
-    output_1_centers = last_octree_level.output_centers
-    resolution = [20, 20, 20]
-    mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
-    output_1_centers.scalar_field_at_sp,  output_1_centers.weights)
+    if plot_marching_cubes:
+        output_1_centers = last_octree_level.output_centers
+        resolution = [20, 20, 20]
+        mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
+                                    output_1_centers.scalar_field_at_sp, output_1_centers.weights)
 
-    p.add_mesh(mesh, opacity=.8, silhouette=True)
-
+        p.add_mesh(mesh, opacity=.8, silhouette=True)
 
     # Plot Regular grid Octree
     regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
@@ -331,7 +351,9 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
     poly['vectors'] = gradients
     arrows = poly.glyph(orient='vectors', scale=False, factor=.05)
     p.add_mesh(arrows, color="k", point_size=10.0, render_points_as_spheres=False)
-    p.add_point_labels(xyz_on_edge, list(range(xyz_on_edge.shape[0])), point_size=20, font_size=36)
+
+    if plot_label:
+        p.add_point_labels(xyz_on_edge, list(range(xyz_on_edge.shape[0])), point_size=20, font_size=36)
 
     if a is not None and b is not None:
         poly = pv.PolyData(a)
@@ -341,12 +363,12 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
 
         p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
 
-
     # Plot QEF
     if v_mesh is not None:
         p.add_mesh(pv.PolyData(v_mesh), color="b", point_size=15.0, render_points_as_spheres=False)
 
-    p.add_mesh(pv.PolyData(v_pro), color="w", point_size=15.0, render_points_as_spheres=True)
+    if v_pro is not None:
+        p.add_mesh(pv.PolyData(v_pro), color="w", point_size=15.0, render_points_as_spheres=True)
 
     if indices is not None:
         dual_mesh = pv.PolyData(v_pro, np.insert(indices, 0, 3, axis=1).ravel())
@@ -355,13 +377,15 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
     p.add_axes()
     p.show()
 
-def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_points, weights):
-    def _compute_high_res_model(data_shape, ids, interp_input, orientations, resolution, scalar_at_surface_points,
-                                surface_points, weights):
 
+def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_points, weights):
+    def _compute_high_res_model(data_shape, ids, interp_input, orientations, resolution,
+                                scalar_at_surface_points,
+                                surface_points, weights):
         from gempy_engine.core.data.grid import Grid, RegularGrid
 
-        grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
+        grid_high_res = Grid.from_regular_grid(
+            RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
         grid_internal_high_res, ori_internal, sp_internal = gempy_engine.integrations.interp_single._interp_single_internals._input_preprocess(
             data_shape, grid_high_res, orientations, surface_points)
         exported_fields_high_res = gempy_engine.integrations.interp_single._interp_single_internals._evaluate_sys_eq(
@@ -382,9 +406,12 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
     grid_internal, ori_internal, sp_internal = gempy_engine.integrations.interp_single._interp_single_internals._input_preprocess(
         data_shape, grid, orientations, surface_points)
     interp_input = SolverInput(sp_internal, ori_internal, options)
-    values_block_high_res, scalar_high_res, dxdydz = _compute_high_res_model(data_shape, ids, interp_input,
-                                                                             orientations, resolution,
-                                                                             scalar_at_surface_points, surface_points,
+    values_block_high_res, scalar_high_res, dxdydz = _compute_high_res_model(data_shape, ids,
+                                                                             interp_input,
+                                                                             orientations,
+                                                                             resolution,
+                                                                             scalar_at_surface_points,
+                                                                             surface_points,
                                                                              weights)
     from skimage.measure import marching_cubes
     import pyvista as pv
@@ -395,13 +422,3 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
     vert += np.array(loc_0).reshape(1, 3)
     mesh = pv.PolyData(vert, np.insert(edges, 0, 3, axis=1).ravel())
     return mesh
-
-
-
-
-        
-    
-
-
-
-
