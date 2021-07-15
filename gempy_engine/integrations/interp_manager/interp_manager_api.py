@@ -1,8 +1,8 @@
+import copy
 from typing import List
 
 from ..dual_contouring.dual_contouring import compute_dual_contouring, get_intersection_on_edges
-from ..interp_single.interp_single_interface import interpolate_and_segment, \
-    compute_n_octree_levels, interpolate_single_field
+from ..interp_single.interp_single_interface import compute_n_octree_levels, interpolate_single_field
 from ...core.data import InterpolationOptions, TensorsStructure
 from ...core.data.exported_structs import OctreeLevel, InterpOutput, DualContouringData, \
     DualContouringMesh, Solutions
@@ -12,6 +12,9 @@ from ...core.data.interpolation_input import InterpolationInput
 
 def interpolate_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                       data_shape: TensorsStructure) -> Solutions:
+
+    interpolation_input = copy.deepcopy(interpolation_input) # TODO: Make sure if this works with TF
+
     solutions = Solutions()
 
     # TODO: [ ] Looping scalars
@@ -33,7 +36,7 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
     # TODO: [ ] Dual contouring. This method only make one vertex per voxel. It is possible to make water tight surfaces?
     # compute_dual_contouring
     # TODO [ ] The api should grab an octree level
-    meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data)
+    meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, data_shape.n_surfaces)
     solutions.dc_meshes = meshes
 
     # ---------------------

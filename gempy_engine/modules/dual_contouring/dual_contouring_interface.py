@@ -168,8 +168,6 @@ class QEF:
         fixed_values = [None] * A.shape[1]
         return QEF(A, b, fixed_values)
 
-
-
     def solve(self):
         """Finds the point that minimizes the error of this QEF,
         and returns a tuple of the error squared and the point itself"""

@@ -1,11 +1,12 @@
+import numpy as np
 import pytest
 
 from gempy_engine.core.data.internal_structs import SolverInput
-from gempy_engine.modules.kernel_constructor._vectors_preparation import evaluation_vectors_preparations
+from gempy_engine.modules.kernel_constructor._vectors_preparation import \
+    evaluation_vectors_preparations
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, \
     yield_b_vector
 from gempy_engine.modules.solver.solver_interface import kernel_reduction
-import numpy as np
 
 
 @pytest.fixture(scope='module')
@@ -18,16 +19,9 @@ def kriging_eq(simple_model_2_internals):
 
 
 weights_sol = np.array(
-    [[-1.50020818],
-     [0.09578431],
-     [4.61644987],
-     [-0.05253686],
-     [0.54084665],
-     [1.55710522],
-     [-4.80773576],
-     [-0.14403434],
-     [-1.18340672]]
-)
+    [-1.50021, 0.09578, 4.61645, -0.05254, 0.27042, 0.77855,
+     -2.40387, -0.07202, -0.59170]
+).reshape((-1, 1))
 
 
 def test_solver(kriging_eq):

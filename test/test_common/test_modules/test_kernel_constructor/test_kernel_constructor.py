@@ -27,12 +27,17 @@ def test_covariance_cubic_kernel(simple_model_2):
     orientations = simple_model_2[1]
     options = simple_model_2[2]
     tensors_structure = simple_model_2[3]
+
+    options.i_res = 1
+    options.gi_res = 1
+
     sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
     ori_internals = orientations_preprocess(orientations)
 
     cov = yield_covariance(SolverInput(sp_internals, ori_internals, options))
     print(cov)
     print(l)
+    np.save(dir_name + '/../solutions/test_kernel_numeric2.npy', cov)
 
     np.testing.assert_array_almost_equal(np.asarray(cov), l, decimal=3)
 

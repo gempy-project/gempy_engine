@@ -29,7 +29,7 @@ def horizontal_stratigraphic():
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([6, 6]))
 
     range_ = 1732
-    options = InterpolationOptions(range_, range_ ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
+    options = InterpolationOptions(range_, range_ ** 2 / 14 / 3, 0, i_res=4, gi_res=2,
                                number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
 
     resolution = [50, 50, 50]

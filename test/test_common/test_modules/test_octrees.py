@@ -169,7 +169,7 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
     ids_sol = np.load(dir_name + "/solutions/test_octree_leaf.npy")
     np.testing.assert_almost_equal(np.round(regular_grid_scalar.ravel()), ids_sol, decimal=3)
     # ===========
-    if plot_pyvista:
+    if plot_pyvista or False:
         # Compute actual mesh
         resolution = [20, 20, 20]
         mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,

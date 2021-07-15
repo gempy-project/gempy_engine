@@ -16,7 +16,7 @@ def get_intersection_on_edges(octree_level: OctreeLevel) -> DualContouringData:
     return dc_data
 
 
-def compute_dual_contouring(dc_data: DualContouringData):
+def compute_dual_contouring(dc_data: DualContouringData, n_surfaces: int):
     # QEF:
     valid_edges = dc_data.valid_edges
     valid_voxels = valid_edges.sum(axis=1, dtype=bool)
@@ -35,7 +35,7 @@ def compute_dual_contouring(dc_data: DualContouringData):
 
     dxdydz = dc_data.grid_centers.dxdydz
     centers_xyz = dc_data.grid_centers.values #TODO: Can I extract here too
-    centers_xyz = np.tile(centers_xyz, (3, 1))
+    centers_xyz = np.tile(centers_xyz, (n_surfaces, 1))
 
     indices = triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels)
 

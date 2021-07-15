@@ -1,3 +1,5 @@
+import copy
+import dataclasses
 from typing import List
 
 from . import _interp_single_internals
@@ -31,9 +33,11 @@ def interpolate_single_field(interpolation_input: InterpolationInput,
     return output
 
 
-def compute_n_octree_levels(n_levels:int, interpolation_input: InterpolationInput,
+def compute_n_octree_levels(n_levels: int, interpolation_input_original: InterpolationInput,
                             options: data.InterpolationOptions, data_shape: data.TensorsStructure)\
         -> List[OctreeLevel]:
+
+    interpolation_input = copy.deepcopy(interpolation_input_original)
 
     octree_list = []
     next_octree = OctreeLevel()

@@ -100,8 +100,8 @@ def test_export_simple_model_low_res(simple_model_interpolation_input, plot = Tr
 
 
 
-def test_export_3_layers(simple_model_3_layers, plot = True):
-    interpolation_input, options, structure = simple_model_3_layers
+def test_export_3_layers(simple_model_3_layers_high_res, plot = True):
+    interpolation_input, options, structure = simple_model_3_layers_high_res
 
     output: InterpOutput = interpolate_single_field(interpolation_input, options, structure)
     Z_x = output.exported_fields.scalar_field

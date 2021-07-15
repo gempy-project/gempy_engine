@@ -1,3 +1,6 @@
+import copy
+import dataclasses
+
 import numpy as np
 np.set_printoptions(precision=3, linewidth=200)
 
@@ -108,7 +111,7 @@ def simple_model_2():
     nugget_effect_grad = 0.0000001
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
 
-    kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
+    kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0,
                                number_dimensions=2, kernel_function=AvailableKernelFunctions.cubic)
 
     return spi, ori_i, kri, tensor_struct
@@ -157,14 +160,16 @@ def simple_model():
 
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
 
-    kri = InterpolationOptions(range_, co, 0, i_res=1, gi_res=1,
+    kri = InterpolationOptions(range_, co, 0,
                                number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
     _ = np.ones(3)
     tensor_structure = TensorsStructure(np.array([7]))
     return spi, ori_i, kri, tensor_structure
 
+
 @pytest.fixture(scope="session")
 def simple_model_interpolation_input(simple_grid_3d_octree):
+    grid_0_centers = copy.deepcopy(simple_grid_3d_octree)
 
     dip_positions = np.array([
         [0.25010, 0.50010, 0.54177],
@@ -192,22 +197,22 @@ def simple_model_interpolation_input(simple_grid_3d_octree):
 
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
 
-    interpolation_options = InterpolationOptions(range_, co, 0, i_res=1, gi_res=1,
+    interpolation_options = InterpolationOptions(range_, co, 0,
                                                  number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
 
     tensor_structure = TensorsStructure(np.array([7]))
 
     ids = np.array([1, 2])
-    grid_0_centers = simple_grid_3d_octree
+
 
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    return interpolation_input, interpolation_options, tensor_structure
+    yield interpolation_input, interpolation_options, tensor_structure
 
 
 @pytest.fixture(scope="session")
 def simple_model_3_layers(simple_grid_3d_octree):
-    grid_0_centers = simple_grid_3d_octree
+    grid_0_centers = dataclasses.replace(simple_grid_3d_octree)
 
     np.set_printoptions(precision=3, linewidth=200)
 
@@ -225,8 +230,8 @@ def simple_model_3_layers(simple_grid_3d_octree):
         [0.73343, 0.50010, 0.50010],
         [0.25010, 0.50010, 0.47510],
         [0.5010, 0.50010, 0.47510],
-        [0.25010, 0.50010, 0.7510],
-        [0.50010, 0.50010, 0.7510],
+        [0.25010, 0.50010, 0.6510],
+        [0.50010, 0.50010, 0.6510],
 
     ])
 
@@ -242,7 +247,7 @@ def simple_model_3_layers(simple_grid_3d_octree):
 
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
 
-    interpolation_options = InterpolationOptions(range_, co, 0, i_res=1, gi_res=1,
+    interpolation_options = InterpolationOptions(range_, co, 0, i_res=4, gi_res=2,
                                number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
 
     tensor_structure = TensorsStructure(np.array([7, 2, 2]))
@@ -255,12 +260,62 @@ def simple_model_3_layers(simple_grid_3d_octree):
 
 
 @pytest.fixture(scope="session")
+def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid):
+    grid_0_centers = dataclasses.replace(simple_grid_3d_more_points_grid)
+
+    np.set_printoptions(precision=3, linewidth=200)
+
+    dip_positions = np.array([
+        [0.28010, 0.50010, 0.54177],
+        [0.66677, 0.50010, 0.62510],
+    ])
+    sp = np.array([
+        [0.25010, 0.50010, 0.37510],
+        [0.50010, 0.50010, 0.37510],
+        [0.66677, 0.50010, 0.41677],
+        [0.70843, 0.50010, 0.47510],
+        [0.75010, 0.50010, 0.54177],
+        [0.58343, 0.50010, 0.39177],
+        [0.73343, 0.50010, 0.50010],
+        [0.25010, 0.50010, 0.47510],
+        [0.5010, 0.50010, 0.47510],
+        [0.25010, 0.50010, 0.6510],
+        [0.50010, 0.50010, 0.6510],
+
+    ])
+
+    nugget_effect_scalar = 0
+    spi = SurfacePoints(sp, nugget_effect_scalar)
+
+    dip_gradients = np.array([[0, 0, 1],
+                              [-.6, 0, .8]])
+    nugget_effect_grad = 0
+
+    range_ = 4.166666666667
+    co = 0.1428571429
+
+    ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
+
+    interpolation_options = InterpolationOptions(range_, co, 0,
+                               number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+
+    tensor_structure = TensorsStructure(np.array([7, 2, 2]))
+
+    ids = np.array([1, 2, 3, 4])
+
+    interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
+
+    return interpolation_input, interpolation_options, tensor_structure
+
+
+
+@pytest.fixture(scope="session")
 def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_grid):
     surface_points = simple_model[0]
     orientations = simple_model[1]
     options = simple_model[2]
     data_shape = simple_model[3]
-    grid = simple_grid_3d_more_points_grid
+    grid = dataclasses.replace(simple_grid_3d_more_points_grid)
 
     ids = np.array([1, 2])
 

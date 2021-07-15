@@ -3,11 +3,15 @@ import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 from gempy_engine.core.data.internal_structs import SolverInput
-from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
-from gempy_engine.modules.kernel_constructor._covariance_assembler import create_grad_kernel, create_scalar_kernel, \
+from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
+    orientations_preprocess
+from gempy_engine.modules.kernel_constructor._covariance_assembler import create_grad_kernel, \
+    create_scalar_kernel, \
     _test_covariance_items
-from gempy_engine.modules.kernel_constructor._vectors_preparation import evaluation_vectors_preparations
-from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, yield_b_vector
+from gempy_engine.modules.kernel_constructor._vectors_preparation import \
+    evaluation_vectors_preparations
+from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, \
+    yield_b_vector
 from gempy_engine.modules.solver.solver_interface import kernel_reduction
 
 cov_sol = np.array(
@@ -30,8 +34,10 @@ scalar_sol = [[-0.43369979, - 0.30058757, - 0.09845786, 0.17851481, - 0.38803627
                - 0.11301122, 0.11947617, - 0.34158771, - 0.26367544, - 0.16590076, 0.00206044,
                - 0.31537991, - 0.26678353, - 0.2292369, - 0.15412643]]
 
-scalar_gempy_v2 = np.array([-0.287, -0.218, -0.107, 0.05, -0.258, -0.204, -0.115, 0.021, -0.227, -0.194, -0.147, -0.047,
-                            -0.206, -0.189, -0.177, -0.137])
+scalar_gempy_v2 = np.array(
+    [1.27362, 0.48549, -0.31263, -1.02861, 1.62540, 0.75887, -0.16392, -1.01610, 1.96172, 1.03840,
+     -0.03235, -1.04312, 2.21494, 1.27355, 0.12529, -1.06963
+     ])
 grid = np.array([
     [0.25010, 0.50010, 0.12510],
     [0.25010, 0.50010, 0.29177],
@@ -62,7 +68,12 @@ class TestCompareWithGempy_v2:
         orientations = simple_model[1]
         options = simple_model[2]
         tensors_structure = simple_model[3]
-        sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
+
+        options.i_res = 1
+        options.gi_res = 1
+
+        sp_internals = surface_points_preprocess(surface_points,
+                                                 tensors_structure.number_of_points_per_surface)
         ori_internals = orientations_preprocess(orientations)
         return sp_internals, ori_internals, options
 

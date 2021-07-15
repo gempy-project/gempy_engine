@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 
+import numpy as np
+
 from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, KernelFunction
+from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, \
+    KernelFunction
 from gempy_engine.core.data.options import InterpolationOptions
 from gempy_engine.modules.kernel_constructor._structs import KernelInput
-
-import numpy as np
 
 tfnp = BackendTensor.tfnp
 tensor_types = BackendTensor.tensor_types
@@ -18,6 +19,9 @@ def create_cov_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor_
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
+    i_magic = options.i_res
+    gi_magic = options.gi_res
+
 
     # Calculate euclidean or square distances depending on the function kernel
     global euclidean_distances
@@ -37,17 +41,17 @@ def create_cov_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor_
     cov_sp = k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref  # It is expanding towards cross
 
     # TODO: Add nugget effect properly (individual)
-    cov_sp += np.eye(cov_sp.shape[0]) * .00000001
+    # cov_sp += np.eye(cov_sp.shape[0]) * .00000001
 
     cov_grad_sp = - dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref  # C
 
     # TODO: This Universal term seems buggy. It should also have a rest component!
     usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
     ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
-    #drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+    # drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
 
-    # TODO (miguel July 2021): Make sure if we need the magic terms
-    cov = c_o * (cov_grad + 4 * cov_sp + 2 * cov_grad_sp)# + drift)
+    #  NOTE: (miguel) The magic terms are real
+    cov = c_o * (cov_grad + i_magic * cov_sp + gi_magic * cov_grad_sp)  # + drift)
 
     return cov
 

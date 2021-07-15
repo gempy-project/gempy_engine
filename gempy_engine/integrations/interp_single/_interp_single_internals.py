@@ -43,6 +43,7 @@ def interpolate_scalar_field(
         interpolation_input: InterpolationInput,
         options: data.InterpolationOptions,
         data_shape: data.TensorsStructure) -> Tuple[np.ndarray, ExportedFields]:
+
     grid = interpolation_input.grid
     surface_points = interpolation_input.surface_points
     orientations = interpolation_input.orientations
@@ -62,6 +63,8 @@ def interpolate_scalar_field(
     exported_fields = _evaluate_sys_eq(xyz_lvl0, solver_input, weights)
     exported_fields.n_points_per_surface = data_shape.nspv
     exported_fields.n_surface_points = surface_points.n_points
+
+    Buffer.clean()
     return weights, exported_fields
 
 

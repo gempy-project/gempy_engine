@@ -13,7 +13,7 @@ def _cast_type_inplace(struct_data_instance):
 class TensorsStructure:
     number_of_points_per_surface: np.ndarray # TODO This needs to start with 0 and possibly ignore the last item
     dtype: Type = np.int32
-    _number_of_points_per_surface_vector:np.ndarray = np.ones(1)
+    _number_of_points_per_surface_vector: np.ndarray = np.ones(1)
 
     def __post_init__(self): # TODO: Move this to init
         _cast_type_inplace(self)
@@ -29,4 +29,6 @@ class TensorsStructure:
     def nspv(self):
         return self._number_of_points_per_surface_vector
 
-
+    @property
+    def n_surfaces(self):
+        return self.number_of_points_per_surface.shape[0]

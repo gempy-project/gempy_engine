@@ -1,3 +1,5 @@
+import copy
+
 import gempy_engine.integrations.interp_single._interp_single_internals
 from gempy_engine.core.data.grid import Grid
 import numpy as np
@@ -34,7 +36,7 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
     ids = np.array([1, 2])
-    grid_0_centers = simple_grid_3d_octree
+    grid_0_centers = copy.deepcopy(simple_grid_3d_octree)
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
     octree_list = compute_n_octree_levels(3, interpolation_input, options, data_shape)
@@ -140,7 +142,7 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
 
         v_mesh.append(v)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers,
                       xyz_on_edge, gradients, a, b, v_mesh, v_pro, plot_label=False)
 
@@ -164,9 +166,9 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
                                                       data_shape)
     dc_data.gradients = output_on_edges.exported_fields
 
-    mesh = compute_dual_contouring(dc_data)
+    mesh = compute_dual_contouring(dc_data, data_shape.n_surfaces)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
 
@@ -192,9 +194,9 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
                                                       data_shape)
     dc_data.gradients = output_on_edges.exported_fields
 
-    mesh = compute_dual_contouring(dc_data)
+    mesh = compute_dual_contouring(dc_data, data_shape.n_surfaces)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         _plot_pyvista(last_octree_level, octree_list, simple_model_3_layers,
                       ids, grid_0_centers,
                       dc_data.xyz_on_edge,
@@ -290,9 +292,10 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     np.testing.assert_array_almost_equal(
         v_pro[::10],
         np.array(
-            [[0.32, 0.307, 0.361],
-             [0.583, 0.309, 0.362],
-             [0.651, 0.728, 0.33]]), 3
+            [[0.522, 0.369, 0.388],
+             [0.515, 0.368, 0.371],
+             [0.181, 0.568, 0.332]]
+        ), 3
     )
 
     # endregion
@@ -308,7 +311,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
 
     # endregion
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers,
                       xyz_on_edge, gradients, v_pro=v_pro, indices=indices)
 

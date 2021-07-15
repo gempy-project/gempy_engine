@@ -1,3 +1,5 @@
+import dataclasses
+
 import pytest
 import numpy as np
 
@@ -34,4 +36,4 @@ def simple_grid_3d_octree():
 
     regular_grid = RegularGrid(extent, resolution)
     grid = Grid.from_regular_grid(regular_grid)
-    return grid
+    return dataclasses.replace(grid)
