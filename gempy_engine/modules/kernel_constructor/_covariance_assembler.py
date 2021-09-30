@@ -205,6 +205,19 @@ def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item)
     elif item == "cov_grad_sp":
         return - dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref
 
+    elif item == "drift_eval":
+        usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
+        ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
+        drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+        return drift
+
+    elif item == "drift_ug":
+        ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
+        selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+
+        return ug * selector
+
+
     elif item == "drift":
         usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
         ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)

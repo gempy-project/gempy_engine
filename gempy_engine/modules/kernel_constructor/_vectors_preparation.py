@@ -10,6 +10,7 @@ from . import _structs
 
 import numpy as np
 
+
 def cov_vectors_preparation(interp_input: SolverInput) -> _structs.KernelInput:
     sp_: SurfacePointsInternals = interp_input.sp_internal
     ori_: OrientationsInternals = interp_input.ori_internal
