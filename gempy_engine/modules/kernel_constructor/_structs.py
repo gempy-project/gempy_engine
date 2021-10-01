@@ -41,12 +41,26 @@ class OrientationsDrift:
     dips_ug_aj: tensor_types = np.empty((1, 0, 3))
     dips_ug_bi: tensor_types = np.empty((0, 1, 3))
     dips_ug_bj: tensor_types = np.empty((1, 0, 3))
+    dips_ug_ci: tensor_types = np.empty((0, 1, 3))
+    dips_ug_cj: tensor_types = np.empty((1, 0, 3))
+    selector_ci: tensor_types = np.empty((0, 1, 3))
+    selector_cj: tensor_types = np.empty((1, 0, 3))
 
-    def __init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, x_degree_2: np.ndarray, y_degree_2: np.ndarray):
+    def __init__(self,
+                 x_degree_1: np.ndarray, y_degree_1: np.ndarray,
+                 x_degree_2: np.ndarray, y_degree_2: np.ndarray,
+                 x_degree_2b: np.ndarray, y_degree_2b: np.ndarray,
+                 selector_degree_2: np.ndarray):
+
         self.dips_ug_ai = x_degree_1[:, None, :]
         self.dips_ug_aj = y_degree_1[None, :, :]
         self.dips_ug_bi = x_degree_2[:, None, :]
         self.dips_ug_bj = y_degree_2[None, :, :]
+        self.dips_ug_ci = x_degree_2b[:, None, :]
+        self.dips_ug_cj = y_degree_2b[None, :, :]
+        self.selector_ci = selector_degree_2[:, None, :]
+        self.selector_cj = selector_degree_2[None, :, :]
+
 
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
@@ -126,8 +140,11 @@ class DriftMatrixSelector:
 
 @dataclass
 class KernelInput:
+    # Used for CG, CI and CGI
     ori_sp_matrices: OrientationSurfacePointsCoords
     cartesian_selector: CartesianSelector
+
+    # Used for Drift
     ori_drift: OrientationsDrift
     ref_drift: PointsDrift
     rest_drift: PointsDrift

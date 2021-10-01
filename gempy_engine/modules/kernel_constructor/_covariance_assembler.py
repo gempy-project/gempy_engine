@@ -206,22 +206,56 @@ def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item)
         return - dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref
 
     elif item == "drift_eval":
-        usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
+        usp_ref = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
         ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
-        drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+        drift = (usp_ref + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
         return drift
 
     elif item == "drift_ug":
+        # First term
         ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
+
+        # Second term
+        ug2 = (ki.ori_drift.dips_ug_bi * ki.ori_drift.dips_ug_bj).sum(axis=-1)
+
+        # Third term
+
+        ug3_aux = (ki.ori_drift.dips_ug_ci * ki.ori_drift.dips_ug_cj).sum(axis=-1)
+        third_term_selector = -1 * (-2 +  (ki.ori_drift.selector_ci * ki.ori_drift.selector_cj).sum(axis=-1))
+        ug3 = ug3_aux * third_term_selector
+
+
         selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
 
-        return ug * selector
+        total_ug = selector * (ug + options.gi_res * ug2 + options.gi_res * ug3)
 
+        return total_ug
+
+    elif item == "drift_usp":
+        # degree 1
+        usp_ref = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
+        usp_rest = (ki.rest_drift.dipsPoints_ui_ai * ki.rest_drift.dipsPoints_ui_aj).sum(axis=-1)
+
+        # degree 2
+        usp_ref_d2b = (ki.ref_drift.dipsPoints_ui_bi1 * ki.ref_drift.dipsPoints_ui_bj1).sum(axis=-1)
+        usp_rest_d2b = (ki.rest_drift.dipsPoints_ui_bi1 * ki.rest_drift.dipsPoints_ui_bj1).sum(axis=-1)
+
+        usp_ref_d2c = (ki.ref_drift.dipsPoints_ui_bi2 * ki.ref_drift.dipsPoints_ui_bj2).sum(axis=-1)
+        usp_rest_d2c = (ki.rest_drift.dipsPoints_ui_bi2 * ki.rest_drift.dipsPoints_ui_bj2).sum(axis=-1)
+
+        selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+
+        usp_ref_d2 = usp_ref_d2b * usp_ref_d2c
+        usp_rest_d2 = usp_rest_d2b * usp_rest_d2c
+
+        usp_d2 =  selector * (options.i_res *  (usp_rest_d2 - usp_ref_d2)) + ( options.gi_res * (usp_rest - usp_ref))
+
+        return - usp_d2
 
     elif item == "drift":
-        usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
+        usp_ref = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
         ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
-        drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+        drift = (usp_ref + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
         return drift
 
     elif item == "cov":
@@ -230,9 +264,9 @@ def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item)
         cov_grad_sp = - dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref  # C
 
         # TODO: This Universal term seems buggy. It should also have a rest component!
-        usp = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
+        usp_ref = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
         ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
-        drift = (usp + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+        drift = (usp_ref + ug) * (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
         cov = (cov_grad + cov_sp + cov_grad_sp + drift)
 
         return cov

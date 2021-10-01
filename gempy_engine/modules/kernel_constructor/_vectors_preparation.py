@@ -8,6 +8,7 @@ from . import _kernel_constructors
 from ._kernel_selectors import dips_sp_cartesian_selector, grid_cartesian_selector
 from . import _structs
 
+
 import numpy as np
 
 
@@ -106,8 +107,12 @@ def _assembly_cartesian_selector_grid(cov_size, grid, options, ori_, sp_, axis=N
 
 
 def _assembly_drift_tensors(options, ori_, sp_):
-    dips_ug_d1, dips_ug_d2 = _kernel_constructors.assembly_dips_ug_coords(ori_, sp_.n_points, options)
-    dips_ug = _structs.OrientationsDrift(dips_ug_d1, dips_ug_d1, dips_ug_d2, dips_ug_d1)
+    dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector  = _kernel_constructors.assembly_dips_ug_coords(ori_, sp_.n_points, options)
+    dips_ug = _structs.OrientationsDrift(dips_ug_d1, dips_ug_d1,
+                                         dips_ug_d2a, dips_ug_d2a,
+                                         dips_ug_d2b, dips_ug_d2b,
+                                         second_degree_selector
+                                         )
 
     dips_ref_d1, dips_ref_d2a, dips_ref_d2b = _kernel_constructors.assembly_dips_points_coords(
         sp_.ref_surface_points, ori_.n_orientations_tiled, options)
@@ -116,13 +121,14 @@ def _assembly_drift_tensors(options, ori_, sp_):
 
     dips_ref_ui = _structs.PointsDrift(dips_ref_d1, dips_ref_d1, dips_ref_d2a, dips_ref_d2a, dips_ref_d2b, dips_ref_d2b)
     dips_rest_ui = _structs.PointsDrift(dips_rest_d1, dips_rest_d1, dips_rest_d2a, dips_rest_d2a, dips_rest_d2b,
-                                        dips_rest_d2b)
+                                       dips_rest_d2b)
+
     return dips_ref_ui, dips_rest_ui, dips_ug
 
 
 def _assembly_drift_grid_tensors(grid, options, ori_, sp_):
-    dips_ug_d1, dips_ug_d2 = _kernel_constructors.assembly_dips_ug_coords(ori_, sp_.n_points, options)
-    dips_ug = _structs.OrientationsDrift(dips_ug_d1, grid, dips_ug_d2, grid)
+    dips_ug_d1, dips_ug_d2a, dips_ug_d2b = _kernel_constructors.assembly_dips_ug_coords(ori_, sp_.n_points, options)
+    dips_ug = _structs.OrientationsDrift(dips_ug_d1, grid, dips_ug_d2a, grid, dips_ug_d2b, grid)
     dips_ref_d1, dips_ref_d2a, dips_ref_d2b = _kernel_constructors.assembly_dips_points_coords(sp_.ref_surface_points,
                                                                                                ori_.n_orientations_tiled, options)
     dips_rest_d1, dips_rest_d2a, dips_rest_d2b = _kernel_constructors.assembly_dips_points_coords(sp_.rest_surface_points,

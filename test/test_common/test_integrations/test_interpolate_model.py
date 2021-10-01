@@ -32,8 +32,8 @@ def test_interpolate_model_several_surfaces(simple_model_3_layers, n_oct_levels 
     options.number_octree_levels = n_oct_levels
     solutions = interpolate_model(interpolation_input, options ,structure)
 
-    if plot_pyvista or True:
-        pv.global_theme.show_edges = True
+    if plot_pyvista or False:
+        # pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
         plot_dc_meshes(p, solutions.dc_meshes[0])

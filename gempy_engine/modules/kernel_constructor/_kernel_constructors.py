@@ -14,7 +14,7 @@ def assembly_dips_points_tensor(dips_coord: np.ndarray, sp_coord: np.ndarray, op
 
 def assembly_dips_ug_coords(ori_internals: OrientationsInternals, sp_size: int,
                             interpolation_options: InterpolationOptions) \
-        -> Tuple[np.ndarray, np.ndarray]:
+        -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     n_ori = ori_internals.n_orientations
     n_dim = interpolation_options.number_dimensions
 
@@ -25,25 +25,58 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, sp_size: int,
     if interpolation_options.uni_degree != 0:
         # Degree 1
         for i in range(interpolation_options.number_dimensions):
-            z[n_ori * i:n_ori * (i + 1)] = 1
+            z[n_ori * i:n_ori * (i + 1), i] = 1
             z[-interpolation_options.n_uni_eq + i, i] = 1
 
     dips_a = z
 
     # Degree 2
+    # TODO: Refactor degree 2
+        # Second term:
     dips_b_aux = ori_internals.dip_positions_tiled
-    z2 = np.zeros((interpolation_options.n_uni_eq, interpolation_options.number_dimensions))
+
+    # TODO [X]: Now we have that vstack below. We have to create the proper array here
+    z2 = np.zeros((full_cov_size, interpolation_options.number_dimensions))
+
+    shift = n_ori * n_dim +  sp_size
+    if interpolation_options.uni_degree == 2:
+        for i in range(interpolation_options.number_dimensions):
+            z2[n_ori * i:n_ori * (i + 1), i] = dips_b_aux[n_ori * i:n_ori * (i + 1), i]
+            #z2[n_ori * i:n_ori * (i + 1), :] = dips_b_aux[n_ori * i:n_ori * (i + 1), :]
+
+            #dips_b_aux[n_ori * i:n_ori * (i + 1), i] = 0
+            z2[shift + n_dim + i, i] = 2
+            # z2[shift + n_dim * 2 + i] = 1
+            # z2[shift + n_dim * 2 + i, n_dim - i - 1] = 0
+
+    dips_b = z2 #np.vstack((dips_b_aux, z2))
+
+
+        # Third term:
+    z3 = np.zeros((full_cov_size, interpolation_options.number_dimensions))
+    uni_second_degree_selector = np.zeros_like(z3)
 
     if interpolation_options.uni_degree == 2:
         for i in range(interpolation_options.number_dimensions):
-            dips_b_aux[n_ori * i:n_ori * (i + 1), i] = 0
-            z2[sp_size + n_dim + i, i] = 2
-            z2[sp_size + n_dim * 2 + i] = 1
-            z2[sp_size + n_dim * 2 + i, i] = 0
+            #z3[n_ori * i:n_ori * (i + 1), i] = dips_b_aux[n_ori * i:n_ori * (i + 1), i]
+            z3[n_ori * i:n_ori * (i + 1), :] = dips_b_aux[n_ori * i:n_ori * (i + 1), :]
+            z3[n_ori * i:n_ori * (i + 1), i] = 0
 
-    dips_b = np.vstack((dips_b_aux, z2))
+            #uni_second_degree_selector[n_ori * i :n_ori * (i + 1), i] = 1
+            uni_second_degree_selector[n_ori * i:n_ori * (i + 1), :] = 1
+            uni_second_degree_selector[n_ori * i:n_ori * (i + 1), i] = 0
 
-    return dips_a, dips_b
+            #z3[shift + n_dim + i, i] = 2
+            z3[shift + n_dim * 2 + i] = 1
+            z3[shift + n_dim * 2 + i, n_dim - i - 1] = 0
+
+            uni_second_degree_selector[shift + n_dim * 2 + i] = 1
+            uni_second_degree_selector[shift + n_dim * 2 + i, n_dim - i - 1] = 0
+
+
+    dips_c = z3 #np.vstack((dips_b_aux, z2))
+
+    return dips_a, dips_b, dips_c, uni_second_degree_selector
 
 
 def assembly_dips_points_coords(surface_points: np.ndarray, ori_size: int,
@@ -65,14 +98,26 @@ def assembly_dips_points_coords(surface_points: np.ndarray, ori_size: int,
     points_degree_1 = np.vstack((z, surface_points, z2))
 
     # Degree 2
+    # TODO: Substitute vstack
+
     if interpolation_options.uni_degree == 2:
         for i in range(n_dim):
             zb[n_dim + i, i] = 1
-        zb[n_dim * 2:, 0] = 1
+        #zb[n_dim * 2:, 0] = 1
+
+        zb[n_dim * 2, 0] = 1
+        zb[n_dim * 2 +1, 0] = 1
+        zb[n_dim * 2 + 2, 1] = 1
+
 
         for i in range(n_dim):
             zc[n_dim + i, i] = 1
-        zc[n_dim * 2:, 1] = 1
+        #zc[n_dim * 2:, 1] = 1
+        zc[n_dim * 2, 1] = 1
+        zc[n_dim * 2 + 1, 2] = 1
+        zc[n_dim * 2 + 2, 2] = 1
+
+
 
     points_degree_2a = np.vstack((z, surface_points, zb))
     points_degree_2b = np.vstack((z, surface_points, zc))
