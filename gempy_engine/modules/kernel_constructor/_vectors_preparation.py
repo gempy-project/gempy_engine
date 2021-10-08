@@ -43,7 +43,7 @@ def evaluation_vectors_preparations(grid: np.array, interp_input: SolverInput, a
     orientations_sp_matrices = _assembly_dips_points_grid_tensors(grid, options, ori_, sp_)
 
     # Universal
-    dips_ref_ui, dips_rest_ui, dips_ug = _assembly_drift_grid_tensors(grid, options, ori_, sp_)
+    dips_ref_ui, dips_rest_ui, dips_ug = _assembly_drift_grid_tensors(grid, options, ori_, sp_, axis)
 
     # Selectors :
     cartesian_selector = _assembly_cartesian_selector_grid(cov_size, grid, options, ori_, sp_, axis)
@@ -104,7 +104,8 @@ def _assembly_cartesian_selector_grid(cov_size, grid, options, ori_, sp_, axis=N
 
 
 def _assembly_drift_tensors(options, ori_, sp_):
-    dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector  = _kernel_constructors.assembly_dips_ug_coords(ori_, sp_.n_points, options)
+    dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector  = _kernel_constructors.assembly_dips_ug_coords(
+        ori_, sp_.n_points, options)
     dips_ug = _structs.OrientationsDrift(dips_ug_d1, dips_ug_d1,
                                          dips_ug_d2a, dips_ug_d2a,
                                          dips_ug_d2b, dips_ug_d2b,
@@ -123,21 +124,32 @@ def _assembly_drift_tensors(options, ori_, sp_):
     return dips_ref_ui, dips_rest_ui, dips_ug
 
 
-def _assembly_drift_grid_tensors(grid, options, ori_, sp_):
+def _assembly_drift_grid_tensors(grid, options, ori_, sp_, axis):
 
-    # UG
-    dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector = _kernel_constructors.assembly_dips_ug_coords(ori_, sp_.n_points, options)
-    dips_ug = _structs.OrientationsDrift(dips_ug_d1, grid,
-                                         dips_ug_d2a, grid,
-                                         dips_ug_d2b, grid,
+    # region UG
+    dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector = _kernel_constructors.assembly_dips_ug_coords(
+        ori_, sp_.n_points, options)
+
+    grid_1 = np.zeros_like(grid)
+    grid_1[:, axis] = 1
+
+    sel = np.ones(options.number_dimensions)
+    sel[axis] = 0
+
+    dips_ug = _structs.OrientationsDrift(dips_ug_d1, grid_1,
+                                         dips_ug_d2a, grid * grid_1,
+                                         dips_ug_d2b * sel, grid ,
                                          second_degree_selector)
-    # UI
+    # endregion
+
+    # region UI
     dips_ref_d1, dips_ref_d2a, dips_ref_d2b = _kernel_constructors.assembly_dips_points_coords(
         sp_.ref_surface_points, ori_.n_orientations_tiled, options)
     dips_rest_d1, dips_rest_d2a, dips_rest_d2b = _kernel_constructors.assembly_dips_points_coords(
         sp_.rest_surface_points, ori_.n_orientations_tiled, options)
     dips_ref_ui = _structs.PointsDrift(dips_ref_d1, grid, dips_ref_d2a, grid, dips_ref_d2b, grid)
     dips_rest_ui = _structs.PointsDrift(dips_rest_d1, grid, dips_rest_d2a, grid, dips_rest_d2b, grid)
+    # endregion
 
     return dips_ref_ui, dips_rest_ui, dips_ug
 

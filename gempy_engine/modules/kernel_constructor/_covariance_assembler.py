@@ -106,7 +106,7 @@ def create_scalar_kernel(ki: KernelInput, options: InterpolationOptions) -> tens
     drift = selector * (options.gi_res * usp_ref + options.i_res * usp_ref_d2)
 
 
-    return c_o * (sigma_0_sp + sigma_0_grad_sp) + drift# + sigma_0_grad_sp) # TODO: + drift
+    return c_o * (sigma_0_sp + sigma_0_grad_sp) + drift
 
 
 def create_grad_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor_types:
@@ -129,7 +129,23 @@ def create_grad_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor
     sigma_0_grad = (+1) * dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix
     sigma_0_sp_grad =  dm.huv_ref * k_p_ref -  dm.huv_rest * k_p_rest
 
-    return c_o * (sigma_0_grad + sigma_0_sp_grad) #TODO: + drift
+    # region drift
+
+    # First term
+    ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
+    # Second term
+    ug2 = (ki.ori_drift.dips_ug_bi * ki.ori_drift.dips_ug_bj).sum(axis=-1)
+    # Third term
+    ug3_aux = (ki.ori_drift.dips_ug_ci * ki.ori_drift.dips_ug_cj).sum(axis=-1)
+    third_term_selector =  (ki.ori_drift.selector_ci * ki.ori_drift.dips_ug_aj).sum(axis=-1)
+    ug3 = ug3_aux * third_term_selector
+
+    selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+    total_ug = selector * (ug + options.gi_res * ug2 + options.gi_res * ug3)
+
+    # endregion
+
+    return c_o * (sigma_0_grad + sigma_0_sp_grad) + total_ug
 
 
 

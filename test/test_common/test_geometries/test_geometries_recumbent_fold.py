@@ -5,7 +5,7 @@ from gempy_engine.core.data.exported_structs import InterpOutput
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.integrations.interp_single._interp_single_internals import _input_preprocess, _solve_interpolation
 from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_single_field
-from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items
+from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_grad_kernel
 from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation, \
     evaluation_vectors_preparations
 from test.helper_functions import plot_2d_scalar_y_direction
@@ -266,3 +266,115 @@ class TestRecumbentFoldCovConstructionWithDrift:
             contribution = (recumbent_weights[-9:].reshape(-1, 1) * kernel[-9:]).sum(axis=0)
 
         print(contribution)
+
+    def test_recumbent_fold_universal_degree_2_gradient(self, recumbent_fold_scaled):
+        interpolation_input, options, structure = recumbent_fold_scaled
+
+        # region Reduce grid res
+        resolution = [10, 10, 10]
+        extent = [0.3301 - 0.005, .8201 + 0.005,
+                  0.2551 - 0.005, 0.7451 + 0.005,
+                  0.2551 - 0.005, 0.7451 + 0.005]
+
+        from gempy_engine.core.data.grid import RegularGrid
+        from gempy_engine.core.data.grid import Grid
+
+        regular_grid = RegularGrid(extent, resolution)
+        grid = Grid(regular_grid.values, regular_grid=regular_grid)
+
+        interpolation_input.grid = grid
+        # endregion
+
+        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
+                                                                interpolation_input.grid,
+                                                                interpolation_input.orientations,
+                                                                interpolation_input.surface_points)
+
+        options.uni_degree = 2
+
+        # Scalar
+        output: InterpOutput = interpolate_single_field(interpolation_input, options, structure)
+
+        weights = output.weights
+        Z_x = output.exported_fields.scalar_field
+
+        # Gradient x
+        kernel_data = evaluation_vectors_preparations(xyz_lvl0, SolverInput(sp_internal, ori_internal, options),
+                                                      axis=0)
+
+        export_grad_scalar = create_grad_kernel(kernel_data, options)
+        grad_x = (weights @ export_grad_scalar)[:-105]
+
+        print(f"\n Grad x: {grad_x.reshape(resolution)}")
+        #np.testing.assert_array_almost_equal(grad_x, grad_x_sol, decimal=3)
+
+        # Gradient Y
+        kernel_data = evaluation_vectors_preparations(xyz_lvl0, SolverInput(sp_internal, ori_internal, options), axis=1)
+        export_grad_scalar = create_grad_kernel(kernel_data, options)
+        grad_y = (weights @ export_grad_scalar)[:-105]
+
+        print(grad_y)
+        print(f"\n Grad y: {grad_y.reshape(resolution)}")
+
+
+        # Gradient Z
+        kernel_data = evaluation_vectors_preparations(xyz_lvl0, SolverInput(sp_internal, ori_internal, options), axis=2)
+        export_grad_scalar = create_grad_kernel(kernel_data, options)
+        grad_z = (weights @ export_grad_scalar)[:-105]
+
+        print(grad_z)
+        print(f"\n Grad z: {grad_z.reshape(resolution)}")
+        #np.testing.assert_array_almost_equal(grad_z, grad_z_sol, decimal=3)
+
+        if plot or True:
+            import matplotlib.pyplot as plt
+
+            extent = [interpolation_input.grid.regular_grid.extent[0],
+                      interpolation_input.grid.regular_grid.extent[1],
+                      interpolation_input.grid.regular_grid.extent[4],
+                      interpolation_input.grid.regular_grid.extent[5]]
+
+            # region Plot GxGz
+            plt.contourf(Z_x.reshape(resolution)[:, 5, :].T, N=40, cmap="autumn",
+                         extent= extent
+                         )
+
+            plt.scatter(sp_internal.rest_surface_points[:, 0], sp_internal.rest_surface_points[:, 2])
+
+            g_x = xyz_lvl0[:-105,0].reshape(resolution)
+            g_z = xyz_lvl0[:-105,2].reshape(resolution)
+
+            plt.quiver(g_x[:, 5, :], g_z[:, 5, :],
+                       grad_x.reshape(resolution)[:,5,:],
+                       grad_z.reshape(resolution)[:,5,:],
+                       pivot="tail",
+                       color='green', alpha=.6, )
+
+            plt.show()
+            # region Plot GxGz
+
+            # region Plot GyGz
+            extent = [interpolation_input.grid.regular_grid.extent[2],
+                      interpolation_input.grid.regular_grid.extent[3],
+                      interpolation_input.grid.regular_grid.extent[4],
+                      interpolation_input.grid.regular_grid.extent[5]]
+
+
+            plt.contourf(Z_x.reshape(resolution)[5, :, :].T, N=40, cmap="autumn",
+                         extent= extent
+                         )
+
+            plt.scatter(sp_internal.rest_surface_points[:, 1], sp_internal.rest_surface_points[:, 2])
+
+            g_y = xyz_lvl0[:-105,1].reshape(resolution)
+
+            plt.quiver(g_y[5, :, :], g_z[5, :, :],
+                       grad_y.reshape(resolution)[5, :, :],
+                       grad_z.reshape(resolution)[5, :, :],
+                       pivot="tail",
+                       color='green', alpha=.6, )
+
+            plt.show()
+            # endregion
+
+
