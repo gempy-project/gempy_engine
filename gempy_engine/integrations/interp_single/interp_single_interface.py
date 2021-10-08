@@ -27,8 +27,7 @@ def interpolate_single_field(interpolation_input: InterpolationInput,
                              ) -> InterpOutput:
     output = InterpOutput()
     output.grid = interpolation_input.grid
-    output.weights, output.exported_fields = interpolate_scalar_field(interpolation_input, options,
-                                                                      data_shape)
+    output.weights, output.exported_fields = interpolate_scalar_field(interpolation_input, options, data_shape)
 
     return output
 

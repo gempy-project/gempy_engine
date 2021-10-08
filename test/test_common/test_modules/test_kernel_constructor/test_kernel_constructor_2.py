@@ -30,14 +30,10 @@ cov_sol = np.array(
      ]
 )
 
-scalar_sol = [[-0.43369979, - 0.30058757, - 0.09845786, 0.17851481, - 0.38803627, - 0.27854967,
-               - 0.11301122, 0.11947617, - 0.34158771, - 0.26367544, - 0.16590076, 0.00206044,
-               - 0.31537991, - 0.26678353, - 0.2292369, - 0.15412643]]
+scalar_sol = np.array(
+    [-0.286616, -0.218132, -0.107467, 0.050246, -0.257588, -0.204464, -0.114943, 0.020915, -0.227138, -0.193918,
+     -0.147019, -0.046563, -0.206186, -0.189268, -0.176999, -0.136825])
 
-scalar_gempy_v2 = np.array(
-    [1.27362, 0.48549, -0.31263, -1.02861, 1.62540, 0.75887, -0.16392, -1.01610, 1.96172, 1.03840,
-     -0.03235, -1.04312, 2.21494, 1.27355, 0.12529, -1.06963
-     ])
 grid = np.array([
     [0.25010, 0.50010, 0.12510],
     [0.25010, 0.50010, 0.29177],
@@ -57,8 +53,9 @@ grid = np.array([
     [0.75010, 0.50010, 0.62510]
 ])
 
-
 plot = False
+
+
 class TestCompareWithGempy_v2:
     @pytest.fixture(scope="class")
     def internals(self, simple_model):
@@ -105,6 +102,9 @@ class TestCompareWithGempy_v2:
 
     def test_export_to_scalar(self, internals, weights):
         sp_internals, ori_internals, options = internals
+
+        options.uni_degree = 0
+
         # Test sigma 0 sp
         kernel_data = evaluation_vectors_preparations(grid, SolverInput(sp_internals, ori_internals, options))
         export_sp_contr = _test_covariance_items(kernel_data, options, item="sigma_0_sp")
@@ -123,18 +123,21 @@ class TestCompareWithGempy_v2:
         scalar_ff = weights @ export_scalar_ff
         print(f"\n Scalar field: {scalar_ff.reshape(4, 1, 4)}")
 
-        np.testing.assert_allclose(np.asarray(scalar_ff), scalar_gempy_v2, rtol=1)
-
-        if plot:
+        if plot or True:
             import matplotlib.pyplot as plt
 
-            plt.contourf(scalar_ff.reshape(4, 1, 4)[:, 0, :].T, N=40, cmap="autumn")
+            plt.contourf(scalar_ff.reshape(4, 1, 4)[:, 0, :].T, N=40, cmap="autumn",
+                         extent=[0.25, 0.75, .12510, .62510])
+            plt.scatter(sp_internals.rest_surface_points[:, 0], sp_internals.rest_surface_points[:, 2])
+
             plt.show()
+
+        np.testing.assert_allclose(np.asarray(scalar_ff), scalar_sol, rtol=1)
 
     def test_export_to_grad(self, internals, weights):
         # Test gradient x
-        np_grad_x = np.gradient(scalar_gempy_v2.reshape((4, 1, 4)), axis=0)
-        np_grad_y = np.gradient(scalar_gempy_v2.reshape((4, 1, 4)), axis=2)
+        np_grad_x = np.gradient(scalar_sol.reshape((4, 1, 4)), axis=0)
+        np_grad_y = np.gradient(scalar_sol.reshape((4, 1, 4)), axis=2)
 
         grad_x_sol = np.array(
             [0.154, 0.08, 0.012, -0.048, 0.178, 0.064, -0.138, -0.307, 0.153, 0.052, -0.225, -0.521, 0.049, -0.066,
@@ -162,16 +165,21 @@ class TestCompareWithGempy_v2:
         print(grad_z)
         print(f"\n Grad z: {grad_z.reshape(4, 1, 4)}")
         np.testing.assert_array_almost_equal(grad_z, grad_z_sol, decimal=3)
-        if plot:
+        if plot or True:
             import matplotlib.pyplot as plt
 
-            plt.contourf(scalar_gempy_v2.reshape((4, 1, 4))[:, 0, :].T, N=40, cmap="autumn")
-            plt.quiver(np_grad_x[:, 0, :], np_grad_y[:, 0, :],
+            plt.contourf(scalar_sol.reshape((4, 1, 4))[:, 0, :].T, N=40, cmap="autumn",
+                         extent=[0.25, 0.75, .12510, .62510]
+                         )
+            plt.quiver(grid[:, 0], grid[:,2], np_grad_x[:, 0, :], np_grad_y[:, 0, :],
                        pivot="tail",
-                       color='blue', alpha=.6)
+                       color='blue', alpha=.6,   )
 
-            plt.quiver(grad_x.reshape(4, 4), grad_z.reshape(4, 4),
+            plt.scatter(sp_internals.rest_surface_points[:, 0], sp_internals.rest_surface_points[:, 2])
+
+
+            plt.quiver(grid[:, 0], grid[:,2], grad_x.reshape(4, 4), grad_z.reshape(4, 4),
                        pivot="tail",
-                       color='green', alpha=.6)
+                       color='green', alpha=.6,  )
 
             plt.show()

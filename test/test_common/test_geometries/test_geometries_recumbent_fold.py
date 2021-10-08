@@ -1,0 +1,268 @@
+import numpy as np
+from matplotlib import pyplot as plt
+
+from gempy_engine.core.data.exported_structs import InterpOutput
+from gempy_engine.core.data.internal_structs import SolverInput
+from gempy_engine.integrations.interp_single._interp_single_internals import _input_preprocess, _solve_interpolation
+from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_single_field
+from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items
+from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation, \
+    evaluation_vectors_preparations
+from test.helper_functions import plot_2d_scalar_y_direction
+from test.test_common.test_geometries.test_geometries import plot
+
+from test.test_common.test_geometries.solutions import recumbent_weights, recumbent_weights_d1
+
+
+class TestRecumbentFoldCovConstructionWithDrift:
+
+    def test_recumbent_fold_scaled_grad(self, recumbent_fold_scaled):
+        """ From old gempy
+         [[666.67522329, 289.80267087,   0.        ,   0.        ,   0. ,   0.        ],
+         [289.80267087, 666.67522329,   0.        ,   0.        ,   0. ,   0.        ],
+         [  0.        ,   0.        , 666.67522329, 289.80267087,   0. ,   0.        ],
+         [  0.        ,   0.        , 289.80267087, 666.67522329,   0. ,   0.        ],
+         [  0.        ,   0.        ,   0.        ,   0.        , 666.67522329,  -34.26541266],
+         [  0.        ,   0.        ,   0.        ,   0.        , -34.26541266,  666.67522329],]
+        """
+        interpolation_input, options, structure = recumbent_fold_scaled
+
+        # Within series
+        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
+                                                                interpolation_input.grid,
+                                                                interpolation_input.orientations,
+                                                                interpolation_input.surface_points)
+        solver_input = SolverInput(sp_internal, ori_internal, options)
+
+        kernel_data = cov_vectors_preparation(solver_input)
+        cov = _test_covariance_items(kernel_data, options, "cov_grad")
+
+        print(options.c_o * cov[:6, :6])
+        sol = np.array(
+            [[666.67522329, 289.80267087, 0., 0., 0., 0.],
+             [289.80267087, 666.67522329, 0., 0., 0., 0.],
+             [0., 0., 666.67522329, 289.80267087, 0., 0.],
+             [0., 0., 289.80267087, 666.67522329, 0., 0.],
+             [0., 0., 0., 0., 666.67522329, -34.26541266],
+             [0., 0., 0., 0., -34.26541266, 666.67522329]]
+        )
+        np.testing.assert_allclose((options.c_o * cov)[:6, :6], sol, rtol=.01)
+
+    # def test_recumbent_fold_scaled_ci(self, recumbent_fold_scaled):
+    #     """ From old GemPy
+    #
+    #     """
+    #     interpolation_input, options, structure = recumbent_fold_scaled
+    #
+    #     # Within series
+    #     xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
+    #                                                             interpolation_input.grid,
+    #                                                             interpolation_input.orientations,
+    #                                                             interpolation_input.surface_points)
+    #     solver_input = SolverInput(sp_internal, ori_internal, options)
+    #
+    #     kernel_data = cov_vectors_preparation(solver_input)
+    #     cov = _test_covariance_items(kernel_data, options, "cov_sp")
+    #
+    #     val = options.i_res * options.c_o * cov
+    #     print(val)
+    #
+    #     sol = np.array(
+    #
+    #     )
+    #
+    #     np.testing.assert_allclose(val[:6, 6:-9], sol, rtol=.03)
+
+    def test_recumbent_fold_scaled_rest_ref(self, recumbent_fold_scaled):
+        interpolation_input, options, structure = recumbent_fold_scaled
+
+        # Within series
+        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
+                                                                interpolation_input.grid,
+                                                                interpolation_input.orientations,
+                                                                interpolation_input.surface_points)
+
+        from test.test_common.test_geometries.solutions import recumbent_ref, recumbent_rest, recumbent_dips
+        np.testing.assert_allclose(sp_internal.ref_surface_points, recumbent_ref, rtol=1e-7)
+        np.testing.assert_allclose(sp_internal.rest_surface_points, recumbent_rest, rtol=1e-7)
+        np.testing.assert_allclose(ori_internal.dip_positions_tiled, recumbent_dips, rtol=1e-7)
+
+    def test_recumbent_fold_scaled_cig(self, recumbent_fold_scaled):
+        """ Old gempy
+
+        Gempy Engine
+        [-1.295e+02, -1.210e+02,  3.881e+01,  3.395e+01,  0.000e+00, -2.144e+01],
+        [-2.590e+02, -2.421e+02,  0.000e+00,  0.000e+00,  0.000e+00,  0.000e+00],
+        [ 3.965e-14,  0.000e+00, -1.968e+02, -1.840e+02,  0.000e+00,  0.000e+00],
+        [-1.295e+02, -1.210e+02, -2.357e+02, -2.179e+02,  0.000e+00, -2.144e+01],
+        [-2.590e+02, -2.421e+02, -1.968e+02, -1.840e+02,  0.000e+00,  0.000e+00],
+        [-1.210e+02, -1.295e+02,  3.395e+01,  3.881e+01,  2.144e+01,  0.000e+00],
+        [-2.421e+02, -2.590e+02,  0.000e+00,  0.000e+00,  0.000e+00,  0.000e+00],
+        [ 0.000e+00,  3.965e-14, -1.840e+02, -1.968e+02,  0.000e+00,  0.000e+00],
+        [-1.210e+02, -1.295e+02, -2.179e+02, -2.357e+02,  2.144e+01,  0.000e+00],
+        [-2.421e+02, -2.590e+02, -1.840e+02, -1.968e+02,  0.000e+00,  0.000e+00],
+
+        """
+
+        interpolation_input, options, structure = recumbent_fold_scaled
+
+        # Within series
+        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
+                                                                interpolation_input.grid,
+                                                                interpolation_input.orientations,
+                                                                interpolation_input.surface_points)
+        solver_input = SolverInput(sp_internal, ori_internal, options)
+
+        kernel_data = cov_vectors_preparation(solver_input)
+        cov = _test_covariance_items(kernel_data, options, "cov_grad_sp")
+        #   print(cov)
+        val = options.c_o * cov
+
+        print(val[6:-9, :6])
+
+        from test.test_common.test_geometries.solutions import recumbent_cgi
+        print(val[6:-9, :6] - recumbent_cgi)
+
+        np.testing.assert_allclose(val[6:-9, :6], recumbent_cgi, atol=.000001)
+
+    def test_recumbent_fold_scaled_weights(self, recumbent_fold_scaled):
+        """
+
+        """
+        interpolation_input, options, structure = recumbent_fold_scaled
+
+        # Within series
+        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
+                                                                interpolation_input.grid,
+                                                                interpolation_input.orientations,
+                                                                interpolation_input.surface_points)
+
+        solver_input = SolverInput(sp_internal, ori_internal, options)
+        kernel_data = cov_vectors_preparation(solver_input)
+
+        cov = _test_covariance_items(kernel_data, options, "cov")
+        print(cov)
+
+        weights = _solve_interpolation(solver_input)
+
+        print(weights)
+
+
+        weights_sol = recumbent_weights
+
+        print(weights - weights_sol)
+        np.testing.assert_allclose(weights, weights_sol, atol=1e-4)
+
+
+    # @pytest.mark.skip(reason="Trigger only manually since it is too slow")
+    def test_recumbent_fold_scaled(self, recumbent_fold_scaled):
+        """
+        Old gempy:
+        Z_x:
+        [1.3106523  1.34144988 1.37089355 ... 0.93999536, 0.90814532,   0.87492965  ]
+
+        """
+
+        interpolation_input, options, structure = recumbent_fold_scaled
+
+        output: InterpOutput = interpolate_single_field(interpolation_input, options, structure)
+
+        Z_x = output.exported_fields.scalar_field
+        print(Z_x)
+
+        np.testing.assert_allclose(Z_x[:3], np.array([1.3106523,  1.34144988, 1.37089355]), rtol=.02)
+        np.testing.assert_allclose(Z_x[-3:], np.array([0.93999536, 0.90814532,  0.87492965 ]), rtol=.02)
+
+        if plot:
+            plot_2d_scalar_y_direction(interpolation_input, Z_x)
+            plt.show()
+
+    def test_recumbent_fold_universal_degree_2(self, recumbent_fold_scaled):
+        """
+            U_G __str__ =
+            [[1. ,   0.   ,  0.  ,   1.7004, 0.    , 0.    , 1.0002, 1.2802, 0.    ],
+             [1. ,   0.   ,  0.  ,   1.7004, 0.    , 0.    , 1.0002, 0.7202, 0.    ],
+             [0. ,   1.   ,  0.  ,   0.    , 2.0004, 0.    , 0.8502, 0.    , 1.2802],
+             [0. ,   1.   ,  0.  ,   0.    , 2.0004, 0.    , 0.8502, 0.    , 0.7202],
+             [0. ,   0.   ,  1.  ,   0.    , 0.    , 2.5604, 0.    , 0.8502, 1.0002],
+             [0. ,   0.   ,  1.  ,   0.    , 0.    , 1.4404, 0.    , 0.8502, 1.0002],]
+        """
+        interpolation_input, options, structure = recumbent_fold_scaled
+
+        options.uni_degree = 2
+
+        # Within series
+        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
+                                                                interpolation_input.grid,
+                                                                interpolation_input.orientations,
+                                                                interpolation_input.surface_points)
+
+        solver_input = SolverInput(sp_internal, ori_internal, options)
+        kernel_data = cov_vectors_preparation(solver_input)
+        kernel = _test_covariance_items(kernel_data, options, "drift_ug")
+        print(kernel)
+
+        kernel_ug = np.array(
+            [[1., 0., 0., 1.7004, 0., 0., 1.0002, 1.2802, 0.],
+             [1., 0., 0., 1.7004, 0., 0., 1.0002, 0.7202, 0.],
+             [0., 1., 0., 0., 2.0004, 0., 0.8502, 0., 1.2802],
+             [0., 1., 0., 0., 2.0004, 0., 0.8502, 0., 0.7202],
+             [0., 0., 1., 0., 0., 2.5604, 0., 0.8502, 1.0002],
+             [0., 0., 1., 0., 0., 1.4404, 0., 0.8502, 1.0002], ]
+        )
+
+        np.testing.assert_allclose(kernel[:6, -9:], kernel_ug, atol=.02)
+
+        kernel_sp = _test_covariance_items(kernel_data, options, "drift_usp")
+
+        print(kernel_sp[6:-9, -9:])
+        from test.test_common.test_geometries.solutions import recumbent_ui
+        np.testing.assert_allclose(kernel_sp[6:-9, -9:], recumbent_ui, atol=.02)
+
+    def test_recumbent_fold_universal_degree_2_scalar_kernel(self, recumbent_fold_scaled):
+        """
+        universal_kernel __str__ =
+         [[0.6602     0.6602     0.6602     ... 0.9802     0.9802     0.9802    ]
+         [0.5102     0.5102     0.5102     ... 1.4502     1.4502     1.4502    ]
+         [0.5102     0.5302     0.5502     ... 0.8902     0.9102     0.9302    ]
+         ...
+         [0.33683404 0.33683404 0.33683404 ... 1.42148604 1.42148604 1.42148604]
+         [0.33683404 0.35003804 0.36324204 ... 0.87257404 0.89217804 0.91178204]
+         [0.26030404 0.27050804 0.28071204 ... 1.29096804 1.31997204 1.34897604]]
+
+
+        Universal terms contribution __str__ = [1.34620525 1.37810425 1.40867413 ... 1.64379458 1.65044021 1.65575671]
+
+        First 10 terms degree 2:
+        array([[1.34620525, 1.37810425, 1.40867413, 1.43791488, 1.4658265 ,
+                1.49240901, 1.51766238, 1.54158663, 1.56418176, 1.58544776]])
+
+        First 10 terms degree 1
+        array([[-0.11850139, -0.11850139, -0.11850139, -0.11850139, -0.11850139,
+        -0.11850139, -0.11850139, -0.11850139, -0.11850139, -0.11850139]])
+
+        """
+        interpolation_input, options, structure = recumbent_fold_scaled
+
+        options.uni_degree = 2
+
+        # Within series
+        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
+                                                                interpolation_input.grid,
+                                                                interpolation_input.orientations,
+                                                                interpolation_input.surface_points)
+
+        solver_input = SolverInput(sp_internal, ori_internal, options)
+        kernel_data = evaluation_vectors_preparations(xyz_lvl0, solver_input)
+        kernel = _test_covariance_items(kernel_data, options, "sigma_0_u_sp")
+
+
+
+        print(kernel[-9:])
+
+        if options.uni_degree == 1:
+            contribution = (recumbent_weights_d1[-3:].reshape(-1, 1) * kernel[-3:]).sum(axis=0)
+        elif options.uni_degree == 2:
+            contribution = (recumbent_weights[-9:].reshape(-1, 1) * kernel[-9:]).sum(axis=0)
+
+        print(contribution)

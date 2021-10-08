@@ -88,7 +88,7 @@ def plot_2d_scalar_y_direction(interpolation_input: InterpolationInput, Z_x):
     #      scale=1
     #  )
 
-    plt.savefig("foo")
+    #plt.savefig("foo")
     plt.show()
 
 

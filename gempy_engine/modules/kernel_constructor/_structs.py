@@ -117,8 +117,10 @@ class CartesianSelector:
 @dataclass
 class DriftMatrixSelector:
     sel_ui: tensor_types = np.empty((0, 1, 3))
-    sel_uj: tensor_types = np.empty((1, 0, 3))
-    sel_vi: tensor_types = np.empty((0, 1, 3))
+
+    # TODO: Check these are unused
+    #sel_uj: tensor_types = np.empty((1, 0, 3))
+    #sel_vi: tensor_types = np.empty((0, 1, 3))
     sel_vj: tensor_types = np.empty((1, 0, 3))
 
     def __init__(self, x_size: int, y_size: int, n_drift_eq: int):
@@ -127,13 +129,15 @@ class DriftMatrixSelector:
 
         sel_i[:-n_drift_eq, 0] = 1
         sel_i[-n_drift_eq:, 1] = 1
-        sel_j[-n_drift_eq:, :] = 1
+
+        sel_j[:-n_drift_eq, 0] = -1
+        sel_j[-n_drift_eq:, 1] = -1
 
         self.sel_ui = sel_i[:, None, :]
-        self.sel_uj = sel_j[None, :, :]
+     #   self.sel_uj = sel_j[None, :, :]
 
-        self.sel_vi = -sel_j[:, None, :]
-        self.sel_vj = -sel_i[None, :, :]
+     #   self.sel_vi = -sel_j[:, None, :]
+        self.sel_vj = sel_j[None, :, :]
 
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)

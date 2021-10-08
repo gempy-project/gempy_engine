@@ -20,7 +20,8 @@ from test.fixtures.simple_models import\
 
 from test.fixtures.simple_geometries import\
     horizontal_stratigraphic,\
-    horizontal_stratigraphic_scaled
+    horizontal_stratigraphic_scaled, \
+    recumbent_fold_scaled
 
 from test.fixtures.grids import \
     simple_grid_2d,\
