@@ -20,19 +20,19 @@ def activate_formation_block(exported_fields: ExportedFields,
 
     Z_x: np.ndarray = exported_fields.scalar_field
     scalar_value_at_sp: np.ndarray = exported_fields.scalar_field_at_surface_points
-    drift_0_v = bt.tfnp.concatenate([np.array([0]), scalar_value_at_sp])
-    drift_1_v = bt.tfnp.concatenate([scalar_value_at_sp, np.array([0])])
+    drift_0_v = bt.tfnp.concat([np.array([0], dtype=float), scalar_value_at_sp[0]], axis = 0)
+    drift_1_v = bt.tfnp.concat([scalar_value_at_sp[0], np.array([0], dtype=float)], axis = 0)
 
     scalar_0_v = ids.copy()
     scalar_0_v[0] = 0
     scalar_1_v = ids.copy()
     scalar_1_v[-1] = 0
 
-    ids_iter = bt.tfnp.repeat(ids, 2, axis=0)
+    ids_iter = np.repeat(ids, 2, axis=0)
     ids_iter[0] = 0
     ids_iter[-1] = 0
 
-    sigm = np.zeros((1, Z_x.shape[0]))
+    sigm = np.zeros((1, Z_x.shape[1]))
     for i in range(ids.size):
         sigm += _compute_sigmoid(Z_x, scalar_0_v[i], scalar_1_v[i], drift_0_v[i], drift_1_v[i], ids[i], sigmoid_slope)
     if False: _add_relu() # TODO: Add this

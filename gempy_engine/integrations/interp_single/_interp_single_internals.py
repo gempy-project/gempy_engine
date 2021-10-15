@@ -3,6 +3,7 @@ from typing import Tuple
 import numpy as np
 
 from ...core import data
+from ...core.backend_tensor import BackendTensor
 from ...core.data.exported_structs import InterpOutput, ExportedFields
 from ...core.data.internal_structs import SolverInput
 from ...core.data.interpolation_input import InterpolationInput
@@ -10,6 +11,9 @@ from ...modules.activator import activator_interface
 from ...modules.data_preprocess import data_preprocess_interface
 from ...modules.kernel_constructor import kernel_constructor_interface as kernel_constructor
 from ...modules.solver import solver_interface
+
+tfnp = BackendTensor.tfnp
+
 
 
 class Buffer:
@@ -79,7 +83,8 @@ def _solve_interpolation(interp_input: SolverInput):
     b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
     # TODO: Smooth should be taken from options
     weights = solver_interface.kernel_reduction(A_matrix, b_vector, smooth=0.01)
-    return weights
+
+    return tfnp.reshape(weights, (1, -1))
 
 
 def _input_preprocess(data_shape, grid, orientations, surface_points) -> \

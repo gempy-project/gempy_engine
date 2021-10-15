@@ -95,13 +95,13 @@ def create_scalar_kernel(ki: KernelInput, options: InterpolationOptions) -> tens
     sigma_0_grad_sp = options.gi_res * (dm.hu_ref * k_p_ref) #dm.huv_ref * k_p_ref # this are the right terms
 
     # U_sp
-    usp_ref = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
+    usp_ref = tfnp.sum(ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj, axis=-1)#.sum(axis=-1)
 
-    usp_ref_d2b = (ki.ref_drift.dipsPoints_ui_bi1 * ki.ref_drift.dipsPoints_ui_bj1).sum(axis=-1)
-    usp_ref_d2c = (ki.ref_drift.dipsPoints_ui_bi2 * ki.ref_drift.dipsPoints_ui_bj2).sum(axis=-1)
+    usp_ref_d2b = tfnp.sum(ki.ref_drift.dipsPoints_ui_bi1 * ki.ref_drift.dipsPoints_ui_bj1, axis=-1)#.sum(axis=-1)
+    usp_ref_d2c = tfnp.sum(ki.ref_drift.dipsPoints_ui_bi2 * ki.ref_drift.dipsPoints_ui_bj2, axis=-1)#.sum(axis=-1)
     usp_ref_d2 = usp_ref_d2b * usp_ref_d2c
 
-    selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+    selector = tfnp.sum(ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1), axis=-1)#.sum(-1)
 
     drift = selector * (options.gi_res * usp_ref + options.i_res * usp_ref_d2)
 
@@ -132,15 +132,15 @@ def create_grad_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor
     # region drift
 
     # First term
-    ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
+    ug = tfnp.sum(ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj, axis=-1)#.sum(axis=-1)
     # Second term
-    ug2 = (ki.ori_drift.dips_ug_bi * ki.ori_drift.dips_ug_bj).sum(axis=-1)
+    ug2 = tfnp.sum(ki.ori_drift.dips_ug_bi * ki.ori_drift.dips_ug_bj, axis=-1)#.sum(axis=-1)
     # Third term
-    ug3_aux = (ki.ori_drift.dips_ug_ci * ki.ori_drift.dips_ug_cj).sum(axis=-1)
-    third_term_selector =  (ki.ori_drift.selector_ci * ki.ori_drift.dips_ug_aj).sum(axis=-1)
+    ug3_aux = tfnp.sum(ki.ori_drift.dips_ug_ci * ki.ori_drift.dips_ug_cj, axis=-1)#.sum(axis=-1)
+    third_term_selector =  tfnp.sum(ki.ori_drift.selector_ci * ki.ori_drift.dips_ug_aj, axis=-1)#.sum(axis=-1)
     ug3 = ug3_aux * third_term_selector
 
-    selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+    selector = tfnp.sum(ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1), axis=-1)#.sum(-1)
     total_ug = selector * (ug + options.gi_res * ug2 + options.gi_res * ug3)
 
     # endregion
@@ -165,18 +165,18 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatr
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j
 
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j
-    hu = (dif_ref_ref * (cs.hu_sel_i * cs.hu_sel_j)).sum(axis=-1)  # C
-    hv = -(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j)).sum(axis=-1)  # C
+    hu = tfnp.sum(dif_ref_ref * (cs.hu_sel_i * cs.hu_sel_j), axis=-1)#.sum(axis=-1)  # C
+    hv = -tfnp.sum(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j), axis=-1)#.sum(axis=-1)  # C
 
     hu_ref = dif_ref_ref * (cs.hu_sel_i * cs.h_sel_ref_j)
     hv_ref = dif_ref_ref * (cs.h_sel_ref_i * cs.hv_sel_j)
-    huv_ref =  hu_ref.sum(axis=-1) - hv_ref.sum(axis=-1)  # C
+    huv_ref =  tfnp.sum(hu_ref, axis=-1) - tfnp.sum(hv_ref, axis=-1)#hu_ref.sum(axis=-1) - hv_ref.sum(axis=-1)  # C
 
     hu_rest = dif_rest_rest * (cs.hu_sel_i * cs.h_sel_rest_j)
     hv_rest = dif_rest_rest * (cs.h_sel_rest_i * cs.hv_sel_j)
-    huv_rest = hu_rest.sum(axis=-1) - hv_rest.sum(axis=-1)  # C
+    huv_rest = tfnp.sum(hu_rest, axis=-1) - tfnp.sum(hv_rest, axis=-1)#hu_rest.sum(axis=-1) - hv_rest.sum(axis=-1)  # C
 
-    perp_matrix = (cs.hu_sel_i * cs.hv_sel_j).sum(axis=-1)
+    perp_matrix =  tfnp.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1)#.sum(axis=-1)
     if BackendTensor.pykeops_enabled is True:
 
         r_ref_ref = dif_ref_ref.sqdist(dif_ref_ref)
@@ -185,10 +185,10 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatr
         r_rest_ref = ori_sp_matrices.diprest_j.sqdist(ori_sp_matrices.dip_ref_j)
 
     else:
-        r_ref_ref = (dif_ref_ref ** 2).sum(-1)
-        r_rest_rest = (dif_rest_rest ** 2).sum(-1)
-        r_ref_rest = ((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2).sum(-1)
-        r_rest_ref = ((ori_sp_matrices.diprest_i - ori_sp_matrices.dip_ref_j) ** 2).sum(-1)
+        r_ref_ref =  tfnp.sum(dif_ref_ref ** 2, axis=-1)#.sum(-1)
+        r_rest_rest =  tfnp.sum(dif_rest_rest ** 2, axis=-1)#.sum(-1)
+        r_ref_rest =  tfnp.sum((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2, axis=-1)#.sum(-1)
+        r_rest_ref =  tfnp.sum((ori_sp_matrices.diprest_i - ori_sp_matrices.dip_ref_j) ** 2, axis=-1)#.sum(-1)
 
         if euclidean_distances:
             r_ref_ref = tfnp.sqrt(r_ref_ref)
@@ -201,8 +201,8 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatr
         hu, hv, huv_ref, huv_rest,
         perp_matrix,
         r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest,
-        hu_ref.sum(axis=-1),
-        hu_rest.sum(axis=-1)
+        tfnp.sum(hu_ref, axis=-1),#.sum(axis=-1),
+        tfnp.sum(hu_rest, axis=-1)#hu_rest.sum(axis=-1)
     )
 
 

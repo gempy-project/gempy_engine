@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from matplotlib import pyplot as plt
 
 from gempy_engine.core.data.exported_structs import InterpOutput
@@ -154,7 +155,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         np.testing.assert_allclose(weights, weights_sol, atol=1e-4)
 
 
-    # @pytest.mark.skip(reason="Trigger only manually since it is too slow")
+    @pytest.mark.skip(reason="Trigger only manually since it is too slow")
     def test_recumbent_fold_scaled(self, recumbent_fold_scaled):
         """
         Old gempy:

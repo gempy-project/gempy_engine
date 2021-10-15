@@ -112,7 +112,7 @@ def generate_dual_contouring_vertices(gradients, n_edges, valid_edges, xyz_on_ed
     edges_xyz = np.zeros((n_edges, 15, 3))
     edges_normals = np.zeros((n_edges, 15, 3))
     edges_xyz[:, :12][valid_edges] = xyz_on_edge
-    edges_normals[:, :12][valid_edges] = gradients
+    edges_normals[:, :12][valid_edges] = gradients[:, 0, :]
     BIAS_STRENGTH = 10
     bias_xyz = np.copy(edges_xyz[:, :12])
     # np zero values to nans

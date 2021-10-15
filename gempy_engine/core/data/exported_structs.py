@@ -17,26 +17,26 @@ class ExportedFields:
 
     @property
     def scalar_field_at_surface_points(self):
-        return self._scalar_field[-self.n_surface_points:][self.npf]
+        return self._scalar_field[-self.n_surface_points:][:, self.npf]
 
     @property
     def scalar_field(self):
         if self.n_surface_points is None:
             return self._scalar_field
 
-        return self._scalar_field[:-self.n_surface_points]
+        return self._scalar_field[:, :-self.n_surface_points]
 
     @property
     def gx_field(self):
-        return self._gx_field[:-self.n_surface_points]
+        return self._gx_field[:,:-self.n_surface_points]
 
     @property
     def gy_field(self):
-        return self._gy_field[:-self.n_surface_points]
+        return self._gy_field[:,:-self.n_surface_points]
 
     @property
     def gz_field(self):
-        return self._gz_field[:-self.n_surface_points]
+        return self._gz_field[:,:-self.n_surface_points]
 
     @property
     def npf(self):
