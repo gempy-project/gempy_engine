@@ -1,6 +1,7 @@
 from typing import Tuple
 
 import numpy as np
+import tensorflow
 
 from ...core import data
 from ...core.backend_tensor import BackendTensor

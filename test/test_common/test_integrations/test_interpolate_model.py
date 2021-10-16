@@ -80,6 +80,8 @@ class TestInterpolateModelNumpy:
 
 class TestInterpolateModelTFEager:
     def test_interpolate_model(self, simple_model_interpolation_input, n_oct_levels=3):
+        BackendTensor.change_backend(AvailableBackends.tensorflow, use_gpu=False)
+
         interpolation_input, options, structure = simple_model_interpolation_input
         print(interpolation_input)
 
@@ -147,6 +149,9 @@ class TestInterpolateModelTFEager:
 
 class TestInterpolateModelTFXLA:
     def test_interpolate_model_no_octtree_func(self, simple_model_3_layers_high_res, n_oct_levels = 1):
+
+        tensorflow.config.run_functions_eagerly(False)
+
         BackendTensor.change_backend(AvailableBackends.tensorflow, use_gpu=False)
 
         interpolation_input, options, structure = simple_model_3_layers_high_res

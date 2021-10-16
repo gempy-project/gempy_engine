@@ -20,8 +20,8 @@ def activate_formation_block(exported_fields: ExportedFields,
 
     Z_x: np.ndarray = exported_fields.scalar_field
     scalar_value_at_sp: np.ndarray = exported_fields.scalar_field_at_surface_points
-    drift_0_v = bt.tfnp.concat([np.array([0], dtype=float), scalar_value_at_sp[0]], axis = 0)
-    drift_1_v = bt.tfnp.concat([scalar_value_at_sp[0], np.array([0], dtype=float)], axis = 0)
+    drift_0_v = bt.tfnp.concat([np.array([0], dtype=float), scalar_value_at_sp], axis = 0)
+    drift_1_v = bt.tfnp.concat([scalar_value_at_sp, np.array([0], dtype=float)], axis = 0)
 
     scalar_0_v = ids.copy()
     scalar_0_v[0] = 0

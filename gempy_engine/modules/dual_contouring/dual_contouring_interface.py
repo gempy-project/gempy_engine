@@ -1,15 +1,18 @@
 from ...core.data.exported_structs import DualContouringData
+from gempy_engine.core.backend_tensor import BackendTensor
+
 import numpy as np
+tfnp = BackendTensor.tensor_backend_pointer["active_backend"]
 
 
 def find_intersection_on_edge(_xyz_8: np.ndarray, scalar_field: np.ndarray,
                               scalar_at_sp: np.ndarray) -> DualContouringData:
     # I have to do the topology analysis anyway because is the last octree
     scalar_8_ = scalar_field
-    scalar_8 = scalar_8_.reshape((1, -1, 8))
-    scalar_at_sp = scalar_at_sp.reshape((-1, 1, 1))
+    scalar_8 = tfnp.reshape(scalar_8_, (1,-1,8))#.reshape((1, -1, 8))
+    scalar_at_sp = tfnp.reshape(scalar_at_sp, (-1, 1, 1)) #reshape((-1, 1, 1))
 
-    xyz_8 = _xyz_8.reshape((-1, 8, 3))
+    xyz_8 = tfnp.reshape(_xyz_8, (-1, 8, 3)) #_xyz_8.reshape((-1, 8, 3))
     n_isosurface = scalar_at_sp.shape[0]
     xyz_8 = np.tile(xyz_8, (n_isosurface, 1, 1)) # TODO: Generalize
 
@@ -24,9 +27,9 @@ def find_intersection_on_edge(_xyz_8: np.ndarray, scalar_field: np.ndarray,
     """
 
     # Compute the weights
-    weight_x = ((scalar_at_sp - scalar_8[:, :, 4:]) / scalar_dx).reshape(-1, 4, 1)
-    weight_y = ((scalar_at_sp -  scalar_8[:, :, [2, 3, 6, 7]]) / scalar_d_y).reshape(-1, 4, 1)
-    weight_z = ((scalar_at_sp - scalar_8[:, :, 1::2]) / scalar_d_z).reshape(-1, 4, 1)
+    weight_x = tfnp.reshape((scalar_at_sp - scalar_8[:, :, 4:]) / scalar_dx, (-1, 4, 1)) #.reshape(-1, 4, 1)
+    weight_y = tfnp.reshape((scalar_at_sp -  scalar_8[:, :, [2, 3, 6, 7]]) / scalar_d_y, (-1, 4, 1))#.reshape(-1, 4, 1)
+    weight_z = tfnp.reshape((scalar_at_sp - scalar_8[:, :, 1::2]) / scalar_d_z, (-1, 4, 1))#.reshape(-1, 4, 1)
     
     # Calculate eucledian distance between the corners
     d_x = xyz_8[:, :4]           - xyz_8[:, 4:]

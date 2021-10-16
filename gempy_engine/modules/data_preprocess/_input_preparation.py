@@ -46,6 +46,8 @@ def _compute_rest_ref_in_numpy(nugget_effect, number_of_points_per_surface, sp):
     one_hot_ = get_one_hot(ref_positions,
                            b.tfnp.reduce_sum(number_of_points_per_surface))
     partitions = b.tfnp.reduce_sum(one_hot_, axis=0)
+
+
     partitions_bool = partitions.astype(bool)
     ref_points = sp[partitions_bool]
     rest_points = sp[~partitions_bool]
@@ -55,6 +57,21 @@ def _compute_rest_ref_in_numpy(nugget_effect, number_of_points_per_surface, sp):
 
 
 def _compute_rest_ref_in_tf(nugget_effect, number_of_points_per_surface, sp):
+    """
+    NOTE (Miguel): dynamic partition or where lose the shape of the tensor
+        and therefore does not work for tf.function
+
+        This is an example with where:
+
+    ref_index =  b.tfnp.where(partitions)[:, 0]
+    rest_index =  b.tfnp.where(partitions - 1)[:, 0]
+
+    ref_points = b.tfnp.gather(sp, ref_index)
+    rest_points = b.tfnp.gather(sp, rest_index)
+    ref_nugget = b.tfnp.gather(nugget_effect, ref_index)
+    rest_nugget = b.tfnp.gather(nugget_effect, rest_index)
+    """
+
     # reference point: every first point of each layer
     ref_positions = b.tfnp.cumsum(
         b.tfnp.concat([np.array([0], dtype="int32"), number_of_points_per_surface[:-1]], axis=0))

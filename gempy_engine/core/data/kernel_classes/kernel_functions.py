@@ -60,6 +60,8 @@ class KernelFunction:
     derivative_div_r: Callable
     second_derivative: Callable
 
+    def __hash__(self):
+        return hash(self.__repr__())
 
 class AvailableKernelFunctions(Enum):
     cubic = KernelFunction(cubic_function, cubic_function_p_div_r, cubic_function_a)

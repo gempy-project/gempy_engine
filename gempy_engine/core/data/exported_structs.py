@@ -3,6 +3,9 @@ from typing import List
 
 import numpy as np
 
+
+from gempy_engine.config import AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.grid import Grid
 
 
@@ -17,6 +20,11 @@ class ExportedFields:
 
     @property
     def scalar_field_at_surface_points(self):
+        if BackendTensor.engine_backend == AvailableBackends.tensorflow:
+            import tensorflow as tf
+            a = tf.gather(self._scalar_field[0, -self.n_surface_points:], self.npf)
+            return a
+
         return self._scalar_field[:, -self.n_surface_points:][:, self.npf]
 
     @property
