@@ -17,7 +17,7 @@ class ExportedFields:
 
     @property
     def scalar_field_at_surface_points(self):
-        return self._scalar_field[-self.n_surface_points:][:, self.npf]
+        return self._scalar_field[:, -self.n_surface_points:][:, self.npf]
 
     @property
     def scalar_field(self):

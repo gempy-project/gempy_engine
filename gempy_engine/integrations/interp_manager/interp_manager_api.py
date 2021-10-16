@@ -1,5 +1,6 @@
 import copy
 from typing import List
+import tensorflow as tf
 
 from ..dual_contouring.dual_contouring import compute_dual_contouring, get_intersection_on_edges
 from ..interp_single.interp_single_interface import compute_n_octree_levels, interpolate_single_field
@@ -9,7 +10,7 @@ from ...core.data.exported_structs import OctreeLevel, InterpOutput, DualContour
 from ...core.data.grid import Grid
 from ...core.data.interpolation_input import InterpolationInput
 
-
+#@tf.function
 def interpolate_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                       data_shape: TensorsStructure) -> Solutions:
 

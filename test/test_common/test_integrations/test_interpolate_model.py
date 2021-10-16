@@ -23,7 +23,7 @@ class TestInterpolateModelNumpy:
         options.number_octree_levels = n_oct_levels
         solutions = interpolate_model(interpolation_input, options ,structure)
 
-        if plot_pyvista or True:
+        if plot_pyvista or False:
            # pv.global_theme.show_edges = True
             p = pv.Plotter()
             plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
@@ -39,7 +39,7 @@ class TestInterpolateModelNumpy:
         options.number_octree_levels = n_oct_levels
         solutions = interpolate_model(interpolation_input, options ,structure)
 
-        if plot_pyvista or True:
+        if plot_pyvista or False:
            # pv.global_theme.show_edges = True
             p = pv.Plotter()
             plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
@@ -69,7 +69,6 @@ class TestInterpolateModelNumpy:
 
 
 class TestInterpolateModelTF:
-    BackendTensor.change_backend(AvailableBackends.tensorflow, use_gpu=False)
     def test_interpolate_model(self, simple_model_interpolation_input, n_oct_levels=3):
         interpolation_input, options, structure = simple_model_interpolation_input
         print(interpolation_input)
@@ -93,7 +92,39 @@ class TestInterpolateModelTF:
         options.number_octree_levels = n_oct_levels
         solutions = interpolate_model(interpolation_input, options ,structure)
 
-        if plot_pyvista or True:
+        if plot_pyvista or False:
+           # pv.global_theme.show_edges = True
+            p = pv.Plotter()
+            plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
+            plot_dc_meshes(p, solutions.dc_meshes[0])
+            p.show()
+
+    def test_interpolate_model_no_octtree_func(self, simple_model_3_layers_high_res, n_oct_levels = 1):
+        BackendTensor.change_backend(AvailableBackends.tensorflow, use_gpu=False)
+
+        interpolation_input, options, structure = simple_model_3_layers_high_res
+        print(interpolation_input)
+
+        options.number_octree_levels = n_oct_levels
+        solutions = interpolate_model(interpolation_input, options ,structure)
+
+        if plot_pyvista or False:
+           # pv.global_theme.show_edges = True
+            p = pv.Plotter()
+            plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
+            plot_dc_meshes(p, solutions.dc_meshes[0])
+            p.show()
+
+    def test_interpolate_model_no_octtree_gpu(self, simple_model_3_layers_high_res, n_oct_levels = 1):
+        BackendTensor.change_backend(AvailableBackends.tensorflow, use_gpu=True)
+
+        interpolation_input, options, structure = simple_model_3_layers_high_res
+        print(interpolation_input)
+
+        options.number_octree_levels = n_oct_levels
+        solutions = interpolate_model(interpolation_input, options ,structure)
+
+        if plot_pyvista or False:
            # pv.global_theme.show_edges = True
             p = pv.Plotter()
             plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
