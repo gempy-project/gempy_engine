@@ -1,3 +1,5 @@
+import tensorflow
+
 from ...core.backend_tensor import BackendTensor, AvailableBackends
 from ...core.data.internal_structs import SolverInput
 from ...core.data.options import InterpolationOptions

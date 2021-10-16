@@ -71,3 +71,6 @@ class OrientationsInternals:
     @property
     def n_orientations(self):
         return int(self.dip_positions_tiled.shape[0]/self.dip_positions_tiled.shape[1])
+
+    def __hash__(self):
+        return hash(self.__repr__())

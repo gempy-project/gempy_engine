@@ -8,8 +8,7 @@ def _cast_type_inplace(struct_data_instance):
         if key == "dtype": continue
         struct_data_instance.__dict__[key] = val.astype(struct_data_instance.dtype)
 
-# TODO: This class should be spat into other classes: e.g. grid, dtype -> options, features
-@dataclass
+@dataclass()
 class TensorsStructure:
     number_of_points_per_surface: np.ndarray # TODO This needs to start with 0 and possibly ignore the last item
     dtype: Type = np.int32
@@ -23,7 +22,7 @@ class TensorsStructure:
             [np.array([0]), self.number_of_points_per_surface.cumsum()])[:-1]
 
     def __hash__(self):
-        return hash(656) # TODO: Make a proper hash
+        return hash(self.__repr__())
 
     @property
     def nspv(self):

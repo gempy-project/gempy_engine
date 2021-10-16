@@ -75,7 +75,7 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     normals = np.zeros((n_edges, 15, 3))
 
     xyz[:, :12][valid_edges] = xyz_on_edge
-    normals[:, :12][valid_edges] = gradients
+    normals[:, :12][valid_edges] = gradients[:, 0, :]
 
     BIAS_STRENGTH = 0.1
 
@@ -125,7 +125,7 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
         i_1 = indices[i + 1]
 
         a = xyz_on_edge[i_0:i_1]
-        b = gradients[i_0:i_1]
+        b = gradients[i_0:i_1, 0]
 
         mass_point = np.mean(a, axis=0)
         BIAS_STRENGTH = 0.1
@@ -256,7 +256,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     normals = np.zeros((n_edges, 15, 3))
 
     xyz[:, :12][valid_edges] = xyz_on_edge
-    normals[:, :12][valid_edges] = gradients
+    normals[:, :12][valid_edges] = gradients[:, 0, :]
 
     BIAS_STRENGTH = 0.1
 

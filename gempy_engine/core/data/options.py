@@ -27,3 +27,6 @@ class InterpolationOptions:
             raise AttributeError('uni_degree must be 0,1 or 2')
 
         return n
+
+    def __hash__(self):
+        return hash(self.__repr__())

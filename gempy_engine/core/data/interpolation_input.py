@@ -12,3 +12,6 @@ class InterpolationInput:
     orientations: Orientations
     grid: Grid
     unit_values: np.ndarray
+
+    def __hash__(self):
+        return hash(self.__repr__())

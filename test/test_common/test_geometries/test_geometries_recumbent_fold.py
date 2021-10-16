@@ -152,7 +152,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         weights_sol = recumbent_weights
 
         print(weights - weights_sol)
-        np.testing.assert_allclose(weights, weights_sol, atol=1e-4)
+        np.testing.assert_allclose(weights[0], weights_sol, atol=1e-4)
 
 
     @pytest.mark.skip(reason="Trigger only manually since it is too slow")
@@ -266,7 +266,6 @@ class TestRecumbentFoldCovConstructionWithDrift:
         elif options.uni_degree == 2:
             contribution = (recumbent_weights[-9:].reshape(-1, 1) * kernel[-9:]).sum(axis=0)
 
-        print(contribution)
 
     def test_recumbent_fold_universal_degree_2_gradient(self, recumbent_fold_scaled):
         interpolation_input, options, structure = recumbent_fold_scaled
@@ -304,7 +303,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
                                                       axis=0)
 
         export_grad_scalar = create_grad_kernel(kernel_data, options)
-        grad_x = (weights @ export_grad_scalar)[:-105]
+        grad_x = (weights @ export_grad_scalar)[0, :-105]
 
         print(f"\n Grad x: {grad_x.reshape(resolution)}")
         #np.testing.assert_array_almost_equal(grad_x, grad_x_sol, decimal=3)
@@ -312,7 +311,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         # Gradient Y
         kernel_data = evaluation_vectors_preparations(xyz_lvl0, SolverInput(sp_internal, ori_internal, options), axis=1)
         export_grad_scalar = create_grad_kernel(kernel_data, options)
-        grad_y = (weights @ export_grad_scalar)[:-105]
+        grad_y = (weights @ export_grad_scalar)[0, :-105]
 
         print(grad_y)
         print(f"\n Grad y: {grad_y.reshape(resolution)}")
@@ -321,7 +320,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         # Gradient Z
         kernel_data = evaluation_vectors_preparations(xyz_lvl0, SolverInput(sp_internal, ori_internal, options), axis=2)
         export_grad_scalar = create_grad_kernel(kernel_data, options)
-        grad_z = (weights @ export_grad_scalar)[:-105]
+        grad_z = (weights @ export_grad_scalar)[0, :-105]
 
         print(grad_z)
         print(f"\n Grad z: {grad_z.reshape(resolution)}")

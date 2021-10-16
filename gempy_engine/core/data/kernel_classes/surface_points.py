@@ -16,7 +16,7 @@ class SurfacePoints:
             self.nugget_effect_scalar = np.ones(self.n_points) * self.nugget_effect_scalar
 
     def __hash__(self):
-        return hash(5) # TODO: These should be self.__repr__ instead of 5
+        return hash(self.__repr__()) # TODO: These should be self.__repr__ instead of 5
 
     @property
     def n_points(self):
@@ -32,3 +32,6 @@ class SurfacePointsInternals:
     @property
     def n_points(self):
         return self.ref_surface_points.shape[0]
+
+    def __hash__(self):
+        return hash(self.__repr__())
