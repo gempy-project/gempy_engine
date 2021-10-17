@@ -50,23 +50,25 @@ class BackendTensor():
                 cls.tensor_types = Union[tfnp.ndarray]  # tensor Types with respect the backend:
 
             elif engine_backend is AvailableBackends.tensorflow and is_tensorflow_installed:
-                import tensorflow as tf
-                physical_devices = tf.config.list_physical_devices('GPU')
+                import tensorflow as tfnp
+                tfnp.sum = tfnp.reduce_sum
+
+                physical_devices = tfnp.config.list_physical_devices('GPU')
                 if cls.use_gpu is False:
 
-                    tf.config.set_visible_devices(physical_devices[1:], 'GPU')
+                    tfnp.config.set_visible_devices(physical_devices[1:], 'GPU')
                 else:
-                    tf.config.experimental.set_memory_growth(physical_devices[0], True)
+                    tfnp.config.experimental.set_memory_growth(physical_devices[0], True)
 
                 if DEBUG_MODE:
                     # To find out which devices your operations and tensors are assigned to
-                    tf.debugging.set_log_device_placement(True)
+                    tfnp.debugging.set_log_device_placement(True)
 
-                cls._set_active_backend_pointers(engine_backend, tf)
-                cls.tensor_types = Union[tf.Tensor, tf.Variable]  # tensor Types with respect the backend:
+                cls._set_active_backend_pointers(engine_backend, tfnp)
+                cls.tensor_types = Union[tfnp.Tensor, tfnp.Variable]  # tensor Types with respect the backend:
 
                 import logging
-                tf.get_logger().setLevel(logging.ERROR)
+                tfnp.get_logger().setLevel(logging.ERROR)
                 logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
             elif engine_backend is AvailableBackends.numpy and is_numpy_installed:

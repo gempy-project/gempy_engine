@@ -3,6 +3,7 @@ from typing import Tuple
 
 import numpy as np
 
+from gempy_engine.config import DEFAULT_DTYPE
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 tensor_types = BackendTensor.tensor_types
@@ -34,6 +35,8 @@ class OrientationSurfacePointsCoords:
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
 
+    def __hash__(self):
+        return hash(self.__repr__())
 
 @dataclass
 class OrientationsDrift:
@@ -64,6 +67,8 @@ class OrientationsDrift:
 
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
+    def __hash__(self):
+        return hash(self.__repr__())
 
 @dataclass
 class PointsDrift:
@@ -84,6 +89,10 @@ class PointsDrift:
         self.dipsPoints_ui_bj2 = y_degree_2b[None, :, :]
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
+
+    def __hash__(self):
+        return hash(self.__repr__())
+
 
 @dataclass
 class CartesianSelector:
@@ -114,6 +123,10 @@ class CartesianSelector:
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
 
+    def __hash__(self):
+        return hash(self.__repr__())
+
+
 @dataclass
 class DriftMatrixSelector:
     sel_ui: tensor_types = np.empty((0, 1, 3))
@@ -124,8 +137,8 @@ class DriftMatrixSelector:
     sel_vj: tensor_types = np.empty((1, 0, 3))
 
     def __init__(self, x_size: int, y_size: int, n_drift_eq: int):
-        sel_i = np.zeros((x_size, 2))
-        sel_j = np.zeros((y_size, 2))
+        sel_i = np.zeros((x_size, 2), dtype=DEFAULT_DTYPE)
+        sel_j = np.zeros((y_size, 2), dtype=DEFAULT_DTYPE)
 
         sel_i[:-n_drift_eq, 0] = 1
         sel_i[-n_drift_eq:, 1] = 1
@@ -142,6 +155,10 @@ class DriftMatrixSelector:
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
 
+    def __hash__(self):
+        return hash(self.__repr__())
+
+
 @dataclass
 class KernelInput:
     # Used for CG, CI and CGI
@@ -153,3 +170,6 @@ class KernelInput:
     ref_drift: PointsDrift
     rest_drift: PointsDrift
     drift_matrix_selector: DriftMatrixSelector
+
+    def __hash__(self):
+        return hash(self.__repr__())

@@ -1,16 +1,15 @@
-from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 import tensorflow as tf
 import numpy as np
 
-from ..fixtures.simple_models import simple_model_2
+
 
 def test_xla_surface_points_preprocessing(simple_model_2):
     surface_points = simple_model_2[0]
     tensors_structure = simple_model_2[3]
-    BackendTensor.change_backend(AvailableBackends.tensorflow, use_gpu=False)
+    #BackendTensor.change_backend(AvailableBackends.tensorflow, use_gpu=False)
     from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess
 
-    @tf.function(experimental_compile=True)
+    @tf.function(experimental_compile=False)
     def tf_f(surface_points, tensors_structure):
         # tf.print(tensors_structure)
         # tf.print(tensors_structure.number_of_points_per_surface)

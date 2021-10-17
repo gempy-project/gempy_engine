@@ -1,3 +1,4 @@
+from ...config import AvailableBackends
 from ...core.data.exported_structs import DualContouringData
 from gempy_engine.core.backend_tensor import BackendTensor
 
@@ -18,7 +19,13 @@ def find_intersection_on_edge(_xyz_8: np.ndarray, scalar_field: np.ndarray,
 
     # Compute distance of scalar field on the corners
     scalar_dx = scalar_8[:, :, :4] - scalar_8[:, :, 4:]
-    scalar_d_y = scalar_8[:, :, [0, 1, 4, 5]] - scalar_8[:, :, [2, 3, 6, 7]]
+    if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+        scalar_d_y_l = tfnp.gather(scalar_8, [0, 1, 4, 5], axis=2)
+        scalar_d_y_r = tfnp.gather(scalar_8, [2, 3, 6, 7], axis=2)
+        scalar_d_y = scalar_d_y_l - scalar_d_y_r
+    else:
+        scalar_d_y = scalar_8[:, :, [0, 1, 4, 5]] - scalar_8[:, :, [2, 3, 6, 7]]
+
     scalar_d_z = scalar_8[:,:, ::2] - scalar_8[:, :, 1::2]
 
     """
@@ -28,7 +35,11 @@ def find_intersection_on_edge(_xyz_8: np.ndarray, scalar_field: np.ndarray,
 
     # Compute the weights
     weight_x = tfnp.reshape((scalar_at_sp - scalar_8[:, :, 4:]) / scalar_dx, (-1, 4, 1)) #.reshape(-1, 4, 1)
-    weight_y = tfnp.reshape((scalar_at_sp -  scalar_8[:, :, [2, 3, 6, 7]]) / scalar_d_y, (-1, 4, 1))#.reshape(-1, 4, 1)
+    if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+        weight_y = tfnp.reshape((scalar_at_sp - scalar_d_y_r) / scalar_d_y, (-1, 4, 1))  # .reshape(-1, 4, 1)
+    else:
+        weight_y = tfnp.reshape((scalar_at_sp - scalar_8[:, :, [2, 3, 6, 7]]) / scalar_d_y,
+                                (-1, 4, 1))  # .reshape(-1, 4, 1)
     weight_z = tfnp.reshape((scalar_at_sp - scalar_8[:, :, 1::2]) / scalar_d_z, (-1, 4, 1))#.reshape(-1, 4, 1)
     
     # Calculate eucledian distance between the corners

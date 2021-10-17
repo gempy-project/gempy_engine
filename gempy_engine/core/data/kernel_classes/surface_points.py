@@ -28,10 +28,14 @@ class SurfacePointsInternals:
     ref_surface_points: tensor_types
     rest_surface_points: tensor_types
     nugget_effect_ref_rest: tensor_types
+    n_surface_points: tensor_types = None
 
     @property
     def n_points(self):
-        return self.ref_surface_points.shape[0]
+        if self.n_surface_points is None:
+            return self.ref_surface_points.shape[0]
+        else:
+            return self.n_surface_points
 
     def __hash__(self):
         return hash(self.__repr__())

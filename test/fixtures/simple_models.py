@@ -2,6 +2,9 @@ import copy
 import dataclasses
 
 import numpy as np
+
+from gempy_engine.config import DEFAULT_DTYPE
+
 np.set_printoptions(precision=3, linewidth=200)
 
 import pytest
@@ -98,15 +101,15 @@ def simple_model_2():
                           [3, 0],
                           [3, 3],
                           [0, 2],
-                          [2, 2]])
+                          [2, 2]], dtype=DEFAULT_DTYPE)
 
     nugget_effect_scalar = 0
     spi = SurfacePoints(sp_coords, nugget_effect_scalar)
 
     dip_positions = np.array([[0, 6],
-                              [2, 13]])
+                              [2, 13]], dtype=DEFAULT_DTYPE)
 
-    dip_gradients = np.array([[0, 1], [0, .8]])
+    dip_gradients = np.array([[0, 1], [0, .8]], dtype=DEFAULT_DTYPE)
 
     nugget_effect_grad = 0.0000001
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
@@ -137,7 +140,7 @@ def simple_model():
     dip_positions = np.array([
         [0.25010, 0.50010, 0.54177],
         [0.66677, 0.50010, 0.62510],
-    ])
+    ], dtype=DEFAULT_DTYPE)
     sp = np.array([
         [0.25010, 0.50010, 0.37510],
         [0.50010, 0.50010, 0.37510],
@@ -146,13 +149,13 @@ def simple_model():
         [0.75010, 0.50010, 0.54177],
         [0.58343, 0.50010, 0.39177],
         [0.73343, 0.50010, 0.50010],
-    ])
+    ], dtype=DEFAULT_DTYPE)
 
     nugget_effect_scalar = 0
     spi = SurfacePoints(sp, nugget_effect_scalar)
 
     dip_gradients = np.array([[0, 0, 1],
-                              [-.6, 0, .8]])
+                              [-.6, 0, .8]], dtype=DEFAULT_DTYPE)
     nugget_effect_grad = 0
 
     range_ = 4.166666666667
@@ -174,7 +177,7 @@ def simple_model_interpolation_input(simple_grid_3d_octree):
     dip_positions = np.array([
         [0.25010, 0.50010, 0.54177],
         [0.66677, 0.50010, 0.62510],
-    ])
+    ], dtype=DEFAULT_DTYPE)
     sp = np.array([
         [0.25010, 0.50010, 0.37510],
         [0.50010, 0.50010, 0.37510],
@@ -183,13 +186,13 @@ def simple_model_interpolation_input(simple_grid_3d_octree):
         [0.75010, 0.50010, 0.54177],
         [0.58343, 0.50010, 0.39177],
         [0.73343, 0.50010, 0.50010],
-    ])
+    ], dtype=DEFAULT_DTYPE)
 
     nugget_effect_scalar = 0
     spi = SurfacePoints(sp, nugget_effect_scalar)
 
     dip_gradients = np.array([[0, 0, 1],
-                              [-.6, 0, .8]])
+                              [-.6, 0, .8]], dtype=DEFAULT_DTYPE)
     nugget_effect_grad = 0
 
     range_ = 4.166666666667
@@ -219,7 +222,7 @@ def simple_model_3_layers(simple_grid_3d_octree):
     dip_positions = np.array([
         [0.28010, 0.50010, 0.54177],
         [0.66677, 0.50010, 0.62510],
-    ])
+    ], dtype=DEFAULT_DTYPE)
     sp = np.array([
         [0.25010, 0.50010, 0.37510],
         [0.50010, 0.50010, 0.37510],
@@ -233,13 +236,13 @@ def simple_model_3_layers(simple_grid_3d_octree):
         [0.25010, 0.50010, 0.6510],
         [0.50010, 0.50010, 0.6510],
 
-    ])
+    ], dtype=DEFAULT_DTYPE)
 
     nugget_effect_scalar = 0
     spi = SurfacePoints(sp, nugget_effect_scalar)
 
     dip_gradients = np.array([[0, 0, 1],
-                              [-.6, 0, .8]])
+                              [-.6, 0, .8]], dtype=DEFAULT_DTYPE)
     nugget_effect_grad = 0
 
     range_ = 4.166666666667
@@ -261,6 +264,7 @@ def simple_model_3_layers(simple_grid_3d_octree):
 
 @pytest.fixture(scope="session")
 def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid):
+    
     grid_0_centers = dataclasses.replace(simple_grid_3d_more_points_grid)
 
     np.set_printoptions(precision=3, linewidth=200)
@@ -268,7 +272,7 @@ def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid):
     dip_positions = np.array([
         [0.28010, 0.50010, 0.54177],
         [0.66677, 0.50010, 0.62510],
-    ])
+    ], dtype=DEFAULT_DTYPE)
     sp = np.array([
         [0.25010, 0.50010, 0.37510],
         [0.50010, 0.50010, 0.37510],
@@ -281,14 +285,14 @@ def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid):
         [0.5010, 0.50010, 0.47510],
         [0.25010, 0.50010, 0.6510],
         [0.50010, 0.50010, 0.6510],
-
-    ])
+    ],
+    dtype=DEFAULT_DTYPE)
 
     nugget_effect_scalar = 0
     spi = SurfacePoints(sp, nugget_effect_scalar)
 
     dip_gradients = np.array([[0, 0, 1],
-                              [-.6, 0, .8]])
+                              [-.6, 0, .8]], dtype=DEFAULT_DTYPE)
     nugget_effect_grad = 0
 
     range_ = 4.166666666667

@@ -1,14 +1,46 @@
 from typing import List
 
+from gempy_engine.config import AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_structs import OctreeLevel
 import numpy as np
 
 from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.modules.octrees_topology._octree_common import _generate_next_level_centers
 
+tfnp = BackendTensor.tfnp
+tensor_types = BackendTensor.tensor_types
 
 def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=False, debug=False) -> Grid:
     def _mark_voxel(uv_8):
+        """
+        TF attempt:
+
+        shift_x = uv_8[:, :4] - uv_8[:, 4:]
+        if BackendTensor.engine_backend is AvailableBackends.tensorflow or False:
+            shift_y_l = tfnp.gather(uv_8, [0, 1, 4, 5], axis=1)
+            shift_y_r = tfnp.gather(uv_8, [0, 1, 4, 5], axis=1)
+            shift_y = shift_y_l - shift_y_r
+
+        else:
+            shift_y = uv_8[:, [0, 1, 4, 5]] - uv_8[:, [2, 3, 6, 7]]
+        shift_z = uv_8[:, ::2] - uv_8[:, 1::2]
+
+        shift_x_select = tfnp.not_equal(shift_x, 0)
+        shift_y_select = tfnp.not_equal(shift_y, 0)
+        shift_z_select = tfnp.not_equal(shift_z, 0)
+        shift_select_xyz = tfnp.concat([shift_x_select, shift_y_select, shift_z_select], axis=0)#np.array([shift_x_select, shift_y_select, shift_z_select])
+
+        shift_select_x_int = tfnp.cast(shift_x_select, tfnp.int32)
+        shift_select_y_int = tfnp.cast(shift_y_select, tfnp.int32)
+        shift_select_z_int = tfnp.cast(shift_z_select, tfnp.int32)
+
+        voxel_select_aux = tfnp.sum(shift_select_x_int + shift_select_y_int + shift_select_z_int, axis=1)#.sum(axis=1)
+        voxel_select = tfnp.cast(voxel_select_aux, tfnp.bool)
+
+
+        """
+
         shift_x = uv_8[:, :4] - uv_8[:, 4:]
         shift_y = uv_8[:, [0, 1, 4, 5]] - uv_8[:, [2, 3, 6, 7]]
         shift_z = uv_8[:, ::2] - uv_8[:, 1::2]
@@ -24,7 +56,7 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
     dxdydz = prev_octree.dxdydz
     ids = prev_octree.output_corners.ids_block
 
-    uv_8 = ids.reshape((-1, 8))
+    uv_8 = np.reshape(ids, (-1, 8))#.reshape((-1, 8))
 
     # Old octree
     shift_select_xyz, voxel_select = _mark_voxel(uv_8)

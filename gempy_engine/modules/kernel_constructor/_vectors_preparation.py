@@ -1,6 +1,5 @@
-import tensorflow
-
-from ...core.backend_tensor import BackendTensor, AvailableBackends
+from ...config import AvailableBackends, DEFAULT_DTYPE
+from ...core.backend_tensor import BackendTensor
 from ...core.data.internal_structs import SolverInput
 from ...core.data.options import InterpolationOptions
 from ...core.data.kernel_classes.surface_points import SurfacePointsInternals
@@ -10,7 +9,11 @@ from . import _kernel_constructors
 from ._kernel_selectors import dips_sp_cartesian_selector, grid_cartesian_selector
 from . import _structs
 
+import numpy as np
+
 tfnp = BackendTensor.tfnp
+tensor_types = BackendTensor.tensor_types
+
 
 
 def cov_vectors_preparation(interp_input: SolverInput) -> _structs.KernelInput:
@@ -33,7 +36,7 @@ def cov_vectors_preparation(interp_input: SolverInput) -> _structs.KernelInput:
     return _structs.KernelInput(*kernel_input_args)
 
 
-def evaluation_vectors_preparations(grid: tfnp.array, interp_input: SolverInput, axis=None) -> _structs.KernelInput:
+def evaluation_vectors_preparations(grid: tensor_types, interp_input: SolverInput, axis=None) -> _structs.KernelInput:
 
     sp_: SurfacePointsInternals = interp_input.sp_internal
     ori_: OrientationsInternals = interp_input.ori_internal
@@ -131,10 +134,13 @@ def _assembly_drift_grid_tensors(grid, options, ori_, sp_, axis):
     dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector = _kernel_constructors.assembly_dips_ug_coords(
         ori_, sp_.n_points, options)
 
-    grid_1 = tfnp.zeros_like(grid)
+    grid_length = grid.shape[0]
+
+    grid_1 = np.zeros((grid_length, options.number_dimensions), dtype=DEFAULT_DTYPE)
+
     grid_1[:, axis] = 1
 
-    sel = tfnp.ones(options.number_dimensions)
+    sel = np.ones(options.number_dimensions, dtype=DEFAULT_DTYPE)
     sel[axis] = 0
 
     dips_ug = _structs.OrientationsDrift(dips_ug_d1, grid_1,
@@ -155,7 +161,3 @@ def _assembly_drift_grid_tensors(grid, options, ori_, sp_, axis):
     return dips_ref_ui, dips_rest_ui, dips_ug
 
 
-def _new_kernel_input(kernel_input_args) -> _structs.KernelInput:
-
-    ki = _structs.KernelInput(*kernel_input_args)
-    return ki

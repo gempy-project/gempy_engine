@@ -3,10 +3,12 @@ from typing import List
 
 import numpy as np
 
-
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.grid import Grid
+
+tfnp = BackendTensor.tfnp
+tensor_types = BackendTensor.tensor_types
 
 
 @dataclass(init=True)
@@ -18,6 +20,9 @@ class ExportedFields:
     n_points_per_surface: np.ndarray = None
     n_surface_points: int = None
 
+    def __hash__(self):
+        return hash(self.__repr__())
+
     @property
     def scalar_field_at_surface_points(self):
         if BackendTensor.engine_backend == AvailableBackends.tensorflow:
@@ -25,7 +30,7 @@ class ExportedFields:
             a = tf.gather(self._scalar_field[0, -self.n_surface_points:], self.npf)
             return a
 
-        return self._scalar_field[:, -self.n_surface_points:][:, self.npf]
+        return self._scalar_field[0, -self.n_surface_points:][self.npf]
 
     @property
     def scalar_field(self):
@@ -63,10 +68,13 @@ class InterpOutput:
 
     exported_fields: ExportedFields
     values_block: np.ndarray  # final values ignoring unconformities
-    final_block: np.ndarray  # Masked array containing only the active voxels
+    final_block: np.ndarray = None # Masked array containing only the active voxels
 
     # Remember this is only for regular grid
-    octrees: List[np.ndarray]  # TODO: This probably should be one level higher
+    octrees: List[np.ndarray] = None # TODO: This probably should be one level higher
+
+    def __hash__(self):
+        return hash(self.__repr__())
 
     @property
     def exported_fields_regular_grid(self):
@@ -84,11 +92,19 @@ class InterpOutput:
 
     @property
     def ids_block_regular_grid(self):
-        return np.rint(self.values_block[0, :self.grid.len_grids[0]].reshape(self.grid.regular_grid_shape))
+        if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+            aux = tfnp.cast(self.values_block[0, :self.grid.len_grids[0]], tfnp.int32)
+            return tfnp.reshape(aux, self.grid.regular_grid_shape)
+        else:
+            return np.rint(self.values_block[0, :self.grid.len_grids[0]].reshape(self.grid.regular_grid_shape))
 
     @property
     def ids_block(self) -> np.ndarray:
-        return np.rint(self.values_block[0, :self.grid.len_grids[0]])
+        if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+            return tfnp.cast(self.values_block[0, :self.grid.len_grids[0]], tfnp.int32)
+        else:
+            return np.rint(self.values_block[0, :self.grid.len_grids[0]])
+
 
     @property
     def scalar_field_at_sp(self):

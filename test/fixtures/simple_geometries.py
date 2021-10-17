@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 import os
 
+from gempy_engine.config import DEFAULT_DTYPE
 from gempy_engine.core.data import TensorsStructure, InterpolationOptions, SurfacePoints, \
     Orientations
 from gempy_engine.core.data.grid import RegularGrid, Grid
@@ -20,12 +21,12 @@ def horizontal_stratigraphic():
     orientations = pd.read_csv(data_path+"model1_orientations.csv")
     sp = pd.read_csv(data_path+"model1_surface_points.csv")
 
-    sp_coords = sp[["X", "Y", "Z"]].values
-    dip_postions = orientations[["X", "Y", "Z"]].values
+    sp_coords = sp[["X", "Y", "Z"]].values.astype(DEFAULT_DTYPE)
+    dip_postions = orientations[["X", "Y", "Z"]].values.astype(DEFAULT_DTYPE)
     dip_gradients_ = calculate_gradient(orientations["dip"],
                                        orientations["azimuth"],
                                        orientations[ "polarity"])
-    dip_gradients = np.vstack(dip_gradients_).T
+    dip_gradients = np.vstack(dip_gradients_).T.astype(DEFAULT_DTYPE)
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([6, 6]))
 
     range_ = 1732
@@ -51,12 +52,12 @@ def horizontal_stratigraphic_scaled():
     orientations = pd.read_csv(data_path+"model1_orientations_scaled.csv")
     sp = pd.read_csv(data_path+"model1_surface_points_scaled.csv")
 
-    sp_coords = sp[["X", "Y", "Z"]].values
-    dip_postions = orientations[["X", "Y", "Z"]].values
+    sp_coords = sp[["X", "Y", "Z"]].values.astype(DEFAULT_DTYPE)
+    dip_postions = orientations[["X", "Y", "Z"]].values.astype(DEFAULT_DTYPE)
     dip_gradients_ = calculate_gradient(orientations["dip"],
                                        orientations["azimuth"],
                                        orientations[ "polarity"])
-    dip_gradients = np.vstack(dip_gradients_).T
+    dip_gradients = np.vstack(dip_gradients_).T.astype(DEFAULT_DTYPE)
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([6, 6]))
 
     range_ = 1.083
@@ -64,8 +65,6 @@ def horizontal_stratigraphic_scaled():
     i_r = 4
     gi_r = 2
 
-    # options = InterpolationOptions(range_, range_ ** 2 / 14 / 3, 0, i_res=1, gi_res=1,
-    #                            number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
 
     options = InterpolationOptions(range_, c_o, 0, i_res=i_r, gi_res=gi_r,
                                    number_dimensions=3,
@@ -77,7 +76,7 @@ def horizontal_stratigraphic_scaled():
     regular_grid = RegularGrid(extent, resolution)
 
 
-    g = np.load(data_path+"model1_scaled.npy")
+    g = np.load(data_path+"model1_scaled.npy").astype(DEFAULT_DTYPE)
     grid = Grid(g, regular_grid=regular_grid)
 
     spi = SurfacePoints(sp_coords)
@@ -93,12 +92,12 @@ def recumbent_fold_scaled():
     orientations = pd.read_csv(data_path+"model3_orientations_scaled.csv")
     sp = pd.read_csv(data_path+"model3_surface_points_scaled-2.csv")
 
-    sp_coords = sp[["X", "Y", "Z"]].values
-    dip_postions = orientations[["X", "Y", "Z"]].values
+    sp_coords = sp[["X", "Y", "Z"]].values.astype(DEFAULT_DTYPE)
+    dip_postions = orientations[["X", "Y", "Z"]].values.astype(DEFAULT_DTYPE)
     dip_gradients_ = calculate_gradient(orientations["dip"],
                                        orientations["azimuth"],
                                        orientations[ "polarity"])
-    dip_gradients = np.vstack(dip_gradients_).T
+    dip_gradients = np.vstack(dip_gradients_).T.astype(DEFAULT_DTYPE)
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([55, 50]))
 
     range_ = 0.8660254

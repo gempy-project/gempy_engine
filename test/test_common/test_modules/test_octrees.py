@@ -1,5 +1,7 @@
 import numpy as np
 
+from gempy_engine.config import DEFAULT_DTYPE
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_structs import OctreeLevel
 from gempy_engine.core.data.grid import Grid
 from gempy_engine.core.data.internal_structs import SolverInput
@@ -17,6 +19,9 @@ import os
 from ...conftest import plot_pyvista
 
 dir_name = os.path.dirname(__file__)
+tfnp = BackendTensor.tfnp
+tensor_types = BackendTensor.tensor_types
+
 
 try:
     # noinspection PyUnresolvedReferences
@@ -166,8 +171,7 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
     regular_grid_scalar = get_regular_grid_for_level(octree_list, n).astype("int8")
 
     # np.save(dir_name + "/solutions/test_octree_leaf", np.round(regular_grid_scalar))
-    ids_sol = np.load(dir_name + "/solutions/test_octree_leaf.npy")
-    np.testing.assert_almost_equal(np.round(regular_grid_scalar.ravel()), ids_sol, decimal=3)
+
     # ===========
     if plot_pyvista or False:
         # Compute actual mesh
@@ -197,6 +201,10 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
         p.add_mesh(foo, show_edges=False, opacity=.5, cmap="tab10")
         p.add_axes()
         p.show()
+
+    if DEFAULT_DTYPE == "float64":
+        ids_sol = np.load(dir_name + "/solutions/test_octree_leaf.npy")
+        np.testing.assert_almost_equal(np.round(regular_grid_scalar.ravel()), ids_sol, decimal=3)
 
 
 def test_octree_lvl_collapse(simple_model, simple_grid_3d_octree):
@@ -262,7 +270,7 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
                                                                              weights)
     from skimage.measure import marching_cubes
     import pyvista as pv
-    vert, edges, _, _ = marching_cubes(scalar_high_res.scalar_field.reshape(resolution),
+    vert, edges, _, _ = marching_cubes(tfnp.reshape(scalar_high_res.scalar_field, (resolution)).numpy(),
                                        scalar_at_surface_points[0],
                                        spacing=dxdydz)
 

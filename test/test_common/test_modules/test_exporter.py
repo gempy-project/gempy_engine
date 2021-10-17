@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
+from gempy_engine.config import AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_structs import InterpOutput
 from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_single_field
 
@@ -31,13 +33,15 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
     # np.testing.assert_almost_equal(gx, gx_sol[:-7], decimal=3)
     # np.testing.assert_almost_equal(gy, gy_sol[:-7], decimal=3)
     # np.testing.assert_almost_equal(gz, gz_sol[:-7], decimal=3)
+    if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+        Z_x = Z_x.numpy()
+
 
     if plot:
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
         plt.colorbar()
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn",
-                     extent=(.25, .75, .25, .75)
-                     )
+                     extent=(.25, .75, .25, .75)                     )
 
         # plt.quiver(
         #     gx.reshape(50, 5, 50)[:, 2, :].T,
@@ -45,7 +49,6 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
         #     scale=10
         # )
 
-        plt.savefig("bar")
         plt.show()
 
 
@@ -72,6 +75,9 @@ def test_export_simple_model_low_res(simple_model_interpolation_input, plot = Tr
     #     np.round(ids_block),
     #     ids_sol[:, :-7], # NOTE(miguel) Now we only segment on the grid
     #     decimal=3)
+    if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+        Z_x = Z_x.numpy()
+
     if plot:
         plt.contourf(Z_x.reshape(2, 2, 3)[:, 0, :].T, N=40, cmap="autumn",
                      extent=(.25, .75, .25, .75)
@@ -95,7 +101,6 @@ def test_export_simple_model_low_res(simple_model_interpolation_input, plot = Tr
         #      scale=1
         #  )
 
-        plt.savefig("foo2")
         plt.show()
 
 
@@ -123,6 +128,9 @@ def test_export_3_layers(simple_model_3_layers_high_res, plot = True):
     #     np.round(ids_block),
     #     ids_sol[:, :-7], # NOTE(miguel) Now we only segment on the grid
     #     decimal=3)
+    if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+        Z_x = Z_x.numpy()
+
     if plot:
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn",
                      extent=(.25, .75, .25, .75)
@@ -146,8 +154,5 @@ def test_export_3_layers(simple_model_3_layers_high_res, plot = True):
         #      scale=1
         #  )
 
-        plt.savefig("foo")
         plt.show()
-
-
 

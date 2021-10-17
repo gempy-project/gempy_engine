@@ -66,10 +66,12 @@ class TestKernelConstructorNumpy:
         print(export_gradient_)
 
 
-pykeops_enabled = True
+pykeops_enabled = False
 
 
 # TODO: (bug) When running test_covariance_spline_kernel the running the class test breaks for some weird state change
+
+@pytest.mark.skipif(BackendTensor.engine_backend is AvailableBackends.tensorflow, reason="Only test against numpy")
 class TestPykeopsNumPyEqual():
     @pytest.fixture(scope="class")
     def preprocess_data(self, simple_model_2):

@@ -18,8 +18,7 @@ def yield_covariance(interp_input: SolverInput) -> tensor_types:
 def yield_b_vector(ori_internals: OrientationsInternals, cov_size: int) -> tensor_types:
     return b_vector_assembly(ori_internals, cov_size)
 
-
-def yield_evaluation_kernel(grid: tensor_types, interp_input: SolverInput):
+def yield_evaluation_kernel(grid: tensor_types, interp_input: SolverInput)->tensor_types:
 
     kernel_data = evaluation_vectors_preparations(grid, interp_input)
     return create_scalar_kernel(kernel_data, interp_input.options)

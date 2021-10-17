@@ -1,25 +1,29 @@
 from typing import Tuple
 
-import numpy as np
-
+from ...config import DEFAULT_DTYPE
+from ...core.backend_tensor import BackendTensor
 from ...core.data.options import InterpolationOptions
 from ...core.data.kernel_classes.orientations import OrientationsInternals
+import numpy as np
 
+tfnp = BackendTensor.tfnp
+tensor_types = BackendTensor.tensor_types
 
-def assembly_dips_points_tensor(dips_coord: np.ndarray, sp_coord: np.ndarray, options: InterpolationOptions):
-    z = np.zeros((options.n_uni_eq, options.number_dimensions))
-    dipspoints = np.vstack((dips_coord, sp_coord, z))
+def assembly_dips_points_tensor(dips_coord: tensor_types, sp_coord: tensor_types, options: InterpolationOptions):
+    z = tfnp.zeros((options.n_uni_eq, options.number_dimensions))
+
+    dipspoints = tfnp.concat((dips_coord, sp_coord, z), axis=0)
     return dipspoints
 
 
 def assembly_dips_ug_coords(ori_internals: OrientationsInternals, sp_size: int,
                             interpolation_options: InterpolationOptions) \
-        -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        -> Tuple[tensor_types, tensor_types,tensor_types,tensor_types]:
     n_ori = ori_internals.n_orientations
     n_dim = interpolation_options.number_dimensions
 
     full_cov_size = n_ori * n_dim + sp_size + interpolation_options.n_uni_eq
-    z = np.zeros((full_cov_size, interpolation_options.number_dimensions))
+    z = np.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=DEFAULT_DTYPE)
 
     # Assembly vector for degree 1
     if interpolation_options.uni_degree != 0:
@@ -36,7 +40,7 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, sp_size: int,
     dips_b_aux = ori_internals.dip_positions_tiled
 
     # TODO [X]: Now we have that vstack below. We have to create the proper array here
-    z2 = np.zeros((full_cov_size, interpolation_options.number_dimensions))
+    z2 = np.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=DEFAULT_DTYPE)
 
     shift = n_ori * n_dim +  sp_size
     if interpolation_options.uni_degree == 2:
@@ -53,8 +57,8 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, sp_size: int,
 
 
         # Third term:
-    z3 = np.zeros((full_cov_size, interpolation_options.number_dimensions))
-    uni_second_degree_selector = np.zeros_like(z3)
+    z3 = np.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=DEFAULT_DTYPE)
+    uni_second_degree_selector = np.zeros_like(z3, dtype=DEFAULT_DTYPE)
 
     if interpolation_options.uni_degree == 2:
         for i in range(interpolation_options.number_dimensions):
@@ -79,23 +83,24 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, sp_size: int,
     return dips_a, dips_b, dips_c, uni_second_degree_selector
 
 
-def assembly_dips_points_coords(surface_points: np.ndarray, ori_size: int,
+def assembly_dips_points_coords(surface_points: tensor_types, ori_size: int,
                                 interpolation_options: InterpolationOptions) \
-        -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        -> Tuple[tensor_types,tensor_types,tensor_types]:
     n_dim = interpolation_options.number_dimensions
 
-    z = np.zeros((ori_size, n_dim))
-    z2 = np.zeros((interpolation_options.n_uni_eq, n_dim))
+    z = np.zeros((ori_size, n_dim), dtype=DEFAULT_DTYPE)
+    z2 = np.zeros((interpolation_options.n_uni_eq, n_dim), dtype=DEFAULT_DTYPE)
 
-    zb = z2.copy()
-    zc = z2.copy()
+    zb = np.zeros((interpolation_options.n_uni_eq, n_dim), dtype=DEFAULT_DTYPE)#z2.copy()
+    zc = np.zeros((interpolation_options.n_uni_eq, n_dim), dtype=DEFAULT_DTYPE)#z2.copy()
 
     if interpolation_options.uni_degree != 0:
         for i in range(interpolation_options.number_dimensions):
             z2[i, i] = 1
 
     # Degree 1
-    points_degree_1 = np.vstack((z, surface_points, z2))
+    points_degree_1 = tfnp.concat((z, surface_points, z2), axis=0)
+    #points_degree_1 = tfnp.vstack((z, surface_points, z2))
 
     # Degree 2
     # TODO: Substitute vstack
@@ -103,7 +108,7 @@ def assembly_dips_points_coords(surface_points: np.ndarray, ori_size: int,
     if interpolation_options.uni_degree == 2:
         for i in range(n_dim):
             zb[n_dim + i, i] = 1
-        #zb[n_dim * 2:, 0] = 1
+
 
         zb[n_dim * 2, 0] = 1
         zb[n_dim * 2 +1, 0] = 1
@@ -112,14 +117,15 @@ def assembly_dips_points_coords(surface_points: np.ndarray, ori_size: int,
 
         for i in range(n_dim):
             zc[n_dim + i, i] = 1
-        #zc[n_dim * 2:, 1] = 1
+
         zc[n_dim * 2, 1] = 1
         zc[n_dim * 2 + 1, 2] = 1
         zc[n_dim * 2 + 2, 2] = 1
 
 
-
-    points_degree_2a = np.vstack((z, surface_points, zb))
-    points_degree_2b = np.vstack((z, surface_points, zc))
+    # points_degree_2a = tfnp.vstack((z, surface_points, zb))
+    # points_degree_2b = tfnp.vstack((z, surface_points, zc))
+    points_degree_2a = tfnp.concat((z, surface_points, zb), axis=0)
+    points_degree_2b = tfnp.concat((z, surface_points, zc), axis=0)
 
     return points_degree_1, points_degree_2a, points_degree_2b

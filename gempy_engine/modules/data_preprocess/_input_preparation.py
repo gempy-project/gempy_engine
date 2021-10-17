@@ -31,7 +31,10 @@ def surface_points_preprocess(sp_input: SurfacePoints, number_of_points_per_surf
 
     nugget_effect_ref_rest = rest_nugget + ref_nugget_repeated
 
-    return SurfacePointsInternals(ref_points_repeated, rest_points, nugget_effect_ref_rest)
+    rest_shape = sp_input.sp_coords.shape[0] - number_of_points_per_surface.shape[0]
+
+    return SurfacePointsInternals(ref_points_repeated, rest_points, nugget_effect_ref_rest,
+                                  n_surface_points=rest_shape)
 
 
 def _compute_rest_ref_in_numpy(nugget_effect, number_of_points_per_surface, sp):

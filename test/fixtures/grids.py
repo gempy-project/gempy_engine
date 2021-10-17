@@ -3,6 +3,7 @@ import dataclasses
 import pytest
 import numpy as np
 
+from gempy_engine.config import DEFAULT_DTYPE
 from gempy_engine.core.data.grid import RegularGrid, Grid
 
 
@@ -12,7 +13,7 @@ def simple_grid_2d_f():
     y = np.linspace(0, 5, ny)
     xv, yv = np.meshgrid(x, y)
     g = np.vstack((xv.ravel(), yv.ravel())).T
-    return g
+    return g.astype(DEFAULT_DTYPE)
 
 
 @pytest.fixture(scope='session')

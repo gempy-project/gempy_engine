@@ -1,4 +1,3 @@
-from gempy_engine.core.data import TensorsStructure
 from gempy_engine.core.backend_tensor import BackendTensor as bt
 import numpy as np
 

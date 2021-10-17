@@ -30,15 +30,15 @@ class InternalDistancesMatrices:
     hu_ref: np.ndarray
     hu_rest: np.ndarray
 
+    def __hash__(self):
+        return hash(self.__repr__())
+
 
 
 def create_cov_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor_types:
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
-    i_magic = options.i_res
-    gi_magic = options.gi_res
-
 
     # Calculate euclidean or square distances depending on the function kernel
     global euclidean_distances
@@ -148,7 +148,6 @@ def create_grad_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor
     return c_o * (sigma_0_grad + sigma_0_sp_grad) + total_ug
 
 
-
 def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest):
 
     k_rest_rest = kernel_f.base_function(r_rest_rest, a)
@@ -163,20 +162,18 @@ def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref
 
 def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatrices:
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j
-
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j
-    hu = tfnp.sum(dif_ref_ref * (cs.hu_sel_i * cs.hu_sel_j), axis=-1)#.sum(axis=-1)  # C
-    hv = -tfnp.sum(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j), axis=-1)#.sum(axis=-1)  # C
-
+    hu = tfnp.sum(dif_ref_ref * (cs.hu_sel_i * cs.hu_sel_j), axis=-1)  # .sum(axis=-1)  # C
+    hv = -tfnp.sum(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j), axis=-1)  # .sum(axis=-1)  # C
     hu_ref = dif_ref_ref * (cs.hu_sel_i * cs.h_sel_ref_j)
     hv_ref = dif_ref_ref * (cs.h_sel_ref_i * cs.hv_sel_j)
-    huv_ref =  tfnp.sum(hu_ref, axis=-1) - tfnp.sum(hv_ref, axis=-1)#hu_ref.sum(axis=-1) - hv_ref.sum(axis=-1)  # C
-
+    huv_ref = tfnp.sum(hu_ref, axis=-1) - tfnp.sum(hv_ref,
+                                                   axis=-1)  # hu_ref.sum(axis=-1) - hv_ref.sum(axis=-1)  # C
     hu_rest = dif_rest_rest * (cs.hu_sel_i * cs.h_sel_rest_j)
     hv_rest = dif_rest_rest * (cs.h_sel_rest_i * cs.hv_sel_j)
-    huv_rest = tfnp.sum(hu_rest, axis=-1) - tfnp.sum(hv_rest, axis=-1)#hu_rest.sum(axis=-1) - hv_rest.sum(axis=-1)  # C
-
-    perp_matrix =  tfnp.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1)#.sum(axis=-1)
+    huv_rest = tfnp.sum(hu_rest, axis=-1) - tfnp.sum(hv_rest,
+                                                     axis=-1)  # hu_rest.sum(axis=-1) - hv_rest.sum(axis=-1)  # C
+    perp_matrix = tfnp.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1)  # .sum(axis=-1)
     if BackendTensor.pykeops_enabled is True:
 
         r_ref_ref = dif_ref_ref.sqdist(dif_ref_ref)
@@ -185,16 +182,17 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatr
         r_rest_ref = ori_sp_matrices.diprest_j.sqdist(ori_sp_matrices.dip_ref_j)
 
     else:
-        r_ref_ref =  tfnp.sum(dif_ref_ref ** 2, axis=-1)#.sum(-1)
-        r_rest_rest =  tfnp.sum(dif_rest_rest ** 2, axis=-1)#.sum(-1)
-        r_ref_rest =  tfnp.sum((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2, axis=-1)#.sum(-1)
-        r_rest_ref =  tfnp.sum((ori_sp_matrices.diprest_i - ori_sp_matrices.dip_ref_j) ** 2, axis=-1)#.sum(-1)
+        r_ref_ref = tfnp.sum(dif_ref_ref ** 2, axis=-1)  # .sum(-1)
+        r_rest_rest = tfnp.sum(dif_rest_rest ** 2, axis=-1)  # .sum(-1)
+        r_ref_rest = tfnp.sum((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2, axis=-1)  # .sum(-1)
+        r_rest_ref = tfnp.sum((ori_sp_matrices.diprest_i - ori_sp_matrices.dip_ref_j) ** 2, axis=-1)  # .sum(-1)
 
         if euclidean_distances:
             r_ref_ref = tfnp.sqrt(r_ref_ref)
             r_rest_rest = tfnp.sqrt(r_rest_rest)
             r_ref_rest = tfnp.sqrt(r_ref_rest)
             r_rest_ref = tfnp.sqrt(r_rest_ref)
+
 
     return InternalDistancesMatrices(
         dif_ref_ref, dif_rest_rest,
@@ -207,37 +205,38 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatr
 
 
 
+
 def _get_universal_sp_terms(ki, options):
     # degree 1
-    usp_ref = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
-    usp_rest = (ki.rest_drift.dipsPoints_ui_ai * ki.rest_drift.dipsPoints_ui_aj).sum(axis=-1)
+    usp_ref = tfnp.sum(ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj, axis=-1)#.sum(axis=-1)
+    usp_rest = tfnp.sum(ki.rest_drift.dipsPoints_ui_ai * ki.rest_drift.dipsPoints_ui_aj, axis=-1)#.sum(axis=-1)
 
     # degree 2
 
-    usp_ref_d2b = (ki.ref_drift.dipsPoints_ui_bi1 * ki.ref_drift.dipsPoints_ui_bj1).sum(axis=-1)
-    usp_ref_d2c = (ki.ref_drift.dipsPoints_ui_bi2 * ki.ref_drift.dipsPoints_ui_bj2).sum(axis=-1)
+    usp_ref_d2b = tfnp.sum(ki.ref_drift.dipsPoints_ui_bi1 * ki.ref_drift.dipsPoints_ui_bj1, axis=-1)#.sum(axis=-1)
+    usp_ref_d2c = tfnp.sum(ki.ref_drift.dipsPoints_ui_bi2 * ki.ref_drift.dipsPoints_ui_bj2, axis=-1)#.sum(axis=-1)
     usp_ref_d2 = usp_ref_d2b * usp_ref_d2c
 
-    usp_rest_d2b = (ki.rest_drift.dipsPoints_ui_bi1 * ki.rest_drift.dipsPoints_ui_bj1).sum(axis=-1)
-    usp_rest_d2c = (ki.rest_drift.dipsPoints_ui_bi2 * ki.rest_drift.dipsPoints_ui_bj2).sum(axis=-1)
+    usp_rest_d2b = tfnp.sum(ki.rest_drift.dipsPoints_ui_bi1 * ki.rest_drift.dipsPoints_ui_bj1, axis=-1)#.sum(axis=-1)
+    usp_rest_d2c = tfnp.sum(ki.rest_drift.dipsPoints_ui_bi2 * ki.rest_drift.dipsPoints_ui_bj2, axis=-1)#.sum(axis=-1)
     usp_rest_d2 = usp_rest_d2b * usp_rest_d2c
 
 
-    selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+    selector = tfnp.sum(ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1), axis=-1)#.sum(-1)
     usp_d2 = -1 * selector * ((options.i_res * (usp_rest_d2 - usp_ref_d2)) + (options.gi_res * (usp_rest - usp_ref)))
     return usp_d2
 
 
 def _get_universal_gradient_terms(ki, options):
     # First term
-    ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
+    ug = tfnp.sum(ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj, axis=-1)#.sum(axis=-1)
     # Second term
-    ug2 = (ki.ori_drift.dips_ug_bi * ki.ori_drift.dips_ug_bj).sum(axis=-1)
+    ug2 = tfnp.sum(ki.ori_drift.dips_ug_bi * ki.ori_drift.dips_ug_bj, axis=-1)#.sum(axis=-1)
     # Third term
-    ug3_aux = (ki.ori_drift.dips_ug_ci * ki.ori_drift.dips_ug_cj).sum(axis=-1)
-    third_term_selector = -1 * (-2 + (ki.ori_drift.selector_ci * ki.ori_drift.selector_cj).sum(axis=-1))
+    ug3_aux = tfnp.sum(ki.ori_drift.dips_ug_ci * ki.ori_drift.dips_ug_cj, axis=-1)#.sum(axis=-1)
+    third_term_selector = -1 * (-2 + tfnp.sum(ki.ori_drift.selector_ci * ki.ori_drift.selector_cj, axis=-1))#.sum(axis=-1))
     ug3 = ug3_aux * third_term_selector
-    selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+    selector = tfnp.sum(ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1), axis=-1)#.sum(-1)
     total_ug = selector * (ug + options.gi_res * ug2 + options.gi_res * ug3)
     return total_ug
 
@@ -304,15 +303,20 @@ def _test_covariance_items(ki: KernelInput, options: InterpolationOptions, item)
         return c_o * ( dm.hu_ref * k_p_ref) # These are right terms
 
     elif item=="sigma_0_u_sp":
-        usp_ref = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
+        usp_ref = tfnp.sum(ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj, axis=-1)  # .sum(axis=-1)
 
-        usp_ref_d2b = (ki.ref_drift.dipsPoints_ui_bi1 * ki.ref_drift.dipsPoints_ui_bj1).sum(axis=-1)
-        usp_ref_d2c = (ki.ref_drift.dipsPoints_ui_bi2 * ki.ref_drift.dipsPoints_ui_bj2).sum(axis=-1)
+        usp_ref_d2b = tfnp.sum(ki.ref_drift.dipsPoints_ui_bi1 * ki.ref_drift.dipsPoints_ui_bj1,
+                               axis=-1)  # .sum(axis=-1)
+        usp_ref_d2c = tfnp.sum(ki.ref_drift.dipsPoints_ui_bi2 * ki.ref_drift.dipsPoints_ui_bj2,
+                               axis=-1)  # .sum(axis=-1)
         usp_ref_d2 = usp_ref_d2b * usp_ref_d2c
 
-        selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+        selector = tfnp.sum(ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1),
+                            axis=-1)  # .sum(-1)
 
-        return selector * (options.gi_res * usp_ref + options.i_res * usp_ref_d2)
+        drift = selector * (options.gi_res * usp_ref + options.i_res * usp_ref_d2)
+
+        return drift
 
 
 def _get_cross_cov_grad_sp(dm, k_p_ref, k_p_rest, options):

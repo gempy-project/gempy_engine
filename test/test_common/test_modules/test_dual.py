@@ -1,6 +1,7 @@
 import copy
 
 import gempy_engine.integrations.interp_single._interp_single_internals
+from gempy_engine.config import DEFAULT_DTYPE
 from gempy_engine.core.data.grid import Grid
 import numpy as np
 import os
@@ -226,7 +227,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     last_octree_level: OctreeLevel = octree_list[-1]
 
     sfsp = last_octree_level.output_corners.scalar_field_at_sp
-    sfsp = np.append(sfsp, -0.1)
+    sfsp = np.append(sfsp, -0.1).astype(DEFAULT_DTYPE)
     dc_data = find_intersection_on_edge(
         last_octree_level.grid_corners.values,
         last_octree_level.output_corners.exported_fields.scalar_field,
@@ -295,7 +296,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
             [[0.522, 0.369, 0.388],
              [0.515, 0.368, 0.371],
              [0.181, 0.568, 0.332]]
-        ), 3
+        ), 2
     )
 
     # endregion

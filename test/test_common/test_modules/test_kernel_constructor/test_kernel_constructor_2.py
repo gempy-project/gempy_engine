@@ -15,6 +15,10 @@ from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import
     yield_b_vector
 from gempy_engine.modules.solver.solver_interface import kernel_reduction
 
+tfnp = BackendTensor.tfnp
+tensor_types = BackendTensor.tensor_types
+
+
 cov_sol = np.array(
     [[0.115, 0.073, 0., 0., 0., -0.004, -0.025, -0.039, -0.042, -0.045, -0.032, -0.044],
      [0.073, 0.115, 0., 0., -0.004, 0., -0.021, -0.038, -0.042, -0.047, -0.029, -0.045],
@@ -60,7 +64,6 @@ plot = False
 class TestCompareWithGempy_v2:
     @pytest.fixture(scope="class")
     def internals(self, simple_model):
-        BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=False)
 
         surface_points = simple_model[0]
         orientations = simple_model[1]
@@ -81,7 +84,7 @@ class TestCompareWithGempy_v2:
         cov = yield_covariance(SolverInput(sp_internals, ori_internals, options))
         b_vec = yield_b_vector(ori_internals, cov.shape[0])
         weights = kernel_reduction(cov, b_vec)
-        return weights
+        return tfnp.reshape(weights,(1, -1))
 
     def test_reduction(self, internals):
         sp_internals, ori_internals, options = internals
@@ -99,7 +102,7 @@ class TestCompareWithGempy_v2:
 
         weights_gempy_v2 = [6.402e+00, -1.266e+01, 2.255e-15, -2.784e-15, 1.236e+01, 2.829e+01, -6.702e+01, -6.076e+02,
                             1.637e+03, 1.053e+03, 2.499e+02, -2.266e+03]
-        np.testing.assert_allclose(np.asarray(weights), weights_gempy_v2, rtol=2)
+        np.testing.assert_allclose(np.asarray(weights)[:, 0], weights_gempy_v2, rtol=2)
 
     def test_export_to_scalar(self, internals, weights):
         sp_internals, ori_internals, options = internals
@@ -122,6 +125,10 @@ class TestCompareWithGempy_v2:
         # Test scalar field
         export_scalar_ff = create_scalar_kernel(kernel_data, options)
         scalar_ff = weights @ export_scalar_ff
+
+        if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+            scalar_ff = scalar_ff.numpy()
+
         print(f"\n Scalar field: {scalar_ff.reshape(4, 1, 4)}")
 
         if plot or True:
@@ -133,8 +140,9 @@ class TestCompareWithGempy_v2:
 
             plt.show()
 
-        np.testing.assert_allclose(np.asarray(scalar_ff), scalar_sol, rtol=1)
+        np.testing.assert_allclose(np.asarray(scalar_ff)[0], scalar_sol, rtol=1)
 
+    @pytest.mark.skipif(BackendTensor.engine_backend is AvailableBackends.tensorflow, reason="Only test against numpy")
     def test_export_to_grad(self, internals, weights):
         # Test gradient x
         np_grad_x = np.gradient(scalar_sol.reshape((4, 1, 4)), axis=0)
@@ -185,12 +193,10 @@ class TestCompareWithGempy_v2:
 
             plt.show()
 
-
+@pytest.mark.skipif(BackendTensor.engine_backend is not AvailableBackends.tensorflow, reason="only with tensorflow")
 class TestXLACompareWithGempy_v2:
-    BackendTensor.change_backend(AvailableBackends.tensorflow, pykeops_enabled=False, use_gpu=False)
     @pytest.fixture(scope="class")
     def internals(self, simple_model):
-        BackendTensor.change_backend(AvailableBackends.tensorflow, pykeops_enabled=False, use_gpu=False)
 
         surface_points = simple_model[0]
         orientations = simple_model[1]

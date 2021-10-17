@@ -1,3 +1,4 @@
+from gempy_engine.config import DEFAULT_DTYPE
 from gempy_engine.core.backend_tensor import BackendTensor as bt
 from gempy_engine.core.data.kernel_classes.orientations import OrientationsInternals
 
@@ -13,7 +14,7 @@ def b_vector_assembly(ori: OrientationsInternals, cov_size: int) -> bt.tensor_ty
     else:
          raise ValueError("Wrong number of dimensions in the gradients.")
 
-    g = bt.tfnp.concat([*g_vector, bt.tfnp.zeros(cov_size - g_s, dtype='float64')], -1)
+    g = bt.tfnp.concat([*g_vector, bt.tfnp.zeros(cov_size - g_s, dtype=DEFAULT_DTYPE)], -1)
     g = bt.tfnp.expand_dims(g, axis=1)
 
     b_vector = g

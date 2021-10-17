@@ -2,12 +2,11 @@ import os
 
 import pytest
 
+from gempy_engine.config import AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_structs import InterpOutput
 import matplotlib.pyplot as plt
 
-from gempy_engine.core.data.internal_structs import SolverInput
-from gempy_engine.integrations.interp_single._interp_single_internals import _solve_interpolation, \
-    _evaluate_sys_eq
 from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_single_field
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 import numpy as np
@@ -35,6 +34,11 @@ def test_activator(simple_model_values_block_output):
     #     np.round(ids_block),
     #     ids_sol, # NOTE(miguel) Now we only segment on the grid
     #     decimal=3)
+
+    if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+        Z_x = Z_x.numpy()
+        ids_block = ids_block.numpy()
+
     if plot:
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
         plt.colorbar()

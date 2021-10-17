@@ -1,5 +1,6 @@
 import pytest
 
+from gempy_engine.config import DEFAULT_DTYPE
 from gempy_engine.core.data.exported_structs import InterpOutput
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.integrations.interp_single._interp_single_internals import _input_preprocess
@@ -31,8 +32,8 @@ class TestHorizontalStatCovConstructionNoDrift:
     weights: np.array = np.array(
         [-1.437e-18, 2.359e-18, - 2.193e-18, 2.497e-18, 1.481e-03, 1.481e-03,
          5.969e-03, - 2.984e-03, - 2.984e-03, 5.969e-03, - 2.984e-03, - 5.969e-03,
-         2.984e-03, 2.984e-03, - 5.969e-03, 2.984e-03]
-    )
+         2.984e-03, 2.984e-03, - 5.969e-03, 2.984e-03], dtype=DEFAULT_DTYPE
+    ).reshape(1, -1)
 
     def test_horizontal_stratigraphic_scaled_grad(self, horizontal_stratigraphic_scaled):
         """ From old gempy
@@ -168,7 +169,7 @@ class TestHorizontalStatCovConstructionNoDrift:
 
         print(val[6:, :6] - sol)
 
-        np.testing.assert_allclose(val[6:, :6], sol, rtol=0.02)
+        np.testing.assert_allclose(val[6:, :6], sol, rtol=0.02, atol=0.046)
 
     def test_horizontal_stratigraphic_scaled_eval_i(self, horizontal_stratigraphic_scaled):
         """
@@ -187,7 +188,7 @@ class TestHorizontalStatCovConstructionNoDrift:
         kernel = 4 * _test_covariance_items(kernel_data, options, "sigma_0_sp")
         print(kernel)
 
-        val = self.weights @ kernel
+        val = (self.weights @ kernel)[0]
         print(val)
 
         np.testing.assert_allclose(val[:3], np.array([-0.013, -0.013, -0.012]), rtol=0.06)
@@ -211,7 +212,7 @@ class TestHorizontalStatCovConstructionNoDrift:
         kernel = 2 * _test_covariance_items(kernel_data, options, "sigma_0_grad_sp")
         print(kernel)
 
-        val = self.weights @ kernel
+        val = (self.weights @ kernel)[0]
         print(val)
 
         np.testing.assert_allclose(val[:3], np.array([-0.206, -0.204, -0.201]), rtol=0.06)
