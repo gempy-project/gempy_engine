@@ -1,4 +1,5 @@
 import numpy as np
+import pykeops
 import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
@@ -9,7 +10,7 @@ from gempy_engine.modules.kernel_constructor._covariance_assembler import create
     create_scalar_kernel, \
     _test_covariance_items
 from gempy_engine.modules.kernel_constructor._vectors_preparation import \
-    evaluation_vectors_preparations
+    evaluation_vectors_preparations, cov_vectors_preparation
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, \
     yield_b_vector
 from gempy_engine.modules.solver.solver_interface import kernel_reduction
@@ -193,3 +194,97 @@ class TestCompareWithGempy_v2:
 
             plt.show()
 
+
+class TestPykeops:
+    @pytest.fixture(scope="class")
+    def internals(self, simple_model):
+
+        surface_points = simple_model[0]
+        orientations = simple_model[1]
+        options = simple_model[2]
+        tensors_structure = simple_model[3]
+
+        options.i_res = 1
+        options.gi_res = 1
+
+        sp_internals = surface_points_preprocess(surface_points,
+                                                 tensors_structure.number_of_points_per_surface)
+        ori_internals = orientations_preprocess(orientations)
+        return sp_internals, ori_internals, options
+
+    @pytest.fixture(scope="class")
+    def weights(self, internals):
+        sp_internals, ori_internals, options = internals
+        cov = yield_covariance(SolverInput(sp_internals, ori_internals, options))
+        b_vec = yield_b_vector(ori_internals, cov.shape[0])
+        weights = kernel_reduction(cov, b_vec)
+        return tfnp.reshape(weights,(1, -1))
+
+    def test_kernel(self, internals):
+        """
+        This test should compile quite fast and it is meant to check if:
+        - Range is cte
+        - Distances are squared
+        """
+        sp_internals, ori_internals, options = internals
+
+        # Test kernel
+        solver_input = SolverInput(sp_internals, ori_internals, options)
+        kernel_data = cov_vectors_preparation(solver_input)
+        kernel = _test_covariance_items(kernel_data, options, "cov_sp")
+
+        print("\n")
+        print(kernel)
+        test_pykeops = kernel.sum(axis=0, backend="CPU")
+        print(test_pykeops)
+
+    def test_cov(self, internals):
+        """
+        This test is meant to be used to check with how many terms the compilation time raises too much
+
+        Times:
+            -  cov_grad and cov_sp: 4s
+            -  cov_grad and cov_sp and cov_grad_sp: 4s
+            -  cov_grad cov_sp cov_grad_sp drift: 6s
+        """
+        sp_internals, ori_internals, options = internals
+
+        # Test kernel
+        solver_input = SolverInput(sp_internals, ori_internals, options)
+        cov = yield_covariance(solver_input)
+
+        print("\n")
+        print(cov)
+        test_pykeops = cov.sum(axis=0, backend="CPU")
+
+        print(test_pykeops)
+
+    # TODO: Change model for one with fixed ranged and exp kernel
+    def test_reduction(self, internals):
+        """
+        This test is meant to be used to check with how many terms the compilation time raises too much
+
+        Times:    in brakets number of Variables    //dynamicRange-cubic//staticRange-cubic//staticRange-exp
+            -  cov_grad:                               (37) 8 sec       // (30) 4 sec      // (10) 3 sec
+            -  cov_grad and cov_sp:                     >5 min          // (32) 4 sec      // (14) 3 sec
+            -  cov_grad and cov_sp and cov_grad_sp:                     //  >5 min         // (15) 3 sec
+            -  cov_grad cov_sp cov_grad_sp drift:                                          // (42) 4 sec
+        """
+      #  pykeops.clean_pykeops()
+        sp_internals, ori_internals, options = internals
+        # Test cov
+        cov = yield_covariance(SolverInput(sp_internals, ori_internals, options))
+        print("\n")
+        print(cov)
+
+        if BackendTensor.pykeops_enabled is not True:
+            np.testing.assert_array_almost_equal(np.asarray(cov), cov_sol, decimal=3)
+
+        # Test weights and b vector
+        b_vec = yield_b_vector(ori_internals, cov.shape[0])
+        weights = kernel_reduction(cov, b_vec)
+        print(weights)
+
+        weights_gempy_v2 = [6.402e+00, -1.266e+01, 2.255e-15, -2.784e-15, 1.236e+01, 2.829e+01, -6.702e+01, -6.076e+02,
+                            1.637e+03, 1.053e+03, 2.499e+02, -2.266e+03]
+     #   np.testing.assert_allclose(np.asarray(weights).reshape(-1), weights_gempy_v2, rtol=2)

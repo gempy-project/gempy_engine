@@ -6,26 +6,25 @@ from pykeops.numpy import LazyTensor, Genred, Vi, Vj, Pm
 import numpy as np
 import pykeops
 pykeops.config.verbose = True
+pykeops.config.build_type = 'Debug'
 
-@pytest.mark.skip('Only trigger manually when there is something wrong with'
-                  'pykeops compilation', )
+#@pytest.mark.skip('Only trigger manually when there is something wrong with pykeops compilation', )
 def test_keops_run():
-    import pykeops
+
     pykeops.verbose = True
     #pykeops.set_bin_folder("/home/miguel/.s")
     pykeops.clean_pykeops()  # just in case old build files are still present
     pykeops.test_numpy_bindings()
 
-@pytest.mark.skip('Only trigger manually when there is something wrong with'
-                  'pykeops compilation', )
+# @pytest.mark.skip('Only trigger manually when there is something wrong with'
+#                   'pykeops compilation', )
 def test_basic_op():
-    import pykeops
+    print(pykeops.config.gpu_available)
 
     M, N = 1000, 2000
     x = np.random.rand(M, 2)
     y = np.random.rand(N, 2)
-    from pykeops.numpy import LazyTensor
-   # pykeops.clean_pykeops()
+    # pykeops.clean_pykeops()
     x_i = LazyTensor(
         x[:, None, :]
     )  # (M, 1, 2) KeOps LazyTensor, wrapped around the numpy array x

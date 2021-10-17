@@ -9,7 +9,7 @@ TODO:
     - [X] remove unsued code
     - [X] refactor TensorBackend      
 
-- [ ] Add drift to the export
+- [x] Add drift to the export
 
 - [ ] Keep the range cont by increasing r
 
@@ -17,7 +17,7 @@ TODO:
     - Mixing xla-eager
     - putting keops in the middle
 
-- [ ] Test in the covariance module if we can mix eager and xla
+- [x] Test in the covariance module if we can mix eager and xla
 
 - [ ] Add benchmark test
     - Small medium and big model
@@ -25,7 +25,7 @@ TODO:
     
 - [ ] Finite faults: the ellipse can be precomputed probably as a getter of its data class!
 
-- [ ] Data
+- [X] Data
     - [ ] `__post_init__` should go to utils
     - [ ] Add hash function to all data classes
 
@@ -58,3 +58,10 @@ Notes
 - **XLA** Can be applied just in parts of the subtree using jit_scope
     - To use XLA the tensorflow function must be defined!
     - [ ] Test with the covartiance
+
+PyKeops
+-------
+
+- Use python -m bpython for Pykeops sanity checks. Usually this runs fine
+- It seems Pycharm test run if it is for the CPU
+- Pycharm run script works if the model is already in cache

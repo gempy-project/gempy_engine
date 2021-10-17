@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from gempy_engine.config import euclidean_distances_in_interpolation
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, \
     KernelFunction
@@ -12,7 +13,7 @@ tfnp = BackendTensor.tfnp
 tensor_types = BackendTensor.tensor_types
 
 # TODO: Move this to its right place
-euclidean_distances = True
+euclidean_distances = euclidean_distances_in_interpolation
 
 @dataclass
 class InternalDistancesMatrices:
@@ -40,13 +41,6 @@ def create_cov_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor_
     a = options.range
     c_o = options.c_o
 
-    # Calculate euclidean or square distances depending on the function kernel
-    global euclidean_distances
-    if options.kernel_function == AvailableKernelFunctions.exponential:
-        euclidean_distances = False
-    else:
-        euclidean_distances = True
-
     dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
 
     k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
@@ -70,7 +64,8 @@ def _get_cov(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref,
     ug = _get_universal_gradient_terms(ki, options)
     drift = usp + ug
     #  NOTE: (miguel) The magic terms are real
-    cov = c_o * (cov_grad + cov_sp + cov_grad_sp) + drift
+    #cov = c_o * (cov_grad + cov_sp + cov_grad_sp) + drift
+    cov = c_o * (cov_grad + cov_sp + cov_grad_sp) #+ drift
     return cov
 
 
@@ -78,13 +73,6 @@ def create_scalar_kernel(ki: KernelInput, options: InterpolationOptions) -> tens
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
-
-    # Calculate euclidean or square distances depending on the function kernel
-    global euclidean_distances
-    if options.kernel_function == AvailableKernelFunctions.exponential:
-        euclidean_distances = False
-    else:
-        euclidean_distances = True
 
     dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
 
@@ -113,13 +101,6 @@ def create_grad_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
-
-    # Calculate euclidean or square distances depending on the function kernel
-    global euclidean_distances
-    if options.kernel_function == AvailableKernelFunctions.exponential:
-        euclidean_distances = False
-    else:
-        euclidean_distances = True
 
     dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
 
