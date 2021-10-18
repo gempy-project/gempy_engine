@@ -4,11 +4,12 @@ import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 from gempy_engine.core.data.internal_structs import SolverInput
+from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
 from gempy_engine.modules.kernel_constructor._covariance_assembler import create_grad_kernel, \
     create_scalar_kernel, \
-    _test_covariance_items
+    _test_covariance_items, _compute_all_distance_matrices
 from gempy_engine.modules.kernel_constructor._vectors_preparation import \
     evaluation_vectors_preparations, cov_vectors_preparation
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, \
@@ -259,32 +260,52 @@ class TestPykeops:
 
         print(test_pykeops)
 
+    def test_distances(self, internals):
+        sp_internals, ori_internals, options = internals
+
+        # Test kernel
+        solver_input = SolverInput(sp_internals, ori_internals, options)
+        kernel_data = cov_vectors_preparation(solver_input)
+
+        dm = _compute_all_distance_matrices(kernel_data.cartesian_selector, kernel_data.ori_sp_matrices)
+        print(dm.r_ref_ref.sum(axis=0, backend="CPU"))
+
+
+
     # TODO: Change model for one with fixed ranged and exp kernel
     def test_reduction(self, internals):
         """
         This test is meant to be used to check with how many terms the compilation time raises too much
 
-        Times:    in brakets number of Variables    //dynamicRange-cubic//staticRange-cubic//staticRange-exp
-            -  cov_grad:                               (37) 8 sec       // (30) 4 sec      // (10) 3 sec
-            -  cov_grad and cov_sp:                     >5 min          // (32) 4 sec      // (14) 3 sec
-            -  cov_grad and cov_sp and cov_grad_sp:                     //  >5 min         // (15) 3 sec
-            -  cov_grad cov_sp cov_grad_sp drift:                                          // (42) 4 sec
+        Times:    in brakets number of Variables    //dynamicRange-cubic//staticRange-cubic//staticRange-exp//DynamicRange-exp
+            -  cov_grad:                               (37) 8 sec       // (30) 4 sec      // (10) 3 sec    //
+            -  cov_grad and cov_sp:                     >5 min          // (32) 4 sec      // (14) 3 sec    //
+            -  cov_grad and cov_sp and cov_grad_sp:                     //  >5 min         // (15) 3 sec    //
+            -  cov_grad cov_sp cov_grad_sp drift:                                          // (42) 4 sec    // (49) 5 sec
         """
-      #  pykeops.clean_pykeops()
+        from pykeops.numpy import Vi, Vj, Pm
+        BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=True)
+        pykeops.clean_pykeops()
+
+
         sp_internals, ori_internals, options = internals
+        options.kernel_function = AvailableKernelFunctions.exponential
+        options.range = 4.464646446464646464#Pm(np.array([4.464646446464646464], dtype="float32"))#4.4# Pm(np.array([4.4453525], dtype="float32"))
+        options.i_res = 4#Pm(1)#4#Pm(np.array([4], dtype="float32"))#4
+        options.gi_res =2#Pm(1)# Pm(np.array([2], dtype="float32"))#2
         # Test cov
         cov = yield_covariance(SolverInput(sp_internals, ori_internals, options))
         print("\n")
         print(cov)
 
-        if BackendTensor.pykeops_enabled is not True:
-            np.testing.assert_array_almost_equal(np.asarray(cov), cov_sol, decimal=3)
+
 
         # Test weights and b vector
         b_vec = yield_b_vector(ori_internals, cov.shape[0])
-        weights = kernel_reduction(cov, b_vec)
+        weights = kernel_reduction(cov, b_vec, 1, compute=False)
         print(weights)
 
+        print(weights())
         weights_gempy_v2 = [6.402e+00, -1.266e+01, 2.255e-15, -2.784e-15, 1.236e+01, 2.829e+01, -6.702e+01, -6.076e+02,
                             1.637e+03, 1.053e+03, 2.499e+02, -2.266e+03]
      #   np.testing.assert_allclose(np.asarray(weights).reshape(-1), weights_gempy_v2, rtol=2)

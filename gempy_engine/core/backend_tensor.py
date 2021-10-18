@@ -9,6 +9,7 @@ class BackendTensor():
 
     pykeops_enabled: bool
     use_gpu: bool = True
+    euclidean_distances_in_interpolation = True
 
     tensor_types: Union
     tensor_backend_pointer: dict = dict() # Pycharm will infer the type. It is the best I got so far

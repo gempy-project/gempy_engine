@@ -3,6 +3,7 @@ from typing import Tuple
 import numpy as np
 import tensorflow
 
+from ...config import AvailableBackends, DEFAULT_DTYPE
 from ...core import data
 from ...core.backend_tensor import BackendTensor
 from ...core.data.exported_structs import InterpOutput, ExportedFields
@@ -83,7 +84,7 @@ def _solve_interpolation(interp_input: SolverInput):
     A_matrix = kernel_constructor.yield_covariance(interp_input)
     b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
     # TODO: Smooth should be taken from options
-    weights = solver_interface.kernel_reduction(A_matrix, b_vector, smooth=0.01)
+    weights = solver_interface.kernel_reduction(A_matrix, b_vector)
 
     return tfnp.reshape(weights, (1, -1))
 
@@ -100,22 +101,44 @@ def _input_preprocess(data_shape, grid, orientations, surface_points) -> \
 def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput,
                      weights: np.ndarray) -> ExportedFields:
     options = interp_input.options
+    weights_o = weights
+
+    #TODO: This is for debugging purposes!!
+
+
+    weights = weights.astype(DEFAULT_DTYPE)
+
+    # =======================================
 
     eval_kernel = kernel_constructor.yield_evaluation_kernel(xyz, interp_input)
     eval_gx_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=0)
     eval_gy_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=1)
 
-    scalar_field = weights @ eval_kernel
-    gx_field = weights @ eval_gx_kernel
-    gy_field = weights @ eval_gy_kernel
 
-    if options.number_dimensions == 3:
+    if BackendTensor.pykeops_enabled is True and BackendTensor.engine_backend is not AvailableBackends.tensorflow:
+        from pykeops.numpy.lazytensor import LazyTensor
+        #weights = LazyTensor.LazyTensor(weights_o[0])
+        weights =LazyTensor.LazyTensor(weights[:, :, None])#.vecmatmult(eval_kernel.t()).sum(1, backend="CPU")
+        #weights = weights_o[:, None, :]
+        # TODO: Optimize
+        scalar_field = weights.vecmatmult(eval_kernel.t()).sum(1, backend="CPU", dtype_acc=DEFAULT_DTYPE ).T
+        gx_field = weights.vecmatmult(eval_gx_kernel.t()).sum(1, backend="CPU", dtype_acc=DEFAULT_DTYPE).T
+        gy_field = weights.vecmatmult(eval_gy_kernel.t()).sum(1, backend="CPU", dtype_acc=DEFAULT_DTYPE).T
         eval_gz_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=2)
-        gz_field = weights @ eval_gz_kernel
-    elif options.number_dimensions == 2:
-        gz_field = None
+        gz_field = weights.vecmatmult(eval_gz_kernel.t()).sum(1, backend="CPU", dtype_acc=DEFAULT_DTYPE).T
+
     else:
-        raise ValueError("Number of dimensions have to be 2 or 3")
+        scalar_field = weights @ eval_kernel
+        gx_field = weights @ eval_gx_kernel
+        gy_field = weights @ eval_gy_kernel
+
+        if options.number_dimensions == 3:
+            eval_gz_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=2)
+            gz_field = weights @ eval_gz_kernel
+        elif options.number_dimensions == 2:
+            gz_field = None
+        else:
+            raise ValueError("Number of dimensions have to be 2 or 3")
 
     return ExportedFields(scalar_field, gx_field, gy_field, gz_field)
 

@@ -9,13 +9,12 @@ class AvailableBackends(Enum):
 
 DEBUG_MODE = True
 DEFAULT_BACKEND = AvailableBackends.numpy
-DEFAULT_DTYPE = "float32"
+DEFAULT_DTYPE = "float64"
 
 is_numpy_installed = find_spec("numpy") is not None
 is_tensorflow_installed = find_spec("tensorflow") is not None
 is_jax_installed = find_spec("jax") is not None
 is_pykeops_installed = find_spec("pykeops") is not None
 
-euclidean_distances_in_interpolation = False
 
 

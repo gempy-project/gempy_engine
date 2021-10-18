@@ -165,7 +165,7 @@ def simple_model():
 
     kri = InterpolationOptions(range_, co, 0,
                                number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
-    _ = np.ones(3)
+
     tensor_structure = TensorsStructure(np.array([7]))
     return spi, ori_i, kri, tensor_structure
 
@@ -211,6 +211,51 @@ def simple_model_interpolation_input(simple_grid_3d_octree):
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
     yield interpolation_input, interpolation_options, tensor_structure
+
+
+@pytest.fixture(scope="session")
+def simple_model_interpolation_input_optimized(simple_grid_3d_octree):
+    grid_0_centers = copy.deepcopy(simple_grid_3d_octree)
+
+    dip_positions = np.array([
+        [0.25010, 0.50010, 0.54177],
+        [0.66677, 0.50010, 0.62510],
+    ], dtype=DEFAULT_DTYPE)
+
+    sp = np.array([
+        [0.25010, 0.50010, 0.37510],
+        [0.50010, 0.50010, 0.37510],
+        [0.66677, 0.50010, 0.41677],
+        [0.70843, 0.50010, 0.47510],
+        [0.75010, 0.50010, 0.54177],
+        [0.58343, 0.50010, 0.39177],
+        [0.73343, 0.50010, 0.50010],
+    ], dtype=DEFAULT_DTYPE)
+
+    nugget_effect_scalar = 0
+    spi = SurfacePoints(sp, nugget_effect_scalar)
+
+    dip_gradients = np.array([[0, 0, 1],
+                              [-.6, 0, .8]], dtype=DEFAULT_DTYPE)
+    nugget_effect_grad = 0
+
+    range_ = 4.4
+    co = 0.1428571429
+
+    ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
+
+    interpolation_options = InterpolationOptions(range_, co, 0,
+                                                 number_dimensions=3, kernel_function=AvailableKernelFunctions.exponential)
+
+    tensor_structure = TensorsStructure(np.array([7]))
+
+    ids = np.array([1, 2])
+
+
+    interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
+
+    yield interpolation_input, interpolation_options, tensor_structure
+
 
 
 @pytest.fixture(scope="session")

@@ -112,7 +112,7 @@ def recumbent_fold_scaled():
                                    number_dimensions=3,
                                    kernel_function=AvailableKernelFunctions.cubic)
 
-    resolution = [50, 50, 50]
+    resolution = [10, 10, 10]
     extent = [0.3301 - 0.005,.8201 + 0.005,
               0.2551 - 0.005, 0.7451 + 0.005,
               0.2551 - 0.005,0.7451 + 0.005]

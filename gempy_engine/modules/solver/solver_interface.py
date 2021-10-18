@@ -1,3 +1,4 @@
+from gempy_engine.config import DEFAULT_DTYPE
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 import numpy as np
@@ -5,14 +6,26 @@ import numpy as np
 bt = BackendTensor
 
 
-def kernel_reduction(cov, b, smooth = 0.01):
-
+def kernel_reduction(cov, b, smooth=.00001, compute=True):
     if BackendTensor.pykeops_enabled is True and BackendTensor.engine_backend is not AvailableBackends.tensorflow:
-        w = cov.solve(np.asarray(b).astype('float32'),
-                      alpha=smooth,
-                      dtype_acc='float32',
-                      backend="CPU"
-                      )
+        print("cov_sum 0", cov.sum(0, backend="CPU"))
+
+        #TODO: Check the other sum
+
+        w_f = cov.solve(np.asarray(b).astype(DEFAULT_DTYPE),
+                        alpha=smooth,
+                        dtype_acc=DEFAULT_DTYPE,
+                        backend="CPU",
+                        call=False
+                        )
+        if compute:
+            w = w_f()
+        else:
+            w = w_f
+        # TODO: This is a hack to test pykeops only up to here:
+        #bt.pykeops_enabled = False
+
+
     elif BackendTensor.pykeops_enabled is True and BackendTensor.engine_backend is AvailableBackends.tensorflow:
         w = cov.solve(b.numpy().astype('float32'), alpha=smooth, dtype_acc='float32')
     elif BackendTensor.pykeops_enabled is False and BackendTensor.engine_backend is AvailableBackends.tensorflow:

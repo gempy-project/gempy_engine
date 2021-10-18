@@ -65,4 +65,4 @@ class KernelFunction:
 
 class AvailableKernelFunctions(Enum):
     cubic = KernelFunction(cubic_function, cubic_function_p_div_r, cubic_function_a)
-    exponential = KernelFunction(exp_function_a, exp_function_p_div_r, exp_function_a)
+    exponential = KernelFunction(exp_function, exp_function_p_div_r, exp_function_a)

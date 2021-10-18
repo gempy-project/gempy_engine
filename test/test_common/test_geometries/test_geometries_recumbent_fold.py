@@ -11,7 +11,7 @@ from gempy_engine.integrations.interp_single.interp_single_interface import inte
 from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_grad_kernel
 from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation, \
     evaluation_vectors_preparations
-from test.helper_functions import plot_2d_scalar_y_direction
+from test.helper_functions import plot_2d_scalar_y_direction, plot_octree_pyvista, plot_dc_meshes, plot_points
 from test.test_common.test_geometries.test_geometries import plot
 
 from test.test_common.test_geometries.solutions import recumbent_weights, recumbent_weights_d1
@@ -388,5 +388,3 @@ class TestRecumbentFoldCovConstructionWithDrift:
 
             plt.show()
             # endregion
-
-

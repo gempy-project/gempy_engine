@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from gempy_engine.config import euclidean_distances_in_interpolation
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, \
     KernelFunction
@@ -13,7 +12,7 @@ tfnp = BackendTensor.tfnp
 tensor_types = BackendTensor.tensor_types
 
 # TODO: Move this to its right place
-euclidean_distances = euclidean_distances_in_interpolation
+
 
 @dataclass
 class InternalDistancesMatrices:
@@ -64,8 +63,8 @@ def _get_cov(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref,
     ug = _get_universal_gradient_terms(ki, options)
     drift = usp + ug
     #  NOTE: (miguel) The magic terms are real
-    #cov = c_o * (cov_grad + cov_sp + cov_grad_sp) + drift
-    cov = c_o * (cov_grad + cov_sp + cov_grad_sp) #+ drift
+    cov = c_o * (cov_grad + cov_sp + cov_grad_sp) + drift
+    #cov = c_o * (cov_sp)# + cov_sp)  # + cov_sp) #+ cov_grad_sp) #+ drift
     return cov
 
 
@@ -157,10 +156,17 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatr
     perp_matrix = tfnp.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1)  # .sum(axis=-1)
     if BackendTensor.pykeops_enabled is True:
 
-        r_ref_ref = dif_ref_ref.sqdist(dif_ref_ref)
-        r_rest_rest = dif_rest_rest.sqdist(dif_rest_rest)
-        r_ref_rest = ori_sp_matrices.dip_ref_i.sqdist(ori_sp_matrices.diprest_j)
-        r_rest_ref = ori_sp_matrices.diprest_j.sqdist(ori_sp_matrices.dip_ref_j)
+        # r_ref_ref = dif_ref_ref.sqdist(dif_ref_ref).sqrt()
+        # r_rest_rest = dif_rest_rest.sqdist(dif_rest_rest).sqrt()
+        #
+        r_ref_ref = ori_sp_matrices.dip_ref_i.sqdist(ori_sp_matrices.dip_ref_j).sqrt()
+        r_rest_rest = ori_sp_matrices.diprest_i.sqdist(ori_sp_matrices.diprest_j).sqrt()
+
+        # r_ref_ref = dif_ref_ref.square().sum(axis=-1).sqrt()
+        # r_rest_rest = dif_rest_rest.square().sum(axis=-1).sqrt()
+
+        r_ref_rest = ori_sp_matrices.dip_ref_i.sqdist(ori_sp_matrices.diprest_j).sqrt()
+        r_rest_ref = ori_sp_matrices.diprest_i.sqdist(ori_sp_matrices.dip_ref_j).sqrt()
 
     else:
         r_ref_ref = tfnp.sum(dif_ref_ref ** 2, axis=-1)  # .sum(-1)
@@ -168,7 +174,7 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatr
         r_ref_rest = tfnp.sum((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2, axis=-1)  # .sum(-1)
         r_rest_ref = tfnp.sum((ori_sp_matrices.diprest_i - ori_sp_matrices.dip_ref_j) ** 2, axis=-1)  # .sum(-1)
 
-        if euclidean_distances:
+        if  BackendTensor.euclidean_distances_in_interpolation:
             r_ref_ref = tfnp.sqrt(r_ref_ref)
             r_rest_rest = tfnp.sqrt(r_rest_rest)
             r_ref_rest = tfnp.sqrt(r_ref_rest)

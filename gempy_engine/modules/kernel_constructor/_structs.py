@@ -13,7 +13,7 @@ def _upgrade_kernel_input_to_keops_tensor(struct_data_instance):
     from pykeops.numpy import LazyTensor
 
     for key, val in struct_data_instance.__dict__.items():
-        struct_data_instance.__dict__[key] = LazyTensor(val.astype('float32'))
+        struct_data_instance.__dict__[key] = LazyTensor(val.astype(DEFAULT_DTYPE))
 
 
 @dataclass
