@@ -23,7 +23,7 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, sp_size: int,
     n_dim = interpolation_options.number_dimensions
 
     full_cov_size = n_ori * n_dim + sp_size + interpolation_options.n_uni_eq
-    z = np.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=DEFAULT_DTYPE)
+    z = np.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=BackendTensor.default_dtype)
 
     # Assembly vector for degree 1
     if interpolation_options.uni_degree != 0:
@@ -40,7 +40,7 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, sp_size: int,
     dips_b_aux = ori_internals.dip_positions_tiled
 
     # TODO [X]: Now we have that vstack below. We have to create the proper array here
-    z2 = np.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=DEFAULT_DTYPE)
+    z2 = np.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=BackendTensor.default_dtype)
 
     shift = n_ori * n_dim +  sp_size
     if interpolation_options.uni_degree == 2:
@@ -57,8 +57,8 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, sp_size: int,
 
 
         # Third term:
-    z3 = np.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=DEFAULT_DTYPE)
-    uni_second_degree_selector = np.zeros_like(z3, dtype=DEFAULT_DTYPE)
+    z3 = np.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=BackendTensor.default_dtype)
+    uni_second_degree_selector = np.zeros_like(z3, dtype=BackendTensor.default_dtype)
 
     if interpolation_options.uni_degree == 2:
         for i in range(interpolation_options.number_dimensions):
@@ -88,11 +88,11 @@ def assembly_dips_points_coords(surface_points: tensor_types, ori_size: int,
         -> Tuple[tensor_types,tensor_types,tensor_types]:
     n_dim = interpolation_options.number_dimensions
 
-    z = np.zeros((ori_size, n_dim), dtype=DEFAULT_DTYPE)
-    z2 = np.zeros((interpolation_options.n_uni_eq, n_dim), dtype=DEFAULT_DTYPE)
+    z = np.zeros((ori_size, n_dim), dtype=BackendTensor.default_dtype)
+    z2 = np.zeros((interpolation_options.n_uni_eq, n_dim), dtype=BackendTensor.default_dtype)
 
-    zb = np.zeros((interpolation_options.n_uni_eq, n_dim), dtype=DEFAULT_DTYPE)#z2.copy()
-    zc = np.zeros((interpolation_options.n_uni_eq, n_dim), dtype=DEFAULT_DTYPE)#z2.copy()
+    zb = np.zeros((interpolation_options.n_uni_eq, n_dim), dtype=BackendTensor.default_dtype)#z2.copy()
+    zc = np.zeros((interpolation_options.n_uni_eq, n_dim), dtype=BackendTensor.default_dtype)#z2.copy()
 
     if interpolation_options.uni_degree != 0:
         for i in range(interpolation_options.number_dimensions):

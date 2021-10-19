@@ -1,8 +1,9 @@
+import pytest
 import tensorflow as tf
 import numpy as np
 
 
-
+@pytest.mark.skip(reason = "Only prototype test. Trigger manually")
 def test_xla_surface_points_preprocessing(simple_model_2):
     surface_points = simple_model_2[0]
     tensors_structure = simple_model_2[3]
@@ -22,6 +23,7 @@ def test_xla_surface_points_preprocessing(simple_model_2):
     print(s)
 
 
+@pytest.mark.skip(reason = "Only prototype test. Trigger manually")
 def test_tf_solver_in_gpu():
     gpus = tf.config.list_physical_devices('GPU')
     tf.config.experimental.set_memory_growth(gpus[0], True)

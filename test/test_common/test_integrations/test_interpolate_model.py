@@ -8,7 +8,7 @@ from gempy_engine.integrations.interp_manager.interp_manager_api import interpol
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, yield_b_vector
 
 from test.helper_functions import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
-from ...conftest import plot_pyvista
+from ...conftest import plot_pyvista, TEST_DEPTH
 
 try:
     # noinspection PyUnresolvedReferences
@@ -17,7 +17,6 @@ except ImportError:
     plot_pyvista = False
 
 class TestInterpolateModel:
-    BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=False)
 
     def test_interpolate_model(self, simple_model_interpolation_input, n_oct_levels = 3):
         interpolation_input, options, structure = simple_model_interpolation_input
@@ -26,13 +25,14 @@ class TestInterpolateModel:
         options.number_octree_levels = n_oct_levels
         solutions = interpolate_model(interpolation_input, options ,structure)
 
-        if plot_pyvista or True:
+        if plot_pyvista or False:
            # pv.global_theme.show_edges = True
             p = pv.Plotter()
             plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
             plot_dc_meshes(p, solutions.dc_meshes[0])
             p.show()
 
+    @pytest.mark.skipif(TEST_DEPTH < 2, reason="Takes too long")
     def test_interpolate_model_no_octtree(self, simple_model_3_layers_high_res, n_oct_levels = 1):
         interpolation_input, options, structure = simple_model_3_layers_high_res
         print(interpolation_input)
@@ -67,6 +67,7 @@ class TestInterpolateModel:
             p.show()
 
 
+@pytest.mark.skip(reason="Redundant")
 class TestInterpolateModelHyperParameters:
     """
     This a test to see the different geometries that cubic vs exp function produces and the impact it has
@@ -79,14 +80,14 @@ class TestInterpolateModelHyperParameters:
         """
         Cubic, euclidean distances, exact range
         """
-        BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=False)
+
         interpolation_input, options, structure = simple_model_interpolation_input
         print(interpolation_input)
 
         options.number_octree_levels = n_oct_levels
         solutions = interpolate_model(interpolation_input, options ,structure)
 
-        if plot_pyvista or True:
+        if plot_pyvista or False:
            # pv.global_theme.show_edges = True
             p = pv.Plotter()
             plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
@@ -97,7 +98,7 @@ class TestInterpolateModelHyperParameters:
         """
         Cubic, SQUARED euclidean distances, exact range
         """
-        BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=False)
+
         BackendTensor.euclidean_distances_in_interpolation = False
         interpolation_input, options, structure = simple_model_interpolation_input
         print(interpolation_input)
@@ -105,7 +106,7 @@ class TestInterpolateModelHyperParameters:
         options.number_octree_levels = n_oct_levels
         solutions = interpolate_model(interpolation_input, options ,structure)
 
-        if plot_pyvista or True:
+        if plot_pyvista or False:
            # pv.global_theme.show_edges = True
             p = pv.Plotter()
             plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
@@ -118,7 +119,7 @@ class TestInterpolateModelHyperParameters:
         """
         exp, SQRT euclidean distances, exact range
         """
-        BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=False)
+
         interpolation_input, options, structure = simple_model_interpolation_input
         options.kernel_function = AvailableKernelFunctions.exponential
         range_ = .5
@@ -132,7 +133,7 @@ class TestInterpolateModelHyperParameters:
         options.number_octree_levels = n_oct_levels
         solutions = interpolate_model(interpolation_input, options ,structure)
 
-        if plot_pyvista or True:
+        if plot_pyvista or False:
            # pv.global_theme.show_edges = True
             p = pv.Plotter()
             plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
@@ -144,7 +145,7 @@ class TestInterpolateModelHyperParameters:
         """
         exp, euclidean distances, exact range
         """
-        BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=True)
+
         BackendTensor.euclidean_distances_in_interpolation = False
 
         interpolation_input, options, structure = simple_model_interpolation_input
@@ -159,7 +160,7 @@ class TestInterpolateModelHyperParameters:
         options.number_octree_levels = n_oct_levels
         solutions = interpolate_model(interpolation_input, options ,structure)
 
-        if plot_pyvista or True:
+        if plot_pyvista or False:
            # pv.global_theme.show_edges = True
             p = pv.Plotter()
             plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
@@ -171,7 +172,7 @@ class TestInterpolateModelHyperParameters:
         BackendTensor.euclidean_distances_in_interpolation = True
 
     def test_interpolate_recumbent(self, recumbent_fold_scaled, n_oct_levels=1):
-        BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=True)
+
 
         interpolation_input, options, structure = recumbent_fold_scaled
         options.kernel_function = AvailableKernelFunctions.exponential
@@ -181,7 +182,7 @@ class TestInterpolateModelHyperParameters:
         options.number_octree_levels = n_oct_levels
         solutions = interpolate_model(interpolation_input, options ,structure)
 
-        if plot_pyvista or True:
+        if plot_pyvista or False:
            # pv.global_theme.show_edges = True
             p = pv.Plotter()
             plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
@@ -195,7 +196,6 @@ class TestInterpolateModelHyperParameters:
 @pytest.mark.skipif(BackendTensor.engine_backend is AvailableBackends.tensorflow, reason="Only test against numpy")
 class TestInterpolateModelOptimized:
     def test_interpolate_model_weights(self, simple_model_interpolation_input_optimized, n_oct_levels=3):
-        BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=True)
         #pykeops.clean_pykeops()
         import numpy as np
         from pykeops.numpy import Vi, Vj, Pm
@@ -221,7 +221,6 @@ class TestInterpolateModelOptimized:
         cov = yield_covariance(si)
         print("\n")
         print(cov)
-        print("cov_sum 0", cov.sum(0, backend="CPU"))
 
         # Test weights and b vector
         b_vec = yield_b_vector(ori_internals, cov.shape[0])
@@ -231,7 +230,7 @@ class TestInterpolateModelOptimized:
 
 
     def test_interpolate_model(self, simple_model_interpolation_input_optimized, n_oct_levels = 3):
-        BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=True)
+
 
         interpolation_input, options, structure = simple_model_interpolation_input_optimized
         options.kernel_function = AvailableKernelFunctions.cubic
@@ -251,9 +250,10 @@ class TestInterpolateModelOptimized:
             plot_dc_meshes(p, solutions.dc_meshes[0])
             p.show()
 
+    @pytest.mark.skipif(TEST_DEPTH < 2, reason="Takes too long")
     def test_interpolate_model_no_octtree(self, simple_model_3_layers_high_res, n_oct_levels = 1):
         interpolation_input, options, structure = simple_model_3_layers_high_res
-        BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=True)
+
 
         options.kernel_function = AvailableKernelFunctions.exponential
         options.range = 4.464646446464646464

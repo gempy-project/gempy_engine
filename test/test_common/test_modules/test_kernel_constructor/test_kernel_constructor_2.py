@@ -196,6 +196,8 @@ class TestCompareWithGempy_v2:
             plt.show()
 
 
+@pytest.mark.skipif(BackendTensor.engine_backend is not AvailableBackends.numpyPykopsCPU or
+                    BackendTensor.engine_backend is not AvailableBackends.numpyPykopsGPU, reason="Only test against numpy")
 class TestPykeops:
     @pytest.fixture(scope="class")
     def internals(self, simple_model):
@@ -271,8 +273,6 @@ class TestPykeops:
         print(dm.r_ref_ref.sum(axis=0, backend="CPU"))
 
 
-
-    # TODO: Change model for one with fixed ranged and exp kernel
     def test_reduction(self, internals):
         """
         This test is meant to be used to check with how many terms the compilation time raises too much
@@ -283,7 +283,7 @@ class TestPykeops:
             -  cov_grad and cov_sp and cov_grad_sp:                     //  >5 min         // (15) 3 sec    //
             -  cov_grad cov_sp cov_grad_sp drift:                                          // (42) 4 sec    // (49) 5 sec
         """
-        BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=True)
+        #BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=True)
 
 
         sp_internals, ori_internals, options = internals
@@ -299,10 +299,9 @@ class TestPykeops:
 
         # Test weights and b vector
         b_vec = yield_b_vector(ori_internals, cov.shape[0])
-        weights = kernel_reduction(cov, b_vec, compute=False)
+        weights = kernel_reduction(cov, b_vec, compute=True)
         print(weights)
 
-        print(weights())
         weights_gempy_v2 = [6.402e+00, -1.266e+01, 2.255e-15, -2.784e-15, 1.236e+01, 2.829e+01, -6.702e+01, -6.076e+02,
                             1.637e+03, 1.053e+03, 2.499e+02, -2.266e+03]
-     #   np.testing.assert_allclose(np.asarray(weights).reshape(-1), weights_gempy_v2, rtol=2)
+        np.testing.assert_allclose(np.asarray(weights).reshape(-1), weights_gempy_v2, rtol=2)

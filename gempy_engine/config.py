@@ -4,12 +4,18 @@ from enum import Enum, auto
 
 class AvailableBackends(Enum):
     numpy = auto()
-    tensorflow = auto()
-    jax = auto()
+    numpyPykopsCPU = auto()
+    numpyPykeopsGPU = auto()
+    tensorflowCPU = auto()
+    tensorflowGPU = auto()
+
+    @property
+    def tensorflow(self):
+        return self.tensorflowCPU
 
 DEBUG_MODE = True
 DEFAULT_BACKEND = AvailableBackends.numpy
-DEFAULT_DTYPE = "float32"
+DEFAULT_DTYPE = "float32" # This is only used if backend is CPU
 
 is_numpy_installed = find_spec("numpy") is not None
 is_tensorflow_installed = find_spec("tensorflow") is not None

@@ -41,9 +41,6 @@ class TestXLACompareWithGempy_v2:
         return weights
 
     def test_reduction(self, internals):
-        # TODO: Trying to make it XLA
-
-        BackendTensor.change_backend(AvailableBackends.tensorflow, pykeops_enabled=False, use_gpu=False)
         sp_internals, ori_internals, options = internals
 
         @tensorflow.function

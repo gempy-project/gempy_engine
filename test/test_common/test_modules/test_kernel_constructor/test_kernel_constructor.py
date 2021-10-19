@@ -71,7 +71,7 @@ pykeops_enabled = False
 
 # TODO: (bug) When running test_covariance_spline_kernel the running the class test breaks for some weird state change
 
-@pytest.mark.skipif(BackendTensor.engine_backend is AvailableBackends.tensorflow, reason="Only test against numpy")
+#@pytest.mark.skipif(BackendTensor.engine_backend is AvailableBackends.tensorflow, reason="Only test against numpy")
 class TestPykeopsNumPyEqual():
     @pytest.fixture(scope="class")
     def preprocess_data(self, simple_model_2):
@@ -131,42 +131,42 @@ class TestPykeopsNumPyEqual():
         np.testing.assert_array_almost_equal(dm.r_rest_ref, dm_sol.r_rest_ref, decimal=3)
         np.testing.assert_array_almost_equal(dm.r_rest_rest, dm_sol.r_rest_rest, decimal=3)
 
-    def test_compare_cg(self, preprocess_data):
-        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_grad", cov_func=_test_covariance_items)
-
-    def test_compare_ci(self, preprocess_data):
-        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_sp", cov_func=_test_covariance_items)
-
-    def test_compare_cgi(self, preprocess_data):
-        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_grad_sp",
-                                                    cov_func=_test_covariance_items)
-
-    def test_compare_drift(self, preprocess_data):
-        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="drift", cov_func=_test_covariance_items)
-
-    @pytest.mark.skip("This test is broken: the stored covariance has a different c_o")
-    def test_copare_full_cov(self, preprocess_data):
-        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov", cov_func=_test_covariance_items)
-
-    def _compare_covariance_item_numpy_pykeops(self, preprocess_data, item, cov_func):
-        sp_internals, ori_internals, options = preprocess_data
-        # numpy
-        BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=False)
-        kernel_data = cov_vectors_preparation(SolverInput(sp_internals, ori_internals, options))
-        c_n = cov_func(kernel_data, options, item=item)
-        if False:
-            np.save(f"./solutions/{item}", c_n)
-
-        l = np.load(dir_name + f"/../solutions/{item}.npy")
-        c_n_sum = c_n.sum(0).reshape(-1, 1)
-
-        print(c_n, c_n_sum)
-        np.testing.assert_array_almost_equal(np.asarray(c_n), l, decimal=3)
-
-        # pykeops
-        BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=pykeops_enabled)
-        kernel_data = cov_vectors_preparation(SolverInput(sp_internals, ori_internals, options))
-        c_k = cov_func(kernel_data, options, item=item)
-        c_k_sum = c_n.sum(0).reshape(-1, 1)
-        print(c_k, c_k_sum)
-        np.testing.assert_array_almost_equal(c_n_sum, c_k_sum, decimal=3)
+    # def test_compare_cg(self, preprocess_data):
+    #     self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_grad", cov_func=_test_covariance_items)
+    #
+    # def test_compare_ci(self, preprocess_data):
+    #     self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_sp", cov_func=_test_covariance_items)
+    #
+    # def test_compare_cgi(self, preprocess_data):
+    #     self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_grad_sp",
+    #                                                 cov_func=_test_covariance_items)
+    #
+    # def test_compare_drift(self, preprocess_data):
+    #     self._compare_covariance_item_numpy_pykeops(preprocess_data, item="drift", cov_func=_test_covariance_items)
+    #
+    # @pytest.mark.skip("This test is broken: the stored covariance has a different c_o")
+    # def test_copare_full_cov(self, preprocess_data):
+    #     self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov", cov_func=_test_covariance_items)
+    #
+    # def _compare_covariance_item_numpy_pykeops(self, preprocess_data, item, cov_func):
+    #     sp_internals, ori_internals, options = preprocess_data
+    #     # numpy
+    #     BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=False)
+    #     kernel_data = cov_vectors_preparation(SolverInput(sp_internals, ori_internals, options))
+    #     c_n = cov_func(kernel_data, options, item=item)
+    #     if False:
+    #         np.save(f"./solutions/{item}", c_n)
+    #
+    #     l = np.load(dir_name + f"/../solutions/{item}.npy")
+    #     c_n_sum = c_n.sum(0).reshape(-1, 1)
+    #
+    #     print(c_n, c_n_sum)
+    #     np.testing.assert_array_almost_equal(np.asarray(c_n), l, decimal=3)
+    #
+    #     # pykeops
+    #     BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=pykeops_enabled)
+    #     kernel_data = cov_vectors_preparation(SolverInput(sp_internals, ori_internals, options))
+    #     c_k = cov_func(kernel_data, options, item=item)
+    #     c_k_sum = c_n.sum(0).reshape(-1, 1)
+    #     print(c_k, c_k_sum)
+    #     np.testing.assert_array_almost_equal(c_n_sum, c_k_sum, decimal=3)

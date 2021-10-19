@@ -137,8 +137,8 @@ class DriftMatrixSelector:
     sel_vj: tensor_types = np.empty((1, 0, 3))
 
     def __init__(self, x_size: int, y_size: int, n_drift_eq: int):
-        sel_i = np.zeros((x_size, 2), dtype=DEFAULT_DTYPE)
-        sel_j = np.zeros((y_size, 2), dtype=DEFAULT_DTYPE)
+        sel_i = np.zeros((x_size, 2), dtype=BackendTensor.default_dtype)
+        sel_j = np.zeros((y_size, 2), dtype=BackendTensor.default_dtype)
 
         sel_i[:-n_drift_eq, 0] = 1
         sel_i[-n_drift_eq:, 1] = 1

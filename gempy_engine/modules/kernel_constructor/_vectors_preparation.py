@@ -136,11 +136,11 @@ def _assembly_drift_grid_tensors(grid, options, ori_, sp_, axis):
 
     grid_length = grid.shape[0]
 
-    grid_1 = np.zeros((grid_length, options.number_dimensions), dtype=DEFAULT_DTYPE)
+    grid_1 = np.zeros((grid_length, options.number_dimensions), dtype=BackendTensor.default_dtype)
 
     grid_1[:, axis] = 1
 
-    sel = np.ones(options.number_dimensions, dtype=DEFAULT_DTYPE)
+    sel = np.ones(options.number_dimensions, dtype=BackendTensor.default_dtype)
     sel[axis] = 0
 
     dips_ug = _structs.OrientationsDrift(dips_ug_d1, grid_1,

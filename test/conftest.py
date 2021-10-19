@@ -29,12 +29,20 @@ from test.fixtures.grids import \
     simple_grid_3d_more_points_grid, \
     simple_grid_3d_octree
 
-backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflow])
-using_gpu = bool(np.random.choice([True, False]))
-using_pykeops = bool(np.random.choice([True, False]))
+backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflowCPU])
 
 # TODO: For now pykeops is always disabled
-BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=True)
+BackendTensor.change_backend(AvailableBackends.numpy)
+
+"""
+Choosing the speed of tests:
+depth 1: Run only test under 1s
+depth 2: Run only test under 1min
+depth 3: Run all test
+
+"""
+TEST_DEPTH = 1 #
+
 
 plot_pyvista = False
 

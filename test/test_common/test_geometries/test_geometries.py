@@ -1,6 +1,7 @@
 import pytest
 
 from gempy_engine.config import DEFAULT_DTYPE
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_structs import InterpOutput
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.integrations.interp_single._interp_single_internals import _input_preprocess
@@ -32,7 +33,7 @@ class TestHorizontalStatCovConstructionNoDrift:
     weights: np.array = np.array(
         [-1.437e-18, 2.359e-18, - 2.193e-18, 2.497e-18, 1.481e-03, 1.481e-03,
          5.969e-03, - 2.984e-03, - 2.984e-03, 5.969e-03, - 2.984e-03, - 5.969e-03,
-         2.984e-03, 2.984e-03, - 5.969e-03, 2.984e-03], dtype=DEFAULT_DTYPE
+         2.984e-03, 2.984e-03, - 5.969e-03, 2.984e-03], dtype=BackendTensor.default_dtype
     ).reshape(1, -1)
 
     def test_horizontal_stratigraphic_scaled_grad(self, horizontal_stratigraphic_scaled):

@@ -13,29 +13,6 @@ def test_optional_dependencies():
     print(gempy_engine.config.is_pykeops_installed)
 
 
-def test_change_backend_on_the_fly():
-
-    np_module = BackendTensor.tfnp
-    BackendTensor.change_backend(AvailableBackends.tensorflow)
-    tf_module = BackendTensor.tfnp
-
-    pass
-
-
-def test_backends_are_running(simple_model_2):
-    surface_points = simple_model_2[0]
-    tensors_structure = simple_model_2[3]
-
-    # Run Default numpy-cpu
-    s = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
-    print(s)
-
-    # Run TF-Default
-    BackendTensor.change_backend(AvailableBackends.tensorflow)
-    s = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
-    print(s)
-
-
 def test_data_class_hash(simple_model_2):
     import numpy as np
     sp_coords = np.array([[4, 0],
@@ -54,21 +31,3 @@ def test_data_class_hash(simple_model_2):
 
     f = {"a": np.ones(6)}
     print(f.__hash__)
-
-
-# We should trigger them manually
-def test_tf_function(simple_model_2):
-    surface_points = simple_model_2[0]
-    tensors_structure = simple_model_2[3]
-
-    BackendTensor.change_backend(AvailableBackends.tensorflow)
-
-    import tensorflow as tf
-    @tf.function(experimental_compile=False)
-    def xla_(surface_points, tensors_structure):
-        s = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
-        return s.ref_surface_points
-
-    s = xla_(surface_points, tensors_structure)
-
-    print(s)
