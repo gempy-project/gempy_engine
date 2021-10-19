@@ -17,7 +17,7 @@ def surface_points_preprocess(sp_input: SurfacePoints, number_of_points_per_surf
     nugget_effect = sp_input.nugget_effect_scalar
 
 
-    if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+    if BackendTensor.engine_backend is AvailableBackends.tensorflowCPU or BackendTensor.engine_backend is AvailableBackends.tensorflowGPU:
         ref_nugget, ref_points, rest_nugget, rest_points = \
             _compute_rest_ref_in_tf(nugget_effect, number_of_points_per_surface,  sp)
 

@@ -3,6 +3,11 @@ import numpy as np
 import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
+
+backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflowCPU])
+# TODO: For now pykeops is always disabled
+BackendTensor.change_backend(AvailableBackends.tensorflowCPU)
+
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
 from gempy_engine.core.data.options import InterpolationOptions
@@ -29,10 +34,7 @@ from test.fixtures.grids import \
     simple_grid_3d_more_points_grid, \
     simple_grid_3d_octree
 
-backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflowCPU])
 
-# TODO: For now pykeops is always disabled
-BackendTensor.change_backend(AvailableBackends.numpy)
 
 """
 Choosing the speed of tests:

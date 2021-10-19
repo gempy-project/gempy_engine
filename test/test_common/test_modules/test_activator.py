@@ -35,7 +35,7 @@ def test_activator(simple_model_values_block_output):
     #     ids_sol, # NOTE(miguel) Now we only segment on the grid
     #     decimal=3)
 
-    if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+    if BackendTensor.engine_backend == AvailableBackends.tensorflowCPU or BackendTensor.engine_backend == AvailableBackends.tensorflowGPU:
         Z_x = Z_x.numpy()
         ids_block = ids_block.numpy()
 

@@ -318,14 +318,12 @@ class TestRecumbentFoldCovConstructionWithDrift:
         print(grad_y)
 
 
-
-
         # Gradient Z
         kernel_data = evaluation_vectors_preparations(xyz_lvl0, SolverInput(sp_internal, ori_internal, options), axis=2)
         export_grad_scalar = create_grad_kernel(kernel_data, options)
         grad_z = (weights @ export_grad_scalar)[0, :-105]
 
-        if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+        if BackendTensor.engine_backend is AvailableBackends.tensorflowCPU or BackendTensor.engine_backend is AvailableBackends.tensorflowGPU:
             grad_x = grad_x.numpy()
             grad_y = grad_y.numpy()
             grad_z = grad_z.numpy()

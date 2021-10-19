@@ -29,7 +29,7 @@ class BackendTensor():
             cls.default_dtype = DEFAULT_DTYPE
             tfnp = cls.setup_numpy_backend()
 
-        elif engine_backend == AvailableBackends.numpyPykeosCPU:
+        elif engine_backend == AvailableBackends.numpyPykeopsCPU:
             cls.use_gpu = False
             cls.pykeops_enabled = True
             cls.default_dtype = DEFAULT_DTYPE
@@ -63,13 +63,14 @@ class BackendTensor():
 
 
         cls._set_active_backend_pointers(engine_backend, tfnp)
-        cls.tensor_types = Union[tfnp.ndarray]  # tensor Types with respect the backend
 
 
     @classmethod
     def setup_tensorflow_backend(cls):
         import tensorflow as tfnp
         tfnp.sum = tfnp.reduce_sum
+
+        cls.tensor_types = Union[tfnp.Tensor, tfnp.Variable]
         if DEBUG_MODE:
             # To find out which devices your operations and tensors are assigned to
             tfnp.debugging.set_log_device_placement(True)
@@ -84,6 +85,7 @@ class BackendTensor():
         tfnp.reduce_sum = tfnp.sum
         tfnp.concat = tfnp.concatenate
         tfnp.constant = tfnp.array
+        cls.tensor_types = Union[tfnp.ndarray]  # tensor Types with respect the backend
         return tfnp
 
     @classmethod

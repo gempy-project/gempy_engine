@@ -128,7 +128,7 @@ class TestCompareWithGempy_v2:
         export_scalar_ff = create_scalar_kernel(kernel_data, options)
         scalar_ff = weights @ export_scalar_ff
 
-        if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+        if BackendTensor.engine_backend == AvailableBackends.tensorflowCPU or BackendTensor.engine_backend == AvailableBackends.tensorflowGPU:
             scalar_ff = scalar_ff.numpy()
 
         print(f"\n Scalar field: {scalar_ff.reshape(4, 1, 4)}")
@@ -144,7 +144,8 @@ class TestCompareWithGempy_v2:
 
         np.testing.assert_allclose(np.asarray(scalar_ff)[0], scalar_sol, rtol=1)
 
-    @pytest.mark.skipif(BackendTensor.engine_backend is AvailableBackends.tensorflow, reason="Only test against numpy")
+    @pytest.mark.skipif(BackendTensor.engine_backend is AvailableBackends.tensorflowCPU or
+                        BackendTensor.engine_backend is AvailableBackends.tensorflowGPU, reason="Only test against numpy")
     def test_export_to_grad(self, internals, weights):
         # Test gradient x
         np_grad_x = np.gradient(scalar_sol.reshape((4, 1, 4)), axis=0)
@@ -196,7 +197,7 @@ class TestCompareWithGempy_v2:
             plt.show()
 
 
-@pytest.mark.skipif(BackendTensor.engine_backend is not AvailableBackends.numpyPykopsCPU or
+@pytest.mark.skipif(BackendTensor.engine_backend is not AvailableBackends.numpyPykeopsCPU or
                     BackendTensor.engine_backend is not AvailableBackends.numpyPykopsGPU, reason="Only test against numpy")
 class TestPykeops:
     @pytest.fixture(scope="class")

@@ -33,7 +33,7 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
     # np.testing.assert_almost_equal(gx, gx_sol[:-7], decimal=3)
     # np.testing.assert_almost_equal(gy, gy_sol[:-7], decimal=3)
     # np.testing.assert_almost_equal(gz, gz_sol[:-7], decimal=3)
-    if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+    if BackendTensor.engine_backend == AvailableBackends.tensorflowCPU or BackendTensor.engine_backend == AvailableBackends.tensorflowGPU:
         Z_x = Z_x.numpy()
 
 
@@ -75,7 +75,7 @@ def test_export_simple_model_low_res(simple_model_interpolation_input, plot = Tr
     #     np.round(ids_block),
     #     ids_sol[:, :-7], # NOTE(miguel) Now we only segment on the grid
     #     decimal=3)
-    if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+    if BackendTensor.engine_backend == AvailableBackends.tensorflowCPU or BackendTensor.engine_backend == AvailableBackends.tensorflowGPU:
         Z_x = Z_x.numpy()
 
     if plot:
@@ -128,7 +128,7 @@ def test_export_3_layers(simple_model_3_layers_high_res, plot = True):
     #     np.round(ids_block),
     #     ids_sol[:, :-7], # NOTE(miguel) Now we only segment on the grid
     #     decimal=3)
-    if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+    if BackendTensor.engine_backend == AvailableBackends.tensorflowCPU or BackendTensor.engine_backend == AvailableBackends.tensorflowGPU:
         Z_x = Z_x.numpy()
 
     if plot:

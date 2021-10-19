@@ -4,14 +4,10 @@ from enum import Enum, auto
 
 class AvailableBackends(Enum):
     numpy = auto()
-    numpyPykopsCPU = auto()
+    numpyPykeopsCPU = auto()
     numpyPykeopsGPU = auto()
     tensorflowCPU = auto()
     tensorflowGPU = auto()
-
-    @property
-    def tensorflow(self):
-        return self.tensorflowCPU
 
 DEBUG_MODE = True
 DEFAULT_BACKEND = AvailableBackends.numpy

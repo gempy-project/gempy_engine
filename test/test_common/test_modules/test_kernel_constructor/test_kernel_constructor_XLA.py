@@ -14,7 +14,7 @@ from test.test_common.test_modules.test_kernel_constructor.test_kernel_construct
     scalar_sol
 
 
-@pytest.mark.skipif(BackendTensor.engine_backend is not AvailableBackends.tensorflow, reason="only with tensorflow")
+@pytest.mark.skipif(BackendTensor.engine_backend == AvailableBackends.tensorflowCPU or BackendTensor.engine_backend == AvailableBackends.tensorflowGPU, reason="only with tensorflow")
 class TestXLACompareWithGempy_v2:
     @pytest.fixture(scope="class")
     def internals(self, simple_model):

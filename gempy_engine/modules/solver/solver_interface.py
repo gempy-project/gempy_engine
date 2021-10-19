@@ -7,7 +7,7 @@ bt = BackendTensor
 
 
 def kernel_reduction(cov, b, smooth=.00001, compute=True):
-    if BackendTensor.pykeops_enabled is True and BackendTensor.engine_backend is not AvailableBackends.tensorflow:
+    if BackendTensor.engine_backend is AvailableBackends.numpyPykeopsCPU or BackendTensor.engine_backend is AvailableBackends.numpyPykeopsGPU:
         print("Compiling solver...")
         w_f = cov.solve(np.asarray(b).astype(DEFAULT_DTYPE),
                         alpha=smooth,
@@ -24,17 +24,15 @@ def kernel_reduction(cov, b, smooth=.00001, compute=True):
         # TODO: This is a hack to test pykeops only up to here:
         #bt.pykeops_enabled = False
 
-
-    elif BackendTensor.pykeops_enabled is True and BackendTensor.engine_backend is AvailableBackends.tensorflow:
-        w = cov.solve(b.numpy().astype('float32'), alpha=smooth, dtype_acc='float32')
-    elif BackendTensor.pykeops_enabled is False and BackendTensor.engine_backend is AvailableBackends.tensorflow:
+    elif  BackendTensor.engine_backend is AvailableBackends.tensorflowCPU or\
+          BackendTensor.engine_backend is AvailableBackends.tensorflowGPU:
         # NOTE: In GPU Tensorflow 2.4 is needs to increase memory usage and by default they allocate all what
         # leads to a sudden process kill. Use the following to fix the problem
         # gpus = tf.config.list_physical_devices('GPU')
         # tf.config.experimental.set_memory_growth(gpus[0], True)
 
         w = bt.tfnp.linalg.solve(cov, b)
-    elif BackendTensor.pykeops_enabled is False and BackendTensor.engine_backend is not AvailableBackends.tensorflow:
+    elif BackendTensor.engine_backend is AvailableBackends.numpy:
         w = bt.tfnp.linalg.solve(cov, b[:, 0])
     else:
         raise AttributeError('There is a weird combination of libraries?')

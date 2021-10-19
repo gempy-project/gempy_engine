@@ -193,7 +193,8 @@ class TestInterpolateModelHyperParameters:
 
 
 
-@pytest.mark.skipif(BackendTensor.engine_backend is AvailableBackends.tensorflow, reason="Only test against numpy")
+@pytest.mark.skipif(BackendTensor.engine_backend is AvailableBackends.tensorflowCPU or
+                    BackendTensor.engine_backend is AvailableBackends.tensorflowGPU, reason="Only test against numpy")
 class TestInterpolateModelOptimized:
     def test_interpolate_model_weights(self, simple_model_interpolation_input_optimized, n_oct_levels=3):
         #pykeops.clean_pykeops()

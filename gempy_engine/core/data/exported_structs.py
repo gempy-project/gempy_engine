@@ -25,7 +25,7 @@ class ExportedFields:
 
     @property
     def scalar_field_at_surface_points(self):
-        if BackendTensor.engine_backend == AvailableBackends.tensorflow:
+        if BackendTensor.engine_backend == AvailableBackends.tensorflowCPU or BackendTensor.engine_backend == AvailableBackends.tensorflowGPU:
             import tensorflow as tf
             a = tf.gather(self._scalar_field[0, -self.n_surface_points:], self.npf)
             return a
@@ -92,7 +92,7 @@ class InterpOutput:
 
     @property
     def ids_block_regular_grid(self):
-        if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+        if BackendTensor.engine_backend == AvailableBackends.tensorflowCPU or BackendTensor.engine_backend == AvailableBackends.tensorflowGPU:
             aux = tfnp.cast(self.values_block[0, :self.grid.len_grids[0]], tfnp.int32)
             return tfnp.reshape(aux, self.grid.regular_grid_shape)
         else:
@@ -100,7 +100,7 @@ class InterpOutput:
 
     @property
     def ids_block(self) -> np.ndarray:
-        if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+        if BackendTensor.engine_backend == AvailableBackends.tensorflowCPU or BackendTensor.engine_backend == AvailableBackends.tensorflowGPU:
             return tfnp.cast(self.values_block[0, :self.grid.len_grids[0]], tfnp.int32)
         else:
             return np.rint(self.values_block[0, :self.grid.len_grids[0]])
