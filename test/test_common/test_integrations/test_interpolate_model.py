@@ -231,7 +231,7 @@ class TestInterpolateModelOptimized:
 
 
     def test_interpolate_model(self, simple_model_interpolation_input_optimized, n_oct_levels = 3):
-        BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=False)
+        BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=True)
 
         interpolation_input, options, structure = simple_model_interpolation_input_optimized
         options.kernel_function = AvailableKernelFunctions.cubic
@@ -242,7 +242,7 @@ class TestInterpolateModelOptimized:
         options.number_octree_levels = n_oct_levels
         solutions = interpolate_model(interpolation_input, options ,structure)
 
-        if plot_pyvista or True:
+        if plot_pyvista or False:
            # pv.global_theme.show_edges = True
             p = pv.Plotter()
             plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)

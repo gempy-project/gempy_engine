@@ -17,7 +17,6 @@ from ...modules.solver import solver_interface
 tfnp = BackendTensor.tfnp
 
 
-
 class Buffer:
     weights = None
 
@@ -64,6 +63,7 @@ def interpolate_scalar_field(
         Buffer.weights = weights
     else:
         weights = Buffer.weights
+
     # Within octree level
     # +++++++++++++++++++
     exported_fields = _evaluate_sys_eq(xyz_lvl0, solver_input, weights)
@@ -101,31 +101,52 @@ def _input_preprocess(data_shape, grid, orientations, surface_points) -> \
 def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput,
                      weights: np.ndarray) -> ExportedFields:
     options = interp_input.options
-    weights_o = weights
-
-    #TODO: This is for debugging purposes!!
-
-
-    weights = weights.astype(DEFAULT_DTYPE)
-
-    # =======================================
 
     eval_kernel = kernel_constructor.yield_evaluation_kernel(xyz, interp_input)
     eval_gx_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=0)
     eval_gy_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=1)
 
-
     if BackendTensor.pykeops_enabled is True and BackendTensor.engine_backend is not AvailableBackends.tensorflow:
         from pykeops.numpy.lazytensor import LazyTensor
-        #weights = LazyTensor.LazyTensor(weights_o[0])
-        weights =LazyTensor.LazyTensor(weights[:, :, None])#.vecmatmult(eval_kernel.t()).sum(1, backend="CPU")
-        #weights = weights_o[:, None, :]
+        import time
+        t_0 = time.perf_counter()
+
+        # TODO: Can we merge everything?
+        weights =LazyTensor.LazyTensor(weights[:, :, None])
+
+        def compile_evaluator(weights, kernel):
+            return weights.vecmatmult(kernel.t()).sum(1, backend=BackendTensor.get_backend(), dtype_acc=DEFAULT_DTYPE , call=False)
+
         # TODO: Optimize
-        scalar_field = weights.vecmatmult(eval_kernel.t()).sum(1, backend="CPU", dtype_acc=DEFAULT_DTYPE ).T
-        gx_field = weights.vecmatmult(eval_gx_kernel.t()).sum(1, backend="CPU", dtype_acc=DEFAULT_DTYPE).T
-        gy_field = weights.vecmatmult(eval_gy_kernel.t()).sum(1, backend="CPU", dtype_acc=DEFAULT_DTYPE).T
+        print("Compiling Scalar field evaluations...")
+        scalar_field_f = compile_evaluator(weights, eval_kernel)
+        t_1 = time.perf_counter()
+        print("Compiled Scalar Field in: ", t_1-t_0)
+        scalar_field = scalar_field_f().T
+        t_2 = time.perf_counter()
+        print("Scalar field exported in: ", t_2 - t_1)
+
+        print("Compiling gx...")
+        gx_f = compile_evaluator(weights, eval_gx_kernel)
+        t_3 = time.perf_counter()
+        print("Compiled gx in: ", t_3 - t_2)
+        gx_field = gx_f()
+
+        t_4 = time.perf_counter()
+        print("Gx exported in: ", t_4 - t_3)
+
+        print("Compiling gy...")
+        gy_f = compile_evaluator(weights, eval_gy_kernel)
+        t_5 = time.perf_counter()
+        print("Compiled gx in: ", t_5 - t_4)
+        gy_field = gy_f()
+        t_6 = time.perf_counter()
+        print("Gx exported in: ", t_6 - t_5)
+
         eval_gz_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=2)
-        gz_field = weights.vecmatmult(eval_gz_kernel.t()).sum(1, backend="CPU", dtype_acc=DEFAULT_DTYPE).T
+        print("Compiling gz...")
+        gz_f = compile_evaluator(weights, eval_gz_kernel)
+        gz_field = gz_f()
 
     else:
         scalar_field = weights @ eval_kernel

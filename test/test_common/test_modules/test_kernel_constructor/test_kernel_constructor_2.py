@@ -283,26 +283,23 @@ class TestPykeops:
             -  cov_grad and cov_sp and cov_grad_sp:                     //  >5 min         // (15) 3 sec    //
             -  cov_grad cov_sp cov_grad_sp drift:                                          // (42) 4 sec    // (49) 5 sec
         """
-        from pykeops.numpy import Vi, Vj, Pm
         BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=True)
-        pykeops.clean_pykeops()
 
 
         sp_internals, ori_internals, options = internals
         options.kernel_function = AvailableKernelFunctions.exponential
-        options.range = 4.464646446464646464#Pm(np.array([4.464646446464646464], dtype="float32"))#4.4# Pm(np.array([4.4453525], dtype="float32"))
-        options.i_res = 4#Pm(1)#4#Pm(np.array([4], dtype="float32"))#4
-        options.gi_res =2#Pm(1)# Pm(np.array([2], dtype="float32"))#2
+        options.range = 4.464646446464646464
+        options.i_res = 4
+        options.gi_res =2
         # Test cov
         cov = yield_covariance(SolverInput(sp_internals, ori_internals, options))
         print("\n")
         print(cov)
 
 
-
         # Test weights and b vector
         b_vec = yield_b_vector(ori_internals, cov.shape[0])
-        weights = kernel_reduction(cov, b_vec, 1, compute=False)
+        weights = kernel_reduction(cov, b_vec, compute=False)
         print(weights)
 
         print(weights())

@@ -65,3 +65,7 @@ PyKeops
 - Use python -m bpython for Pykeops sanity checks. Usually this runs fine
 - It seems Pycharm test run if it is for the CPU
 - Pycharm run script works if the model is already in cache
+- (Oct 2021) either:
+  - (1) Pykeops for gpu only runs in my pc when pykeops.config.build_type = 'Debug' or
+  - (2) After reboot we need to call test_numpy_binding to warm up or something?
+

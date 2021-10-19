@@ -8,16 +8,15 @@ bt = BackendTensor
 
 def kernel_reduction(cov, b, smooth=.00001, compute=True):
     if BackendTensor.pykeops_enabled is True and BackendTensor.engine_backend is not AvailableBackends.tensorflow:
-        print("cov_sum 0", cov.sum(0, backend="CPU"))
-
-        #TODO: Check the other sum
-
+        print("Compiling solver...")
         w_f = cov.solve(np.asarray(b).astype(DEFAULT_DTYPE),
                         alpha=smooth,
                         dtype_acc=DEFAULT_DTYPE,
-                        backend="CPU",
+                        backend=BackendTensor.get_backend(),
                         call=False
                         )
+        print("Compilation done!")
+
         if compute:
             w = w_f()
         else:

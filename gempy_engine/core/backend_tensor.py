@@ -100,5 +100,12 @@ class BackendTensor():
         print(f"\n Using gpu: {cls.use_gpu}. \n")
         print(f"\n Using pykeops: {cls.pykeops_enabled}. \n")
 
+    @classmethod
+    def get_backend(cls):
+        if cls.use_gpu:
+            return "GPU"
+        else:
+            return "CPU"
+
 
 BackendTensor.change_backend(DEFAULT_BACKEND)

@@ -310,7 +310,7 @@ def simple_model_3_layers(simple_grid_3d_octree):
 @pytest.fixture(scope="session")
 def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid):
     
-    grid_0_centers = dataclasses.replace(simple_grid_3d_more_points_grid)
+    grid_0_centers = dataclasses.replace(simple_grid_3d_more_points_grid) # Makes copy
 
     np.set_printoptions(precision=3, linewidth=200)
 
