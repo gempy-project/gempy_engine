@@ -29,6 +29,7 @@ def test_horizontal_stratigraphic(horizontal_stratigraphic):
         plot_2d_scalar_y_direction(interpolation_input, Z_x)
 
 
+@pytest.mark.skipif(BackendTensor.pykeops_enabled)
 class TestHorizontalStatCovConstructionNoDrift:
     weights: np.array = np.array(
         [-1.437e-18, 2.359e-18, - 2.193e-18, 2.497e-18, 1.481e-03, 1.481e-03,

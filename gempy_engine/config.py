@@ -10,7 +10,7 @@ class AvailableBackends(Enum):
     tensorflowGPU = auto()
 
 DEBUG_MODE = True
-DEFAULT_BACKEND = AvailableBackends.numpy
+DEFAULT_BACKEND = AvailableBackends.numpyPykeopsGPU
 DEFAULT_DTYPE = "float32" # This is only used if backend is CPU
 
 is_numpy_installed = find_spec("numpy") is not None

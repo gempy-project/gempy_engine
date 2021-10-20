@@ -4,10 +4,10 @@ import numpy as np
 
 from pykeops.numpy import LazyTensor
 import pykeops
-#pykeops.clean_pykeops()
+pykeops.clean_pykeops()
 pykeops.test_numpy_bindings()
 # pykeops.verbose = True
-#pykeops.config.build_type = 'Debug'
+pykeops.config.build_type = 'Debug'
 print(pykeops.config.gpu_available)
 
 

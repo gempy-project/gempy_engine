@@ -234,7 +234,7 @@ class TestInterpolateModelOptimized:
 
 
         interpolation_input, options, structure = simple_model_interpolation_input_optimized
-        options.kernel_function = AvailableKernelFunctions.cubic
+        options.kernel_function = AvailableKernelFunctions.exponential
         options.range = 4.464646446464646464
         options.i_res = 4
         options.gi_res = 2

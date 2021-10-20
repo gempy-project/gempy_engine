@@ -106,7 +106,7 @@ def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput,
     eval_gx_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=0)
     eval_gy_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=1)
 
-    if BackendTensor.pykeops_enabled is True and BackendTensor.engine_backend is not AvailableBackends.tensorflow:
+    if BackendTensor.pykeops_enabled is True:
         from pykeops.numpy.lazytensor import LazyTensor
         import time
         t_0 = time.perf_counter()
@@ -130,7 +130,7 @@ def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput,
         gx_f = compile_evaluator(weights, eval_gx_kernel)
         t_3 = time.perf_counter()
         print("Compiled gx in: ", t_3 - t_2)
-        gx_field = gx_f()
+        gx_field = gx_f().T
 
         t_4 = time.perf_counter()
         print("Gx exported in: ", t_4 - t_3)
@@ -139,14 +139,14 @@ def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput,
         gy_f = compile_evaluator(weights, eval_gy_kernel)
         t_5 = time.perf_counter()
         print("Compiled gx in: ", t_5 - t_4)
-        gy_field = gy_f()
+        gy_field = gy_f().T
         t_6 = time.perf_counter()
         print("Gx exported in: ", t_6 - t_5)
 
         eval_gz_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=2)
         print("Compiling gz...")
         gz_f = compile_evaluator(weights, eval_gz_kernel)
-        gz_field = gz_f()
+        gz_field = gz_f().T
 
     else:
         scalar_field = weights @ eval_kernel

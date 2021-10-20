@@ -16,10 +16,10 @@ def test_keops_run():
  #   pykeops.clean_pykeops()  # just in case old build files are still present
     pykeops.test_numpy_bindings()
 
-@pytest.mark.skip('Only trigger manually when there is something wrong with'
-                  'pykeops compilation', )
+# @pytest.mark.skip('Only trigger manually when there is something wrong with'
+#                   'pykeops compilation', )
 def test_basic_op():
-    #pykeops.config.build_type = 'Debug'
+    pykeops.config.build_type = 'Debug'
     pykeops.test_numpy_bindings()
     print(pykeops.config.gpu_available)
 

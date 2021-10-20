@@ -32,7 +32,7 @@ class OrientationSurfacePointsCoords:
         self.dip_ref_i, self.dip_ref_j = _assembly(x_ref, y_ref)
         self.diprest_i, self.diprest_j = _assembly(x_rest, y_rest)
 
-        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
+        if BackendTensor.engine_backend == AvailableBackends.numpyPykeopsCPU or BackendTensor.engine_backend == AvailableBackends.numpyPykeopsGPU:
             _upgrade_kernel_input_to_keops_tensor(self)
 
     def __hash__(self):
@@ -64,8 +64,7 @@ class OrientationsDrift:
         self.selector_ci = selector_degree_2[:, None, :]
         self.selector_cj = selector_degree_2[None, :, :]
 
-
-        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
+        if BackendTensor.engine_backend == AvailableBackends.numpyPykeopsCPU or BackendTensor.engine_backend == AvailableBackends.numpyPykeopsGPU:
             _upgrade_kernel_input_to_keops_tensor(self)
     def __hash__(self):
         return hash(self.__repr__())
@@ -87,7 +86,7 @@ class PointsDrift:
         self.dipsPoints_ui_bj1 = y_degree_2a[None, :, :]
         self.dipsPoints_ui_bi2 = x_degree_2b[:, None, :]
         self.dipsPoints_ui_bj2 = y_degree_2b[None, :, :]
-        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
+        if BackendTensor.engine_backend == AvailableBackends.numpyPykeopsCPU or BackendTensor.engine_backend == AvailableBackends.numpyPykeopsGPU:
             _upgrade_kernel_input_to_keops_tensor(self)
 
     def __hash__(self):
@@ -120,7 +119,7 @@ class CartesianSelector:
 
         self.h_sel_rest_i = x_sel_h_rest[:, None, :]
         self.h_sel_rest_j = y_sel_h_rest[None, :, :]
-        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
+        if BackendTensor.engine_backend == AvailableBackends.numpyPykeopsCPU or BackendTensor.engine_backend == AvailableBackends.numpyPykeopsGPU:
             _upgrade_kernel_input_to_keops_tensor(self)
 
     def __hash__(self):
@@ -152,7 +151,7 @@ class DriftMatrixSelector:
      #   self.sel_vi = -sel_j[:, None, :]
         self.sel_vj = sel_j[None, :, :]
 
-        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
+        if BackendTensor.engine_backend == AvailableBackends.numpyPykeopsCPU or BackendTensor.engine_backend == AvailableBackends.numpyPykeopsGPU:
             _upgrade_kernel_input_to_keops_tensor(self)
 
     def __hash__(self):

@@ -6,7 +6,7 @@ from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflowCPU])
 # TODO: For now pykeops is always disabled
-BackendTensor.change_backend(AvailableBackends.tensorflowCPU)
+BackendTensor.change_backend(AvailableBackends.numpyPykeopsCPU)
 
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
