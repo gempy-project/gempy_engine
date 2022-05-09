@@ -300,18 +300,18 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
 
     # endregion
 
-    # region Compute triangles
-    # For each edge that exhibits a sign change, generate a quad
-    # connecting the minimizing vertices of the four cubes containing the edge.
-    from scipy.spatial import ConvexHull
-
-    hull = ConvexHull(v_pro)
-    indices = hull.simplices
-    # vertices = points[indices]
-
     # endregion
 
     if plot_pyvista or False:
+        # region Compute triangles
+        # For each edge that exhibits a sign change, generate a quad
+        # connecting the minimizing vertices of the four cubes containing the edge.
+        try:
+            from scipy.spatial import ConvexHull
+            hull = ConvexHull(v_pro)
+            indices = hull.simplices
+        except ImportError:
+            indices = None
         _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers,
                       xyz_on_edge, gradients, v_pro=v_pro, indices=indices)
 

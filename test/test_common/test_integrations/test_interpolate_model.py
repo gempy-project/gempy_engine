@@ -1,11 +1,10 @@
 from gempy_engine.integrations.interp_manager.interp_manager_api import interpolate_model
-from test.helper_functions import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
-
 from ...conftest import plot_pyvista
 
 try:
     # noinspection PyUnresolvedReferences
     import pyvista as pv
+    from ...helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
 except ImportError:
     plot_pyvista = False
 
@@ -32,8 +31,8 @@ def test_interpolate_model_no_octtree( simple_model_3_layers_high_res, n_oct_lev
     options.number_octree_levels = n_oct_levels
     solutions = interpolate_model(interpolation_input, options ,structure)
 
-    if plot_pyvista or True:
-       # pv.global_theme.show_edges = True
+    if plot_pyvista or False:
+        # pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
         plot_dc_meshes(p, solutions.dc_meshes[0])

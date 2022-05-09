@@ -2,9 +2,10 @@ import pytest
 import sys
 sys.path.append("/home/miguel/libkeops")
 
+pykeops = pytest.importorskip("pykeops")
 from pykeops.numpy import LazyTensor, Genred, Vi, Vj, Pm
 import numpy as np
-import pykeops
+
 pykeops.config.verbose = True
 
 @pytest.mark.skip('Only trigger manually when there is something wrong with'

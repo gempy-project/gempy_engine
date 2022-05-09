@@ -1,5 +1,7 @@
+import pytest
+
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
-import tensorflow as tf
+tf = pytest.importorskip("tensorflow")
 import numpy as np
 
 from ..fixtures.simple_models import simple_model_2

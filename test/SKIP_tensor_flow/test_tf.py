@@ -1,5 +1,5 @@
 import pytest
-import tensorflow as tf
+tf = pytest.importorskip("tensorflow")
 import numpy as np
 
 

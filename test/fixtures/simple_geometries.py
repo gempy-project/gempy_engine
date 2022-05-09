@@ -14,7 +14,6 @@ dir_name = os.path.dirname(__file__)
 data_path = dir_name + "/simple_geometries/"
 
 
-
 @pytest.fixture(scope="session")
 def horizontal_stratigraphic():
     orientations = pd.read_csv(data_path+"model1_orientations.csv")

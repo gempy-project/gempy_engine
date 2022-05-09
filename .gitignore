@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 
 .idea
+/gempy_engine/_version.py
