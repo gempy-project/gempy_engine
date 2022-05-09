@@ -56,5 +56,6 @@ Notes
 - Remember to type the code
 
 - **XLA** Can be applied just in parts of the subtree using jit_scope
+    - ! (2022) The performance test I did show that is not worth it
     - To use XLA the tensorflow function must be defined!
     - [ ] Test with the covartiance

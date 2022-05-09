@@ -11,6 +11,7 @@ def _cast_type_inplace(struct_data_instance):
 # TODO: This class should be spat into other classes: e.g. grid, dtype -> options, features
 @dataclass
 class TensorsStructure:
+    # [ ] TODO: number of points is misleading because it is used as marker for the location of ref point
     number_of_points_per_surface: np.ndarray # TODO This needs to start with 0 and possibly ignore the last item
     dtype: Type = np.int32
     _number_of_points_per_surface_vector: np.ndarray = np.ones(1)

@@ -8,6 +8,7 @@ from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
 from gempy_engine.core.data.options import InterpolationOptions
 from gempy_engine.modules.data_preprocess._input_preparation import orientations_preprocess, surface_points_preprocess
 
+# ! Do not delete the fixtures imports
 # Import fixtures
 from test.fixtures.simple_models import\
     simple_model_2,\
@@ -21,7 +22,8 @@ from test.fixtures.simple_models import\
 from test.fixtures.simple_geometries import\
     horizontal_stratigraphic,\
     horizontal_stratigraphic_scaled, \
-    recumbent_fold_scaled
+    recumbent_fold_scaled, \
+    unconformity
 
 from test.fixtures.grids import \
     simple_grid_2d,\

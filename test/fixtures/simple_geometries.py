@@ -16,30 +16,30 @@ data_path = dir_name + "/simple_geometries/"
 
 @pytest.fixture(scope="session")
 def horizontal_stratigraphic():
-    orientations = pd.read_csv(data_path+"model1_orientations.csv")
-    sp = pd.read_csv(data_path+"model1_surface_points.csv")
+    orientations = pd.read_csv(data_path + "model1_orientations.csv")
+    sp = pd.read_csv(data_path + "model1_surface_points.csv")
 
     sp_coords = sp[["X", "Y", "Z"]].values
     dip_postions = orientations[["X", "Y", "Z"]].values
     dip_gradients_ = calculate_gradient(orientations["dip"],
-                                       orientations["azimuth"],
-                                       orientations[ "polarity"])
+                                        orientations["azimuth"],
+                                        orientations["polarity"])
     dip_gradients = np.vstack(dip_gradients_).T
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([6, 6]))
 
     range_ = 1732
     options = InterpolationOptions(range_, range_ ** 2 / 14 / 3, 0, i_res=4, gi_res=2,
-                               number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+                                   number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
 
     resolution = [50, 50, 50]
-    extent = [0,1000,0,1000,0,1000]
+    extent = [0, 1000, 0, 1000, 0, 1000]
 
     regular_grid = RegularGrid(extent, resolution)
     grid = Grid.from_regular_grid(regular_grid)
 
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)
-    ids = np.array([0,1,2])
+    ids = np.array([0, 1, 2])
 
     interpolation_input = InterpolationInput(spi, ori, grid, ids)
     return interpolation_input, options, tensor_struct
@@ -47,14 +47,14 @@ def horizontal_stratigraphic():
 
 @pytest.fixture(scope="session")
 def horizontal_stratigraphic_scaled():
-    orientations = pd.read_csv(data_path+"model1_orientations_scaled.csv")
-    sp = pd.read_csv(data_path+"model1_surface_points_scaled.csv")
+    orientations = pd.read_csv(data_path + "model1_orientations_scaled.csv")
+    sp = pd.read_csv(data_path + "model1_surface_points_scaled.csv")
 
     sp_coords = sp[["X", "Y", "Z"]].values
     dip_postions = orientations[["X", "Y", "Z"]].values
     dip_gradients_ = calculate_gradient(orientations["dip"],
-                                       orientations["azimuth"],
-                                       orientations[ "polarity"])
+                                        orientations["azimuth"],
+                                        orientations["polarity"])
     dip_gradients = np.vstack(dip_gradients_).T
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([6, 6]))
 
@@ -71,17 +71,16 @@ def horizontal_stratigraphic_scaled():
                                    kernel_function=AvailableKernelFunctions.cubic)
 
     resolution = [50, 50, 50]
-    extent = [0,1,0,1,0,1]
+    extent = [0, 1, 0, 1, 0, 1]
 
     regular_grid = RegularGrid(extent, resolution)
 
-
-    g = np.load(data_path+"model1_scaled.npy")
+    g = np.load(data_path + "model1_scaled.npy")
     grid = Grid(g, regular_grid=regular_grid)
 
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)
-    ids = np.array([0,1,2])
+    ids = np.array([0, 1, 2])
 
     interpolation_input = InterpolationInput(spi, ori, grid, ids)
     return interpolation_input, options, tensor_struct
@@ -89,14 +88,14 @@ def horizontal_stratigraphic_scaled():
 
 @pytest.fixture(scope="session")
 def recumbent_fold_scaled():
-    orientations = pd.read_csv(data_path+"model3_orientations_scaled.csv")
-    sp = pd.read_csv(data_path+"model3_surface_points_scaled-2.csv")
+    orientations = pd.read_csv(data_path + "model3_orientations_scaled.csv")
+    sp = pd.read_csv(data_path + "model3_surface_points_scaled-2.csv")
 
     sp_coords = sp[["X", "Y", "Z"]].values
     dip_postions = orientations[["X", "Y", "Z"]].values
     dip_gradients_ = calculate_gradient(orientations["dip"],
-                                       orientations["azimuth"],
-                                       orientations[ "polarity"])
+                                        orientations["azimuth"],
+                                        orientations["polarity"])
     dip_gradients = np.vstack(dip_gradients_).T
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([55, 50]))
 
@@ -113,18 +112,54 @@ def recumbent_fold_scaled():
                                    kernel_function=AvailableKernelFunctions.cubic)
 
     resolution = [50, 50, 50]
-    extent = [0.3301 - 0.005,.8201 + 0.005,
+    extent = [0.3301 - 0.005, .8201 + 0.005,
               0.2551 - 0.005, 0.7451 + 0.005,
-              0.2551 - 0.005,0.7451 + 0.005]
+              0.2551 - 0.005, 0.7451 + 0.005]
 
     regular_grid = RegularGrid(extent, resolution)
-
 
     grid = Grid(regular_grid.values, regular_grid=regular_grid)
 
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)
-    ids = np.array([0,1,2])
+    ids = np.array([0, 1, 2])
+
+    interpolation_input = InterpolationInput(spi, ori, grid, ids)
+    return interpolation_input, options, tensor_struct
+
+
+@pytest.fixture(scope="session")
+def unconformity():
+    orientations = pd.read_csv(data_path + "model6_orientations.csv")
+    sp = pd.read_csv(data_path + "model6_surface_points.csv")
+
+    sp_coords = sp[["X", "Y", "Z"]].values
+    dip_postions = orientations[["X", "Y", "Z"]].values
+    dip_gradients_ = calculate_gradient(orientations["dip"],
+                                        orientations["azimuth"],
+                                        orientations["polarity"])
+    dip_gradients = np.vstack(dip_gradients_).T
+    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([18, 12, 9]))
+
+    range_ = 0.8660254
+    c_o = 35.71428571
+    i_r = 4
+    gi_r = 2
+
+    options = InterpolationOptions(range_, c_o, 2, i_res=i_r, gi_res=gi_r,
+                                   number_dimensions=3,
+                                   kernel_function=AvailableKernelFunctions.cubic)
+
+    resolution = [2, 2, 2]
+    extent = [0, 1000, 0, 1000, 0, 1000]
+
+    regular_grid = RegularGrid(extent, resolution)
+
+    grid = Grid(regular_grid.values, regular_grid=regular_grid)
+
+    spi = SurfacePoints(sp_coords)
+    ori = Orientations(dip_postions, dip_gradients)
+    ids = np.array([0, 1, 2, 3])
 
     interpolation_input = InterpolationInput(spi, ori, grid, ids)
     return interpolation_input, options, tensor_struct
