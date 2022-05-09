@@ -54,7 +54,7 @@ BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=True,
 
 surface_points, orientations, options, tensors_structure = simple_model_2()
 
-sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
+sp_internals = surface_points_preprocess(surface_points, tensors_structure)
 ori_internals = orientations_preprocess(orientations)
 kernel_data = cov_vectors_preparation(sp_internals, ori_internals, options)
 

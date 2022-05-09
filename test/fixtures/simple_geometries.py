@@ -139,7 +139,9 @@ def unconformity():
                                         orientations["azimuth"],
                                         orientations["polarity"])
     dip_gradients = np.vstack(dip_gradients_).T
-    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([18, 12, 9]))
+    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([18, 12, 9]),
+                                     number_of_points_per_stack=np.ndarray([30, 39]),
+                                     number_of_orientations_per_stack=np.ndarray([4, 1]))
 
     range_ = 0.8660254
     c_o = 35.71428571

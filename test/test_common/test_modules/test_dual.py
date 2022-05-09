@@ -394,7 +394,7 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
         exported_fields_high_res = gempy_engine.integrations.interp_single._interp_single_internals._evaluate_sys_eq(
             grid_internal_high_res, interp_input, weights)
 
-        exported_fields_high_res.n_points_per_surface = data_shape.nspv
+        exported_fields_high_res.n_points_per_surface = data_shape.reference_sp_position
         exported_fields_high_res.n_surface_points = surface_points.n_points
 
         values_block_high_res = activate_formation_block(exported_fields_high_res,

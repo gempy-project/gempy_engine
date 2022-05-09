@@ -26,7 +26,6 @@ def interpolate(
         data_shape: data.TensorsStructure,
         clean_buffer=True
 ) -> InterpOutput:
-
     output = InterpOutput()
     output.grid = interpolation_input.grid
 
@@ -43,7 +42,6 @@ def interpolate_scalar_field(
         interpolation_input: InterpolationInput,
         options: data.InterpolationOptions,
         data_shape: data.TensorsStructure) -> Tuple[np.ndarray, ExportedFields]:
-
     grid = interpolation_input.grid
     surface_points = interpolation_input.surface_points
     orientations = interpolation_input.orientations
@@ -61,7 +59,7 @@ def interpolate_scalar_field(
     # Within octree level
     # +++++++++++++++++++
     exported_fields = _evaluate_sys_eq(xyz_lvl0, solver_input, weights)
-    exported_fields.n_points_per_surface = data_shape.nspv
+    exported_fields.n_points_per_surface = data_shape.reference_sp_position
     exported_fields.n_surface_points = surface_points.n_points
 
     Buffer.clean()
@@ -84,8 +82,7 @@ def _solve_interpolation(interp_input: SolverInput):
 
 def _input_preprocess(data_shape, grid, orientations, surface_points) -> \
         Tuple[np.ndarray, data.OrientationsInternals, data.SurfacePointsInternals]:
-    sp_internal = data_preprocess_interface.prepare_surface_points(surface_points,
-                                                                   data_shape.number_of_points_per_surface)
+    sp_internal = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
     ori_internal = data_preprocess_interface.prepare_orientations(orientations)
     grid_internal = data_preprocess_interface.prepare_grid(grid.values, surface_points)
     return grid_internal, ori_internal, sp_internal

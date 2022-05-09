@@ -1,6 +1,8 @@
 import copy
 from typing import List
 
+from scoping import scoping
+
 from ..dual_contouring.dual_contouring import compute_dual_contouring, get_intersection_on_edges
 from ..interp_single.interp_single_interface import compute_n_octree_levels, interpolate_single_field
 from ...core.data import InterpolationOptions, TensorsStructure
@@ -12,19 +14,13 @@ from ...core.data.interpolation_input import InterpolationInput
 
 def interpolate_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                       data_shape: TensorsStructure) -> Solutions:
+    interpolation_input = copy.deepcopy(interpolation_input)  # TODO: Make sure if this works with TF
 
-    interpolation_input = copy.deepcopy(interpolation_input) # TODO: Make sure if this works with TF
-
-    solutions = Solutions()
-
-    # TODO: [ ] Looping scalars
-    number_octree_levels = options.number_octree_levels
-    output: List[OctreeLevel] = compute_n_octree_levels(number_octree_levels, interpolation_input,
-                                                        options, data_shape)
-    solutions.octrees_output = output
+    solutions = _interpolate_scalar_field(data_shape, interpolation_input, options)
 
     # Dual Contouring prep:
-    dc_data: DualContouringData = get_intersection_on_edges(output[-1])
+    octree_leaves = solutions.octrees_output[-1]
+    dc_data: DualContouringData = get_intersection_on_edges(octree_leaves)
     interpolation_input.grid = Grid(dc_data.xyz_on_edge)
     output_on_edges: InterpOutput = interpolate_single_field(interpolation_input, options,
                                                              data_shape)
@@ -44,3 +40,25 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
 
     # TODO: [ ] Magnetics
     return solutions
+
+
+def _interpolate_scalar_field(root_data_shape: TensorsStructure, interpolation_input: InterpolationInput,
+                              options: InterpolationOptions):
+    if root_data_shape.n_stacks < 1:
+        ValueError("There should be at least one stack")
+    all_solutions: List[Solutions] = []
+
+    for i in range(root_data_shape.n_stacks):
+        with scoping:
+            stack_data_shape = TensorsStructure.from_tensor_structure_subset(root_data_shape, i)
+            stack_interpolation_input = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_data_shape)
+
+        solutions: Solutions = Solutions()
+        # TODO: [ ] Looping scalars
+        number_octree_levels = options.number_octree_levels
+        output: List[OctreeLevel] = compute_n_octree_levels(number_octree_levels, stack_interpolation_input,
+                                                            options, stack_data_shape)
+        solutions.octrees_output = output
+        all_solutions.append(solutions)
+
+    return all_solutions[0]

@@ -327,7 +327,7 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
 
     exported_fields = _evaluate_sys_eq(grid_internal, interp_input, weights)
 
-    exported_fields.n_points_per_surface = data_shape.nspv
+    exported_fields.n_points_per_surface = data_shape.reference_sp_position
     exported_fields.n_surface_points = surface_points.n_points
 
     # -----------------

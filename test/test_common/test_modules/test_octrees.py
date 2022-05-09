@@ -242,7 +242,7 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
         grid_internal_high_res, ori_internal, sp_internal = _input_preprocess(
             data_shape, grid_high_res, orientations, surface_points)
         exported_fields_high_res = _evaluate_sys_eq( grid_internal_high_res, interp_input, weights)
-        exported_fields_high_res.n_points_per_surface = data_shape.nspv
+        exported_fields_high_res.n_points_per_surface = data_shape.reference_sp_position
         exported_fields_high_res.n_surface_points = surface_points.n_points
 
         values_block_high_res = activate_formation_block(exported_fields_high_res,

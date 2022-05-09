@@ -4,6 +4,8 @@ from typing import Union
 from gempy_engine.core.backend_tensor import BackendTensor
 import numpy as np
 
+from gempy_engine.core.data import TensorsStructure
+
 tensor_types = BackendTensor.tensor_types
 
 
@@ -17,7 +19,17 @@ class Orientations:
     def __post_init__(self):
         if type(self.nugget_effect_grad) is float:
             self.nugget_effect_grad = np.ones(self.n_items) * self.nugget_effect_grad
+    
+    @classmethod
+    def from_orientations_subset(cls, orientations: "Orientations", data_structure: TensorsStructure):
+        stack_n = data_structure.stack_number
+        cum_o_l0 = data_structure.nov_stack[:stack_n]
+        cum_o_l1 = data_structure.nov_stack[:stack_n + 1]
 
+        # TODO: Add nugget selection
+        o = Orientations(orientations.dip_positions[cum_o_l0:cum_o_l1], orientations.dip_gradients[cum_o_l0:cum_o_l1])
+        return o
+    
     @property
     def gx(self):
         return self.dip_gradients[:, 0]
