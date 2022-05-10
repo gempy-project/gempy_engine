@@ -47,11 +47,13 @@ class ExportedFields:
         return cls(scalar_field[:grid_size], gx_field[:grid_size],
                    gy_field[:grid_size], gz_field[:grid_size])
 
+
 @dataclass()
 class MaskMatrices:
     mask_erode: np.ndarray
     mask_onlap: np.ndarray
     mask_fault: np.ndarray
+
 
 @dataclass(init=False)
 class InterpOutput:

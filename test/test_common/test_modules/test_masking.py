@@ -1,5 +1,5 @@
 from gempy_engine.API.interp_manager.interp_manager_api import interpolate_model, _interpolate_stack
-from gempy_engine.core.data.data_shape import StackRelationType
+from gempy_engine.core.data.input_data_descriptor import StackRelationType
 from ...conftest import plot_pyvista
 
 try:

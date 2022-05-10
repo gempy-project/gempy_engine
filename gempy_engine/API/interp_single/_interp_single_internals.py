@@ -3,7 +3,7 @@ from typing import Tuple
 import numpy as np
 
 from ...core import data
-from ...core.data.data_shape import StackRelationType
+from ...core.data.input_data_descriptor import StackRelationType
 from ...core.data.exported_structs import InterpOutput, ExportedFields, MaskMatrices
 from ...core.data.internal_structs import SolverInput
 from ...core.data.interpolation_input import InterpolationInput

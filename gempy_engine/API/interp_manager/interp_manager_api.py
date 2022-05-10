@@ -1,21 +1,20 @@
+from __future__ import annotations
+
 import copy
 from typing import List
-
-import numpy as np
-from scoping import scoping
 
 from ..dual_contouring.dual_contouring import compute_dual_contouring, get_intersection_on_edges
 from ..interp_single.interp_single_interface import compute_n_octree_levels, interpolate_single_field
 from ...core.data import InterpolationOptions, TensorsStructure
-from ...core.data.data_shape import StackRelationType
 from ...core.data.exported_structs import OctreeLevel, InterpOutput, DualContouringData, \
-    DualContouringMesh, Solutions, ExportedFields
+    DualContouringMesh, Solutions
 from ...core.data.grid import Grid
+from ...core.data.input_data_descriptor import StackRelationType, InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
 
 
 def interpolate_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
-                      data_shape: TensorsStructure) -> Solutions:
+                      data_shape: InputDataDescriptor) -> Solutions:
     interpolation_input = copy.deepcopy(interpolation_input)  # TODO: Make sure if this works with TF
 
     solutions = _interpolate_stack(data_shape, interpolation_input, options)
@@ -68,19 +67,24 @@ def _dual_contouring(data_shape, interpolation_input, options, solutions):
     return meshes
 
 
-def _interpolate_stack(root_data_shape: TensorsStructure, interpolation_input: InterpolationInput,
-                       options: InterpolationOptions) -> List[Solutions]:
+def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
+                       options: InterpolationOptions) -> Solutions | list[Solutions]:
     
     all_solutions: List[Solutions] = []
-    if root_data_shape.stack_structure is None:
-        solutions = _interpolate_scalar(options, root_data_shape, interpolation_input)
+    
+    stack_structure = root_data_descriptor.stack_structure
+    
+    if stack_structure is None:
+        solutions = _interpolate_scalar(options, root_data_descriptor, interpolation_input)
         return solutions
     else:
-        for i in range(root_data_shape.n_stacks):
-            stack_data_shape = TensorsStructure.from_tensor_structure_subset(root_data_shape, i)
-            stack_interpolation_input = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_data_shape)
+        for i in range(stack_structure.n_stacks):
+            stack_structure.stack_number = i
+            
+            tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
+            interpolation_input_i = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_structure)
     
-            solutions = _interpolate_scalar(options, stack_data_shape, stack_interpolation_input)
+            solutions = _interpolate_scalar(options, tensor_struct_i, interpolation_input_i)
             all_solutions.append(solutions)
 
     return all_solutions

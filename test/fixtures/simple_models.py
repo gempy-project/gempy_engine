@@ -8,7 +8,7 @@ np.set_printoptions(precision=3, linewidth=200)
 import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.core.data.data_shape import TensorsStructure
+from gempy_engine.core.data.input_data_descriptor import TensorsStructure
 from gempy_engine.core.data.exported_structs import InterpOutput
 
 from gempy_engine.core.data.internal_structs import SolverInput

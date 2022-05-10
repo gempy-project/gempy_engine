@@ -4,6 +4,7 @@ from typing import Union
 import numpy as np
 
 from gempy_engine.core.data import TensorsStructure
+from gempy_engine.core.data.input_data_descriptor import StacksStructure
 from gempy_engine.modules.kernel_constructor._structs import tensor_types
 
 
@@ -20,7 +21,7 @@ class SurfacePoints:
         return hash(5) # TODO: These should be self.__repr__ instead of 5
     
     @classmethod
-    def from_suraface_points_subset(cls, surface_points: "SurfacePoints", data_structure: TensorsStructure):
+    def from_suraface_points_subset(cls, surface_points: "SurfacePoints", data_structure: StacksStructure):
         stack_n = data_structure.stack_number
         cum_sp_l0 = data_structure.nspv_stack[:stack_n + 1].sum()
         cum_sp_l1 = data_structure.nspv_stack[:stack_n + 2].sum()
