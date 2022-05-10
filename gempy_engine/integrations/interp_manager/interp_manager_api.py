@@ -17,23 +17,10 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
     interpolation_input = copy.deepcopy(interpolation_input)  # TODO: Make sure if this works with TF
 
     solutions = _interpolate_scalar_field(data_shape, interpolation_input, options)
-
-    # Dual Contouring prep:
-    octree_leaves = solutions.octrees_output[-1]
-    dc_data: DualContouringData = get_intersection_on_edges(octree_leaves)
-    interpolation_input.grid = Grid(dc_data.xyz_on_edge)
-    output_on_edges: InterpOutput = interpolate_single_field(interpolation_input, options,
-                                                             data_shape)
-    dc_data.gradients = output_on_edges.exported_fields
-    # --------------------
-    # The following operations are applied on the FINAL lith block:
-
-    # This should happen only on the leaf of an octree
-    # TODO: [ ] Dual contouring. This method only make one vertex per voxel. It is possible to make water tight surfaces?
-    # compute_dual_contouring
-    # TODO [ ] The api should grab an octree level
-    meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, data_shape.n_surfaces)
-    solutions.dc_meshes = meshes
+    
+    # TODO: final dual countoring
+    # meshes = _dual_contouring(data_shape, interpolation_input, options, solutions)
+    # solutions.dc_meshes = meshes
 
     # ---------------------
     # TODO: [ ] Gravity
@@ -42,23 +29,41 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
     return solutions
 
 
+def _dual_contouring(data_shape, interpolation_input, options, solutions):
+    # Dual Contouring prep:
+    octree_leaves = solutions.octrees_output[-1]
+    dc_data: DualContouringData = get_intersection_on_edges(octree_leaves)
+    interpolation_input.grid = Grid(dc_data.xyz_on_edge)
+    output_on_edges: InterpOutput = interpolate_single_field(interpolation_input, options, data_shape)
+    dc_data.gradients = output_on_edges.exported_fields
+    # --------------------
+    # The following operations are applied on the FINAL lith block:
+    # This should happen only on the leaf of an octree
+    # TODO: [ ] Dual contouring. This method only make one vertex per voxel. It is possible to make water tight surfaces?
+    # compute_dual_contouring
+    # TODO [ ] The api should grab an octree level
+    meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, data_shape.n_surfaces)
+    return meshes
+
+
 def _interpolate_scalar_field(root_data_shape: TensorsStructure, interpolation_input: InterpolationInput,
                               options: InterpolationOptions):
     if root_data_shape.n_stacks < 1:
         ValueError("There should be at least one stack")
     all_solutions: List[Solutions] = []
 
-    for i in range(root_data_shape.n_stacks):
-        with scoping:
-            stack_data_shape = TensorsStructure.from_tensor_structure_subset(root_data_shape, i)
-            stack_interpolation_input = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_data_shape)
-
+    for i in range(1):
+        
+        stack_data_shape = TensorsStructure.from_tensor_structure_subset(root_data_shape, i)
+        stack_interpolation_input = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_data_shape)
+        
         solutions: Solutions = Solutions()
         # TODO: [ ] Looping scalars
         number_octree_levels = options.number_octree_levels
         output: List[OctreeLevel] = compute_n_octree_levels(number_octree_levels, stack_interpolation_input,
                                                             options, stack_data_shape)
         solutions.octrees_output = output
+        solutions.debug_input_data = stack_interpolation_input
         all_solutions.append(solutions)
 
     return all_solutions[0]

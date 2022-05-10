@@ -24,7 +24,7 @@ class InterpolationInput:
         
         ts = data_structure
         cum_number_surfaces_l0 = ts.stack_structure.number_of_surfaces_per_stack[:data_structure.stack_number].sum()
-        cum_number_surfaces_l1 = ts.stack_structure.number_of_surfaces_per_stack[:data_structure.stack_number + 1].sum()
+        cum_number_surfaces_l1 = ts.stack_structure.number_of_surfaces_per_stack[:data_structure.stack_number + 1].sum() + 1  # * we need to take one unit extra for the basement
         
         unit_values = interpolation_input.unit_values[cum_number_surfaces_l0:cum_number_surfaces_l1]
         

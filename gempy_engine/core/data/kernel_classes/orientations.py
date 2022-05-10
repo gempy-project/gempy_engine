@@ -23,8 +23,8 @@ class Orientations:
     @classmethod
     def from_orientations_subset(cls, orientations: "Orientations", data_structure: TensorsStructure):
         stack_n = data_structure.stack_number
-        cum_o_l0 = data_structure.nov_stack[:stack_n]
-        cum_o_l1 = data_structure.nov_stack[:stack_n + 1]
+        cum_o_l0 = data_structure.nov_stack[:stack_n + 1].sum()
+        cum_o_l1 = data_structure.nov_stack[:stack_n + 2].sum()
 
         # TODO: Add nugget selection
         o = Orientations(orientations.dip_positions[cum_o_l0:cum_o_l1], orientations.dip_gradients[cum_o_l0:cum_o_l1])

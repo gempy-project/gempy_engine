@@ -148,4 +148,6 @@ class Solutions:
     # ------
     gravity: np.ndarray
     magnetics: np.ndarray
+    
+    debug_input_data = None
 

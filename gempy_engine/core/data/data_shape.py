@@ -18,12 +18,15 @@ class StacksStructure:
 
     number_of_points_per_stack_vector: np.ndarray = np.ones(1)
     number_of_orientations_per_stack_vector: np.ndarray = np.ones(1)
+    number_of_surfaces_per_stack_vector: np.ndarray = np.ones(1)
 
     def __post_init__(self):
         per_stack_cumsum = self.number_of_points_per_stack.cumsum()
         per_stack_orientation_cumsum = self.number_of_orientations_per_stack.cumsum()
-        self.number_of_points_per_stack_vector = np.concatenate([np.array([0]), per_stack_cumsum])[:-1]
-        self.number_of_orientations_per_stack_vector = np.concatenate([np.array([0]), per_stack_orientation_cumsum])[:-1]
+        per_stack_surface_cumsum = self.number_of_surfaces_per_stack.cumsum()
+        self.number_of_points_per_stack_vector = np.concatenate([np.array([0]), per_stack_cumsum])
+        self.number_of_orientations_per_stack_vector = np.concatenate([np.array([0]), per_stack_orientation_cumsum])
+        self.number_of_surfaces_per_stack_vector = np.concatenate([np.array([0]), per_stack_surface_cumsum])
 
 
 # TODO: This class should be spat into other classes: e.g. grid, dtype -> options, features
@@ -31,7 +34,7 @@ class StacksStructure:
 class TensorsStructure:
     # TODO [-]: number of points is misleading because it is used as marker for the location of ref point
     number_of_points_per_surface: np.ndarray
-    stack_structure: StacksStructure
+    stack_structure: StacksStructure # * If we just want to interpolate one scalar field this can be None
 
     stack_number: int = -1
     dtype: Type = np.int32
@@ -40,9 +43,9 @@ class TensorsStructure:
 
     def __post_init__(self):  # TODO: Move this to init
         _cast_type_inplace(self)
-
+        
         # Set _number_of_points_per_surface_vector
-        per_surface_cumsum = self.number_of_points_per_surface.cumsum() + 1  # ! +1 is because we want the position of the reference point
+        per_surface_cumsum = self.number_of_points_per_surface.cumsum()  
 
         self._reference_sp_position = np.concatenate([np.array([0]), per_surface_cumsum])[:-1]
 
@@ -52,10 +55,11 @@ class TensorsStructure:
     @classmethod
     def from_tensor_structure_subset(cls, tensor_structure: "TensorsStructure", stack_number: int):
         ts = tensor_structure
-        n_surfaces = ts.stack_structure.number_of_surfaces_per_stack[:stack_number]
+        l0 = ts.stack_structure.number_of_surfaces_per_stack_vector[:stack_number + 1].sum()
+        l1 = ts.stack_structure.number_of_surfaces_per_stack_vector[:stack_number + 2].sum()
 
-        l0 = n_surfaces[:stack_number].cumsum()
-        l1 = n_surfaces[:stack_number + 1].cumsum()
+        # l0 = n_surfaces[:stack_number].cumsum()
+        # l1 = n_surfaces[:stack_number + 1].cumsum()
 
         n_points_per_surface = ts.number_of_points_per_surface[l0:l1]
 

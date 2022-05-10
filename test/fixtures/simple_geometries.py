@@ -5,6 +5,7 @@ import os
 
 from gempy_engine.core.data import TensorsStructure, InterpolationOptions, SurfacePoints, \
     Orientations
+from gempy_engine.core.data.data_shape import StacksStructure
 from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
@@ -139,9 +140,12 @@ def unconformity():
                                         orientations["azimuth"],
                                         orientations["polarity"])
     dip_gradients = np.vstack(dip_gradients_).T
-    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([18, 12, 9]),
-                                     number_of_points_per_stack=np.ndarray([30, 39]),
-                                     number_of_orientations_per_stack=np.ndarray([4, 1]))
+
+    stack_structure = StacksStructure(number_of_points_per_stack=np.array([30, 39]),
+                                      number_of_orientations_per_stack=np.array([4, 1]),
+                                      number_of_surfaces_per_stack=np.array([2, 1]))
+
+    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([18, 12, 9]), stack_structure=stack_structure)
 
     range_ = 0.8660254
     c_o = 35.71428571

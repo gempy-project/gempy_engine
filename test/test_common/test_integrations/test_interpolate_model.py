@@ -58,7 +58,7 @@ def test_interpolate_model_several_surfaces(simple_model_3_layers, n_oct_levels=
         p.show()
 
 
-def test_interpolate_model_unconformity(unconformity, n_oct_levels=3):
+def test_interpolate_model_unconformity(unconformity, n_oct_levels=4):
     interpolation_input, options, structure = unconformity
     print(interpolation_input)
 
@@ -69,6 +69,15 @@ def test_interpolate_model_unconformity(unconformity, n_oct_levels=3):
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
+        plot_points(p, solutions.debug_input_data.surface_points.sp_coords, True)
+
+        xyz, gradients = solutions.debug_input_data.orientations.dip_positions, solutions.debug_input_data.orientations.dip_gradients
+        poly = pv.PolyData(xyz)
+        
+        poly['vectors'] = gradients
+        arrows = poly.glyph(orient='vectors', scale=True, factor=100)
+
+        p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
         
         # TODO: Dual contour meshes look like they are not working
         #plot_dc_meshes(p, solutions.dc_meshes[0])
