@@ -2,6 +2,7 @@ import copy
 import dataclasses
 
 import numpy as np
+
 np.set_printoptions(precision=3, linewidth=200)
 
 import pytest
@@ -23,10 +24,6 @@ from gempy_engine.modules.data_preprocess._input_preparation import surface_poin
     orientations_preprocess
 
 
-
-
-
-
 # simple_grid_3d = np.array([
 #     [0.25010, 0.50010, 0.12510],
 #     [0.25010, 0.50010, 0.29177],
@@ -45,7 +42,6 @@ from gempy_engine.modules.data_preprocess._input_preparation import surface_poin
 #     [0.75010, 0.50010, 0.45843],
 #     [0.75010, 0.50010, 0.62510]
 # ])
-
 
 
 # def create_regular_grid(extent, resolution, faces = False):
@@ -72,14 +68,6 @@ from gempy_engine.modules.data_preprocess._input_preparation import surface_poin
 #         return g, g_faces, dx, dy, dz
 
 
-
-
-
-
-
-
-
-
 # def tensor_structure_simple_model_2(simple_grid_2d):
 #     _ = np.ones(3)
 #     return TensorsStructure(number_of_points_per_surface=np.array([4, 3]))
@@ -87,7 +75,6 @@ from gempy_engine.modules.data_preprocess._input_preparation import surface_poin
 
 @pytest.fixture(scope='session')
 def simple_model_2():
-
     print(BackendTensor.describe_conf())
 
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([4, 3]))
@@ -117,7 +104,6 @@ def simple_model_2():
     return spi, ori_i, kri, tensor_struct
 
 
-
 @pytest.fixture(scope="session")
 def simple_model_2_internals(simple_model_2):
     surface_points = simple_model_2[0]
@@ -130,10 +116,8 @@ def simple_model_2_internals(simple_model_2):
     return sp_internals, ori_internals, options
 
 
-
 @pytest.fixture(scope="session")
 def simple_model():
-
     dip_positions = np.array([
         [0.25010, 0.50010, 0.54177],
         [0.66677, 0.50010, 0.62510],
@@ -204,7 +188,6 @@ def simple_model_interpolation_input(simple_grid_3d_octree):
 
     ids = np.array([1, 2])
 
-
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
     yield interpolation_input, interpolation_options, tensor_structure
@@ -248,9 +231,9 @@ def simple_model_3_layers(simple_grid_3d_octree):
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
 
     interpolation_options = InterpolationOptions(range_, co, 0, i_res=4, gi_res=2,
-                               number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+                                                 number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
 
-    tensor_structure = TensorsStructure(np.array([7, 2, 2]))
+    tensor_structure = TensorsStructure(np.array([7, 2, 2]), None)
 
     ids = np.array([1, 2, 3, 4])
 
@@ -297,7 +280,7 @@ def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid):
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
 
     interpolation_options = InterpolationOptions(range_, co, 0,
-                               number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+                                                 number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
 
     tensor_structure = TensorsStructure(np.array([7, 2, 2]))
 
@@ -306,7 +289,6 @@ def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid):
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
     return interpolation_input, interpolation_options, tensor_structure
-
 
 
 @pytest.fixture(scope="session")
@@ -342,8 +324,6 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
     output.values_block = values_block
 
     return output
-
-
 
 # @pytest.fixture(scope="session")
 # def simple_model_output(simple_model, simple_grid_3d_more_points_grid):

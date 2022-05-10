@@ -16,11 +16,12 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
                       data_shape: TensorsStructure) -> Solutions:
     interpolation_input = copy.deepcopy(interpolation_input)  # TODO: Make sure if this works with TF
 
-    solutions = _interpolate_scalar_field(data_shape, interpolation_input, options)
-    
-    # TODO: final dual countoring
-    # meshes = _dual_contouring(data_shape, interpolation_input, options, solutions)
-    # solutions.dc_meshes = meshes
+    solutions = _interpolate_stack(data_shape, interpolation_input, options)
+
+    # TODO: final dual countoring. I need to make the masking operations first
+    if False:
+        meshes = _dual_contouring(data_shape, interpolation_input, options, solutions)
+        solutions.dc_meshes = meshes
 
     # ---------------------
     # TODO: [ ] Gravity
@@ -46,24 +47,30 @@ def _dual_contouring(data_shape, interpolation_input, options, solutions):
     return meshes
 
 
-def _interpolate_scalar_field(root_data_shape: TensorsStructure, interpolation_input: InterpolationInput,
-                              options: InterpolationOptions):
-    if root_data_shape.n_stacks < 1:
-        ValueError("There should be at least one stack")
+def _interpolate_stack(root_data_shape: TensorsStructure, interpolation_input: InterpolationInput,
+                       options: InterpolationOptions):
+    
     all_solutions: List[Solutions] = []
-
-    for i in range(1):
-        
-        stack_data_shape = TensorsStructure.from_tensor_structure_subset(root_data_shape, i)
-        stack_interpolation_input = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_data_shape)
-        
-        solutions: Solutions = Solutions()
-        # TODO: [ ] Looping scalars
-        number_octree_levels = options.number_octree_levels
-        output: List[OctreeLevel] = compute_n_octree_levels(number_octree_levels, stack_interpolation_input,
-                                                            options, stack_data_shape)
-        solutions.octrees_output = output
-        solutions.debug_input_data = stack_interpolation_input
+    if root_data_shape.stack_structure is None:
+        solutions = _interpolate_scalar(options, root_data_shape, interpolation_input)
         all_solutions.append(solutions)
+    else:
+        for i in range(1, 2):
+            stack_data_shape = TensorsStructure.from_tensor_structure_subset(root_data_shape, i)
+            stack_interpolation_input = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_data_shape)
+    
+            solutions = _interpolate_scalar(options, stack_data_shape, stack_interpolation_input)
+            all_solutions.append(solutions)
 
     return all_solutions[0]
+
+
+def _interpolate_scalar(options, stack_data_shape, stack_interpolation_input):
+    solutions: Solutions = Solutions()
+    # TODO: [ ] Looping scalars
+    number_octree_levels = options.number_octree_levels
+    output: List[OctreeLevel] = compute_n_octree_levels(number_octree_levels, stack_interpolation_input,
+                                                        options, stack_data_shape)
+    solutions.octrees_output = output
+    solutions.debug_input_data = stack_interpolation_input
+    return solutions

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Type
 
@@ -34,7 +36,7 @@ class StacksStructure:
 class TensorsStructure:
     # TODO [-]: number of points is misleading because it is used as marker for the location of ref point
     number_of_points_per_surface: np.ndarray
-    stack_structure: StacksStructure # * If we just want to interpolate one scalar field this can be None
+    stack_structure: StacksStructure | None  # * If we just want to interpolate one scalar field this can be None
 
     stack_number: int = -1
     dtype: Type = np.int32

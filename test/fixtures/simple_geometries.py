@@ -147,12 +147,12 @@ def unconformity():
 
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([18, 12, 9]), stack_structure=stack_structure)
 
-    range_ = 0.8660254
-    c_o = 35.71428571
+    range_ = 0.8660254 * 1000
+    c_o = 35.71428571 * 1000
     i_r = 4
     gi_r = 2
 
-    options = InterpolationOptions(range_, c_o, 2, i_res=i_r, gi_res=gi_r,
+    options = InterpolationOptions(range_, c_o, uni_degree=1, i_res=i_r, gi_res=gi_r,
                                    number_dimensions=3,
                                    kernel_function=AvailableKernelFunctions.cubic)
 
