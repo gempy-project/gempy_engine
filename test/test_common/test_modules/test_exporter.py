@@ -19,7 +19,7 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
     ids_block = output.ids_block_regular_grid
 
     if save_sol:
-        np.save(dir_name+"/solutions/zx", Z_x)
+        np.save(dir_name + "/solutions/zx", Z_x)
         np.save(dir_name + "/solutions/gx", gx)
         np.save(dir_name + "/solutions/gy", gy)
         np.save(dir_name + "/solutions/gz", gz)
@@ -49,12 +49,12 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
         plt.show()
 
 
-def test_export_simple_model_low_res(simple_model_interpolation_input, plot = True):
+def test_export_simple_model_low_res(simple_model_interpolation_input, plot=True):
     interpolation_input, options, structure = simple_model_interpolation_input
 
     output: InterpOutput = interpolate_single_field(interpolation_input, options, structure)
     Z_x = output.exported_fields.scalar_field
-   # ids_block = output.ids_block
+    # ids_block = output.ids_block
     gx = output.exported_fields.gx_field
     gy = output.exported_fields.gy_field
     gz = output.exported_fields.gz_field
@@ -63,8 +63,7 @@ def test_export_simple_model_low_res(simple_model_interpolation_input, plot = Tr
     # [  0.263 -10.335   0.      0.      5.425   4.585
     #   -9.435 -19.55   -2.565  16.013 -12.997   1.39 ]
 
-
-  #  print(ids_block)
+    #  print(ids_block)
     # np.save(dir_name+"/solutions/test_activator", np.round(ids_block))
 
     # ids_sol = np.load(dir_name+"/solutions/test_activator.npy")
@@ -86,8 +85,7 @@ def test_export_simple_model_low_res(simple_model_interpolation_input, plot = Tr
                    interpolation_input.orientations.dip_gradients[:, 0],
                    interpolation_input.orientations.dip_gradients[:, 2],
                    scale=10
-        )
-
+                   )
 
         # plt.quiver(
         #      gx.reshape(50, 5, 50)[:, 2, :].T,
@@ -99,13 +97,12 @@ def test_export_simple_model_low_res(simple_model_interpolation_input, plot = Tr
         plt.show()
 
 
-
-def test_export_3_layers(simple_model_3_layers_high_res, plot = True):
+def test_export_3_layers(simple_model_3_layers_high_res, plot=True):
     interpolation_input, options, structure = simple_model_3_layers_high_res
 
     output: InterpOutput = interpolate_single_field(interpolation_input, options, structure)
     Z_x = output.exported_fields.scalar_field
-   # ids_block = output.ids_block
+    # ids_block = output.ids_block
     gx = output.exported_fields.gx_field
     gy = output.exported_fields.gy_field
     gz = output.exported_fields.gz_field
@@ -114,8 +111,7 @@ def test_export_3_layers(simple_model_3_layers_high_res, plot = True):
     # [  0.263 -10.335   0.      0.      5.425   4.585
     #   -9.435 -19.55   -2.565  16.013 -12.997   1.39 ]
 
-
-  #  print(ids_block)
+    #  print(ids_block)
     # np.save(dir_name+"/solutions/test_activator", np.round(ids_block))
 
     # ids_sol = np.load(dir_name+"/solutions/test_activator.npy")
@@ -137,8 +133,7 @@ def test_export_3_layers(simple_model_3_layers_high_res, plot = True):
                    interpolation_input.orientations.dip_gradients[:, 0],
                    interpolation_input.orientations.dip_gradients[:, 2],
                    scale=10
-        )
-
+                   )
 
         # plt.quiver(
         #      gx.reshape(50, 5, 50)[:, 2, :].T,
@@ -148,6 +143,3 @@ def test_export_3_layers(simple_model_3_layers_high_res, plot = True):
 
         plt.savefig("foo")
         plt.show()
-
-
-

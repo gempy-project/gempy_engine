@@ -11,16 +11,17 @@ from ...core.data.exported_structs import OctreeLevel, InterpOutput, DualContour
 from ...core.data.grid import Grid
 from ...core.data.input_data_descriptor import StackRelationType, InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
+from ...modules.octrees_topology.octrees_topology_interface import get_regular_grid_for_level
 
 
 def interpolate_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                       data_shape: InputDataDescriptor) -> Solutions:
     interpolation_input = copy.deepcopy(interpolation_input)  # TODO: Make sure if this works with TF
 
-    solutions = _interpolate_stack(data_shape, interpolation_input, options)
+    solutions: List[Solutions] = _interpolate_stack(data_shape, interpolation_input, options)
     
     # TODO: Masking logic
-    all_exported_fields = [solutions.octrees_output]
+    #squeeze_solution = _compute_mask(solutions)
     
     # TODO: final dual countoring. I need to make the masking operations first
     if False:
@@ -34,20 +35,22 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
     return solutions
 
 
-def _compute_mask(mask_matrices: List[Solutions], stack_relation: StackRelationType):
-    return 
+def _compute_mask(solutions: List[Solutions]):
+     
     # TODO: Add mask_fault
+    all_mask_components = solutions[0].octrees_output[-1].output_centers.mask_components
+    squeezed_regular_grid = get_regular_grid_for_level(solutions[0].octrees_output, 2) 
+    squeezed_regular_grid2 = get_regular_grid_for_level(solutions[1].octrees_output, 2)
+    
 
-
-
-    previous_mask_formation = mask_onlap
-
-    # mask_val = T.cumprod(mask_matrix[n_series - nsle_op: n_series, shift:x_to_interpolate_shape + shift][::-1], axis=0)[::-1]
-
-    # TODO: For each stack since the last erode multiply the mask with the previous one
-    mask_formation_since_last_erode 
-
-    mask_matrix_this_stack = mask_erode
+    # previous_mask_formation = mask_onlap
+    # 
+    # # mask_val = T.cumprod(mask_matrix[n_series - nsle_op: n_series, shift:x_to_interpolate_shape + shift][::-1], axis=0)[::-1]
+    # 
+    # # TODO: For each stack since the last erode multiply the mask with the previous one
+    # mask_formation_since_last_erode 
+    # 
+    # mask_matrix_this_stack = mask_erode
 
 
 def _dual_contouring(data_shape, interpolation_input, options, solutions):

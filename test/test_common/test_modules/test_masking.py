@@ -1,4 +1,4 @@
-from gempy_engine.API.interp_manager.interp_manager_api import interpolate_model, _interpolate_stack
+from gempy_engine.API.interp_manager.interp_manager_api import interpolate_model, _interpolate_stack, _compute_mask
 from gempy_engine.API.interp_single._interp_single_internals import _compute_mask_components
 from gempy_engine.core.data.input_data_descriptor import StackRelationType
 from ...conftest import plot_pyvista
@@ -30,6 +30,8 @@ def test_compute_mask_components_on_all_leaves(unconformity, n_oct_levels=3):
 
     options.number_octree_levels = n_oct_levels
     solutions = _interpolate_stack(structure, interpolation_input, options)
+    
+    mask_foo = _compute_mask(solutions)
     pass
 
 

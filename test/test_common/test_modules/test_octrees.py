@@ -100,8 +100,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
                                                       clean_buffer=False)
 
     # Create octree level 1
-    octree_lvl1.set_interpolation_values(grid_1_centers, grid_1_corners, output_1_centers,
-                                         output_1_corners)
+    octree_lvl1.set_interpolation_values(grid_1_centers, grid_1_corners, output_1_centers, output_1_corners)
 
     debug_vals = get_next_octree_grid(octree_lvl1, compute_topology=False, debug=True)
     xyz1, anch1, select1 = debug_vals[:3]

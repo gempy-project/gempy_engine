@@ -34,7 +34,7 @@ def interpolate(
     output.values_block = _segment_scalar_field(output, interpolation_input.unit_values)
     
     # TODO: fix this
-    output.mask_matrices = _compute_mask_components(output.exported_fields, interpolation_input.stack_relation)
+    output.mask_components = _compute_mask_components(output.exported_fields, interpolation_input.stack_relation)
     
     if clean_buffer: Buffer.clean()
 

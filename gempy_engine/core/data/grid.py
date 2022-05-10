@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-from typing import Union, List, Optional, Dict
+from typing import Union, List, Optional, Dict, Tuple
 
 import numpy as np
+from numpy import ndarray
 
 
 def _check_and_convert_list_to_array(field):
@@ -30,7 +31,7 @@ class RegularGrid:
         return cls(values, extent, regular_grid_shape)
 
     @property
-    def active_cells(self):
+    def active_cells(self) -> np.ndarray:
         if self._active_cells is not None:
             return self._active_cells
         else:
@@ -181,7 +182,7 @@ class Grid:
         return self.values[self.len_grids[0]:self.len_grids[1]]
 
     @property
-    def regular_grid_shape(self):
+    def regular_grid_shape(self) -> ndarray | list:
         return self.regular_grid.regular_grid_shape
 
     @property
