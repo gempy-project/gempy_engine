@@ -55,7 +55,7 @@ def _interpolate_stack(root_data_shape: TensorsStructure, interpolation_input: I
         solutions = _interpolate_scalar(options, root_data_shape, interpolation_input)
         all_solutions.append(solutions)
     else:
-        for i in range(1, 2):
+        for i in range(root_data_shape.n_stacks):
             stack_data_shape = TensorsStructure.from_tensor_structure_subset(root_data_shape, i)
             stack_interpolation_input = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_data_shape)
     
