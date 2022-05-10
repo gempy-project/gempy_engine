@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import pandas as pd
 import numpy as np
 import pytest
@@ -5,7 +7,7 @@ import os
 
 from gempy_engine.core.data import TensorsStructure, InterpolationOptions, SurfacePoints, \
     Orientations
-from gempy_engine.core.data.input_data_descriptor import StacksStructure
+from gempy_engine.core.data.input_data_descriptor import StacksStructure, InputDataDescriptor, StackRelationType
 from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
@@ -130,7 +132,7 @@ def recumbent_fold_scaled():
 
 
 @pytest.fixture(scope="session")
-def unconformity():
+def unconformity() -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
     orientations = pd.read_csv(data_path + "model6_orientations.csv")
     sp = pd.read_csv(data_path + "model6_surface_points.csv")
 
@@ -143,9 +145,13 @@ def unconformity():
 
     stack_structure = StacksStructure(number_of_points_per_stack=np.array([30, 39]),
                                       number_of_orientations_per_stack=np.array([4, 1]),
-                                      number_of_surfaces_per_stack=np.array([2, 1]))
+                                      number_of_surfaces_per_stack=np.array([2, 1]),
+                                      masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE]
+                                      )
 
-    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([18, 12, 9]), stack_structure=stack_structure)
+    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([18, 12, 9]))
+    input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
+    
 
     range_ = 0.8660254 * 1000
     c_o = 35.71428571 * 1000
@@ -168,4 +174,4 @@ def unconformity():
     ids = np.array([0, 1, 2, 3])
 
     interpolation_input = InterpolationInput(spi, ori, grid, ids)
-    return interpolation_input, options, tensor_struct
+    return interpolation_input, options, input_data_descriptor

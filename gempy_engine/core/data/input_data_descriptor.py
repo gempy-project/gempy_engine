@@ -31,12 +31,12 @@ class StacksStructure:
     number_of_points_per_stack: np.ndarray  # * These fields are the same in all copies of TensorStructure
     number_of_orientations_per_stack: np.ndarray
     number_of_surfaces_per_stack: np.ndarray
+    masking_descriptor: List[StackRelationType]
 
     number_of_points_per_stack_vector: np.ndarray = np.ones(1)
     number_of_orientations_per_stack_vector: np.ndarray = np.ones(1)
     number_of_surfaces_per_stack_vector: np.ndarray = np.ones(1)
     
-    masking_descriptor: List[StackRelationType] = None
     stack_number: int = -1
     
     def __post_init__(self):

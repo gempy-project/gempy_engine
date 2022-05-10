@@ -34,14 +34,14 @@ def interpolate(
     output.values_block = _segment_scalar_field(output, interpolation_input.unit_values)
     
     # TODO: fix this
-    #output.mask_matrices = _compute_mask_array(output.exported_fields, data_shape.stack_relation)
+    output.mask_matrices = _compute_mask_components(output.exported_fields, interpolation_input.stack_relation)
     
     if clean_buffer: Buffer.clean()
 
     return output
 
 
-def _compute_mask_array(exported_fields: ExportedFields, stack_relation: StackRelationType):
+def _compute_mask_components(exported_fields: ExportedFields, stack_relation: StackRelationType):
 
     # * This are the default values
     mask_erode = np.ones_like(exported_fields.scalar_field)
@@ -60,6 +60,7 @@ def _compute_mask_array(exported_fields: ExportedFields, stack_relation: StackRe
             raise ValueError("Stack relation type is not supported")
     
     return MaskMatrices(mask_erode, mask_onlap, None)
+
 
 def interpolate_scalar_field(
         interpolation_input: InterpolationInput,
