@@ -3,7 +3,8 @@ from typing import Tuple
 import numpy as np
 
 from ...core import data
-from ...core.data.exported_structs import InterpOutput, ExportedFields
+from ...core.data.data_shape import StackRelationType
+from ...core.data.exported_structs import InterpOutput, ExportedFields, MaskMatrices
 from ...core.data.internal_structs import SolverInput
 from ...core.data.interpolation_input import InterpolationInput
 from ...modules.activator import activator_interface
@@ -29,14 +30,36 @@ def interpolate(
     output = InterpOutput()
     output.grid = interpolation_input.grid
 
-    output.weights, output.exported_fields = interpolate_scalar_field(
-        interpolation_input, options, data_shape)
-
+    output.weights, output.exported_fields = interpolate_scalar_field(interpolation_input, options, data_shape)
     output.values_block = _segment_scalar_field(output, interpolation_input.unit_values)
+    
+    # TODO: fix this
+    #output.mask_matrices = _compute_mask_array(output.exported_fields, data_shape.stack_relation)
+    
     if clean_buffer: Buffer.clean()
 
     return output
 
+
+def _compute_mask_array(exported_fields: ExportedFields, stack_relation: StackRelationType):
+
+    # * This are the default values
+    mask_erode = np.ones_like(exported_fields.scalar_field)
+    mask_onlap = None  # ! it is the mask of the previous stack (from gempy: mask_matrix[n_series - 1, shift:x_to_interpolate_shape + shift])
+
+    match stack_relation:
+        case StackRelationType.ERODE:
+            erode_limit_value = exported_fields.scalar_field_at_surface_points.min()
+            mask_erode = exported_fields.scalar_field > erode_limit_value
+        case StackRelationType.ONLAP:
+            onlap_limit_value = exported_fields.scalar_field_at_surface_points.max()
+            mask_onlap = exported_fields.scalar_field > onlap_limit_value
+        case StackRelationType.FAULT:
+            mask_erode = np.zeros_like(exported_fields.scalar_field)
+        case _:
+            raise ValueError("Stack relation type is not supported")
+    
+    return MaskMatrices(mask_erode, mask_onlap, None)
 
 def interpolate_scalar_field(
         interpolation_input: InterpolationInput,
@@ -67,9 +90,7 @@ def interpolate_scalar_field(
 
 
 def _segment_scalar_field(output: InterpOutput, unit_values: np.ndarray) -> np.ndarray:
-    values_block = activator_interface.activate_formation_block(
-        output.exported_fields, unit_values, sigmoid_slope=50000)
-    return values_block
+    return activator_interface.activate_formation_block(output.exported_fields, unit_values, sigmoid_slope=50000)
 
 
 def _solve_interpolation(interp_input: SolverInput):

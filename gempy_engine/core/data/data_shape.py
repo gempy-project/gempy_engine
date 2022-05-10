@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 from dataclasses import dataclass
 from typing import Type
 
@@ -10,6 +11,29 @@ def _cast_type_inplace(struct_data_instance):
     for key, val in struct_data_instance.__dict__.items():
         if type(val) != np.ndarray: continue 
         struct_data_instance.__dict__[key] = val.astype(struct_data_instance.dtype)
+
+
+@dataclass
+class InputDataDescriptor:
+    stack_structure: StacksStructure
+    tensors_structure: TensorsStructure
+  #  masking_descriptor: MaskingDescriptor
+
+
+# noinspection PyArgumentList
+class StackRelationType(enum.Enum):
+    ERODE = enum.auto()
+    ONLAP = enum.auto()
+    FAULT = enum.auto()
+
+
+
+# @dataclass
+# class MaskingDescriptor:
+#     stack_is_erode: np.ndarray
+#     stack_is_onlap: np.ndarray
+#     stack_is_fault: np.ndarray
+
 
 
 @dataclass(frozen=False)

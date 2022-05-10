@@ -43,10 +43,15 @@ class ExportedFields:
         return self.n_points_per_surface
 
     @classmethod
-    def from_interpolation(cls, scalar_field, gx_field, gy_field, gz_field, grid_size:int):
-        return cls( scalar_field[:grid_size], gx_field[:grid_size],
-                    gy_field[:grid_size], gz_field[:grid_size])
+    def from_interpolation(cls, scalar_field, gx_field, gy_field, gz_field, grid_size: int):
+        return cls(scalar_field[:grid_size], gx_field[:grid_size],
+                   gy_field[:grid_size], gz_field[:grid_size])
 
+@dataclass()
+class MaskMatrices:
+    mask_erode: np.ndarray
+    mask_onlap: np.ndarray
+    mask_fault: np.ndarray
 
 @dataclass(init=False)
 class InterpOutput:
@@ -56,9 +61,15 @@ class InterpOutput:
     exported_fields: ExportedFields
     values_block: np.ndarray  # final values ignoring unconformities
     final_block: np.ndarray  # Masked array containing only the active voxels
-
+    
+    mask_matrices: MaskMatrices
+    
     # Remember this is only for regular grid
     octrees: List[np.ndarray]  # TODO: This probably should be one level higher
+
+    @property
+    def scalar_field_at_sp(self):
+        return self.exported_fields.scalar_field_at_surface_points
 
     @property
     def exported_fields_regular_grid(self):
@@ -68,7 +79,6 @@ class InterpOutput:
         gz_field = self.exported_fields.scalar_field[:self.grid.len_grids[0]]
 
         return ExportedFields(scalar_field, gx_field, gy_field, gz_field)
-
 
     @property
     def values_block_regular_grid(self):
@@ -81,10 +91,6 @@ class InterpOutput:
     @property
     def ids_block(self) -> np.ndarray:
         return np.rint(self.values_block[0, :self.grid.len_grids[0]])
-
-    @property
-    def scalar_field_at_sp(self):
-        return self.exported_fields.scalar_field_at_surface_points
 
 
 @dataclass(init=False)
@@ -102,7 +108,7 @@ class OctreeLevel:
     marked_edges: List[np.ndarray] = None  # 3 arrays in x, y, z
 
     def set_interpolation_values(self, grid_centers: Grid, grid_faces: Grid,
-                          output_centers: InterpOutput, output_faces: InterpOutput):
+                                 output_centers: InterpOutput, output_faces: InterpOutput):
         self.grid_centers: Grid = grid_centers
         self.grid_corners: Grid = grid_faces
         self.output_centers: InterpOutput = output_centers
@@ -121,7 +127,6 @@ class DualContouringData:
     valid_edges: np.ndarray
     grid_centers: Grid = None
     _gradients: np.ndarray = None
-
 
     @property
     def gradients(self):
@@ -148,6 +153,5 @@ class Solutions:
     # ------
     gravity: np.ndarray
     magnetics: np.ndarray
-    
-    debug_input_data = None
 
+    debug_input_data = None

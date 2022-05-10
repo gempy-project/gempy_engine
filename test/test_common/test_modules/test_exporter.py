@@ -3,7 +3,7 @@ import numpy as np
 import os
 
 from gempy_engine.core.data.exported_structs import InterpOutput
-from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_single_field
+from gempy_engine.API.interp_single.interp_single_interface import interpolate_single_field
 
 dir_name = os.path.dirname(__file__)
 

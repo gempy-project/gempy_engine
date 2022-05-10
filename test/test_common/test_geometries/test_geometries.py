@@ -2,8 +2,8 @@ import pytest
 
 from gempy_engine.core.data.exported_structs import InterpOutput
 from gempy_engine.core.data.internal_structs import SolverInput
-from gempy_engine.integrations.interp_single._interp_single_internals import _input_preprocess
-from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_single_field
+from gempy_engine.API.interp_single._interp_single_internals import _input_preprocess
+from gempy_engine.API.interp_single.interp_single_interface import interpolate_single_field
 from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items
 from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation, \
     evaluation_vectors_preparations

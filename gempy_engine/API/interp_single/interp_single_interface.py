@@ -1,5 +1,4 @@
 import copy
-import dataclasses
 from typing import List
 
 from . import _interp_single_internals
@@ -9,16 +8,6 @@ from ...core import data
 from ...core.data.exported_structs import InterpOutput, OctreeLevel
 from ...core.data.interpolation_input import InterpolationInput
 from ...modules.octrees_topology import octrees_topology_interface as octrees
-
-
-def interpolate_and_segment(interpolation_input: InterpolationInput,
-                            options: data.InterpolationOptions,
-                            data_shape: data.TensorsStructure,
-                            clean_buffer=True
-                            ) -> InterpOutput:
-    output = _interp_single_internals.interpolate(interpolation_input, options,
-                                                  data_shape, clean_buffer)
-    return output
 
 
 def interpolate_single_field(interpolation_input: InterpolationInput,
@@ -33,9 +22,8 @@ def interpolate_single_field(interpolation_input: InterpolationInput,
 
 
 def compute_n_octree_levels(n_levels: int, interpolation_input_original: InterpolationInput,
-                            options: data.InterpolationOptions, data_shape: data.TensorsStructure)\
+                            options: data.InterpolationOptions, data_shape: data.TensorsStructure) \
         -> List[OctreeLevel]:
-
     interpolation_input = copy.deepcopy(interpolation_input_original)
 
     octree_list = []
@@ -52,3 +40,13 @@ def compute_n_octree_levels(n_levels: int, interpolation_input_original: Interpo
         next_octree = OctreeLevel()
     _interp_single_internals.Buffer.clean()
     return octree_list
+
+
+def interpolate_and_segment(interpolation_input: InterpolationInput,  # * Just for testing
+                            options: data.InterpolationOptions,
+                            data_shape: data.TensorsStructure,
+                            clean_buffer=True
+                            ) -> InterpOutput:
+    output = _interp_single_internals.interpolate(interpolation_input, options,
+                                                  data_shape, clean_buffer)
+    return output

@@ -6,9 +6,9 @@ from gempy_engine.core.data.exported_structs import InterpOutput
 import matplotlib.pyplot as plt
 
 from gempy_engine.core.data.internal_structs import SolverInput
-from gempy_engine.integrations.interp_single._interp_single_internals import _solve_interpolation, \
+from gempy_engine.API.interp_single._interp_single_internals import _solve_interpolation, \
     _evaluate_sys_eq
-from gempy_engine.integrations.interp_single.interp_single_interface import interpolate_single_field
+from gempy_engine.API.interp_single.interp_single_interface import interpolate_single_field
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 import numpy as np
 

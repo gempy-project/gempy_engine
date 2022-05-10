@@ -17,7 +17,7 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
 from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.integrations.interp_single._interp_single_internals import _solve_interpolation, \
+from gempy_engine.API.interp_single._interp_single_internals import _solve_interpolation, \
     _input_preprocess, _evaluate_sys_eq
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \

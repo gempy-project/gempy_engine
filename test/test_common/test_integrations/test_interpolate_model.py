@@ -1,4 +1,4 @@
-from gempy_engine.integrations.interp_manager.interp_manager_api import interpolate_model
+from gempy_engine.API.interp_manager.interp_manager_api import interpolate_model
 from ...conftest import plot_pyvista
 
 try:

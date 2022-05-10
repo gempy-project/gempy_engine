@@ -1,21 +1,21 @@
 import copy
 
-import gempy_engine.integrations.interp_single._interp_single_internals
+import gempy_engine.API.interp_single._interp_single_internals
 from gempy_engine.core.data.grid import Grid
 import numpy as np
 import os
 import matplotlib.pyplot as plt
 import pytest
 
-from gempy_engine.integrations.dual_contouring.dual_contouring import get_intersection_on_edges, \
+from gempy_engine.API.dual_contouring.dual_contouring import get_intersection_on_edges, \
     compute_dual_contouring
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
-import gempy_engine.integrations.interp_single.interp_single_interface as interp
+import gempy_engine.API.interp_single.interp_single_interface as interp
 from gempy_engine.core.data.internal_structs import SolverInput
 
 from gempy_engine.core.data.exported_structs import OctreeLevel
 from gempy_engine.core.data.interpolation_input import InterpolationInput
-from gempy_engine.integrations.interp_single.interp_single_interface import compute_n_octree_levels, \
+from gempy_engine.API.interp_single.interp_single_interface import compute_n_octree_levels, \
     interpolate_and_segment
 from gempy_engine.modules.dual_contouring.dual_contouring_interface import QEF, \
     find_intersection_on_edge

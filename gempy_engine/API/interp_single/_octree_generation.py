@@ -10,23 +10,17 @@ from ._interp_single_internals import interpolate
 def interpolate_on_octree(octree: OctreeLevel, interpolation_input: InterpolationInput,
                           options: data.InterpolationOptions,
                           data_shape: data.TensorsStructure) -> OctreeLevel:
-
     grid_0_centers = interpolation_input.grid
-    # interpolate - centers
 
-    output_0_centers = interpolate(interpolation_input, options, data_shape,
-                                                 clean_buffer=False)
+    output_0_centers = interpolate(interpolation_input, options, data_shape, clean_buffer=False)  # interpolate - centers
 
     # Interpolate - corners
     grid_0_corners = Grid(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
     interpolation_input.grid = grid_0_corners
-
-    output_0_corners = interpolate(interpolation_input, options, data_shape,
-                                                 clean_buffer=False)  # TODO: This is unnecessary for the last level except for Dual contouring
+    output_0_corners = interpolate(interpolation_input, options, data_shape, clean_buffer=False)  # TODO: This is unnecessary for the last level except for Dual contouring
 
     # Set values to octree
-    octree.set_interpolation_values(grid_0_centers, grid_0_corners,
-                                    output_0_centers, output_0_corners)
+    octree.set_interpolation_values(grid_0_centers, grid_0_corners, output_0_centers, output_0_corners)
     return octree
 
 
