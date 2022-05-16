@@ -1,3 +1,5 @@
+from matplotlib import pyplot as plt
+
 from gempy_engine.API.interp_manager.interp_manager_api import interpolate_model, _interpolate_stack, _compute_mask
 from gempy_engine.API.interp_single._interp_single_internals import _compute_mask_components
 from gempy_engine.core.data.input_data_descriptor import StackRelationType
@@ -24,7 +26,7 @@ def test_compute_mask_components(unconformity, n_oct_levels=3):
     print(mask_matrices)
 
 
-def test_compute_mask_components_on_all_leaves(unconformity, n_oct_levels=3):
+def test_compute_mask_components_on_all_leaves(unconformity, n_oct_levels=4):
     interpolation_input, options, structure = unconformity
     print(interpolation_input)
 
@@ -32,10 +34,14 @@ def test_compute_mask_components_on_all_leaves(unconformity, n_oct_levels=3):
     solutions = _interpolate_stack(structure, interpolation_input, options)
     
     mask_foo = _compute_mask(solutions)
+
+    regular_grid_octree = solutions[0].octrees_output[-1].grid_centers.regular_grid
+    regular_grid_resolution = solutions[0].octrees_output[-2].grid_centers.regular_grid.resolution
+
+    cross_section = regular_grid_octree.active_cells.reshape(regular_grid_resolution)[:, 0, :]
+    plt.imshow(cross_section)
+    plt.show()
     pass
-
-
-
 
 
 def test_masking(unconformity, n_oct_levels=4):

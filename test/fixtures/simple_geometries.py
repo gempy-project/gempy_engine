@@ -152,7 +152,6 @@ def unconformity() -> Tuple[InterpolationInput, InterpolationOptions, InputDataD
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([18, 12, 9]))
     input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
     
-
     range_ = 0.8660254 * 1000
     c_o = 35.71428571 * 1000
     i_r = 4

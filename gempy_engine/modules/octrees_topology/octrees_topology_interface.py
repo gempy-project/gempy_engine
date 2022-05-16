@@ -102,6 +102,6 @@ def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):
             global_active_cells_index = (local_anchors.reshape(-1, 1) + oct).ravel()
             regular_grid[global_active_cells_index] = ids  # + (e * 2)
 
-        active_cells_index.append(global_active_cells_index)  # TODO: Unused
+        active_cells_index.append(global_active_cells_index) 
 
     return regular_grid.reshape(shape), active_cells_index

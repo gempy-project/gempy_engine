@@ -39,8 +39,9 @@ def _compute_mask(solutions: List[Solutions]):
      
     # TODO: Add mask_fault
     all_mask_components = solutions[0].octrees_output[-1].output_centers.mask_components
-    squeezed_regular_grid = get_regular_grid_for_level(solutions[0].octrees_output, 2) 
+    squeezed_regular_grid = get_regular_grid_for_level(solutions[0].octrees_output, 2)
     squeezed_regular_grid2 = get_regular_grid_for_level(solutions[1].octrees_output, 2)
+    return squeezed_regular_grid, squeezed_regular_grid2
     
 
     # previous_mask_formation = mask_onlap
