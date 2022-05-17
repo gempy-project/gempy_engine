@@ -26,8 +26,18 @@ def test_compute_mask_components(unconformity, n_oct_levels=3):
     print(mask_matrices)
 
 
-def test_mask_arrays():
-    pass
+def test_mask_arrays(unconformity_complex):
+    interpolation_input, options, structure = unconformity_complex
+    solutions = _interpolate_stack(structure, interpolation_input, options)
+
+    
+
+    resolution = [16, 16, 16]
+    extent = interpolation_input.grid.regular_grid.extent
+
+    regular_grid_scalar = get_regular_grid_for_level(solutions.octrees_output, 3).astype("int8")
+    plt.imshow(regular_grid_scalar.reshape(resolution)[:, resolution[1] // 2, :].T, extent=extent[[0, 1, 4, 5]])
+    plt.show()
     
 
 
