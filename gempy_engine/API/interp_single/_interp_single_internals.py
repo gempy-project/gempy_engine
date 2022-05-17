@@ -28,11 +28,11 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
 
     all_scalar_fields_outputs = _interpolate_stack(data_descriptor, interpolation_input, options)
     # TODO [x]: squeeze mask
-    # final_mask_matrix = _squeeze_mask(all_scalar_fields_outputs, data_descriptor.stack_relation)
-    # 
-    # # TODO [ ]: Now we need to multiply each row of the final_mask_matrix with val
-    # all_scalar_fields_outputs = _compute_final_block(all_scalar_fields_outputs, final_mask_matrix)
-    # 
+    final_mask_matrix = _squeeze_mask(all_scalar_fields_outputs, data_descriptor.stack_relation)
+
+    # TODO [ ]: Now we need to multiply each row of the final_mask_matrix with val
+    all_scalar_fields_outputs = _compute_final_block(all_scalar_fields_outputs, final_mask_matrix)
+
     return all_scalar_fields_outputs
 
 
@@ -53,8 +53,8 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_
     all_scalar_fields_outputs: List[InterpOutput] = []
 
     stack_structure = root_data_descriptor.stack_structure
-
-    if stack_structure is None:
+    
+    if stack_structure is None:  # ! This branch is just for backward compatibility but we should try to get rid of it as soon as possible
         solutions = _interpolate_a_scalar_field(interpolation_input, options, root_data_descriptor.tensors_structure)
         all_scalar_fields_outputs.append(solutions)
         return all_scalar_fields_outputs

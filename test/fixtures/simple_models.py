@@ -298,15 +298,15 @@ def unconformity_complex():
     dip_gradients = np.vstack(dip_gradients_).T
 
     stack_structure = StacksStructure(number_of_points_per_stack=np.array([6, 2, 3]),
-                                      number_of_orientations_per_stack=np.array([5, 1, 2]),
+                                      number_of_orientations_per_stack=np.array([6, 1, 2]),
                                       number_of_surfaces_per_stack=np.array([2, 1, 1]),
                                       masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, StackRelationType.ERODE])
 
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([3, 3, 2, 3]))
     input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
 
-    range_ = 0.8660254
-    c_o = 35.71428571
+    range_ = 0.8660254 * 100
+    c_o = 35.71428571 * 100
     i_r = 4
     gi_r = 2
 
@@ -323,7 +323,7 @@ def unconformity_complex():
 
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)
-    ids = np.array([0, 1, 2, 3])
+    ids = np.array([0, 1, 2, 3, 4, 5])
 
     interpolation_input = InterpolationInput(spi, ori, grid, ids)
     return interpolation_input, options, input_data_descriptor

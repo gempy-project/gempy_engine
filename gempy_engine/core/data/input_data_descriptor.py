@@ -91,8 +91,8 @@ class TensorsStructure:
     @classmethod
     def from_tensor_structure_subset(cls, data_descriptor: InputDataDescriptor, stack_number: int) -> TensorsStructure:
         ts = data_descriptor.tensors_structure
-        l0 = data_descriptor.stack_structure.number_of_surfaces_per_stack_vector[:stack_number + 1].sum()
-        l1 = data_descriptor.stack_structure.number_of_surfaces_per_stack_vector[:stack_number + 2].sum()
+        l0 = data_descriptor.stack_structure.number_of_surfaces_per_stack_vector[stack_number]
+        l1 = data_descriptor.stack_structure.number_of_surfaces_per_stack_vector[stack_number + 1]
 
         n_points_per_surface = ts.number_of_points_per_surface[l0:l1]
 
