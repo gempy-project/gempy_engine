@@ -28,11 +28,11 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
 
     all_scalar_fields_outputs = _interpolate_stack(data_descriptor, interpolation_input, options)
     # TODO [x]: squeeze mask
-    final_mask_matrix = _squeeze_mask(all_scalar_fields_outputs, data_descriptor.stack_relation)
-    
-    # TODO [ ]: Now we need to multiply each row of the final_mask_matrix with val
-    all_scalar_fields_outputs = _compute_final_block(all_scalar_fields_outputs, final_mask_matrix)
-    
+    # final_mask_matrix = _squeeze_mask(all_scalar_fields_outputs, data_descriptor.stack_relation)
+    # 
+    # # TODO [ ]: Now we need to multiply each row of the final_mask_matrix with val
+    # all_scalar_fields_outputs = _compute_final_block(all_scalar_fields_outputs, final_mask_matrix)
+    # 
     return all_scalar_fields_outputs
 
 

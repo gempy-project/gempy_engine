@@ -297,7 +297,7 @@ def unconformity_complex():
                                         orientations["polarity"])
     dip_gradients = np.vstack(dip_gradients_).T
 
-    stack_structure = StacksStructure(number_of_points_per_stack=np.array([5, 2, 3]),
+    stack_structure = StacksStructure(number_of_points_per_stack=np.array([6, 2, 3]),
                                       number_of_orientations_per_stack=np.array([5, 1, 2]),
                                       number_of_surfaces_per_stack=np.array([2, 1, 1]),
                                       masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, StackRelationType.ERODE])
@@ -310,7 +310,7 @@ def unconformity_complex():
     i_r = 4
     gi_r = 2
 
-    options = InterpolationOptions(range_, c_o, uni_degree=1, i_res=i_r, gi_res=gi_r,
+    options = InterpolationOptions(range_, c_o, uni_degree=0, i_res=i_r, gi_res=gi_r,
                                    number_dimensions=3,
                                    kernel_function=AvailableKernelFunctions.cubic)
 

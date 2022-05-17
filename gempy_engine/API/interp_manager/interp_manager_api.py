@@ -83,25 +83,25 @@ def _dual_contouring(data_shape, interpolation_input, options, solutions):
     meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, data_shape.n_surfaces)
     return meshes
 
-
-def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
-                       options: InterpolationOptions) -> Solutions | list[Solutions]:
-    all_solutions: List[Solutions] = []
-
-    stack_structure = root_data_descriptor.stack_structure
-
-    if stack_structure is None:
-        solutions = _interpolate_all(interpolation_input, options, root_data_descriptor)
-        return solutions
-    else:
-        for i in range(stack_structure.n_stacks):
-            stack_structure.stack_number = i
-
-            tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
-            interpolation_input_i = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_structure)
-
-            solutions = _interpolate_all(interpolation_input_i, options, tensor_struct_i)
-            all_solutions.append(solutions)
-
-    return all_solutions
+# ? DEP
+# def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
+#                        options: InterpolationOptions) -> Solutions | list[Solutions]:
+#     all_solutions: List[Solutions] = []
+# 
+#     stack_structure = root_data_descriptor.stack_structure
+# 
+#     if stack_structure is None:
+#         solutions = _interpolate_all(interpolation_input, options, root_data_descriptor)
+#         return solutions
+#     else:
+#         for i in range(stack_structure.n_stacks):
+#             stack_structure.stack_number = i
+# 
+#             tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
+#             interpolation_input_i = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_structure)
+# 
+#             solutions = _interpolate_all(interpolation_input_i, options, tensor_struct_i)
+#             all_solutions.append(solutions)
+# 
+#     return all_solutions
 # TODO: This is where we would have to include any other implicit function
