@@ -22,6 +22,10 @@ def test_extract_input_subsets(unconformity_complex):
         stack_structure.stack_number = i
         tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(input_descriptor, i)
         interpolation_input_i = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_structure)
+        if i == 1:
+            assert interpolation_input_i.surface_points.sp_coords.shape[0] == 2
+        if i == 2:
+            assert interpolation_input_i.surface_points.sp_coords.shape[0] == 3
         print("Iteration {}".format(i))
         print(tensor_struct_i)
         print(interpolation_input_i)

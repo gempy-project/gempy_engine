@@ -23,8 +23,8 @@ class SurfacePoints:
     @classmethod
     def from_suraface_points_subset(cls, surface_points: "SurfacePoints", data_structure: StacksStructure):
         stack_n = data_structure.stack_number
-        cum_sp_l0 = data_structure.nspv_stack[:stack_n + 1].sum()
-        cum_sp_l1 = data_structure.nspv_stack[:stack_n + 2].sum()
+        cum_sp_l0 = data_structure.nspv_stack[stack_n ]#.sum()
+        cum_sp_l1 = data_structure.nspv_stack[stack_n + 1]#.sum()
         
         # TODO: Add nugget selection
         sp = SurfacePoints(surface_points.sp_coords[cum_sp_l0:cum_sp_l1])
