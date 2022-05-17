@@ -104,4 +104,4 @@ def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):
 
         active_cells_index.append(global_active_cells_index) 
 
-    return regular_grid.reshape(shape), active_cells_index
+    return regular_grid.reshape(shape)

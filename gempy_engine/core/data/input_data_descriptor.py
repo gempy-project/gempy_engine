@@ -13,18 +13,22 @@ def _cast_type_inplace(struct_data_instance):
         struct_data_instance.__dict__[key] = val.astype(struct_data_instance.dtype)
 
 
+class StackRelationType(enum.Enum):
+    ERODE = enum.auto()
+    ONLAP = enum.auto()
+    FAULT = enum.auto()
+    
+
+# noinspection PyArgumentList
 @dataclass
 class InputDataDescriptor:
     tensors_structure: TensorsStructure
     stack_structure: StacksStructure = None
     
-
-# noinspection PyArgumentList
-class StackRelationType(enum.Enum):
-    ERODE = enum.auto()
-    ONLAP = enum.auto()
-    FAULT = enum.auto()
-
+    @property
+    def stack_relation(self) -> StackRelationType | List[StackRelationType]:
+        return self.stack_structure.masking_descriptor
+    
 
 @dataclass(frozen=False)
 class StacksStructure:

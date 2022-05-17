@@ -9,20 +9,20 @@ from ...core.data import InterpolationOptions, TensorsStructure
 from ...core.data.exported_structs import OctreeLevel, InterpOutput, DualContouringData, \
     DualContouringMesh, Solutions
 from ...core.data.grid import Grid
-from ...core.data.input_data_descriptor import StackRelationType, InputDataDescriptor
+from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
 from ...modules.octrees_topology.octrees_topology_interface import get_regular_grid_for_level
 
 
 def interpolate_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
-                      data_shape: InputDataDescriptor) -> Solutions:
+                      data_descriptor: InputDataDescriptor) -> Solutions:
     interpolation_input = copy.deepcopy(interpolation_input)  # TODO: Make sure if this works with TF
 
-    solutions: List[Solutions] = _interpolate_stack(data_shape, interpolation_input, options)
-    
+    solutions: List[Solutions] = _interpolate_all(interpolation_input, options, data_descriptor)
+
     # TODO: Masking logic
-    #squeeze_solution = _compute_mask(solutions)
-    
+    # squeeze_solution = _compute_mask(solutions)
+
     # TODO: final dual countoring. I need to make the masking operations first
     if False:
         meshes = _dual_contouring(data_shape, interpolation_input, options, solutions)
@@ -35,14 +35,27 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
     return solutions
 
 
+def _interpolate_all(stack_interpolation_input: InterpolationInput, options: InterpolationOptions,
+                     data_descriptor: InputDataDescriptor) -> List[Solutions]:
+    # ? Should be a list of solutios or Solution should contain a list of InterpOutputs?
+    solutions: Solutions = Solutions()
+    # TODO: [-] Looping scalars
+
+    number_octree_levels = options.number_octree_levels
+    output: List[OctreeLevel] = compute_n_octree_levels(number_octree_levels, stack_interpolation_input,
+                                                        options, data_descriptor)
+    solutions.octrees_output = output
+    solutions.debug_input_data = stack_interpolation_input
+    return solutions
+
+
+# ! DEP
 def _compute_mask(solutions: List[Solutions]):
-     
     # TODO: Add mask_fault
     all_mask_components = solutions[0].octrees_output[-1].output_centers.mask_components
     squeezed_regular_grid = get_regular_grid_for_level(solutions[0].octrees_output, 2)
     squeezed_regular_grid2 = get_regular_grid_for_level(solutions[1].octrees_output, 2)
     return squeezed_regular_grid, squeezed_regular_grid2
-    
 
     # previous_mask_formation = mask_onlap
     # 
@@ -73,34 +86,22 @@ def _dual_contouring(data_shape, interpolation_input, options, solutions):
 
 def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
                        options: InterpolationOptions) -> Solutions | list[Solutions]:
-    
     all_solutions: List[Solutions] = []
-    
+
     stack_structure = root_data_descriptor.stack_structure
-    
+
     if stack_structure is None:
-        solutions = _interpolate_scalar(options, root_data_descriptor, interpolation_input)
+        solutions = _interpolate_all(interpolation_input, options, root_data_descriptor)
         return solutions
     else:
         for i in range(stack_structure.n_stacks):
             stack_structure.stack_number = i
-            
+
             tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
             interpolation_input_i = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_structure)
-    
-            solutions = _interpolate_scalar(options, tensor_struct_i, interpolation_input_i)
+
+            solutions = _interpolate_all(interpolation_input_i, options, tensor_struct_i)
             all_solutions.append(solutions)
 
     return all_solutions
-
-
 # TODO: This is where we would have to include any other implicit function
-def _interpolate_scalar(options, stack_data_shape, stack_interpolation_input):
-    solutions: Solutions = Solutions()
-    # TODO: [ ] Looping scalars
-    number_octree_levels = options.number_octree_levels
-    output: List[OctreeLevel] = compute_n_octree_levels(number_octree_levels, stack_interpolation_input,
-                                                        options, stack_data_shape)
-    solutions.octrees_output = output
-    solutions.debug_input_data = stack_interpolation_input
-    return solutions

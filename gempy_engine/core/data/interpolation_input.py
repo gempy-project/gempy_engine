@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import List
 
 import numpy as np
 
@@ -13,7 +14,7 @@ class InterpolationInput:
     orientations: Orientations
     grid: Grid
     unit_values: np.ndarray
-    stack_relation: StackRelationType = StackRelationType.ERODE
+    stack_relation: StackRelationType | List[StackRelationType] = StackRelationType.ERODE # ? Should be here or in the descriptor
     
     @classmethod
     def from_interpolation_input_subset(cls, interpolation_input: "InterpolationInput", stack_structure: StacksStructure):

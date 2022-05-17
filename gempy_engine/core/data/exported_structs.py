@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -50,9 +50,8 @@ class ExportedFields:
 
 @dataclass()
 class MaskMatrices:
-    mask_erode: np.ndarray
-    mask_onlap: np.ndarray
-    mask_fault: np.ndarray
+    mask_lith: np.ndarray
+    mask_fault: Optional[np.ndarray]
 
 
 @dataclass(init=False)
@@ -68,6 +67,10 @@ class InterpOutput:
     
     # Remember this is only for regular grid
     octrees: List[np.ndarray]  # TODO: This probably should be one level higher
+
+    @property
+    def grid_size(self):
+        return self.values_block.shape[1]
 
     @property
     def scalar_field_at_sp(self):

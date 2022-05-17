@@ -1,10 +1,11 @@
-from typing import Tuple
+from typing import Tuple, List
 
 import numpy as np
 
 from ...core import data
-from ...core.data.input_data_descriptor import StackRelationType
-from ...core.data.exported_structs import InterpOutput, ExportedFields, MaskMatrices
+from ...core.data import InterpolationOptions
+from ...core.data.input_data_descriptor import StackRelationType, InputDataDescriptor, TensorsStructure
+from ...core.data.exported_structs import InterpOutput, ExportedFields, MaskMatrices, Solutions
 from ...core.data.internal_structs import SolverInput
 from ...core.data.interpolation_input import InterpolationInput
 from ...modules.activator import activator_interface
@@ -21,28 +22,94 @@ class Buffer:
         cls.weights = None
 
 
-def interpolate(
-        interpolation_input: InterpolationInput,
-        options: data.InterpolationOptions,
-        data_shape: data.TensorsStructure,
-        clean_buffer=True
-) -> InterpOutput:
+def interpolate_all_fields(interpolation_input: InterpolationInput, options: InterpolationOptions,
+                data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
+    """Interpolate all scalar fields given a xyz array of points"""
+
+    all_scalar_fields_outputs = _interpolate_stack(data_descriptor, interpolation_input, options)
+    # TODO [x]: squeeze mask
+    final_mask_matrix = _squeeze_mask(all_scalar_fields_outputs, data_descriptor.stack_relation)
+    
+    # TODO [ ]: Now we need to multiply each row of the final_mask_matrix with val
+    all_scalar_fields_outputs = _compute_final_block(all_scalar_fields_outputs, final_mask_matrix)
+    
+    return all_scalar_fields_outputs
+
+
+def _interpolate_a_scalar_field(interpolation_input: InterpolationInput, options: InterpolationOptions,
+                                data_shape: TensorsStructure, clean_buffer: bool = True) -> InterpOutput:
     output = InterpOutput()
     output.grid = interpolation_input.grid
-
     output.weights, output.exported_fields = interpolate_scalar_field(interpolation_input, options, data_shape)
     output.values_block = _segment_scalar_field(output, interpolation_input.unit_values)
-    
     # TODO: fix this
     output.mask_components = _compute_mask_components(output.exported_fields, interpolation_input.stack_relation)
-    
     if clean_buffer: Buffer.clean()
-
     return output
 
 
-def _compute_mask_components(exported_fields: ExportedFields, stack_relation: StackRelationType):
+def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
+                       options: InterpolationOptions) -> InterpOutput | list[InterpOutput]:
+    all_scalar_fields_outputs: List[InterpOutput] = []
 
+    stack_structure = root_data_descriptor.stack_structure
+
+    if stack_structure is None:
+        solutions = _interpolate_a_scalar_field(interpolation_input, options, root_data_descriptor.tensors_structure)
+        all_scalar_fields_outputs.append(solutions)
+        return all_scalar_fields_outputs
+    else:
+        for i in range(stack_structure.n_stacks):
+            stack_structure.stack_number = i
+
+            tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
+            interpolation_input_i = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_structure)
+
+            solutions = _interpolate_a_scalar_field(interpolation_input_i, options, tensor_struct_i)
+            all_scalar_fields_outputs.append(solutions)
+
+    return all_scalar_fields_outputs
+
+
+def _squeeze_mask(all_scalar_fields_outputs: List[InterpOutput], stack_relation: List[StackRelationType]) -> np.ndarray:
+    n_scalar_fields = len(all_scalar_fields_outputs)
+    grid_size = all_scalar_fields_outputs[0].grid_size
+    mask_matrix = np.zeros((n_scalar_fields, grid_size), dtype=np.bool)
+
+    # Setting the mask matrix
+    for i in range(n_scalar_fields):
+        mask_lith = all_scalar_fields_outputs[i].mask_components.mask_lith
+        match stack_relation[i]:
+            case StackRelationType.ERODE:
+                mask_matrix[i, :] = mask_lith
+            case StackRelationType.ONLAP:
+                pass
+            case StackRelationType.FAULT:
+                pass
+            case _:
+                raise ValueError(f"Unknown stack relation type: {stack_relation[i]}")
+    
+    # Doing the black magic
+    final_mask_array = np.zeros((n_scalar_fields, grid_size), dtype=bool)
+    final_mask_array[0] = mask_matrix[-1]
+    final_mask_array[1:] = np.cumprod(np.invert(mask_matrix[:-1]), axis=0)
+    return final_mask_array
+
+
+def _compute_final_block(all_scalar_fields_outputs: List[InterpOutput], final_mask_matrix: np.ndarray) -> List[InterpOutput]:
+    n_scalar_fields = len(all_scalar_fields_outputs)
+    previous_block = np.zeros((n_scalar_fields, final_mask_matrix.shape[1]))
+    
+    # ? For the octrees I guess we need to apply the mask also to the ExportedFields
+    for i in range(n_scalar_fields):
+        scalar_fields = all_scalar_fields_outputs[i]
+        scalar_fields.final_block = previous_block + scalar_fields.values_block * final_mask_matrix[i]
+        previous_block = scalar_fields.final_block
+        
+    return all_scalar_fields_outputs
+    
+
+def _compute_mask_components(exported_fields: ExportedFields, stack_relation: StackRelationType):
     # * This are the default values
     mask_erode = np.ones_like(exported_fields.scalar_field)
     mask_onlap = None  # ! it is the mask of the previous stack (from gempy: mask_matrix[n_series - 1, shift:x_to_interpolate_shape + shift])
@@ -50,16 +117,16 @@ def _compute_mask_components(exported_fields: ExportedFields, stack_relation: St
     match stack_relation:
         case StackRelationType.ERODE:
             erode_limit_value = exported_fields.scalar_field_at_surface_points.min()
-            mask_erode = exported_fields.scalar_field > erode_limit_value
+            mask_lith = exported_fields.scalar_field > erode_limit_value
         case StackRelationType.ONLAP:
             onlap_limit_value = exported_fields.scalar_field_at_surface_points.max()
-            mask_onlap = exported_fields.scalar_field > onlap_limit_value
+            mask_lith = exported_fields.scalar_field > onlap_limit_value
         case StackRelationType.FAULT:
-            mask_erode = np.zeros_like(exported_fields.scalar_field)
+            mask_lith = np.zeros_like(exported_fields.scalar_field)
         case _:
             raise ValueError("Stack relation type is not supported")
-    
-    return MaskMatrices(mask_erode, mask_onlap, None)
+
+    return MaskMatrices(mask_lith, None)
 
 
 def interpolate_scalar_field(
