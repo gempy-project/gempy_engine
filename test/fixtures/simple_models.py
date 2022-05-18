@@ -297,12 +297,12 @@ def unconformity_complex():
                                         orientations["polarity"])
     dip_gradients = np.vstack(dip_gradients_).T
 
-    stack_structure = StacksStructure(number_of_points_per_stack=np.array([6, 2, 3]),
-                                      number_of_orientations_per_stack=np.array([6, 1, 2]),
-                                      number_of_surfaces_per_stack=np.array([2, 1, 1]),
+    stack_structure = StacksStructure(number_of_points_per_stack=np.array([3, 2, 6]),
+                                      number_of_orientations_per_stack=np.array([2, 1, 6]),
+                                      number_of_surfaces_per_stack=np.array([1, 1, 2]),
                                       masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, StackRelationType.ERODE])
 
-    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([3, 3, 2, 3]))
+    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([3, 2, 3, 3]))
     input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
 
     range_ = 0.8660254 * 100

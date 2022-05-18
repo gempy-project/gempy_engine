@@ -64,6 +64,7 @@ class InterpOutput:
     final_block: np.ndarray  # Masked array containing only the active voxels
     
     mask_components: MaskMatrices
+    mask_array: np.ndarray
     
     # Remember this is only for regular grid
     octrees: List[np.ndarray]  # TODO: This probably should be one level higher

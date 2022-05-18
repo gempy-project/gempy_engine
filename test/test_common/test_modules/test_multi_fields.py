@@ -27,7 +27,7 @@ def test_extract_input_subsets(unconformity_complex):
         interpolation_input_i = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_structure)
         if i == 1:
             assert interpolation_input_i.surface_points.sp_coords.shape[0] == 2
-        if i == 2:
+        if i == 0:
             assert interpolation_input_i.surface_points.sp_coords.shape[0] == 3
         print("Iteration {}".format(i))
         print(tensor_struct_i)
@@ -66,6 +66,7 @@ def test_compute_mask_components_all_erode(unconformity_complex):
         plot_block(outputs[1].mask_components.mask_lith, grid)
         plot_block(outputs[2].mask_components.mask_lith, grid)
 
+
 # ! Continue here
 def test_mask_arrays(unconformity_complex):
     interpolation_input, options, structure = unconformity_complex
@@ -75,15 +76,22 @@ def test_mask_arrays(unconformity_complex):
     
     if True:
         grid = interpolation_input.grid.regular_grid
+        plot_block(outputs[0].mask_array, grid)
+        plot_block(outputs[1].mask_array, grid)
+        plot_block(outputs[2].mask_array, grid)
+
+
+def test_final_block(unconformity_complex):
+    interpolation_input, options, structure = unconformity_complex
+    outputs: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)
+
+    # TODO: Final block is a (3, 7500) array
+
+    if True:
+        grid = interpolation_input.grid.regular_grid
         plot_block(outputs[0].final_block, grid)
         plot_block(outputs[1].final_block, grid)
         plot_block(outputs[2].final_block, grid)
-    # resolution = [16, 16, 16]
-    # extent = interpolation_input.grid.regular_grid.extent
-    # 
-    # regular_grid_scalar = get_regular_grid_for_level(solutions.octrees_output, 3).astype("int8")
-    # plt.imshow(regular_grid_scalar.reshape(resolution)[:, resolution[1] // 2, :].T, extent=extent[[0, 1, 4, 5]])
-    # plt.show()
 
 
 def test_compute_mask_inner_loop(unconformity, n_oct_levels=4):

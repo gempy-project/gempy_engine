@@ -93,12 +93,17 @@ def _squeeze_mask(all_scalar_fields_outputs: List[InterpOutput], stack_relation:
     final_mask_array = np.zeros((n_scalar_fields, grid_size), dtype=bool)
     final_mask_array[0] = mask_matrix[-1]
     final_mask_array[1:] = np.cumprod(np.invert(mask_matrix[:-1]), axis=0)
+    final_mask_array *= mask_matrix
+
+    for i in range(n_scalar_fields):
+        all_scalar_fields_outputs[i].mask_array = final_mask_array[i]
+        
     return final_mask_array
 
 
 def _compute_final_block(all_scalar_fields_outputs: List[InterpOutput], final_mask_matrix: np.ndarray) -> List[InterpOutput]:
     n_scalar_fields = len(all_scalar_fields_outputs)
-    previous_block = np.zeros((n_scalar_fields, final_mask_matrix.shape[1]))
+    previous_block = np.zeros((1, final_mask_matrix.shape[1]))
     
     # ? For the octrees I guess we need to apply the mask also to the ExportedFields
     for i in range(n_scalar_fields):
