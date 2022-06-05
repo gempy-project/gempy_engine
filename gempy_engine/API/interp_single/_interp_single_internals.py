@@ -86,6 +86,8 @@ def _squeeze_mask(all_scalar_fields_outputs: List[InterpOutput], stack_relation:
                 pass
             case StackRelationType.FAULT:
                 pass
+            case False:
+                mask_matrix[i, :] = mask_lith
             case _:
                 raise ValueError(f"Unknown stack relation type: {stack_relation[i]}")
     
@@ -115,6 +117,13 @@ def _compute_final_block(all_scalar_fields_outputs: List[InterpOutput], final_ma
     
 
 def _compute_mask_components(exported_fields: ExportedFields, stack_relation: StackRelationType):
+    
+    # ! This is how I am setting the stackRelation in gempy
+    # is_erosion = self.series.df['BottomRelation'].values[self.non_zero] == 'Erosion'
+    # is_onlap = np.roll(self.series.df['BottomRelation'].values[self.non_zero] == 'Onlap', 1)
+    # ! if len(is_erosion) != 0:
+    # !     is_erosion[-1] = False
+
     # * This are the default values
     mask_erode = np.ones_like(exported_fields.scalar_field)
     mask_onlap = None  # ! it is the mask of the previous stack (from gempy: mask_matrix[n_series - 1, shift:x_to_interpolate_shape + shift])
@@ -128,6 +137,8 @@ def _compute_mask_components(exported_fields: ExportedFields, stack_relation: St
             mask_lith = exported_fields.scalar_field > onlap_limit_value
         case StackRelationType.FAULT:
             mask_lith = np.zeros_like(exported_fields.scalar_field)
+        case False:
+            mask_lith = np.ones_like(exported_fields.scalar_field)
         case _:
             raise ValueError("Stack relation type is not supported")
 
