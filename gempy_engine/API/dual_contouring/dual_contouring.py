@@ -4,6 +4,7 @@ from ...modules.dual_contouring.dual_contouring_interface import find_intersecti
 
 import numpy as np
 
+
 def get_intersection_on_edges(octree_level: OctreeLevel) -> DualContouringData:
     # First find xyz on edges:
     xyz_corners = octree_level.grid_corners.values
@@ -30,17 +31,20 @@ def compute_dual_contouring(dc_data: DualContouringData, n_surfaces: int):
     # Triangulate
     # ===========
 
-    # For each edge that exhibits a sign change, generate a quad
-    # connecting the minimizing vertices of the four cubes containing the edge.
+    # * For each edge that exhibits a sign change, generate a quad
+    # * connecting the minimizing vertices of the four cubes containing the edge.
 
-    dxdydz = dc_data.grid_centers.dxdydz
-    centers_xyz = dc_data.grid_centers.values #TODO: Can I extract here too
-    centers_xyz = np.tile(centers_xyz, (n_surfaces, 1))
+    def triangulate(dc_data, n_surfaces):
+        dxdydz = dc_data.grid_centers.dxdydz
+        centers_xyz = dc_data.grid_centers.values  # ? Can I extract here too. (UPDATE: Not sure what I meant)
+        centers_xyz = np.tile(centers_xyz, (n_surfaces, 1))
+        return centers_xyz, dxdydz
+
+    centers_xyz, dxdydz = triangulate(dc_data, n_surfaces)
 
     indices = triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels)
 
     return [DualContouringMesh(vertices, indices)]
-
 
 
 """

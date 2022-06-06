@@ -8,7 +8,7 @@ from ..interp_single._interp_single_internals import interpolate_all_fields
 from ..interp_single.interp_single_interface import compute_n_octree_levels, interpolate_single_field
 from ...core.data import InterpolationOptions, TensorsStructure
 from ...core.data.exported_structs import OctreeLevel, InterpOutput, DualContouringData, \
-    DualContouringMesh, Solutions
+    DualContouringMesh, Solutions, ExportedFields
 from ...core.data.grid import Grid
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
@@ -19,14 +19,14 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
                       data_descriptor: InputDataDescriptor) -> Solutions:
     interpolation_input = copy.deepcopy(interpolation_input)  # TODO: Make sure if this works with TF
 
-    solutions: List[Solutions] = _interpolate_all(interpolation_input, options, data_descriptor)
+    solutions: Solutions = _interpolate_all(interpolation_input, options, data_descriptor)
 
     # TODO: Masking logic
     # squeeze_solution = _compute_mask(solutions)
 
     # TODO: final dual countoring. I need to make the masking operations first
     if True:
-        meshes = _dual_contouring(data_shape, interpolation_input, options, solutions)
+        meshes = _dual_contouring(data_descriptor, interpolation_input, options, solutions)
         solutions.dc_meshes = meshes
 
     # ---------------------
@@ -75,7 +75,7 @@ def _dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: 
     dc_data: DualContouringData = get_intersection_on_edges(octree_leaves)
     interpolation_input.grid = Grid(dc_data.xyz_on_edge)
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_descriptor)
-    dc_data.gradients = output_on_edges[-1].exported_fields # TODO: This has to be final exported_fields
+    dc_data.gradients = output_on_edges[-1].final_exported_fields
     # --------------------
     # The following operations are applied on the FINAL lith block:
     # This should happen only on the leaf of an octree

@@ -1,6 +1,7 @@
 from typing import Tuple, List
 
 import numpy as np
+from numpy import ndarray
 
 from ...core import data
 from ...core.data import InterpolationOptions
@@ -103,15 +104,37 @@ def _squeeze_mask(all_scalar_fields_outputs: List[InterpOutput], stack_relation:
     return final_mask_array
 
 
-def _compute_final_block(all_scalar_fields_outputs: List[InterpOutput], final_mask_matrix: np.ndarray) -> List[InterpOutput]:
+def _compute_final_block(all_scalar_fields_outputs: List[InterpOutput], squeezed_mask_arrays: np.ndarray) -> List[InterpOutput]:
     n_scalar_fields = len(all_scalar_fields_outputs)
-    previous_block = np.zeros((1, final_mask_matrix.shape[1]))
+    _squeezed_value_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
+    _squeezed_scalar_field_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
+    _squeezed_gx_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
+    _squeezed_gy_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
+    _squeezed_gz_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
+
+    def _mask_and_squeeze(block_to_squeeze: np.ndarray, squeezed_mask_array: np.ndarray, previous_block: np.ndarray) -> np.ndarray:
+        return (previous_block + block_to_squeeze * squeezed_mask_array).reshape(-1)
 
     # ? For the octrees I guess we need to apply the mask also to the ExportedFields
     for i in range(n_scalar_fields):
-        scalar_fields = all_scalar_fields_outputs[i]
-        scalar_fields.final_block = previous_block + scalar_fields.values_block * final_mask_matrix[i]
-        previous_block = scalar_fields.final_block
+        interp_output: InterpOutput = all_scalar_fields_outputs[i]
+
+        _squeezed_value_block = _mask_and_squeeze(interp_output.values_block, squeezed_mask_arrays[i], _squeezed_value_block)
+
+        _squeezed_scalar_field = _mask_and_squeeze(interp_output.exported_fields.scalar_field, squeezed_mask_arrays[i], _squeezed_scalar_field_block)
+        _squeezed_gx_block = _mask_and_squeeze(interp_output.exported_fields.gx_field, squeezed_mask_arrays[i], _squeezed_gx_block)
+        _squeezed_gy_block = _mask_and_squeeze(interp_output.exported_fields.gy_field, squeezed_mask_arrays[i], _squeezed_gy_block)
+        _squeezed_gz_block = _mask_and_squeeze(interp_output.exported_fields.gz_field, squeezed_mask_arrays[i], _squeezed_gz_block)
+
+        interp_output.final_block = _squeezed_value_block
+        interp_output.final_exported_fields = ExportedFields(
+            _scalar_field=_squeezed_scalar_field,
+            _gx_field=_squeezed_gx_block,
+            _gy_field=_squeezed_gy_block,
+            _gz_field=_squeezed_gz_block,
+            n_points_per_surface=interp_output.exported_fields.n_points_per_surface,
+            n_surface_points=interp_output.exported_fields.n_surface_points
+        )
 
     return all_scalar_fields_outputs
 
@@ -144,17 +167,14 @@ def _compute_mask_components(exported_fields: ExportedFields, stack_relation: St
     return MaskMatrices(mask_lith, None)
 
 
-def interpolate_scalar_field(
-        interpolation_input: InterpolationInput,
-        options: data.InterpolationOptions,
-        data_shape: data.TensorsStructure) -> Tuple[np.ndarray, ExportedFields]:
+def interpolate_scalar_field(interpolation_input: InterpolationInput, options: data.InterpolationOptions,
+                             data_shape: data.TensorsStructure) -> Tuple[np.ndarray, ExportedFields]:
     grid = interpolation_input.grid
     surface_points = interpolation_input.surface_points
     orientations = interpolation_input.orientations
 
     # Within series
-    xyz_lvl0, ori_internal, sp_internal = _input_preprocess(data_shape, grid, orientations,
-                                                            surface_points)
+    xyz_lvl0, ori_internal, sp_internal = _input_preprocess(data_shape, grid, orientations, surface_points)
     solver_input = SolverInput(sp_internal, ori_internal, options)
 
     if Buffer.weights is None:
@@ -162,6 +182,7 @@ def interpolate_scalar_field(
         Buffer.weights = weights
     else:
         weights = Buffer.weights
+
     # Within octree level
     # +++++++++++++++++++
     exported_fields = _evaluate_sys_eq(xyz_lvl0, solver_input, weights)

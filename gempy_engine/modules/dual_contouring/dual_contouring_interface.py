@@ -11,12 +11,12 @@ def find_intersection_on_edge(_xyz_8: np.ndarray, scalar_field: np.ndarray,
 
     xyz_8 = _xyz_8.reshape((-1, 8, 3))
     n_isosurface = scalar_at_sp.shape[0]
-    xyz_8 = np.tile(xyz_8, (n_isosurface, 1, 1)) # TODO: Generalize
+    xyz_8 = np.tile(xyz_8, (n_isosurface, 1, 1))  # TODO: Generalize
 
     # Compute distance of scalar field on the corners
     scalar_dx = scalar_8[:, :, :4] - scalar_8[:, :, 4:]
     scalar_d_y = scalar_8[:, :, [0, 1, 4, 5]] - scalar_8[:, :, [2, 3, 6, 7]]
-    scalar_d_z = scalar_8[:,:, ::2] - scalar_8[:, :, 1::2]
+    scalar_d_z = scalar_8[:, :, ::2] - scalar_8[:, :, 1::2]
 
     """
     -4.31216,-1.87652,-4.19625,-2.57581
@@ -25,18 +25,18 @@ def find_intersection_on_edge(_xyz_8: np.ndarray, scalar_field: np.ndarray,
 
     # Compute the weights
     weight_x = ((scalar_at_sp - scalar_8[:, :, 4:]) / scalar_dx).reshape(-1, 4, 1)
-    weight_y = ((scalar_at_sp -  scalar_8[:, :, [2, 3, 6, 7]]) / scalar_d_y).reshape(-1, 4, 1)
+    weight_y = ((scalar_at_sp - scalar_8[:, :, [2, 3, 6, 7]]) / scalar_d_y).reshape(-1, 4, 1)
     weight_z = ((scalar_at_sp - scalar_8[:, :, 1::2]) / scalar_d_z).reshape(-1, 4, 1)
-    
+
     # Calculate eucledian distance between the corners
-    d_x = xyz_8[:, :4]           - xyz_8[:, 4:]
+    d_x = xyz_8[:, :4] - xyz_8[:, 4:]
     d_y = xyz_8[:, [0, 1, 4, 5]] - xyz_8[:, [2, 3, 6, 7]]
-    d_z = xyz_8[:, ::2]          - xyz_8[:, 1::2]
+    d_z = xyz_8[:, ::2] - xyz_8[:, 1::2]
 
     # Compute the weighted distance
-    intersect_dx = d_x[:, :, :] * weight_x[:,:, :]
-    intersect_dy = d_y[:, :, :] * weight_y[:,:, :]
-    intersect_dz = d_z[:, :, :] * weight_z[:,:, :]
+    intersect_dx = d_x[:, :, :] * weight_x[:, :, :]
+    intersect_dy = d_y[:, :, :] * weight_y[:, :, :]
+    intersect_dz = d_z[:, :, :] * weight_z[:, :, :]
 
     # Mask invalid edges
     # TODO: This still only works for the first layer of a sequence
@@ -44,14 +44,14 @@ def find_intersection_on_edge(_xyz_8: np.ndarray, scalar_field: np.ndarray,
     valid_edge_y = np.logical_and(weight_y > 0, weight_y < 1)
     valid_edge_z = np.logical_and(weight_z > 0, weight_z < 1)
 
-    #Note(miguel) From this point on the arrays become sparse
+    # Note(miguel) From this point on the arrays become sparse
     xyz_8_edges = np.hstack([xyz_8[:, 4:], xyz_8[:, [2, 3, 6, 7]], xyz_8[:, 1::2]])
     intersect_segment = np.hstack([intersect_dx, intersect_dy, intersect_dz])
     valid_edges = np.hstack([valid_edge_x, valid_edge_y, valid_edge_z])[:, :, 0]
 
     intersection_xyz = xyz_8_edges[valid_edges] + intersect_segment[valid_edges]
 
-    return DualContouringData(intersection_xyz, valid_edges) # TODO: Add attributes?
+    return DualContouringData(intersection_xyz, valid_edges)  # TODO: Add attributes?
 
 
 def triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels):
@@ -142,6 +142,7 @@ def generate_dual_contouring_vertices(gradients, n_edges, valid_edges, xyz_on_ed
 # NOTE(miguel, July 2021): This class is only used for sanity check
 class QEF:
     """Represents and solves the quadratic error function"""
+
     def __init__(self, A, b, fixed_values):
         self.A = A
         self.b = b
@@ -157,7 +158,6 @@ class QEF:
     def eval_with_pos(self, x):
         """Evaluates the QEF at a position, returning the same format solve does."""
         return self.evaluate(x), x
-
 
     @staticmethod
     def make_3d(positions, normals):

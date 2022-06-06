@@ -44,8 +44,7 @@ class ExportedFields:
 
     @classmethod
     def from_interpolation(cls, scalar_field, gx_field, gy_field, gz_field, grid_size: int):
-        return cls(scalar_field[:grid_size], gx_field[:grid_size],
-                   gy_field[:grid_size], gz_field[:grid_size])
+        return cls(scalar_field[:grid_size], gx_field[:grid_size], gy_field[:grid_size], gz_field[:grid_size])
 
 
 @dataclass()
@@ -63,10 +62,10 @@ class InterpOutput:
     final_exported_fields: ExportedFields
     values_block: np.ndarray  # final values ignoring unconformities
     final_block: np.ndarray  # Masked array containing only the active voxels
-    
+
     mask_components: MaskMatrices
     mask_array: np.ndarray
-    
+
     # Remember this is only for regular grid
     octrees: List[np.ndarray]  # TODO: This probably should be one level higher
 
@@ -93,11 +92,11 @@ class InterpOutput:
 
     @property
     def ids_block_regular_grid(self):
-        return np.rint(self.final_block[0, :self.grid.len_grids[0]].reshape(self.grid.regular_grid_shape))
+        return np.rint(self.final_block[:self.grid.len_grids[0]].reshape(self.grid.regular_grid_shape))
 
     @property
     def ids_block(self) -> np.ndarray:
-        return np.rint(self.final_block[0, :self.grid.len_grids[0]])
+        return np.rint(self.final_block[:self.grid.len_grids[0]])
 
 
 @dataclass(init=False)
@@ -141,10 +140,11 @@ class DualContouringData:
 
     @gradients.setter
     def gradients(self, exported_fields: ExportedFields):
+        # ! When we are computing the edges for dual contouring there is no surface points
         self._gradients = np.stack(
-            (exported_fields.gx_field,
-             exported_fields.gy_field,
-             exported_fields.gz_field), axis=0).T
+            (exported_fields._gx_field,
+             exported_fields._gy_field,
+             exported_fields._gz_field), axis=0).T
 
 
 @dataclass
