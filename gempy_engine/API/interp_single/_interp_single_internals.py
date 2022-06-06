@@ -23,7 +23,7 @@ class Buffer:
 
 
 def interpolate_all_fields(interpolation_input: InterpolationInput, options: InterpolationOptions,
-                data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
+                           data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
     """Interpolate all scalar fields given a xyz array of points"""
 
     all_scalar_fields_outputs = _interpolate_stack(data_descriptor, interpolation_input, options)
@@ -53,7 +53,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_
     all_scalar_fields_outputs: List[InterpOutput] = []
 
     stack_structure = root_data_descriptor.stack_structure
-    
+
     if stack_structure is None:  # ! This branch is just for backward compatibility but we should try to get rid of it as soon as possible
         solutions = _interpolate_a_scalar_field(interpolation_input, options, root_data_descriptor.tensors_structure)
         all_scalar_fields_outputs.append(solutions)
@@ -90,7 +90,7 @@ def _squeeze_mask(all_scalar_fields_outputs: List[InterpOutput], stack_relation:
                 mask_matrix[i, :] = mask_lith
             case _:
                 raise ValueError(f"Unknown stack relation type: {stack_relation[i]}")
-    
+
     # Doing the black magic
     final_mask_array = np.zeros((n_scalar_fields, grid_size), dtype=bool)
     final_mask_array[0] = mask_matrix[-1]
@@ -99,25 +99,24 @@ def _squeeze_mask(all_scalar_fields_outputs: List[InterpOutput], stack_relation:
 
     for i in range(n_scalar_fields):
         all_scalar_fields_outputs[i].mask_array = final_mask_array[i]
-        
+
     return final_mask_array
 
 
 def _compute_final_block(all_scalar_fields_outputs: List[InterpOutput], final_mask_matrix: np.ndarray) -> List[InterpOutput]:
     n_scalar_fields = len(all_scalar_fields_outputs)
     previous_block = np.zeros((1, final_mask_matrix.shape[1]))
-    
+
     # ? For the octrees I guess we need to apply the mask also to the ExportedFields
     for i in range(n_scalar_fields):
         scalar_fields = all_scalar_fields_outputs[i]
         scalar_fields.final_block = previous_block + scalar_fields.values_block * final_mask_matrix[i]
         previous_block = scalar_fields.final_block
-        
+
     return all_scalar_fields_outputs
-    
+
 
 def _compute_mask_components(exported_fields: ExportedFields, stack_relation: StackRelationType):
-    
     # ! This is how I am setting the stackRelation in gempy
     # is_erosion = self.series.df['BottomRelation'].values[self.non_zero] == 'Erosion'
     # is_onlap = np.roll(self.series.df['BottomRelation'].values[self.non_zero] == 'Onlap', 1)

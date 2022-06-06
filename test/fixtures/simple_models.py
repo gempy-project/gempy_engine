@@ -314,7 +314,7 @@ def unconformity_complex():
                                    number_dimensions=3,
                                    kernel_function=AvailableKernelFunctions.cubic)
 
-    resolution = [50, 3, 50]
+    resolution = [25, 3, 25]
     extent = [0, 10., 0, 2., 0, 5.]
 
     regular_grid = RegularGrid(extent, resolution)

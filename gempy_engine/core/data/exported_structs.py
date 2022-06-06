@@ -60,6 +60,7 @@ class InterpOutput:
     grid: Grid
 
     exported_fields: ExportedFields
+    final_exported_fields: ExportedFields
     values_block: np.ndarray  # final values ignoring unconformities
     final_block: np.ndarray  # Masked array containing only the active voxels
     
@@ -92,11 +93,11 @@ class InterpOutput:
 
     @property
     def ids_block_regular_grid(self):
-        return np.rint(self.values_block[0, :self.grid.len_grids[0]].reshape(self.grid.regular_grid_shape))
+        return np.rint(self.final_block[0, :self.grid.len_grids[0]].reshape(self.grid.regular_grid_shape))
 
     @property
     def ids_block(self) -> np.ndarray:
-        return np.rint(self.values_block[0, :self.grid.len_grids[0]])
+        return np.rint(self.final_block[0, :self.grid.len_grids[0]])
 
 
 @dataclass(init=False)

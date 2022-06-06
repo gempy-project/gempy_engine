@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 
 from gempy_engine.API.interp_manager.interp_manager_api import _compute_mask, _interpolate_all
 from gempy_engine.API.interp_single._interp_single_internals import _compute_mask_components, interpolate_all_fields, _interpolate_stack
-from gempy_engine.core.data.exported_structs import InterpOutput
+from gempy_engine.core.data.exported_structs import InterpOutput, Solutions
 from gempy_engine.core.data.input_data_descriptor import StackRelationType, TensorsStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_for_level
@@ -67,7 +67,6 @@ def test_compute_mask_components_all_erode(unconformity_complex):
         plot_block(outputs[2].mask_components.mask_lith, grid)
 
 
-# ! Continue here
 def test_mask_arrays(unconformity_complex):
     interpolation_input, options, structure = unconformity_complex
     outputs: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)
@@ -93,6 +92,36 @@ def test_final_block(unconformity_complex):
         plot_block(outputs[1].final_block, grid)
         plot_block(outputs[2].final_block, grid)
 
+
+def test_final_exported_fields(unconformity_complex):
+    interpolation_input, options, structure = unconformity_complex
+    outputs: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)
+
+    # TODO: Final block is a (3, 7500) array
+
+    if True:
+        grid = interpolation_input.grid.regular_grid
+        plot_block(outputs[0].final_block, grid)
+        plot_block(outputs[1].final_block, grid)
+        plot_block(outputs[2].final_block, grid)
+
+
+def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
+    interpolation_input, options, structure = unconformity_complex
+    options.number_octree_levels = n_oct_levels
+    solution: Solutions = _interpolate_all(interpolation_input, options, structure)
+    final_block = solution.octrees_output[0].output_centers.final_block
+    final_block2 = get_regular_grid_for_level(solution.octrees_output, 1).astype("int8")
+
+    # TODO: Final block is a (3, 7500) array
+
+    if True:
+        grid = interpolation_input.grid.regular_grid
+        plot_block(final_block, grid)
+        
+        grid2 = solution.octrees_output[1].grid_centers.regular_grid
+        plot_block(final_block2, grid2)
+        
 
 def test_compute_mask_inner_loop(unconformity, n_oct_levels=4):
     pass

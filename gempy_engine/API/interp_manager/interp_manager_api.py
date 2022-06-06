@@ -4,6 +4,7 @@ import copy
 from typing import List
 
 from ..dual_contouring.dual_contouring import compute_dual_contouring, get_intersection_on_edges
+from ..interp_single._interp_single_internals import interpolate_all_fields
 from ..interp_single.interp_single_interface import compute_n_octree_levels, interpolate_single_field
 from ...core.data import InterpolationOptions, TensorsStructure
 from ...core.data.exported_structs import OctreeLevel, InterpOutput, DualContouringData, \
@@ -24,7 +25,7 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
     # squeeze_solution = _compute_mask(solutions)
 
     # TODO: final dual countoring. I need to make the masking operations first
-    if False:
+    if True:
         meshes = _dual_contouring(data_shape, interpolation_input, options, solutions)
         solutions.dc_meshes = meshes
 
@@ -36,7 +37,7 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
 
 
 def _interpolate_all(stack_interpolation_input: InterpolationInput, options: InterpolationOptions,
-                     data_descriptor: InputDataDescriptor) -> List[Solutions]:
+                     data_descriptor: InputDataDescriptor) -> Solutions:
     # ? Should be a list of solutios or Solution should contain a list of InterpOutputs?
     solutions: Solutions = Solutions()
     # TODO: [-] Looping scalars
@@ -67,20 +68,21 @@ def _compute_mask(solutions: List[Solutions]):
     # mask_matrix_this_stack = mask_erode
 
 
-def _dual_contouring(data_shape, interpolation_input, options, solutions):
+def _dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
+                     options: InterpolationOptions, solutions: Solutions) -> List[DualContouringMesh]:
     # Dual Contouring prep:
     octree_leaves = solutions.octrees_output[-1]
     dc_data: DualContouringData = get_intersection_on_edges(octree_leaves)
     interpolation_input.grid = Grid(dc_data.xyz_on_edge)
-    output_on_edges: InterpOutput = interpolate_single_field(interpolation_input, options, data_shape)
-    dc_data.gradients = output_on_edges.exported_fields
+    output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_descriptor)
+    dc_data.gradients = output_on_edges[-1].exported_fields # TODO: This has to be final exported_fields
     # --------------------
     # The following operations are applied on the FINAL lith block:
     # This should happen only on the leaf of an octree
     # TODO: [ ] Dual contouring. This method only make one vertex per voxel. It is possible to make water tight surfaces?
     # compute_dual_contouring
     # TODO [ ] The api should grab an octree level
-    meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, data_shape.n_surfaces)
+    meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, data_descriptor.tensors_structure.n_surfaces)
     return meshes
 
 # ? DEP
