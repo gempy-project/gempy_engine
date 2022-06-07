@@ -71,7 +71,7 @@ def plot_pyvista(octree_list, dc_meshes:  List[DualContouringMesh] = None, verti
     regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
     foo = regular_grid_mesh.threshold([0, 10])
 
-    p.add_mesh(foo, show_edges=False, opacity=.5, cmap="tab10")
+    p.add_mesh(foo, show_edges=True, opacity=.5, cmap="tab10")
 
     # Plot gradients
     if gradients is not None and xyz_on_edge is not None:
@@ -110,6 +110,8 @@ def plot_pyvista(octree_list, dc_meshes:  List[DualContouringMesh] = None, verti
             
             dual_mesh = pv.PolyData(vertices, np.insert(indices, 0, 3, axis=1).ravel())
             p.add_mesh(dual_mesh, opacity=1, silhouette=True, color=colors[e], show_edges=True)
+
+            p.add_mesh(pv.PolyData(vertices), color=colors[e], point_size=9.0, render_points_as_spheres=True)
 
     p.add_axes()
     p.show()
