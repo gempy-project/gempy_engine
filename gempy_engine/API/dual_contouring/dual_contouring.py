@@ -10,10 +10,15 @@ def get_intersection_on_edges(octree_level: OctreeLevel) -> DualContouringData:
     xyz_corners = octree_level.grid_corners.values
     output_corners: InterpOutput = octree_level.last_output_corners
     
-    scalar_field_corners = output_corners.exported_fields.scalar_field
-    scalar_field_at_sp = output_corners.scalar_field_at_sp
+    scalar_field_corners = output_corners.final_exported_fields._scalar_field
+    
+    scalar_field_at_all_sp = np.zeros(0)
+    for output_corners in octree_level.outputs_corners:
+        scalar_field_at_all_sp = np.concatenate((scalar_field_at_all_sp, output_corners.scalar_field_at_sp))
+    
+    #scalar_field_at_sp = output_corners.scalar_field_at_sp
 
-    dc_data = find_intersection_on_edge(xyz_corners, scalar_field_corners, scalar_field_at_sp)
+    dc_data = find_intersection_on_edge(xyz_corners, scalar_field_corners, scalar_field_at_all_sp)
     dc_data.grid_centers = octree_level.grid_centers
 
     return dc_data

@@ -22,7 +22,7 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
         return shift_select_xyz, voxel_select
 
     dxdydz = prev_octree.dxdydz
-    ids = prev_octree.output_corners.ids_block
+    ids = prev_octree.last_output_corners.ids_block  # ! This already uses the final ids block (combining all fields)
 
     uv_8 = ids.reshape((-1, 8))
 
@@ -30,7 +30,7 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
     shift_select_xyz, voxel_select = _mark_voxel(uv_8)
     prev_octree.marked_edges = shift_select_xyz
 
-    if compute_topology: # TODO: Fix topology function
+    if compute_topology:  # TODO: Fix topology function
         prev_octree.edges_id, prev_octree.count_edges = _calculate_topology(shift_select_xyz, prev_octree.id_block)
 
     # New Octree
@@ -121,4 +121,3 @@ def _calculate_topology(shift_select_xyz: List[np.ndarray], ids: np.ndarray):
     edges_id, count_edges = np.unique(contiguous_voxels, return_counts=True, axis=1)
 
     return edges_id, count_edges
-

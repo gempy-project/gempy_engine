@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -59,15 +60,15 @@ class InterpOutput:
     grid: Grid
 
     exported_fields: ExportedFields
-    final_exported_fields: ExportedFields
+    final_exported_fields: ExportedFields  # Masked array containing only the active voxels
     values_block: np.ndarray  # final values ignoring unconformities
     final_block: np.ndarray  # Masked array containing only the active voxels
 
     mask_components: MaskMatrices
-    mask_array: np.ndarray
+    squeezed_mask_array: np.ndarray
 
     # Remember this is only for regular grid
-    octrees: List[np.ndarray]  # TODO: This probably should be one level higher
+    octrees: List[np.ndarray]  # TODO: This probably should be one level higher. (unsure what I meant here)
 
     @property
     def grid_size(self):
@@ -125,17 +126,19 @@ class OctreeLevel:
     @property
     def dxdydz(self):
         return self.grid_centers.dxdydz
-    
+
     @property
-    def output_center(self): # * Alias
+    def output_centers(self):  # * Alias
+        warnings.warn('This function is deprecated', DeprecationWarning)
         return self.last_output_center
 
     @property
     def last_output_center(self):
         return self.outputs_centers[-1]
-    
+
     @property
-    def output_corners(self): # * Alias
+    def output_corners(self):  # * Alias
+        warnings.warn('This function is deprecated', DeprecationWarning)
         return self.last_output_corners
 
     @property
@@ -155,12 +158,8 @@ class DualContouringData:
         return self._gradients
 
     @gradients.setter
-    def gradients(self, exported_fields: ExportedFields):
-        # ! When we are computing the edges for dual contouring there is no surface points
-        self._gradients = np.stack(
-            (exported_fields._gx_field,
-             exported_fields._gy_field,
-             exported_fields._gz_field), axis=0).T
+    def gradients(self, ef: ExportedFields):
+        self._gradients = np.stack((ef._gx_field, ef._gy_field, ef._gz_field), axis=0).T  # ! When we are computing the edges for dual contouring there is no surface points
 
 
 @dataclass

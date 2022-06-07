@@ -37,6 +37,41 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
     return all_scalar_fields_outputs
 
 
+def _compute_final_block(all_scalar_fields_outputs: List[InterpOutput], squeezed_mask_arrays: np.ndarray) -> List[InterpOutput]:
+    n_scalar_fields = len(all_scalar_fields_outputs)
+    _squeezed_value_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
+    _squeezed_scalar_field_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
+    _squeezed_gx_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
+    _squeezed_gy_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
+    _squeezed_gz_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
+
+    def _mask_and_squeeze(block_to_squeeze: np.ndarray, squeezed_mask_array: np.ndarray, previous_block: np.ndarray) -> np.ndarray:
+        return (previous_block + block_to_squeeze * squeezed_mask_array).reshape(-1)
+
+    # ? For the octrees I guess we need to apply the mask also to the ExportedFields
+    for i in range(n_scalar_fields):
+        interp_output: InterpOutput = all_scalar_fields_outputs[i]
+
+        _squeezed_value_block = _mask_and_squeeze(interp_output.values_block, squeezed_mask_arrays[i], _squeezed_value_block)
+
+        _squeezed_scalar_field_block = _mask_and_squeeze(interp_output.exported_fields.scalar_field, squeezed_mask_arrays[i], _squeezed_scalar_field_block)
+        _squeezed_gx_block = _mask_and_squeeze(interp_output.exported_fields.gx_field, squeezed_mask_arrays[i], _squeezed_gx_block)
+        _squeezed_gy_block = _mask_and_squeeze(interp_output.exported_fields.gy_field, squeezed_mask_arrays[i], _squeezed_gy_block)
+        _squeezed_gz_block = _mask_and_squeeze(interp_output.exported_fields.gz_field, squeezed_mask_arrays[i], _squeezed_gz_block)
+
+        interp_output.final_block = _squeezed_value_block
+        interp_output.final_exported_fields = ExportedFields(
+            _scalar_field=_squeezed_scalar_field_block,
+            _gx_field=_squeezed_gx_block,
+            _gy_field=_squeezed_gy_block,
+            _gz_field=_squeezed_gz_block,
+            n_points_per_surface=interp_output.exported_fields.n_points_per_surface,
+            n_surface_points=interp_output.exported_fields.n_surface_points
+        )
+
+    return all_scalar_fields_outputs
+
+
 def _interpolate_a_scalar_field(interpolation_input: InterpolationInput, options: InterpolationOptions,
                                 data_shape: TensorsStructure, clean_buffer: bool = True) -> InterpOutput:
     output = InterpOutput()
@@ -99,44 +134,9 @@ def _squeeze_mask(all_scalar_fields_outputs: List[InterpOutput], stack_relation:
     final_mask_array *= mask_matrix
 
     for i in range(n_scalar_fields):
-        all_scalar_fields_outputs[i].mask_array = final_mask_array[i]
+        all_scalar_fields_outputs[i].squeezed_mask_array = final_mask_array[i]
 
     return final_mask_array
-
-
-def _compute_final_block(all_scalar_fields_outputs: List[InterpOutput], squeezed_mask_arrays: np.ndarray) -> List[InterpOutput]:
-    n_scalar_fields = len(all_scalar_fields_outputs)
-    _squeezed_value_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
-    _squeezed_scalar_field_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
-    _squeezed_gx_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
-    _squeezed_gy_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
-    _squeezed_gz_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
-
-    def _mask_and_squeeze(block_to_squeeze: np.ndarray, squeezed_mask_array: np.ndarray, previous_block: np.ndarray) -> np.ndarray:
-        return (previous_block + block_to_squeeze * squeezed_mask_array).reshape(-1)
-
-    # ? For the octrees I guess we need to apply the mask also to the ExportedFields
-    for i in range(n_scalar_fields):
-        interp_output: InterpOutput = all_scalar_fields_outputs[i]
-
-        _squeezed_value_block = _mask_and_squeeze(interp_output.values_block, squeezed_mask_arrays[i], _squeezed_value_block)
-
-        _squeezed_scalar_field = _mask_and_squeeze(interp_output.exported_fields.scalar_field, squeezed_mask_arrays[i], _squeezed_scalar_field_block)
-        _squeezed_gx_block = _mask_and_squeeze(interp_output.exported_fields.gx_field, squeezed_mask_arrays[i], _squeezed_gx_block)
-        _squeezed_gy_block = _mask_and_squeeze(interp_output.exported_fields.gy_field, squeezed_mask_arrays[i], _squeezed_gy_block)
-        _squeezed_gz_block = _mask_and_squeeze(interp_output.exported_fields.gz_field, squeezed_mask_arrays[i], _squeezed_gz_block)
-
-        interp_output.final_block = _squeezed_value_block
-        interp_output.final_exported_fields = ExportedFields(
-            _scalar_field=_squeezed_scalar_field,
-            _gx_field=_squeezed_gx_block,
-            _gy_field=_squeezed_gy_block,
-            _gz_field=_squeezed_gz_block,
-            n_points_per_surface=interp_output.exported_fields.n_points_per_surface,
-            n_surface_points=interp_output.exported_fields.n_surface_points
-        )
-
-    return all_scalar_fields_outputs
 
 
 def _compute_mask_components(exported_fields: ExportedFields, stack_relation: StackRelationType):

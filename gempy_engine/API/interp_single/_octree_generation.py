@@ -24,6 +24,7 @@ def interpolate_on_octree(octree: OctreeLevel, interpolation_input: Interpolatio
     output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # TODO: This is unnecessary for the last level except for Dual contouring
 
     # Set values to octree
+    # ? Do we need to pass a list of output or we just need the last one?
     octree.set_interpolation_values(grid_0_centers, grid_0_corners, output_0_centers, output_0_corners)
     return octree
 

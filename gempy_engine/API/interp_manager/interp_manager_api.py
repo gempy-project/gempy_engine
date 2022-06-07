@@ -61,10 +61,11 @@ def _dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: 
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_descriptor)
 
     # TODO: [ ] We need to do the following for each field
-    one_scalar_field_at_a_time = False
+    one_scalar_field_at_a_time = True
     if one_scalar_field_at_a_time:
         dc_data.gradients: ExportedFields = output_on_edges[-1].final_exported_fields
-        n_surfaces = data_descriptor.stack_structure.number_of_surfaces_per_stack[-1]
+        # n_surfaces = data_descriptor.stack_structure.number_of_surfaces_per_stack[-1]
+        n_surfaces = data_descriptor.tensors_structure.n_surfaces
     else:
         all_gx: np.ndarray = np.zeros(0)
         all_gy: np.ndarray = np.zeros(0)

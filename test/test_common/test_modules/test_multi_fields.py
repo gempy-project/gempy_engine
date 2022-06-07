@@ -2,7 +2,7 @@ from typing import List
 
 from matplotlib import pyplot as plt
 
-from gempy_engine.API.interp_manager.interp_manager_api import _compute_mask, _interpolate_all, interpolate_model
+from gempy_engine.API.interp_manager.interp_manager_api import  _interpolate_all, interpolate_model
 from gempy_engine.API.interp_single._interp_single_internals import _compute_mask_components, interpolate_all_fields, _interpolate_stack
 from gempy_engine.core.data.exported_structs import InterpOutput, Solutions
 from gempy_engine.core.data.input_data_descriptor import StackRelationType, TensorsStructure
@@ -76,9 +76,9 @@ def test_mask_arrays(unconformity_complex):
 
     if True:
         grid = interpolation_input.grid.regular_grid
-        plot_block(outputs[0].mask_array, grid)
-        plot_block(outputs[1].mask_array, grid)
-        plot_block(outputs[2].mask_array, grid)
+        plot_block(outputs[0].squeezed_mask_array, grid)
+        plot_block(outputs[1].squeezed_mask_array, grid)
+        plot_block(outputs[2].squeezed_mask_array, grid)
 
 
 def test_final_block(unconformity_complex):
@@ -94,28 +94,15 @@ def test_final_block(unconformity_complex):
         plot_block(outputs[2].final_block, grid)
 
 
-def test_final_scalar_field(unconformity_complex):
-    interpolation_input, options, structure = unconformity_complex
-    outputs: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)
-
-    if True:
-        grid = interpolation_input.grid.regular_grid
-        plot_block(outputs[0].final_exported_fields.scalar_field, grid)
-        plot_block(outputs[1].final_exported_fields.scalar_field, grid)
-        plot_block(outputs[2].final_exported_fields.scalar_field, grid)
-
-
 def test_final_exported_fields(unconformity_complex):
     interpolation_input, options, structure = unconformity_complex
     outputs: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)
 
-    # TODO: Final block is a (3, 7500) array
-
     if True:
         grid = interpolation_input.grid.regular_grid
-        plot_block(outputs[0].final_block, grid)
-        plot_block(outputs[1].final_block, grid)
-        plot_block(outputs[2].final_block, grid)
+        plot_block(outputs[0].final_exported_fields._scalar_field, grid)
+        plot_block(outputs[1].final_exported_fields._scalar_field, grid)
+        plot_block(outputs[2].final_exported_fields._scalar_field, grid)
 
 
 def test_dual_contouring_multiple_fields(unconformity_complex, n_oct_levels=2):

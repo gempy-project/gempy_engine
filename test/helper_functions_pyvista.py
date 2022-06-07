@@ -96,7 +96,7 @@ def plot_pyvista(octree_list,  vertices=None, indices=None, xyz_on_edge = None, 
         p.add_mesh(pv.PolyData(v_just_points), color="b", point_size=15.0, render_points_as_spheres=False)
 
     if vertices is not None:
-        p.add_mesh(pv.PolyData(vertices), color="w", point_size=15.0, render_points_as_spheres=True)
+        p.add_mesh(pv.PolyData(vertices), color="w", point_size=4.0, render_points_as_spheres=True)
 
     if indices is not None:
         dual_mesh = pv.PolyData(vertices, np.insert(indices, 0, 3, axis=1).ravel())
