@@ -75,14 +75,19 @@ def _dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: 
     dc_data: DualContouringData = get_intersection_on_edges(octree_leaves)
     interpolation_input.grid = Grid(dc_data.xyz_on_edge)
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_descriptor)
+    
+    # TODO: [ ] We need to do the following for each field
     dc_data.gradients = output_on_edges[-1].final_exported_fields
+    n_surfaces = data_descriptor.stack_structure.number_of_surfaces_per_stack[-1]
+    
+    
     # --------------------
     # The following operations are applied on the FINAL lith block:
     # This should happen only on the leaf of an octree
     # TODO: [ ] Dual contouring. This method only make one vertex per voxel. It is possible to make water tight surfaces?
     # compute_dual_contouring
     # TODO [ ] The api should grab an octree level
-    meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, data_descriptor.tensors_structure.n_surfaces)
+    meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, n_surfaces)
     return meshes
 
 # ? DEP

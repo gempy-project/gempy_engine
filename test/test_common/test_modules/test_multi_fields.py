@@ -8,6 +8,7 @@ from gempy_engine.core.data.exported_structs import InterpOutput, Solutions
 from gempy_engine.core.data.input_data_descriptor import StackRelationType, TensorsStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_for_level
+from ... import helper_functions_pyvista
 from ...conftest import plot_pyvista
 
 try:
@@ -121,7 +122,10 @@ def test_dual_contouring_multiple_fields(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
     solutions: Solutions = interpolate_model(interpolation_input, options, structure)
-
+    mesh = solutions.dc_meshes[0]
+    
+    if True:
+        helper_functions_pyvista.plot_pyvista(solutions.octrees_output, vertices=mesh.vertices, indices=mesh.edges)
 
 
 def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
