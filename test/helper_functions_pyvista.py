@@ -56,7 +56,7 @@ def plot_vector(p: pv.Plotter, xyz, gradients):
     p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
 
 
-def plot_pyvista(octree_list,  vertices=None, indices=None, xyz_on_edge = None, gradients =None, a=None, b=None, v_just_points=None,
+def plot_pyvista(octree_list, dc_meshes:  List[DualContouringMesh] = None, vertices=None, indices=None, xyz_on_edge = None, gradients =None, a=None, b=None, v_just_points=None,
                  plot_label=False, ):
     n = 1
     p = pv.Plotter()
@@ -101,6 +101,15 @@ def plot_pyvista(octree_list,  vertices=None, indices=None, xyz_on_edge = None, 
     if indices is not None:
         dual_mesh = pv.PolyData(vertices, np.insert(indices, 0, 3, axis=1).ravel())
         p.add_mesh(dual_mesh, opacity=1, silhouette=True, color="green", show_edges=True)
+    
+    colors = ['green', 'blue', 'red', 'yellow', 'pink', 'brown', 'purple']
+    if dc_meshes is not None:
+        for e, mesh in enumerate(dc_meshes):
+            vertices = mesh.vertices
+            indices = mesh.edges
+            
+            dual_mesh = pv.PolyData(vertices, np.insert(indices, 0, 3, axis=1).ravel())
+            p.add_mesh(dual_mesh, opacity=1, silhouette=True, color=colors[e], show_edges=True)
 
     p.add_axes()
     p.show()

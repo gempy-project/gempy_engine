@@ -112,8 +112,9 @@ def test_dual_contouring_multiple_fields(unconformity_complex, n_oct_levels=2):
     mesh = solutions.dc_meshes[0]
     
     if True:
-        helper_functions_pyvista.plot_pyvista(solutions.octrees_output, vertices=mesh.vertices, indices=mesh.edges,
-                                              v_just_points=mesh.vertices_test)
+        # helper_functions_pyvista.plot_pyvista(solutions.octrees_output, vertices=mesh.vertices, indices=mesh.edges,
+        #                                       v_just_points=mesh.vertices_test)
+        helper_functions_pyvista.plot_pyvista(solutions.octrees_output, dc_meshes=solutions.dc_meshes)
 
 
 def test_final_block_octrees(unconformity_complex, n_oct_levels=2):

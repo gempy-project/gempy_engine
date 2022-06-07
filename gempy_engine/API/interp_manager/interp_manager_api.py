@@ -56,37 +56,23 @@ def _dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: 
                      options: InterpolationOptions, solutions: Solutions) -> List[DualContouringMesh]:
     # Dual Contouring prep:
     octree_leaves = solutions.octrees_output[-1]
-    dc_data: DualContouringData = get_intersection_on_edges(octree_leaves)
-    interpolation_input.grid = Grid(dc_data.xyz_on_edge)
-    output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_descriptor)
+    all_meshes: List[DualContouringMesh] = []
+    for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
+        
+        output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
+        
+        dc_data: DualContouringData = get_intersection_on_edges(octree_leaves, output_corners)
+        interpolation_input.grid = Grid(dc_data.xyz_on_edge)
+        output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_descriptor)
 
-    # TODO: [ ] We need to do the following for each field
-    one_scalar_field_at_a_time = True
-    if one_scalar_field_at_a_time:
-        dc_data.gradients: ExportedFields = output_on_edges[-1].final_exported_fields
-        # n_surfaces = data_descriptor.stack_structure.number_of_surfaces_per_stack[-1]
-        n_surfaces = data_descriptor.tensors_structure.n_surfaces
-    # else:
-    #     all_gx: np.ndarray = np.zeros(0)
-    #     all_gy: np.ndarray = np.zeros(0)
-    #     all_gz: np.ndarray = np.zeros(0)
-    # 
-    #     for interp_output in output_on_edges:
-    #         exported_fields = interp_output.final_exported_fields
-    #         
-    #         all_gx = np.concatenate((all_gx, exported_fields._gx_field))
-    #         all_gy = np.concatenate((all_gy, exported_fields._gy_field))
-    #         all_gz = np.concatenate((all_gz, exported_fields._gz_field))
-    #     
-    #     all_fields = ExportedFields(None, all_gx, all_gy, all_gz)
-    #     dc_data.gradients = all_fields
-    #     n_surfaces = data_descriptor.tensors_structure.n_surfaces
-    #     
-    # --------------------
-    # The following operations are applied on the FINAL lith block:
-    # This should happen only on the leaf of an octree
-    # TODO: [ ] Dual contouring. This method only make one vertex per voxel. It is possible to make water tight surfaces?
-    # compute_dual_contouring
-    # TODO [ ] The api should grab an octree level
-    meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, n_surfaces)
-    return meshes
+        dc_data.gradients: ExportedFields = output_on_edges[n_scalar_field].exported_fields
+        n_surfaces = data_descriptor.stack_structure.number_of_surfaces_per_stack[n_scalar_field]    #     
+        # --------------------
+        # The following operations are applied on the FINAL lith block:
+        # This should happen only on the leaf of an octree
+        # TODO: [ ] Dual contouring. This method only make one vertex per voxel. It is possible to make water tight surfaces?
+        # compute_dual_contouring
+        # TODO [ ] The api should grab an octree level
+        meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, n_surfaces)
+        all_meshes.append(*meshes)
+    return all_meshes

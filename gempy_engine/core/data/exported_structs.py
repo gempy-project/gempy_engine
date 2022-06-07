@@ -159,7 +159,7 @@ class DualContouringData:
 
     @gradients.setter
     def gradients(self, ef: ExportedFields):
-        self._gradients = np.stack((ef._gx_field, ef._gy_field, ef._gz_field), axis=0).T  # ! When we are computing the edges for dual contouring there is no surface points
+        self._gradients = np.stack((ef.gx_field, ef.gy_field, ef.gz_field), axis=0).T  # ! When we are computing the edges for dual contouring there is no surface points
 
 
 @dataclass
