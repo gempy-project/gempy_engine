@@ -8,7 +8,7 @@ from gempy_engine.core.data.grid import Grid
 
 @dataclass(init=True)
 class ExportedFields:
-    _scalar_field: np.ndarray
+    _scalar_field: Optional[np.ndarray]
     _gx_field: np.ndarray
     _gy_field: np.ndarray
     _gz_field: np.ndarray = None
@@ -104,8 +104,8 @@ class OctreeLevel:
     # Input
     grid_centers: Grid
     grid_corners: Grid
-    output_centers: InterpOutput
-    output_corners: InterpOutput
+    outputs_centers: List[InterpOutput]
+    outputs_corners: List[InterpOutput]
     is_root: bool = False  # When root is true arrays are dim 3
 
     # Topo
@@ -114,17 +114,33 @@ class OctreeLevel:
     marked_edges: List[np.ndarray] = None  # 3 arrays in x, y, z
 
     def set_interpolation_values(self, grid_centers: Grid, grid_faces: Grid,
-                                 output_centers: InterpOutput, output_faces: InterpOutput):
+                                 outputs_centers: List[InterpOutput], outputs_faces: List[InterpOutput]):
         self.grid_centers: Grid = grid_centers
         self.grid_corners: Grid = grid_faces
-        self.output_centers: InterpOutput = output_centers
-        self.output_corners: InterpOutput = output_faces
+        self.outputs_centers: List[InterpOutput] = outputs_centers
+        self.outputs_corners: List[InterpOutput] = outputs_faces
 
         return self
 
     @property
     def dxdydz(self):
         return self.grid_centers.dxdydz
+    
+    @property
+    def output_center(self): # * Alias
+        return self.last_output_center
+
+    @property
+    def last_output_center(self):
+        return self.outputs_centers[-1]
+    
+    @property
+    def output_corners(self): # * Alias
+        return self.last_output_corners
+
+    @property
+    def last_output_corners(self):
+        return self.outputs_corners[-1]
 
 
 @dataclass(init=True)

@@ -19,13 +19,12 @@ def interpolate_on_octree(octree: OctreeLevel, interpolation_input: Interpolatio
     # Interpolate - corners
     grid_0_corners = Grid(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
     interpolation_input.grid = grid_0_corners
+
+    # TODO [x]: loop all scalars!!
     output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # TODO: This is unnecessary for the last level except for Dual contouring
 
-    # TODO: loop all scalars!!
-
     # Set values to octree
-    # ! That -1 is a hack for now
-    octree.set_interpolation_values(grid_0_centers, grid_0_corners, output_0_centers[-1], output_0_corners[-1])
+    octree.set_interpolation_values(grid_0_centers, grid_0_corners, output_0_centers, output_0_corners)
     return octree
 
 

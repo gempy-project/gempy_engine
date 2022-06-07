@@ -3,6 +3,8 @@ from __future__ import annotations
 import copy
 from typing import List
 
+import numpy as np
+
 from ..dual_contouring.dual_contouring import compute_dual_contouring, get_intersection_on_edges
 from ..interp_single._interp_single_internals import interpolate_all_fields
 from ..interp_single.interp_single_interface import compute_n_octree_levels, interpolate_single_field
@@ -50,24 +52,6 @@ def _interpolate_all(stack_interpolation_input: InterpolationInput, options: Int
     return solutions
 
 
-# ! DEP
-def _compute_mask(solutions: List[Solutions]):
-    # TODO: Add mask_fault
-    all_mask_components = solutions[0].octrees_output[-1].output_centers.mask_components
-    squeezed_regular_grid = get_regular_grid_for_level(solutions[0].octrees_output, 2)
-    squeezed_regular_grid2 = get_regular_grid_for_level(solutions[1].octrees_output, 2)
-    return squeezed_regular_grid, squeezed_regular_grid2
-
-    # previous_mask_formation = mask_onlap
-    # 
-    # # mask_val = T.cumprod(mask_matrix[n_series - nsle_op: n_series, shift:x_to_interpolate_shape + shift][::-1], axis=0)[::-1]
-    # 
-    # # TODO: For each stack since the last erode multiply the mask with the previous one
-    # mask_formation_since_last_erode 
-    # 
-    # mask_matrix_this_stack = mask_erode
-
-
 def _dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
                      options: InterpolationOptions, solutions: Solutions) -> List[DualContouringMesh]:
     # Dual Contouring prep:
@@ -75,12 +59,28 @@ def _dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: 
     dc_data: DualContouringData = get_intersection_on_edges(octree_leaves)
     interpolation_input.grid = Grid(dc_data.xyz_on_edge)
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_descriptor)
-    
+
     # TODO: [ ] We need to do the following for each field
-    dc_data.gradients = output_on_edges[-1].final_exported_fields
-    n_surfaces = data_descriptor.stack_structure.number_of_surfaces_per_stack[-1]
-    
-    
+    one_scalar_field_at_a_time = False
+    if one_scalar_field_at_a_time:
+        dc_data.gradients: ExportedFields = output_on_edges[-1].final_exported_fields
+        n_surfaces = data_descriptor.stack_structure.number_of_surfaces_per_stack[-1]
+    else:
+        all_gx: np.ndarray = np.zeros(0)
+        all_gy: np.ndarray = np.zeros(0)
+        all_gz: np.ndarray = np.zeros(0)
+
+        for interp_output in output_on_edges:
+            exported_fields = interp_output.final_exported_fields
+            
+            all_gx = np.concatenate((all_gx, exported_fields._gx_field))
+            all_gy = np.concatenate((all_gy, exported_fields._gy_field))
+            all_gz = np.concatenate((all_gz, exported_fields._gz_field))
+        
+        all_fields = ExportedFields(None, all_gx, all_gy, all_gz)
+        dc_data.gradients = all_fields
+        n_surfaces = data_descriptor.tensors_structure.n_surfaces
+        
     # --------------------
     # The following operations are applied on the FINAL lith block:
     # This should happen only on the leaf of an octree
@@ -89,26 +89,3 @@ def _dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: 
     # TODO [ ] The api should grab an octree level
     meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, n_surfaces)
     return meshes
-
-# ? DEP
-# def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
-#                        options: InterpolationOptions) -> Solutions | list[Solutions]:
-#     all_solutions: List[Solutions] = []
-# 
-#     stack_structure = root_data_descriptor.stack_structure
-# 
-#     if stack_structure is None:
-#         solutions = _interpolate_all(interpolation_input, options, root_data_descriptor)
-#         return solutions
-#     else:
-#         for i in range(stack_structure.n_stacks):
-#             stack_structure.stack_number = i
-# 
-#             tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
-#             interpolation_input_i = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_structure)
-# 
-#             solutions = _interpolate_all(interpolation_input_i, options, tensor_struct_i)
-#             all_solutions.append(solutions)
-# 
-#     return all_solutions
-# TODO: This is where we would have to include any other implicit function

@@ -31,7 +31,7 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
     # TODO [x]: squeeze mask
     final_mask_matrix = _squeeze_mask(all_scalar_fields_outputs, data_descriptor.stack_relation)
 
-    # TODO [ ]: Now we need to multiply each row of the final_mask_matrix with val
+    # TODO [x]: Now we need to multiply each row of the final_mask_matrix with val
     all_scalar_fields_outputs = _compute_final_block(all_scalar_fields_outputs, final_mask_matrix)
 
     return all_scalar_fields_outputs
@@ -43,7 +43,7 @@ def _interpolate_a_scalar_field(interpolation_input: InterpolationInput, options
     output.grid = interpolation_input.grid
     output.weights, output.exported_fields = interpolate_scalar_field(interpolation_input, options, data_shape)
     output.values_block = _segment_scalar_field(output, interpolation_input.unit_values)
-    # TODO: fix this
+    
     output.mask_components = _compute_mask_components(output.exported_fields, interpolation_input.stack_relation)
     if clean_buffer: Buffer.clean()
     return output
