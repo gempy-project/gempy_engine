@@ -50,7 +50,7 @@ def compute_dual_contouring(dc_data: DualContouringData, n_surfaces: int):
 
     indices = triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels)
 
-    return [DualContouringMesh(vertices, indices)]
+    return [DualContouringMesh(vertices, indices, centers_xyz[valid_voxels])]
 
 
 """

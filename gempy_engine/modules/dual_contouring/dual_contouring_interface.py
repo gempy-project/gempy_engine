@@ -68,7 +68,7 @@ def triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels):
     z_direction_neighbour = np.isclose(manhattan[:, :, 2], dz, .00001)
     nz_direction_neighbour = np.isclose(manhattan[:, :, 2], -dz, .00001)
     
-    valid_edg = valid_edges[valid_voxels][:, :]
+    
     x_direction = x_direction_neighbour * zeros[:, :, 1] * zeros[:, :, 2]
     nx_direction = nx_direction_neighbour * zeros[:, :, 1] * zeros[:, :, 2]
     y_direction = y_direction_neighbour * zeros[:, :, 0] * zeros[:, :, 2]
@@ -105,6 +105,8 @@ def triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels):
     directions = np.dstack([nynz_direction, nyz_direction, ynz_direction, yz_direction,
                             nxnz_direction, xnz_direction, nxz_direction, xz_direction,
                             nxny_direction, nxy_direction, xny_direction, xy_direction])
+    
+    valid_edg = valid_edges[valid_voxels][:, :]
     direction_each_edge = (directions * valid_edg)
     
     # Pick only edges with more than 2 voxels nearby

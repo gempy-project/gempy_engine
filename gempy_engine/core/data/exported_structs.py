@@ -166,6 +166,7 @@ class DualContouringData:
 class DualContouringMesh:
     vertices: np.ndarray
     edges: np.ndarray
+    vertices_test: np.ndarray = None
 
 
 @dataclass(init=False, )

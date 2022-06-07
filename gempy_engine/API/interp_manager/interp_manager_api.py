@@ -66,22 +66,22 @@ def _dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: 
         dc_data.gradients: ExportedFields = output_on_edges[-1].final_exported_fields
         # n_surfaces = data_descriptor.stack_structure.number_of_surfaces_per_stack[-1]
         n_surfaces = data_descriptor.tensors_structure.n_surfaces
-    else:
-        all_gx: np.ndarray = np.zeros(0)
-        all_gy: np.ndarray = np.zeros(0)
-        all_gz: np.ndarray = np.zeros(0)
-
-        for interp_output in output_on_edges:
-            exported_fields = interp_output.final_exported_fields
-            
-            all_gx = np.concatenate((all_gx, exported_fields._gx_field))
-            all_gy = np.concatenate((all_gy, exported_fields._gy_field))
-            all_gz = np.concatenate((all_gz, exported_fields._gz_field))
-        
-        all_fields = ExportedFields(None, all_gx, all_gy, all_gz)
-        dc_data.gradients = all_fields
-        n_surfaces = data_descriptor.tensors_structure.n_surfaces
-        
+    # else:
+    #     all_gx: np.ndarray = np.zeros(0)
+    #     all_gy: np.ndarray = np.zeros(0)
+    #     all_gz: np.ndarray = np.zeros(0)
+    # 
+    #     for interp_output in output_on_edges:
+    #         exported_fields = interp_output.final_exported_fields
+    #         
+    #         all_gx = np.concatenate((all_gx, exported_fields._gx_field))
+    #         all_gy = np.concatenate((all_gy, exported_fields._gy_field))
+    #         all_gz = np.concatenate((all_gz, exported_fields._gz_field))
+    #     
+    #     all_fields = ExportedFields(None, all_gx, all_gy, all_gz)
+    #     dc_data.gradients = all_fields
+    #     n_surfaces = data_descriptor.tensors_structure.n_surfaces
+    #     
     # --------------------
     # The following operations are applied on the FINAL lith block:
     # This should happen only on the leaf of an octree

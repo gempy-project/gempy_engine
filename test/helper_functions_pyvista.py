@@ -93,7 +93,7 @@ def plot_pyvista(octree_list,  vertices=None, indices=None, xyz_on_edge = None, 
 
     # Plot QEF
     if v_just_points is not None:
-        p.add_mesh(pv.PolyData(v_just_points), color="b", point_size=15.0, render_points_as_spheres=False)
+        p.add_mesh(pv.PolyData(v_just_points), color="b", point_size=5.0, render_points_as_spheres=False)
 
     if vertices is not None:
         p.add_mesh(pv.PolyData(vertices), color="w", point_size=4.0, render_points_as_spheres=True)
