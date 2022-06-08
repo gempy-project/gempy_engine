@@ -61,11 +61,18 @@ def _independent_dual_contouring(data_descriptor: InputDataDescriptor, interpola
                                  n_scalar_field: int, octree_leaves: OctreeLevel, options: InterpolationOptions):
     
     output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
-    dc_data: DualContouringData = get_intersection_on_edges(octree_leaves, output_corners)
-    interpolation_input.grid = Grid(dc_data.xyz_on_edge)
+    intersection_xyz, valid_edges = get_intersection_on_edges(octree_leaves, output_corners)
     
+    interpolation_input.grid = Grid(intersection_xyz)
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_descriptor)
-    dc_data.gradients: ExportedFields = output_on_edges[n_scalar_field].exported_fields
+    
+    dc_data = DualContouringData(
+        xyz_on_edge=intersection_xyz,
+        valid_edges=valid_edges,
+        grid_centers=octree_leaves.grid_centers,
+        exported_fields_on_edges=output_on_edges[n_scalar_field].exported_fields
+    )
+
     n_surfaces = data_descriptor.stack_structure.number_of_surfaces_per_stack[n_scalar_field]  # 
     # --------------------
     # The following operations are applied on the FINAL lith block:

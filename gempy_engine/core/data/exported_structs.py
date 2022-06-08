@@ -157,17 +157,17 @@ class OctreeLevel:
 class DualContouringData:
     xyz_on_edge: np.ndarray
     valid_edges: np.ndarray
-    grid_centers: Grid = None
+    grid_centers: Grid
+    exported_fields_on_edges: ExportedFields
     _gradients: np.ndarray = None
 
+    def __post_init__(self):
+        ef = self.exported_fields_on_edges
+        self._gradients = np.stack((ef.gx_field, ef.gy_field, ef.gz_field), axis=0).T  # ! When we are computing the edges for dual contouring there is no surface points
+    
     @property
     def gradients(self):
         return self._gradients
-
-    @gradients.setter
-    def gradients(self, ef: ExportedFields):
-        self._gradients = np.stack((ef.gx_field, ef.gy_field, ef.gz_field), axis=0).T  # ! When we are computing the edges for dual contouring there is no surface points
-
 
 @dataclass
 class DualContouringMesh:

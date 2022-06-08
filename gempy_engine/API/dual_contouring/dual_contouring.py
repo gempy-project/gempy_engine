@@ -1,3 +1,5 @@
+from typing import Tuple
+
 from ...core.data.exported_structs import OctreeLevel, DualContouringData, DualContouringMesh, InterpOutput
 from ...modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge, \
     triangulate_dual_contouring, generate_dual_contouring_vertices
@@ -6,7 +8,7 @@ import numpy as np
 
 
 def get_intersection_on_edges(octree_level: OctreeLevel, output_corners: InterpOutput, 
-                              multiple_scalars: bool = False) -> DualContouringData:
+                              multiple_scalars: bool = False) -> Tuple[np.ndarray, np.ndarray]:
     # First find xyz on edges:
     xyz_corners = octree_level.grid_corners.values
     
@@ -19,10 +21,8 @@ def get_intersection_on_edges(octree_level: OctreeLevel, output_corners: InterpO
         scalar_field_corners = output_corners.exported_fields.scalar_field
         scalar_field_at_all_sp = output_corners.scalar_field_at_sp
 
-    dc_data = find_intersection_on_edge(xyz_corners, scalar_field_corners, scalar_field_at_all_sp)
-    dc_data.grid_centers = octree_level.grid_centers
-
-    return dc_data
+    intersection_xyz, valid_edges = find_intersection_on_edge(xyz_corners, scalar_field_corners, scalar_field_at_all_sp)
+    return intersection_xyz, valid_edges
 
 
 def compute_dual_contouring(dc_data: DualContouringData, n_surfaces: int):

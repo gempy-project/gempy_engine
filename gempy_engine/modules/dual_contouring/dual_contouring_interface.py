@@ -1,9 +1,11 @@
+from typing import Tuple
+
 from ...core.data.exported_structs import DualContouringData
 import numpy as np
 
 
 def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray,
-                              scalar_at_sp: np.ndarray) -> DualContouringData:
+                              scalar_at_sp: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     # I have to do the topology analysis anyway because is the last octree
     scalar_8_ = scalar_field
     scalar_8 = scalar_8_.reshape((1, -1, 8))
@@ -51,7 +53,7 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray
 
     intersection_xyz = xyz_8_edges[valid_edges] + intersect_segment[valid_edges]
 
-    return DualContouringData(intersection_xyz, valid_edges)  # TODO: Add attributes?
+    return intersection_xyz, valid_edges #DualContouringData()  # TODO: Add attributes?
 
 
 def triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels):
@@ -117,27 +119,34 @@ def triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels):
 
 
 def generate_dual_contouring_vertices(gradients, n_edges, valid_edges, xyz_on_edge, valid_voxels):
-    # Coordinates for all posible edges (12) and 3 dummy edges_normals in the center
+    # * Coordinates for all posible edges (12) and 3 dummy edges_normals in the center
     edges_xyz = np.zeros((n_edges, 15, 3))
-    edges_normals = np.zeros((n_edges, 15, 3))
     edges_xyz[:, :12][valid_edges] = xyz_on_edge
+
+    # Normals
+    edges_normals = np.zeros((n_edges, 15, 3))
     edges_normals[:, :12][valid_edges] = gradients
-    BIAS_STRENGTH = 1000
-    bias_xyz = np.copy(edges_xyz[:, :12])
-    # np zero values to nans
-    bias_xyz[np.isclose(bias_xyz, 0)] = np.nan
-    # Mean ignoring nans
-    mass_points = np.nanmean(bias_xyz, axis=1)
-    edges_xyz[:, 12] = mass_points
-    edges_xyz[:, 13] = mass_points
-    edges_xyz[:, 14] = mass_points
-    edges_normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])
-    edges_normals[:, 13] = np.array([0, BIAS_STRENGTH, 0])
-    edges_normals[:, 14] = np.array([0, 0, BIAS_STRENGTH])
+
+    BIAS = True
+    if BIAS:
+        bias_xyz = np.copy(edges_xyz[:, :12])
+        isclose = np.isclose(bias_xyz, 0)
+        bias_xyz[isclose] = np.nan  # np zero values to nans
+        mass_points = np.nanmean(bias_xyz, axis=1)  # Mean ignoring nans
+        
+        edges_xyz[:, 12] = mass_points
+        edges_xyz[:, 13] = mass_points
+        edges_xyz[:, 14] = mass_points
+        
+        BIAS_STRENGTH = 0.01 
+        edges_normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])
+        edges_normals[:, 13] = np.array([0, BIAS_STRENGTH, 0])
+        edges_normals[:, 14] = np.array([0, 0, BIAS_STRENGTH])
 
     # Remove unused voxels
     edges_xyz = edges_xyz[valid_voxels]
     edges_normals = edges_normals[valid_voxels]
+    
     # Compute LSTSQS in all voxels at the same time
     A = edges_normals
     b = (A * edges_xyz).sum(axis=2)
