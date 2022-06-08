@@ -115,16 +115,13 @@ def test_plot_corners(unconformity_complex, n_oct_levels=2):
     helper_functions_pyvista.plot_pyvista(solutions.octrees_output,  v_just_points=vertices)
     
 
-def test_dual_contouring_multiple_fields(unconformity_complex, n_oct_levels=2):
+def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
     solutions: Solutions = interpolate_model(interpolation_input, options, structure)
-    mesh = solutions.dc_meshes[0]
-    intersection_points = solutions.dc_meshes[0].foo.xyz_on_edge
+    intersection_points = solutions.dc_meshes[1].foo.xyz_on_edge
     
     if True:
-        # helper_functions_pyvista.plot_pyvista(solutions.octrees_output, vertices=mesh.vertices, indices=mesh.edges,
-        #                                       v_just_points=mesh.vertices_test)
         output_corners: InterpOutput = solutions.octrees_output[-1].outputs_corners[-1]
         vertices = output_corners.grid.values
 
