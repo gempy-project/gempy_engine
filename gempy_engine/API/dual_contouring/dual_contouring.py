@@ -5,18 +5,18 @@ from ...modules.dual_contouring.dual_contouring_interface import find_intersecti
 import numpy as np
 
 
-def get_intersection_on_edges(octree_level: OctreeLevel, output_corners: InterpOutput) -> DualContouringData:
+def get_intersection_on_edges(octree_level: OctreeLevel, output_corners: InterpOutput, 
+                              multiple_scalars: bool = False) -> DualContouringData:
     # First find xyz on edges:
     xyz_corners = octree_level.grid_corners.values
-    scalar_field_corners = output_corners.exported_fields.scalar_field
     
     scalar_field_at_all_sp = np.zeros(0)
-    
-    multiple_scalars = False
     if multiple_scalars:
+        scalar_field_corners = output_corners.final_exported_fields.scalar_field
         for output_corners in octree_level.outputs_corners:
             scalar_field_at_all_sp = np.concatenate((scalar_field_at_all_sp, output_corners.scalar_field_at_sp))
-    else:    
+    else:
+        scalar_field_corners = output_corners.exported_fields.scalar_field
         scalar_field_at_all_sp = output_corners.scalar_field_at_sp
 
     dc_data = find_intersection_on_edge(xyz_corners, scalar_field_corners, scalar_field_at_all_sp)

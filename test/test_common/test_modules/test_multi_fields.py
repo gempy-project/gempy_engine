@@ -2,7 +2,7 @@ from typing import List
 
 from matplotlib import pyplot as plt
 
-from gempy_engine.API.interp_manager.interp_manager_api import  _interpolate_all, interpolate_model
+from gempy_engine.API.interp_manager.interp_manager_api import  _interpolate, interpolate_model
 from gempy_engine.API.interp_single._interp_single_internals import _compute_mask_components, interpolate_all_fields, _interpolate_stack
 from gempy_engine.core.data.exported_structs import InterpOutput, Solutions
 from gempy_engine.core.data.input_data_descriptor import StackRelationType, TensorsStructure
@@ -105,22 +105,37 @@ def test_final_exported_fields(unconformity_complex):
         plot_block(outputs[2].final_exported_fields._scalar_field, grid)
 
 
+def test_plot_corners(unconformity_complex, n_oct_levels=2):
+    interpolation_input, options, structure = unconformity_complex
+    options.number_octree_levels = n_oct_levels
+    solutions: Solutions = interpolate_model(interpolation_input, options, structure)
+    output_corners: InterpOutput = solutions.octrees_output[-1].outputs_corners[-1]
+    
+    vertices = output_corners.grid.values
+    helper_functions_pyvista.plot_pyvista(solutions.octrees_output,  v_just_points=vertices)
+    
+
 def test_dual_contouring_multiple_fields(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
     solutions: Solutions = interpolate_model(interpolation_input, options, structure)
     mesh = solutions.dc_meshes[0]
+    intersection_points = solutions.dc_meshes[0].foo.xyz_on_edge
     
     if True:
         # helper_functions_pyvista.plot_pyvista(solutions.octrees_output, vertices=mesh.vertices, indices=mesh.edges,
         #                                       v_just_points=mesh.vertices_test)
-        helper_functions_pyvista.plot_pyvista(solutions.octrees_output, dc_meshes=solutions.dc_meshes)
+        output_corners: InterpOutput = solutions.octrees_output[-1].outputs_corners[-1]
+        vertices = output_corners.grid.values
+
+        helper_functions_pyvista.plot_pyvista(solutions.octrees_output, dc_meshes=solutions.dc_meshes,
+                                              v_just_points=vertices, vertices=intersection_points)
 
 
 def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
-    solution: Solutions = _interpolate_all(interpolation_input, options, structure)
+    solution: Solutions = _interpolate(interpolation_input, options, structure)
     final_block = solution.octrees_output[0].output_centers.final_block
     final_block2 = get_regular_grid_for_level(solution.octrees_output, 1).astype("int8")
 

@@ -12,6 +12,7 @@ from ._interp_single_internals import interpolate_all_fields
 
 def interpolate_on_octree(octree: OctreeLevel, interpolation_input: InterpolationInput,
                           options: data.InterpolationOptions, data_shape: InputDataDescriptor) -> OctreeLevel:
+    
     grid_0_centers = interpolation_input.grid
 
     output_0_centers: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # interpolate - centers

@@ -56,7 +56,8 @@ def plot_vector(p: pv.Plotter, xyz, gradients):
     p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
 
 
-def plot_pyvista(octree_list, dc_meshes:  List[DualContouringMesh] = None, vertices=None, indices=None, xyz_on_edge = None, gradients =None, a=None, b=None, v_just_points=None,
+def plot_pyvista(octree_list, dc_meshes:  List[DualContouringMesh] = None, vertices=None, indices=None,
+                 xyz_on_edge = None, gradients =None, a=None, b=None, v_just_points=None,
                  plot_label=False, ):
     n = 1
     p = pv.Plotter()

@@ -14,11 +14,12 @@ class ExportedFields:
     _gy_field: np.ndarray
     _gz_field: np.ndarray = None
     n_points_per_surface: np.ndarray = None
-    n_surface_points: int = None
+    n_surface_points: Optional[int] = None
+    scalar_field_shift: Optional[float] = 0
 
     @property
     def scalar_field_at_surface_points(self):
-        return self._scalar_field[-self.n_surface_points:][self.npf]
+        return self._scalar_field[-self.n_surface_points:][self.npf] + self.scalar_field_shift
 
     @property
     def scalar_field(self):
@@ -29,14 +30,20 @@ class ExportedFields:
 
     @property
     def gx_field(self):
+        if self.n_surface_points is None:
+            return self._gx_field
         return self._gx_field[:-self.n_surface_points]
 
     @property
     def gy_field(self):
+        if self.n_surface_points is None:
+            return self._gy_field
         return self._gy_field[:-self.n_surface_points]
 
     @property
     def gz_field(self):
+        if self.n_surface_points is None:
+            return self._gz_field
         return self._gz_field[:-self.n_surface_points]
 
     @property
@@ -167,6 +174,7 @@ class DualContouringMesh:
     vertices: np.ndarray
     edges: np.ndarray
     vertices_test: np.ndarray = None
+    
 
 
 @dataclass(init=False, )

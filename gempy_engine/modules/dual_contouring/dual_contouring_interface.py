@@ -2,14 +2,14 @@ from ...core.data.exported_structs import DualContouringData
 import numpy as np
 
 
-def find_intersection_on_edge(_xyz_8: np.ndarray, scalar_field: np.ndarray,
+def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray,
                               scalar_at_sp: np.ndarray) -> DualContouringData:
     # I have to do the topology analysis anyway because is the last octree
     scalar_8_ = scalar_field
     scalar_8 = scalar_8_.reshape((1, -1, 8))
     scalar_at_sp = scalar_at_sp.reshape((-1, 1, 1))
 
-    xyz_8 = _xyz_8.reshape((-1, 8, 3))
+    xyz_8 = _xyz_corners.reshape((-1, 8, 3))
     n_isosurface = scalar_at_sp.shape[0]
     xyz_8 = np.tile(xyz_8, (n_isosurface, 1, 1))  # TODO: Generalize
 
@@ -44,7 +44,7 @@ def find_intersection_on_edge(_xyz_8: np.ndarray, scalar_field: np.ndarray,
     valid_edge_y = np.logical_and(weight_y > 0, weight_y < 1)
     valid_edge_z = np.logical_and(weight_z > 0, weight_z < 1)
 
-    # Note(miguel) From this point on the arrays become sparse
+    # * Note(miguel) From this point on the arrays become sparse
     xyz_8_edges = np.hstack([xyz_8[:, 4:], xyz_8[:, [2, 3, 6, 7]], xyz_8[:, 1::2]])
     intersect_segment = np.hstack([intersect_dx, intersect_dy, intersect_dz])
     valid_edges = np.hstack([valid_edge_x, valid_edge_y, valid_edge_z])[:, :, 0]
@@ -55,6 +55,7 @@ def find_intersection_on_edge(_xyz_8: np.ndarray, scalar_field: np.ndarray,
 
 
 def triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels):
+    # ! This assumes a vertex per voxel 
     dx, dy, dz = dxdydz
     x_1 = centers_xyz[valid_voxels][:, None, :]
     x_2 = centers_xyz[valid_voxels][None, :, :]
@@ -67,7 +68,6 @@ def triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels):
     ny_direction_neighbour = np.isclose(manhattan[:, :, 1], -dy, .00001)
     z_direction_neighbour = np.isclose(manhattan[:, :, 2], dz, .00001)
     nz_direction_neighbour = np.isclose(manhattan[:, :, 2], -dz, .00001)
-    
     
     x_direction = x_direction_neighbour * zeros[:, :, 1] * zeros[:, :, 2]
     nx_direction = nx_direction_neighbour * zeros[:, :, 1] * zeros[:, :, 2]
