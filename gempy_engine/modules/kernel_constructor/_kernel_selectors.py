@@ -5,7 +5,7 @@ def dips_sp_cartesian_selector(vector_size, n_dim, n_dips, n_points, axis: int =
     sel_hu = np.zeros((vector_size, n_dim))
     sel_hv = np.zeros((vector_size, n_dim))
     sel_huv = np.zeros((vector_size, n_dim))
-    for i in range(n_dim):
+    for i in range(n_dim): # ! sel_hu has to be the same also for all axis 
         sel_hu[n_dips * i:n_dips * (i + 1), i] = 1
 
     sel_hv[:n_dips * n_dim, :] = 1

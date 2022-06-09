@@ -221,8 +221,7 @@ def _input_preprocess(data_shape: TensorsStructure, grid, orientations, surface_
     return grid_internal, ori_internal, sp_internal
 
 
-def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput,
-                     weights: np.ndarray) -> ExportedFields:
+def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput, weights: np.ndarray) -> ExportedFields:
     options = interp_input.options
 
     eval_kernel = kernel_constructor.yield_evaluation_kernel(xyz, interp_input)
@@ -252,8 +251,7 @@ def _get_scalar_field_at_surface_points(Z_x: np.ndarray, number_of_points_per_su
     return scalar_field_at_surface_points_values
 
 
-def _set_scalar_field_at_surface_points(exported_fields: ExportedFields,
-                                        number_of_points_per_surface: np.ndarray,
+def _set_scalar_field_at_surface_points(exported_fields: ExportedFields, number_of_points_per_surface: np.ndarray,
                                         n_surface_points: int):
     exported_fields.n_points_per_surface = number_of_points_per_surface
     exported_fields.n_surface_points = n_surface_points

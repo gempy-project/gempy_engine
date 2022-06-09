@@ -51,7 +51,6 @@ class OrientationsDrift:
                  x_degree_2: np.ndarray, y_degree_2: np.ndarray,
                  x_degree_2b: np.ndarray, y_degree_2b: np.ndarray,
                  selector_degree_2: np.ndarray):
-
         self.dips_ug_ai = x_degree_1[:, None, :]
         self.dips_ug_aj = y_degree_1[None, :, :]
         self.dips_ug_bi = x_degree_2[:, None, :]
@@ -61,9 +60,9 @@ class OrientationsDrift:
         self.selector_ci = selector_degree_2[:, None, :]
         self.selector_cj = selector_degree_2[None, :, :]
 
-
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
+
 
 @dataclass
 class PointsDrift:
@@ -85,6 +84,7 @@ class PointsDrift:
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
 
+
 @dataclass
 class CartesianSelector:
     hu_sel_i: tensor_types = np.empty((0, 1, 3))
@@ -98,8 +98,14 @@ class CartesianSelector:
     h_sel_rest_i: tensor_types = np.empty((0, 1, 3))
     h_sel_rest_j: tensor_types = np.empty((1, 0, 3))
 
-    def __init__(self, x_sel_hu, y_sel_hu, x_sel_hv, y_sel_hv, x_sel_h_ref,
-                 y_sel_h_ref, x_sel_h_rest, y_sel_h_rest):
+    is_gradient: bool = False
+
+    def __init__(self,
+                 x_sel_hu, y_sel_hu,
+                 x_sel_hv, y_sel_hv,
+                 x_sel_h_ref, y_sel_h_ref,
+                 x_sel_h_rest, y_sel_h_rest,
+                 is_gradient=False):
         self.hu_sel_i = x_sel_hu[:, None, :]
         self.hu_sel_j = y_sel_hu[None, :, :]
 
@@ -111,16 +117,20 @@ class CartesianSelector:
 
         self.h_sel_rest_i = x_sel_h_rest[:, None, :]
         self.h_sel_rest_j = y_sel_h_rest[None, :, :]
+
+        self.is_gradient = is_gradient
+
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
+
 
 @dataclass
 class DriftMatrixSelector:
     sel_ui: tensor_types = np.empty((0, 1, 3))
 
     # TODO: Check these are unused
-    #sel_uj: tensor_types = np.empty((1, 0, 3))
-    #sel_vi: tensor_types = np.empty((0, 1, 3))
+    # sel_uj: tensor_types = np.empty((1, 0, 3))
+    # sel_vi: tensor_types = np.empty((0, 1, 3))
     sel_vj: tensor_types = np.empty((1, 0, 3))
 
     def __init__(self, x_size: int, y_size: int, n_drift_eq: int):
@@ -134,13 +144,14 @@ class DriftMatrixSelector:
         sel_j[-n_drift_eq:, 1] = -1
 
         self.sel_ui = sel_i[:, None, :]
-     #   self.sel_uj = sel_j[None, :, :]
+        #   self.sel_uj = sel_j[None, :, :]
 
-     #   self.sel_vi = -sel_j[:, None, :]
+        #   self.sel_vi = -sel_j[:, None, :]
         self.sel_vj = sel_j[None, :, :]
 
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
+
 
 @dataclass
 class KernelInput:

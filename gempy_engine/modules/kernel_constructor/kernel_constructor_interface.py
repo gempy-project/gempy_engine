@@ -24,6 +24,7 @@ def yield_evaluation_kernel(grid: tensor_types, interp_input: SolverInput):
     kernel_data = evaluation_vectors_preparations(grid, interp_input)
     return create_scalar_kernel(kernel_data, interp_input.options)
 
+
 def yield_evaluation_grad_kernel(grid: tensor_types, interp_input: SolverInput, axis:int=0):
     kernel_data = evaluation_vectors_preparations(grid, interp_input, axis=axis)
     return create_grad_kernel(kernel_data, interp_input.options)

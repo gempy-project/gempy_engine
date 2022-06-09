@@ -106,7 +106,7 @@ def simple_model():
     kri = InterpolationOptions(range_, co, 0,
                                number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
     _ = np.ones(3)
-    
+
     tensor_struct = TensorsStructure(np.array([7]))
     stack_structure = StacksStructure(number_of_points_per_stack=np.array([7]),
                                       number_of_orientations_per_stack=np.array([2]),
@@ -268,8 +268,7 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
 
     ids = np.array([1, 2])
 
-    grid_internal, ori_internal, sp_internal = _input_preprocess(data_shape, grid, orientations,
-                                                                 surface_points)
+    grid_internal, ori_internal, sp_internal = _input_preprocess(data_shape, grid, orientations, surface_points)
     interp_input = SolverInput(sp_internal, ori_internal, options)
 
     weights = _solve_interpolation(interp_input)
@@ -363,7 +362,7 @@ def unconformity_complex_one_layer():
     i_r = 4
     gi_r = 2
 
-    options = InterpolationOptions(range_, c_o, uni_degree=1, i_res=i_r, gi_res=gi_r,
+    options = InterpolationOptions(range_, c_o, uni_degree=0, i_res=i_r, gi_res=gi_r,
                                    number_dimensions=3,
                                    kernel_function=AvailableKernelFunctions.cubic)
 

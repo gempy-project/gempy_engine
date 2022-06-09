@@ -37,20 +37,23 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
     # np.testing.assert_almost_equal(gz, gz_sol[:-7], decimal=3)
 
     if plot:
-        # plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
-        # plt.colorbar()
-        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn",
-                     extent=(.25, .75, .25, .75)
-                     )
+        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn", extent=(.25, .75, .25, .75))
+
+        xyz = output.grid.values
+        every = 10
+        plt.quiver(xyz[::every, 0], xyz[::every, 2], gx[::every], gz[::every], scale=50)
+
+        plt.show()
+
+        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn", extent=(.25, .75, .25, .75))
 
         xyz = output.grid.values
         every = 1
-        plt.quiver(xyz[::every, 0], xyz[::every, 2], gx[::every], gz[::every], scale =80)
-        
+        plt.quiver(xyz[::every, 0], xyz[::every, 2], gx[::every], gz[::every], scale=80)
+
         plt.show()
 
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
-        plt.colorbar()
 
         gx_np, gz_np = np.gradient(Z_x.reshape(50, 5, 50)[:, 2, :].T)
         plt.quiver(
