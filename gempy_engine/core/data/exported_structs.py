@@ -100,6 +100,9 @@ class InterpOutput:
 
     @property
     def ids_block_regular_grid(self):
+        if self.final_block is None:
+            self.final_block = self.values_block
+        
         return np.rint(self.final_block[:self.grid.len_grids[0]].reshape(self.grid.regular_grid_shape))
 
     @property

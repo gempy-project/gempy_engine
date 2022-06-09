@@ -1,9 +1,13 @@
+from typing import List
+
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 
+from gempy_engine.API.interp_single._interp_single_internals import interpolate_all_fields
 from gempy_engine.core.data.exported_structs import InterpOutput
 from gempy_engine.API.interp_single.interp_single_interface import interpolate_single_field
+from test.helper_functions import plot_block
 
 dir_name = os.path.dirname(__file__)
 
@@ -33,19 +37,27 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
     # np.testing.assert_almost_equal(gz, gz_sol[:-7], decimal=3)
 
     if plot:
-        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
-        plt.colorbar()
+        # plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
+        # plt.colorbar()
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn",
                      extent=(.25, .75, .25, .75)
                      )
 
-        # plt.quiver(
-        #     gx.reshape(50, 5, 50)[:, 2, :].T,
-        #     gz.reshape(50, 5, 50)[:, 2, :].T,
-        #     scale=10
-        # )
+        xyz = output.grid.values
+        every = 1
+        plt.quiver(xyz[::every, 0], xyz[::every, 2], gx[::every], gz[::every], scale =80)
+        
+        plt.show()
 
-        plt.savefig("bar")
+        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
+        plt.colorbar()
+
+        gx_np, gz_np = np.gradient(Z_x.reshape(50, 5, 50)[:, 2, :].T)
+        plt.quiver(
+            gx_np.reshape(50, 50),
+            gz_np.reshape(50, 50),
+            scale=.5
+        )
         plt.show()
 
 
@@ -87,13 +99,9 @@ def test_export_simple_model_low_res(simple_model_interpolation_input, plot=True
                    scale=10
                    )
 
-        # plt.quiver(
-        #      gx.reshape(50, 5, 50)[:, 2, :].T,
-        #      gz.reshape(50, 5, 50)[:, 2, :].T,
-        #      scale=1
-        #  )
+        xyz = interpolation_input.grid.values
+        plt.quiver(xyz[:, 0], xyz[:, 2], gx, gz)
 
-        plt.savefig("foo2")
         plt.show()
 
 
@@ -141,7 +149,6 @@ def test_export_3_layers(simple_model_3_layers_high_res, plot=True):
         #      scale=1
         #  )
 
-        plt.savefig("foo")
         plt.show()
 
 

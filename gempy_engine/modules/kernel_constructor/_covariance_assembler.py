@@ -59,7 +59,6 @@ def create_cov_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor_
 
 def _get_cov(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, ki, options):
     cov_grad = _get_cov_grad(dm, k_a, k_p_ref)
-    # cov_grad += np.eye(cov_grad.shape[0]) * .01
     cov_sp = _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest,
                                      options)  # It is expanding towards cross
     # TODO: Add nugget effect properly (individual)
@@ -69,8 +68,8 @@ def _get_cov(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref,
     usp = _get_universal_sp_terms(ki, options)
     ug = _get_universal_gradient_terms(ki, options)
     drift = usp + ug
-    #  NOTE: (miguel) The magic terms are real
-    cov = c_o * (cov_grad + cov_sp + cov_grad_sp) + drift
+    
+    cov = c_o * (cov_grad + cov_sp + cov_grad_sp) + drift  # *  NOTE: (miguel) The magic terms are real and now they are already included
     return cov
 
 

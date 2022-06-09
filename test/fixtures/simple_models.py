@@ -263,7 +263,7 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
     surface_points = simple_model[0]
     orientations = simple_model[1]
     options = simple_model[2]
-    data_shape = simple_model[3]
+    data_shape = simple_model[3].tensors_structure
     grid = dataclasses.replace(simple_grid_3d_more_points_grid)
 
     ids = np.array([1, 2])
@@ -289,6 +289,7 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
     output.exported_fields = exported_fields
     output.weights = weights
     output.values_block = values_block
+    output.final_block = None
 
     return output
 

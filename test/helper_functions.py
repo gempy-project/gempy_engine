@@ -31,3 +31,9 @@ def calculate_gradient(dip, az, pol):
     g_y = np.sin(np.deg2rad(dip)) * np.cos(np.deg2rad(az)) * pol
     g_z = np.cos(np.deg2rad(dip)) * pol
     return g_x, g_y, g_z
+
+def plot_block(block, grid):
+    resolution = grid.resolution
+    extent = grid.extent
+    plt.imshow(block.reshape(resolution)[:, resolution[1] // 2, :].T, extent=extent[[0, 1, 4, 5]], origin="lower")
+    plt.show()
