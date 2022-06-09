@@ -18,7 +18,8 @@ from test.fixtures.simple_models import\
     simple_model_3_layers_high_res, \
     simple_model_values_block_output, \
     simple_model_interpolation_input, \
-    unconformity_complex
+    unconformity_complex, \
+    unconformity_complex_one_layer
 
 from test.fixtures.simple_geometries import\
     horizontal_stratigraphic,\

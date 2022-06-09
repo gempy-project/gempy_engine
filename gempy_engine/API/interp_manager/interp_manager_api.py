@@ -80,7 +80,7 @@ def _independent_dual_contouring(data_descriptor: InputDataDescriptor, interpola
     # TODO: [ ] Dual contouring. This method only make one vertex per voxel. It is possible to make water tight surfaces?
     # compute_dual_contouring
     # TODO [ ] The api should grab an octree level
-    meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, n_surfaces)
+    meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, n_surfaces, options.debug)
     meshes[0].vertices_test = dc_data.xyz_on_edge
     meshes[0].foo = dc_data # ! This is only for test
 

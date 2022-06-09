@@ -53,15 +53,24 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray
 
     intersection_xyz = xyz_8_edges[valid_edges] + intersect_segment[valid_edges]
 
-    return intersection_xyz, valid_edges #DualContouringData()  # TODO: Add attributes?
+    return intersection_xyz, valid_edges
 
 
-def triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels):
+def triangulate_dual_contouring(dc_data: DualContouringData, n_surfaces: int):
+    """
+    For each edge that exhibits a sign change, generate a quad
+    connecting the minimizing vertices of the four cubes containing the edge.\
+    """
+    dxdydz = dc_data.grid_centers.dxdydz
+    centers_xyz = np.tile(dc_data.grid_centers.values, (n_surfaces, 1))
+    valid_voxels = dc_data.valid_voxels
+    valid_edges = dc_data.valid_edges
+
     # ! This assumes a vertex per voxel 
     dx, dy, dz = dxdydz
     x_1 = centers_xyz[valid_voxels][:, None, :]
     x_2 = centers_xyz[valid_voxels][None, :, :]
-    
+
     manhattan = x_1 - x_2
     zeros = np.isclose(manhattan[:, :, :], 0, .00001)
     x_direction_neighbour = np.isclose(manhattan[:, :, 0], dx, .00001)
@@ -70,47 +79,47 @@ def triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels):
     ny_direction_neighbour = np.isclose(manhattan[:, :, 1], -dy, .00001)
     z_direction_neighbour = np.isclose(manhattan[:, :, 2], dz, .00001)
     nz_direction_neighbour = np.isclose(manhattan[:, :, 2], -dz, .00001)
-    
+
     x_direction = x_direction_neighbour * zeros[:, :, 1] * zeros[:, :, 2]
     nx_direction = nx_direction_neighbour * zeros[:, :, 1] * zeros[:, :, 2]
     y_direction = y_direction_neighbour * zeros[:, :, 0] * zeros[:, :, 2]
     ny_direction = ny_direction_neighbour * zeros[:, :, 0] * zeros[:, :, 2]
     z_direction = z_direction_neighbour * zeros[:, :, 0] * zeros[:, :, 1]
     nz_direction = nz_direction_neighbour * zeros[:, :, 0] * zeros[:, :, 1]
-    
+
     np.fill_diagonal(x_direction, True)
     np.fill_diagonal(nx_direction, True)
     np.fill_diagonal(y_direction, True)
     np.fill_diagonal(nx_direction, True)
     np.fill_diagonal(z_direction, True)
     np.fill_diagonal(nz_direction, True)
-    
+
     # X edges
     nynz_direction = ny_direction + nz_direction
     nyz_direction = ny_direction + z_direction
     ynz_direction = y_direction + nz_direction
     yz_direction = y_direction + z_direction
-    
+
     # Y edges
     nxnz_direction = nx_direction + nz_direction
     xnz_direction = x_direction + nz_direction
     nxz_direction = nx_direction + z_direction
     xz_direction = x_direction + z_direction
-    
+
     # Z edges
     nxny_direction = nx_direction + ny_direction
     nxy_direction = nx_direction + y_direction
     xny_direction = x_direction + ny_direction
     xy_direction = x_direction + y_direction
-    
+
     # Stack all 12 directions
     directions = np.dstack([nynz_direction, nyz_direction, ynz_direction, yz_direction,
                             nxnz_direction, xnz_direction, nxz_direction, xz_direction,
                             nxny_direction, nxy_direction, xny_direction, xy_direction])
-    
+
     valid_edg = valid_edges[valid_voxels][:, :]
     direction_each_edge = (directions * valid_edg)
-    
+
     # Pick only edges with more than 2 voxels nearby
     three_neighbours = (directions * valid_edg).sum(axis=0) == 3
     matrix_to_right_C_order = np.transpose((direction_each_edge * three_neighbours), (1, 2, 0))
@@ -118,7 +127,13 @@ def triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels):
     return indices
 
 
-def generate_dual_contouring_vertices(gradients, n_edges, valid_edges, xyz_on_edge, valid_voxels):
+def generate_dual_contouring_vertices(dc_data: DualContouringData, debug: bool = False):
+    n_edges = dc_data.n_edges
+    valid_edges = dc_data.valid_edges
+    valid_voxels = dc_data.valid_voxels
+    xyz_on_edge = dc_data.xyz_on_edge
+    gradients = dc_data.gradients
+
     # * Coordinates for all posible edges (12) and 3 dummy edges_normals in the center
     edges_xyz = np.zeros((n_edges, 15, 3))
     edges_xyz[:, :12][valid_edges] = xyz_on_edge
@@ -133,12 +148,12 @@ def generate_dual_contouring_vertices(gradients, n_edges, valid_edges, xyz_on_ed
         isclose = np.isclose(bias_xyz, 0)
         bias_xyz[isclose] = np.nan  # np zero values to nans
         mass_points = np.nanmean(bias_xyz, axis=1)  # Mean ignoring nans
-        
+
         edges_xyz[:, 12] = mass_points
         edges_xyz[:, 13] = mass_points
         edges_xyz[:, 14] = mass_points
-        
-        BIAS_STRENGTH = 0.01 
+
+        BIAS_STRENGTH = 1
         edges_normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])
         edges_normals[:, 13] = np.array([0, BIAS_STRENGTH, 0])
         edges_normals[:, 14] = np.array([0, 0, BIAS_STRENGTH])
@@ -146,7 +161,7 @@ def generate_dual_contouring_vertices(gradients, n_edges, valid_edges, xyz_on_ed
     # Remove unused voxels
     edges_xyz = edges_xyz[valid_voxels]
     edges_normals = edges_normals[valid_voxels]
-    
+
     # Compute LSTSQS in all voxels at the same time
     A = edges_normals
     b = (A * edges_xyz).sum(axis=2)
@@ -154,7 +169,12 @@ def generate_dual_contouring_vertices(gradients, n_edges, valid_edges, xyz_on_ed
     term2 = np.linalg.inv(term1)
     term3 = np.einsum("ijk,ik->ij", np.transpose(A, (0, 2, 1)), b)
     vertices = np.einsum("ijk, ij->ik", term2, term3)
-    return valid_voxels, vertices
+    
+    if debug:
+        dc_data.bias_center_mass = edges_xyz[:, 12:].reshape(-1, 3)
+        dc_data.bias_normals = edges_normals[:, 12:].reshape(-1, 3)
+    
+    return vertices
 
 
 # NOTE(miguel, July 2021): This class is only used for sanity check

@@ -145,8 +145,10 @@ def _assembly_drift_grid_tensors(grid, options, ori_, sp_, axis):
     # region UI
     dips_ref_d1, dips_ref_d2a, dips_ref_d2b = _kernel_constructors.assembly_dips_points_coords(
         sp_.ref_surface_points, ori_.n_orientations_tiled, options)
+    
     dips_rest_d1, dips_rest_d2a, dips_rest_d2b = _kernel_constructors.assembly_dips_points_coords(
         sp_.rest_surface_points, ori_.n_orientations_tiled, options)
+    
     dips_ref_ui = _structs.PointsDrift(dips_ref_d1, grid, dips_ref_d2a, grid, dips_ref_d2b, grid)
     dips_rest_ui = _structs.PointsDrift(dips_rest_d1, grid, dips_rest_d2a, grid, dips_rest_d2b, grid)
     # endregion

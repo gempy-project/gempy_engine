@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, List
 
 from ...core.data.exported_structs import OctreeLevel, DualContouringData, DualContouringMesh, InterpOutput
 from ...modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge, \
@@ -25,33 +25,12 @@ def get_intersection_on_edges(octree_level: OctreeLevel, output_corners: InterpO
     return intersection_xyz, valid_edges
 
 
-def compute_dual_contouring(dc_data: DualContouringData, n_surfaces: int):
-    # QEF:
-    valid_edges = dc_data.valid_edges
-    valid_voxels = valid_edges.sum(axis=1, dtype=bool)
-    xyz_on_edge = dc_data.xyz_on_edge
-    gradients = dc_data.gradients
-    n_edges = valid_edges.shape[0]
+def compute_dual_contouring(dc_data: DualContouringData, n_surfaces: int, debug: bool = False) -> List[DualContouringMesh]:
 
-    valid_voxels, vertices = generate_dual_contouring_vertices(gradients, n_edges, valid_edges, xyz_on_edge, valid_voxels)
+    vertices = generate_dual_contouring_vertices(dc_data, debug)
+    indices = triangulate_dual_contouring(dc_data, n_surfaces)
 
-    # Triangulate
-    # ===========
-
-    # * For each edge that exhibits a sign change, generate a quad
-    # * connecting the minimizing vertices of the four cubes containing the edge.
-
-    def triangulate_params(dc_data, n_surfaces):
-        dxdydz = dc_data.grid_centers.dxdydz
-        centers_xyz = dc_data.grid_centers.values  # ? Can I extract here too. (UPDATE: Not sure what I meant)
-        centers_xyz = np.tile(centers_xyz, (n_surfaces, 1))
-        return centers_xyz, dxdydz
-
-    centers_xyz, dxdydz = triangulate_params(dc_data, n_surfaces)
-
-    indices = triangulate_dual_contouring(centers_xyz, dxdydz, valid_edges, valid_voxels)
-
-    return [DualContouringMesh(vertices, indices, centers_xyz[valid_voxels])]
+    return [DualContouringMesh(vertices, indices, dc_data)]
 
 
 """

@@ -105,6 +105,11 @@ class InterpOutput:
     @property
     def ids_block(self) -> np.ndarray:
         return np.rint(self.final_block[:self.grid.len_grids[0]])
+    
+    @ids_block.setter
+    def ids_block(self, value):
+        self.final_block[:self.grid.len_grids[0]] = value
+        
 
 
 @dataclass(init=False)
@@ -161,6 +166,9 @@ class DualContouringData:
     exported_fields_on_edges: ExportedFields
     _gradients: np.ndarray = None
 
+    bias_center_mass: np.ndarray = None  # * Only for testing
+    bias_normals: np.ndarray = None  # * Only for testing
+
     def __post_init__(self):
         ef = self.exported_fields_on_edges
         self._gradients = np.stack((ef.gx_field, ef.gy_field, ef.gz_field), axis=0).T  # ! When we are computing the edges for dual contouring there is no surface points
@@ -168,12 +176,21 @@ class DualContouringData:
     @property
     def gradients(self):
         return self._gradients
+    
+    
+    @property
+    def valid_voxels(self):
+        return self.valid_edges.sum(axis=1, dtype=bool)
+    
+    @property
+    def n_edges(self):
+        return self.valid_edges.shape[0]
 
 @dataclass
 class DualContouringMesh:
     vertices: np.ndarray
     edges: np.ndarray
-    vertices_test: np.ndarray = None
+    dc_data: Optional[DualContouringData] = None  # * In principle we need this just for testing
     
 
 

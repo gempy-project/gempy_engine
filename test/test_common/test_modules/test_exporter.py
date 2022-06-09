@@ -143,3 +143,21 @@ def test_export_3_layers(simple_model_3_layers_high_res, plot=True):
 
         plt.savefig("foo")
         plt.show()
+
+
+def test_final_exported_fields_one_layer(unconformity_complex_one_layer):
+    interpolation_input, options, structure = unconformity_complex_one_layer
+    outputs: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)
+
+    xyz_lvl0 = interpolation_input.grid.values
+    resolution = interpolation_input.grid.regular_grid.resolution
+
+    if True:
+        plt.quiver(xyz_lvl0[:, 0], xyz_lvl0[:, 2],
+                   outputs[0].exported_fields.gx_field,
+                   outputs[0].exported_fields.gz_field,
+                   pivot="tail",
+                   color='green', alpha=.6, )
+
+        grid = interpolation_input.grid.regular_grid
+        plot_block(outputs[0].final_exported_fields._scalar_field, grid)

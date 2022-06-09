@@ -14,6 +14,8 @@ class InterpolationOptions:
     number_dimensions: int = 3
     number_octree_levels:int = 1
     kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.exponential
+    
+    debug: bool = False
 
     @property
     def n_uni_eq(self):

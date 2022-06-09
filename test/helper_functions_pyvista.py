@@ -72,13 +72,13 @@ def plot_pyvista(octree_list, dc_meshes:  List[DualContouringMesh] = None, verti
     regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
     foo = regular_grid_mesh.threshold([0, 10])
 
-    p.add_mesh(foo, show_edges=False, opacity=.5, cmap="tab10")
+    p.add_mesh(foo, show_edges=True, opacity=.5, cmap="tab10")
 
     # Plot gradients
     if gradients is not None and xyz_on_edge is not None:
         poly = pv.PolyData(xyz_on_edge)
         poly['vectors'] = gradients
-        arrows = poly.glyph(orient='vectors', scale=False, factor=.05)
+        arrows = poly.glyph(orient='vectors', scale=False, factor=.3)
         p.add_mesh(arrows, color="k", point_size=10.0, render_points_as_spheres=False)
 
     if plot_label:
@@ -88,9 +88,9 @@ def plot_pyvista(octree_list, dc_meshes:  List[DualContouringMesh] = None, verti
         poly = pv.PolyData(a)
         poly['vectors'] = b
 
-        arrows = poly.glyph(orient='vectors', scale=False, factor=.05)
+        arrows = poly.glyph(orient='vectors', scale=False, factor=.1)
 
-        p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
+        p.add_mesh(arrows, color="gray", point_size=10.0, render_points_as_spheres=False)
 
     # Plot QEF
     if v_just_points is not None:

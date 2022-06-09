@@ -2,7 +2,7 @@ import copy
 from typing import List
 
 from . import _interp_single_internals
-from ._interp_single_internals import interpolate_scalar_field
+from gempy_engine.API.interp_single._interp_single_internals import interpolate_scalar_field, _evaluate_sys_eq
 from ._octree_generation import interpolate_on_octree
 from ...core import data
 from ...core.data.exported_structs import InterpOutput, OctreeLevel
@@ -11,6 +11,7 @@ from ...core.data.interpolation_input import InterpolationInput
 from ...modules.octrees_topology import octrees_topology_interface as octrees
 
 
+# * Only For testing
 def interpolate_single_field(interpolation_input: InterpolationInput, options: data.InterpolationOptions,
                              data_shape: data.TensorsStructure) -> InterpOutput:
     output = InterpOutput()

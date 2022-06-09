@@ -213,7 +213,7 @@ def _solve_interpolation(interp_input: SolverInput):
     return weights
 
 
-def _input_preprocess(data_shape, grid, orientations, surface_points) -> \
+def _input_preprocess(data_shape: TensorsStructure, grid, orientations, surface_points) -> \
         Tuple[np.ndarray, data.OrientationsInternals, data.SurfacePointsInternals]:
     sp_internal = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
     ori_internal = data_preprocess_interface.prepare_orientations(orientations)
