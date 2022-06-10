@@ -20,7 +20,7 @@ class RegularGrid:
 
     def __post_init__(self):
         self.regular_grid_shape = _check_and_convert_list_to_array(self.regular_grid_shape)
-        self.extent = _check_and_convert_list_to_array(self.extent)
+        self.extent = _check_and_convert_list_to_array(self.extent) + 1e-6  # * This to avoid some errors evaluating in 0 (e.g. bias in dual contouring)
 
         self.values = self._create_regular_grid(self.extent, self.regular_grid_shape)
 

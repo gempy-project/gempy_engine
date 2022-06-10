@@ -153,7 +153,7 @@ def generate_dual_contouring_vertices(dc_data: DualContouringData, debug: bool =
         edges_xyz[:, 13] = mass_points
         edges_xyz[:, 14] = mass_points
 
-        BIAS_STRENGTH = 1
+        BIAS_STRENGTH = .000001
         edges_normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])
         edges_normals[:, 13] = np.array([0, BIAS_STRENGTH, 0])
         edges_normals[:, 14] = np.array([0, 0, BIAS_STRENGTH])

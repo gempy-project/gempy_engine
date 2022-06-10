@@ -108,10 +108,9 @@ def test_compute_dual_contouring_complex(unconformity_complex_one_layer, n_oct_l
         helper_functions_pyvista.plot_pyvista(solutions.octrees_output,
                                               dc_meshes=solutions.dc_meshes,
                                               xyz_on_edge=intersection_xyz, gradients=gradients,
-                                              # a=center_mass, b=normals,
+                                              a=center_mass, b=normals,
                                               #v_just_points=vertices
                                               )
-
 
 
 def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_grid_3d_octree):

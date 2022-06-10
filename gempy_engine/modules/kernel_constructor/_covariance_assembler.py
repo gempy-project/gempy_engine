@@ -130,12 +130,10 @@ def create_grad_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor
 
     # region drift
 
-    # First term
-    ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)
-    # Second term
-    ug2 = (ki.ori_drift.dips_ug_bi * ki.ori_drift.dips_ug_bj).sum(axis=-1)
-    # Third term
-    ug3_aux = (ki.ori_drift.dips_ug_ci * ki.ori_drift.dips_ug_cj).sum(axis=-1)
+    ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1) # First term
+    ug2 = (ki.ori_drift.dips_ug_bi * ki.ori_drift.dips_ug_bj).sum(axis=-1) # Second term
+    ug3_aux = (ki.ori_drift.dips_ug_ci * ki.ori_drift.dips_ug_cj).sum(axis=-1) # Third term
+    
     third_term_selector = (ki.ori_drift.selector_ci * ki.ori_drift.dips_ug_aj).sum(axis=-1)
     ug3 = ug3_aux * third_term_selector
 

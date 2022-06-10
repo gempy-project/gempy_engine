@@ -367,7 +367,7 @@ def unconformity_complex_one_layer():
                                    kernel_function=AvailableKernelFunctions.cubic)
 
     resolution = [15, 2, 15]
-    extent = [0, 10., 0, 2., 0, 5.]
+    extent = [0.0000001, 10., 0.0000001, 2., 0.0000001, 5.]
 
     regular_grid = RegularGrid(extent, resolution)
 
