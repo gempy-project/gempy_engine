@@ -103,10 +103,7 @@ def test_final_exported_fields(unconformity_complex):
         plot_block(outputs[0].final_exported_fields._scalar_field, grid)
         plot_block(outputs[1].final_exported_fields._scalar_field, grid)
         plot_block(outputs[2].final_exported_fields._scalar_field, grid)
-
-
-        
-
+    
 
 def test_plot_corners(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
@@ -121,15 +118,47 @@ def test_plot_corners(unconformity_complex, n_oct_levels=2):
 def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
+    options.debug = True
+    
     solutions: Solutions = interpolate_model(interpolation_input, options, structure)
-    intersection_points = solutions.dc_meshes[1].foo.xyz_on_edge
     
     if True:
-        output_corners: InterpOutput = solutions.octrees_output[-1].outputs_corners[-1]
-        vertices = output_corners.grid.values
+        
+        dc_data = solutions.dc_meshes[1].dc_data # * Scalar field where to show gradients
+        intersection_xyz = dc_data.xyz_on_edge
+        gradients = dc_data.gradients
+
+        center_mass = dc_data.bias_center_mass
+        normals = dc_data.bias_normals
 
         helper_functions_pyvista.plot_pyvista(solutions.octrees_output, dc_meshes=solutions.dc_meshes,
-                                              v_just_points=vertices, vertices=intersection_points)
+                                              xyz_on_edge=intersection_xyz, gradients=gradients,
+                                              a=center_mass, b=normals
+                                              )
+
+
+def test_dual_contouring_multiple_dependent_fields(unconformity_complex, n_oct_levels=2):
+    # * Dependent_dual_contouring seems a bad idea
+
+    interpolation_input, options, structure = unconformity_complex
+    options.number_octree_levels = n_oct_levels
+    options.debug = True
+    options.dependent_dual_contouring = True
+
+    solutions: Solutions = interpolate_model(interpolation_input, options, structure)
+
+    if True:
+        dc_data = solutions.dc_meshes[0].dc_data
+        intersection_xyz = dc_data.xyz_on_edge
+        gradients = dc_data.gradients
+
+        center_mass = dc_data.bias_center_mass
+        normals = dc_data.bias_normals
+
+        helper_functions_pyvista.plot_pyvista(solutions.octrees_output, dc_meshes=solutions.dc_meshes,
+                                              xyz_on_edge=intersection_xyz, gradients=gradients,
+                                              a=center_mass, b=normals
+                                              )
 
 
 def test_final_block_octrees(unconformity_complex, n_oct_levels=2):

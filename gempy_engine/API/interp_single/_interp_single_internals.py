@@ -28,10 +28,8 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
     """Interpolate all scalar fields given a xyz array of points"""
 
     all_scalar_fields_outputs = _interpolate_stack(data_descriptor, interpolation_input, options)
-    # TODO [x]: squeeze mask
     final_mask_matrix = _squeeze_mask(all_scalar_fields_outputs, data_descriptor.stack_relation)
-
-    # TODO [x]: Now we need to multiply each row of the final_mask_matrix with val
+    
     all_scalar_fields_outputs = _compute_final_block(all_scalar_fields_outputs, final_mask_matrix)
 
     return all_scalar_fields_outputs
@@ -94,6 +92,7 @@ def _interpolate_a_scalar_field(interpolation_input: InterpolationInput, options
 
 def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
                        options: InterpolationOptions) -> InterpOutput | list[InterpOutput]:
+    
     all_scalar_fields_outputs: List[InterpOutput] = []
 
     stack_structure = root_data_descriptor.stack_structure

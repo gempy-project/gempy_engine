@@ -88,14 +88,6 @@ def test_compute_dual_contouring_complex(unconformity_complex_one_layer, n_oct_l
     solutions: Solutions = interpolate_model(interpolation_input, options, structure)
     dc_data = solutions.dc_meshes[0].dc_data
 
-    valid_voxels = dc_data.valid_voxels
-
-    # Mark active voxels
-    # octree_list = solutions.octrees_output
-    # temp_ids = octree_list[-1].output_centers.ids_block  # ! I need this because setters in python sucks
-    # temp_ids[valid_voxels] = 10
-    # octree_list[-1].output_centers.ids_block = temp_ids  # paint valid voxels
-
     if True:
         output_corners: InterpOutput = solutions.octrees_output[-1].outputs_corners[-1]
         vertices = output_corners.grid.values

@@ -31,13 +31,13 @@ def compute_n_octree_levels(n_levels: int, interpolation_input_original: Interpo
     next_octree.is_root = True
 
     for i in range(0, n_levels):
-        next_octree = interpolate_on_octree(next_octree, interpolation_input, options, data_descriptor)
+        next_octree: OctreeLevel = interpolate_on_octree(next_octree, interpolation_input, options, data_descriptor)
         grid_1_centers = octrees.get_next_octree_grid(next_octree, compute_topology=False, debug=False)
 
         interpolation_input.grid = grid_1_centers
         octree_list.append(next_octree)
 
-        next_octree = OctreeLevel()
+        next_octree = OctreeLevel()  # TODO: This can go inside interpolate_on_octree
     _interp_single_internals.Buffer.clean()
     return octree_list
 

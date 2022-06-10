@@ -52,7 +52,12 @@ def _dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: 
     all_meshes: List[DualContouringMesh] = []
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
         meshes = _independent_dual_contouring(data_descriptor, interpolation_input, n_scalar_field, octree_leaves, options)
-        # meshes = _dependent_dual_contouring(data_descriptor, interpolation_input, octree_leaves, options)
+        
+        # * Dependent_dual_contouring seems a bad idea
+        # if options.dependent_dual_contouring:
+        #     meshes = _dependent_dual_contouring(data_descriptor, interpolation_input, octree_leaves, options)
+        # else:
+        #     
         all_meshes.append(*meshes)
     return all_meshes
 
@@ -91,10 +96,18 @@ def _dependent_dual_contouring(data_descriptor: InputDataDescriptor, interpolati
                                octree_leaves: OctreeLevel, options: InterpolationOptions):
     n_scalar_field = -1
     output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
-    dc_data: DualContouringData = get_intersection_on_edges(octree_leaves, output_corners, True)
-    interpolation_input.grid = Grid(dc_data.xyz_on_edge)
+    intersection_xyz, valid_edges  = get_intersection_on_edges(octree_leaves, output_corners, True)
+    interpolation_input.grid = Grid(intersection_xyz)
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_descriptor)
-    dc_data.gradients: ExportedFields = output_on_edges[n_scalar_field].final_exported_fields
+
+    dc_data = DualContouringData(
+        xyz_on_edge=intersection_xyz,
+        valid_edges=valid_edges,
+        grid_centers=octree_leaves.grid_centers,
+        exported_fields_on_edges=output_on_edges[n_scalar_field].final_exported_fields
+    )
+    
+    #dc_data.gradients: ExportedFields = output_on_edges[n_scalar_field].final_exported_fields
     n_surfaces = data_descriptor.tensors_structure.n_surfaces  # 
     # --------------------
     # The following operations are applied on the FINAL lith block:
