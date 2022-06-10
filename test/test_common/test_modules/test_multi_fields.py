@@ -2,7 +2,7 @@ from typing import List
 
 from matplotlib import pyplot as plt
 
-from gempy_engine.API.interp_manager.interp_manager_api import  _interpolate, interpolate_model
+from gempy_engine.API.interp_manager.interp_manager_api import _interpolate, interpolate_model, DualContouringMaskingOptions
 from gempy_engine.API.interp_single._interp_single_internals import _compute_mask_components, interpolate_all_fields, _interpolate_stack
 from gempy_engine.core.data.exported_structs import InterpOutput, Solutions
 from gempy_engine.core.data.input_data_descriptor import StackRelationType, TensorsStructure
@@ -146,6 +146,7 @@ def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
     options.debug = True
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.DISJOINT
     
     solutions: Solutions = interpolate_model(interpolation_input, options, structure)
     
@@ -162,6 +163,52 @@ def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct
                                               dc_meshes=solutions.dc_meshes,
                                               #xyz_on_edge=intersection_xyz, gradients=gradients, # * Uncomment for more detailed plots
                                               #a=center_mass, b=normals
+                                              )
+
+
+def test_dual_contouring_multiple_independent_fields_intersect(unconformity_complex, n_oct_levels=2):
+    interpolation_input, options, structure = unconformity_complex
+    options.number_octree_levels = n_oct_levels
+    options.debug = True
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.INTERSECT
+
+    solutions: Solutions = interpolate_model(interpolation_input, options, structure)
+
+    if True:
+        dc_data = solutions.dc_meshes[1].dc_data  # * Scalar field where to show gradients
+        intersection_xyz = dc_data.xyz_on_edge
+        gradients = dc_data.gradients
+
+        center_mass = dc_data.bias_center_mass
+        normals = dc_data.bias_normals
+
+        helper_functions_pyvista.plot_pyvista(solutions.octrees_output,
+                                              dc_meshes=solutions.dc_meshes,
+                                              # xyz_on_edge=intersection_xyz, gradients=gradients, # * Uncomment for more detailed plots
+                                              # a=center_mass, b=normals
+                                              )
+        
+        
+def test_dual_contouring_multiple_independent_fields_intersect_raw(unconformity_complex, n_oct_levels=2):
+    interpolation_input, options, structure = unconformity_complex
+    options.number_octree_levels = n_oct_levels
+    options.debug = True
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
+
+    solutions: Solutions = interpolate_model(interpolation_input, options, structure)
+
+    if True:
+        dc_data = solutions.dc_meshes[1].dc_data  # * Scalar field where to show gradients
+        intersection_xyz = dc_data.xyz_on_edge
+        gradients = dc_data.gradients
+
+        center_mass = dc_data.bias_center_mass
+        normals = dc_data.bias_normals
+
+        helper_functions_pyvista.plot_pyvista(solutions.octrees_output,
+                                              dc_meshes=solutions.dc_meshes,
+                                              # xyz_on_edge=intersection_xyz, gradients=gradients, # * Uncomment for more detailed plots
+                                              # a=center_mass, b=normals
                                               )
 
 

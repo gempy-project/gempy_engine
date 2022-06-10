@@ -1,6 +1,13 @@
+import enum
 from dataclasses import dataclass
 
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, KernelFunction
+
+
+class DualContouringMaskingOptions(enum.Enum):
+    DISJOINT = enum.auto()
+    INTERSECT = enum.auto()
+    RAW = enum.auto()
 
 
 @dataclass
@@ -14,6 +21,8 @@ class InterpolationOptions:
     number_dimensions: int = 3
     number_octree_levels:int = 1
     kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.exponential
+    
+    dual_contouring_masking_options: DualContouringMaskingOptions = DualContouringMaskingOptions.DISJOINT
     
     debug: bool = False
     debug_water_tight: bool = False

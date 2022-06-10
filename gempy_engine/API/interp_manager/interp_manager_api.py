@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import enum
 from typing import List
 
 import numpy as np
@@ -14,6 +15,7 @@ from ...core.data.exported_structs import OctreeLevel, InterpOutput, DualContour
 from ...core.data.grid import Grid
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
+from ...core.data.options import DualContouringMaskingOptions
 from ...modules.octrees_topology.octrees_topology_interface import get_regular_grid_for_level
 
 
@@ -83,12 +85,7 @@ def _independent_dual_contouring(data_descriptor: InputDataDescriptor, interpola
                                  n_scalar_field: int, octree_leaves: OctreeLevel, options: InterpolationOptions,
                                  ) -> DualContouringData:
     
-    mask_scalar = octree_leaves.outputs_corners[n_scalar_field].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
-    if MaskBuffer.previous_mask is None:
-        mask = mask_scalar
-    else:
-        mask = (MaskBuffer.previous_mask ^ mask_scalar) * mask_scalar
-    MaskBuffer.previous_mask = mask
+    mask = mask_generation(n_scalar_field, octree_leaves, options.dual_contouring_masking_options)
 
     output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
     intersection_xyz, valid_edges = get_intersection_on_edges(octree_leaves, output_corners, mask)
@@ -105,8 +102,24 @@ def _independent_dual_contouring(data_descriptor: InputDataDescriptor, interpola
         n_surfaces=data_descriptor.stack_structure.number_of_surfaces_per_stack[n_scalar_field]
     )
     return dc_data
-    
-    
+
+
+def mask_generation(n_scalar_field, octree_leaves, masking_option: DualContouringMaskingOptions):
+    match masking_option:
+        case DualContouringMaskingOptions.DISJOINT:
+            mask_scalar = octree_leaves.outputs_corners[n_scalar_field].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+            if MaskBuffer.previous_mask is None:
+                mask = mask_scalar
+            else:
+                mask = (MaskBuffer.previous_mask ^ mask_scalar) * mask_scalar
+            MaskBuffer.previous_mask = mask
+            return mask
+        case DualContouringMaskingOptions.INTERSECT:
+            mask = octree_leaves.outputs_corners[n_scalar_field].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+            return mask 
+        case DualContouringMaskingOptions.RAW:
+            return None
+
 def _merge_dc_data(dc_data_collection: List[DualContouringData]) -> DualContouringData:
     xyz_on_edge = np.vstack([dc_data.xyz_on_edge for dc_data in dc_data_collection])
     valid_edges = np.vstack([dc_data.valid_edges for dc_data in dc_data_collection])
