@@ -146,11 +146,7 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
 
     sfsp = last_octree_level.output_corners.scalar_field_at_sp
 
-    xyz_on_edge, valid_edges = find_intersection_on_edge(
-        last_octree_level.grid_corners.values,
-        last_octree_level.output_corners.exported_fields.scalar_field,
-        sfsp
-    )
+    xyz_on_edge, valid_edges = find_intersection_on_edge(last_octree_level.grid_corners.values, last_octree_level.output_corners.exported_fields.scalar_field, sfsp, )
 
     # endregion
 
@@ -270,11 +266,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
 
     sfsp = last_octree_level.output_corners.scalar_field_at_sp
     # sfsp = np.append(sfsp, -0.1)
-    xyz_on_edge, valid_edges = find_intersection_on_edge(
-        last_octree_level.grid_corners.values,
-        last_octree_level.output_corners.exported_fields.scalar_field,
-        sfsp
-    )
+    xyz_on_edge, valid_edges = find_intersection_on_edge(last_octree_level.grid_corners.values, last_octree_level.output_corners.exported_fields.scalar_field, sfsp, )
     # endregion
 
     # region Get Normals
@@ -384,11 +376,7 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
     last_octree_level: OctreeLevel = octree_list[-1]
 
     sfsp = last_octree_level.output_corners.scalar_field_at_sp
-    xyz_on_edge, valid_edges = find_intersection_on_edge(
-        last_octree_level.grid_corners.values,
-        last_octree_level.output_corners.exported_fields.scalar_field,
-        sfsp
-    )
+    xyz_on_edge, valid_edges = find_intersection_on_edge(last_octree_level.grid_corners.values, last_octree_level.output_corners.exported_fields.scalar_field, sfsp, )
     valid_voxels = valid_edges.sum(axis=1, dtype=bool)
 
     # endregion

@@ -165,9 +165,16 @@ class OctreeLevel:
 class DualContouringData:
     xyz_on_edge: np.ndarray
     valid_edges: np.ndarray
-    grid_centers: Grid
+    
+    xyz_on_centers: np.ndarray
+    dxdydz: np.ndarray
+    
     exported_fields_on_edges: ExportedFields
     _gradients: np.ndarray = None
+    
+    # Water tight 
+    mask: np.ndarray = None
+    n_surfaces: int =None
 
     bias_center_mass: np.ndarray = None  # * Only for testing
     bias_normals: np.ndarray = None  # * Only for testing

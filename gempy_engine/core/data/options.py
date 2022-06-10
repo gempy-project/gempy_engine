@@ -16,6 +16,7 @@ class InterpolationOptions:
     kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.exponential
     
     debug: bool = False
+    debug_water_tight: bool = False
 
     @property
     def n_uni_eq(self):

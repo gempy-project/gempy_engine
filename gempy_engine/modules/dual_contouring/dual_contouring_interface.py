@@ -5,13 +5,19 @@ import numpy as np
 
 
 def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray,
-                              scalar_at_sp: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+                              scalar_at_sp: np.ndarray, masking=None) -> Tuple[np.ndarray, np.ndarray]:
     # I have to do the topology analysis anyway because is the last octree
     scalar_8_ = scalar_field
     scalar_8 = scalar_8_.reshape((1, -1, 8))
+    xyz_8 = _xyz_corners.reshape((-1, 8, 3))
+    
+    if masking is not None:
+        ma_8 = masking
+        xyz_8 = xyz_8[ma_8]
+        scalar_8 = scalar_8[:, ma_8]
+
     scalar_at_sp = scalar_at_sp.reshape((-1, 1, 1))
 
-    xyz_8 = _xyz_corners.reshape((-1, 8, 3))
     n_isosurface = scalar_at_sp.shape[0]
     xyz_8 = np.tile(xyz_8, (n_isosurface, 1, 1))  # TODO: Generalize
 
@@ -56,17 +62,19 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray
     return intersection_xyz, valid_edges
 
 
-def triangulate_dual_contouring(dc_data: DualContouringData, n_surfaces: int):
+def triangulate_dual_contouring(dc_data: DualContouringData):
     """
     For each edge that exhibits a sign change, generate a quad
     connecting the minimizing vertices of the four cubes containing the edge.\
     """
-    dxdydz = dc_data.grid_centers.dxdydz
-    centers_xyz = np.tile(dc_data.grid_centers.values, (n_surfaces, 1))
+    dxdydz = dc_data.dxdydz
+    values = dc_data.xyz_on_centers
+    n_surfaces = dc_data.n_surfaces
+    centers_xyz = np.tile(values, (n_surfaces, 1))
     valid_voxels = dc_data.valid_voxels
     valid_edges = dc_data.valid_edges
 
-    # ! This assumes a vertex per voxel 
+    # ! This assumes a vertex per voxel
     dx, dy, dz = dxdydz
     x_1 = centers_xyz[valid_voxels][:, None, :]
     x_2 = centers_xyz[valid_voxels][None, :, :]
@@ -142,21 +150,20 @@ def generate_dual_contouring_vertices(dc_data: DualContouringData, debug: bool =
     edges_normals = np.zeros((n_edges, 15, 3))
     edges_normals[:, :12][valid_edges] = gradients
 
-    BIAS = True
-    if BIAS:
-        bias_xyz = np.copy(edges_xyz[:, :12])
-        isclose = np.isclose(bias_xyz, 0)
-        bias_xyz[isclose] = np.nan  # np zero values to nans
-        mass_points = np.nanmean(bias_xyz, axis=1)  # Mean ignoring nans
+    
+    bias_xyz = np.copy(edges_xyz[:, :12])
+    isclose = np.isclose(bias_xyz, 0)
+    bias_xyz[isclose] = np.nan  # np zero values to nans
+    mass_points = np.nanmean(bias_xyz, axis=1)  # Mean ignoring nans
 
-        edges_xyz[:, 12] = mass_points
-        edges_xyz[:, 13] = mass_points
-        edges_xyz[:, 14] = mass_points
+    edges_xyz[:, 12] = mass_points
+    edges_xyz[:, 13] = mass_points
+    edges_xyz[:, 14] = mass_points
 
-        BIAS_STRENGTH = 1
-        edges_normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])
-        edges_normals[:, 13] = np.array([0, BIAS_STRENGTH, 0])
-        edges_normals[:, 14] = np.array([0, 0, BIAS_STRENGTH])
+    BIAS_STRENGTH = 1
+    edges_normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])
+    edges_normals[:, 13] = np.array([0, BIAS_STRENGTH, 0])
+    edges_normals[:, 14] = np.array([0, 0, BIAS_STRENGTH])
 
     # Remove unused voxels
     edges_xyz = edges_xyz[valid_voxels]

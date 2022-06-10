@@ -67,18 +67,45 @@ def test_compute_mask_components_all_erode(unconformity_complex):
         plot_block(outputs[1].mask_components.mask_lith, grid)
         plot_block(outputs[2].mask_components.mask_lith, grid)
 
-
+# noinspection PyUnreachableCode
 def test_mask_arrays(unconformity_complex):
     interpolation_input, options, structure = unconformity_complex
     outputs: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)
+    grid = interpolation_input.grid.regular_grid
+    
+    grid_0_centers = interpolation_input.grid
+    from gempy_engine.modules.octrees_topology._octree_common import _generate_corners
+    from gempy_engine.core.data.grid import Grid
+    grid_0_corners = Grid(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
+    interpolation_input.grid = grid_0_corners
 
+    # TODO [x]: loop all scalars!!
+    output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)  # TODO: This is unnecessary for the last level except for Dual contouring
     # TODO: Final block is a (3, 7500) array
 
-    if True:
-        grid = interpolation_input.grid.regular_grid
-        plot_block(outputs[0].squeezed_mask_array, grid)
+    if False:
+        plot_block(outputs[0].squeezed_mask_array, grid)      
         plot_block(outputs[1].squeezed_mask_array, grid)
         plot_block(outputs[2].squeezed_mask_array, grid)
+    
+    mask_1 = output_0_corners[0].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+    mask_2 = output_0_corners[1].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+    mask_3 = output_0_corners[2].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+    if True:
+
+        plot_block(mask_1, grid)
+        plot_block(mask_2, grid)
+        plot_block(mask_3, grid)
+
+    if True:
+        mask_1_f = mask_1 
+        mask_2_f = (mask_1_f ^ mask_2) * mask_2
+        mask_3_f = (mask_2_f ^ mask_3) * mask_3
+        
+        
+        plot_block(mask_1_f, grid)
+        plot_block(mask_2_f, grid)
+        plot_block(mask_3_f, grid)
 
 
 def test_final_block(unconformity_complex):
@@ -131,9 +158,34 @@ def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct
         center_mass = dc_data.bias_center_mass
         normals = dc_data.bias_normals
 
-        helper_functions_pyvista.plot_pyvista(solutions.octrees_output, dc_meshes=solutions.dc_meshes,
-                                              xyz_on_edge=intersection_xyz, gradients=gradients,
-                                              a=center_mass, b=normals
+        helper_functions_pyvista.plot_pyvista(solutions.octrees_output,
+                                              dc_meshes=solutions.dc_meshes,
+                                              #xyz_on_edge=intersection_xyz, gradients=gradients, # * Uncomment for more detailed plots
+                                              #a=center_mass, b=normals
+                                              )
+
+
+def test_dual_contouring_multiple_independent_fields_mask(unconformity_complex, n_oct_levels=4):
+    interpolation_input, options, structure = unconformity_complex
+    options.number_octree_levels = n_oct_levels
+    options.debug = True
+    options.debug_water_tight = True
+
+    solutions: Solutions = interpolate_model(interpolation_input, options, structure)
+
+    if True:
+        dc_data = solutions.dc_meshes[0].dc_data  # * Scalar field where to show gradients
+        intersection_xyz = dc_data.xyz_on_edge
+        gradients = dc_data.gradients
+
+        center_mass = dc_data.bias_center_mass
+        normals = dc_data.bias_normals
+
+        helper_functions_pyvista.plot_pyvista(octree_list=solutions.octrees_output,
+                                              dc_meshes=solutions.dc_meshes,
+                                              #xyz_on_edge=intersection_xyz, gradients=gradients,
+                                              #a=center_mass, b=normals,
+                                              #vertices=solutions.dc_meshes[0].vertices, delaunay_3d=False
                                               )
 
 
