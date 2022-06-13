@@ -1,6 +1,7 @@
 import copy
 import dataclasses
 import os
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -77,7 +78,7 @@ def simple_model_2_internals(simple_model_2):
 
 
 @pytest.fixture(scope="session")
-def simple_model():
+def simple_model() -> Tuple[SurfacePoints, Orientations, InterpolationOptions, InputDataDescriptor]:
     dip_positions = np.array([
         [0.25010, 0.50010, 0.54177],
         [0.66677, 0.50010, 0.62510],
@@ -120,7 +121,7 @@ def simple_model():
 
 
 @pytest.fixture(scope="session")
-def simple_model_interpolation_input(simple_grid_3d_octree):
+def simple_model_interpolation_input(simple_grid_3d_octree) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
     grid_0_centers = copy.deepcopy(simple_grid_3d_octree)
 
     dip_positions = np.array([
@@ -149,8 +150,8 @@ def simple_model_interpolation_input(simple_grid_3d_octree):
 
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
 
-    interpolation_options = InterpolationOptions(range_, co, 0,
-                                                 number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+    interpolation_options = InterpolationOptions(range_, co, 0, number_dimensions=3,
+                                                 kernel_function=AvailableKernelFunctions.cubic)
 
     tensor_structure = TensorsStructure(np.array([7]))
 
@@ -162,7 +163,7 @@ def simple_model_interpolation_input(simple_grid_3d_octree):
 
 
 @pytest.fixture(scope="session")
-def simple_model_3_layers(simple_grid_3d_octree):
+def simple_model_3_layers(simple_grid_3d_octree) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
     grid_0_centers = dataclasses.replace(simple_grid_3d_octree)
 
     np.set_printoptions(precision=3, linewidth=200)
@@ -201,17 +202,23 @@ def simple_model_3_layers(simple_grid_3d_octree):
     interpolation_options = InterpolationOptions(range_, co, 0, i_res=4, gi_res=2,
                                                  number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
 
-    tensor_structure = TensorsStructure(np.array([7, 2, 2]), None)
+    tensor_structure = TensorsStructure(number_of_points_per_surface=np.array([7, 2, 2]))
+    stack_structure = StacksStructure(number_of_points_per_stack=np.array([11]),
+                                      number_of_orientations_per_stack=np.array([2]),
+                                      number_of_surfaces_per_stack=np.array([3]),
+                                      masking_descriptor=[StackRelationType.ERODE])
+
+    input_data_descriptor = InputDataDescriptor(tensor_structure, stack_structure)
 
     ids = np.array([1, 2, 3, 4])
 
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    return interpolation_input, interpolation_options, tensor_structure
+    return interpolation_input, interpolation_options, input_data_descriptor
 
 
 @pytest.fixture(scope="session")
-def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid):
+def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
     grid_0_centers = dataclasses.replace(simple_grid_3d_more_points_grid)
 
     np.set_printoptions(precision=3, linewidth=200)

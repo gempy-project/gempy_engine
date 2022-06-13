@@ -1,3 +1,4 @@
+import copy
 from typing import List
 
 import matplotlib.pyplot as plt
@@ -156,7 +157,7 @@ def test_export_3_layers(simple_model_3_layers_high_res, plot=True):
 
 
 def test_final_exported_fields_one_layer(unconformity_complex_one_layer):
-    interpolation_input, options, structure = unconformity_complex_one_layer
+    interpolation_input, options, structure = copy.deepcopy(unconformity_complex_one_layer)
     outputs: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)
 
     xyz_lvl0 = interpolation_input.grid.values

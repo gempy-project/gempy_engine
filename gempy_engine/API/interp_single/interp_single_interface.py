@@ -5,7 +5,7 @@ from . import _interp_single_internals
 from gempy_engine.API.interp_single._interp_single_internals import interpolate_scalar_field, _evaluate_sys_eq
 from ._octree_generation import interpolate_on_octree
 from ...core import data
-from ...core.data.exported_structs import InterpOutput, OctreeLevel
+from ...core.data.exported_structs import InterpOutput, OctreeLevel, ScalarFieldOutput
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
 from ...modules.octrees_topology import octrees_topology_interface as octrees
@@ -42,8 +42,7 @@ def compute_n_octree_levels(n_levels: int, interpolation_input_original: Interpo
     return octree_list
 
 
-def interpolate_and_segment(interpolation_input: InterpolationInput, options: data.InterpolationOptions, # * Just for testing
+def interpolate_and_segment(interpolation_input: InterpolationInput, options: data.InterpolationOptions,  # * Just for testing
                             data_shape: data.TensorsStructure, clean_buffer=True) -> InterpOutput:
-    output = _interp_single_internals._interpolate_a_scalar_field(interpolation_input, options,
-                                                                  data_shape, clean_buffer)
-    return output
+    output: ScalarFieldOutput = _interp_single_internals._interpolate_a_scalar_field(interpolation_input, options, data_shape, clean_buffer)
+    return InterpOutput(output)

@@ -1,3 +1,5 @@
+import enum
+
 import pandas as pd
 import numpy as np
 import pytest
@@ -41,6 +43,15 @@ BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=True,
                              pykeops_enabled=False)
 
 plot_pyvista = False
+
+
+class TestSpeed(enum.Enum):
+    SECONDS = 0
+    MINUTES = 1
+    HOURS = 2
+
+
+TEST_SPEED = TestSpeed.SECONDS  # * Use seconds for compile errors, minutes before pushing and hours before release
 
 
 @pytest.fixture(scope='session')

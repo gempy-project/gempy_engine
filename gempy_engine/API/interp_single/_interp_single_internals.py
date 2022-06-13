@@ -1,3 +1,4 @@
+import copy
 from typing import Tuple, List
 
 import numpy as np
@@ -6,7 +7,7 @@ from numpy import ndarray
 from ...core import data
 from ...core.data import InterpolationOptions
 from ...core.data.input_data_descriptor import StackRelationType, InputDataDescriptor, TensorsStructure
-from ...core.data.exported_structs import InterpOutput, ExportedFields, MaskMatrices, Solutions
+from ...core.data.exported_structs import InterpOutput, ExportedFields, MaskMatrices, Solutions, ScalarFieldOutput, CombinedScalarFieldsOutput
 from ...core.data.internal_structs import SolverInput
 from ...core.data.interpolation_input import InterpolationInput
 from ...modules.activator import activator_interface
@@ -27,15 +28,19 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
                            data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
     """Interpolate all scalar fields given a xyz array of points"""
 
-    all_scalar_fields_outputs = _interpolate_stack(data_descriptor, interpolation_input, options)
-    final_mask_matrix = _squeeze_mask(all_scalar_fields_outputs, data_descriptor.stack_relation)
+    all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
+    final_mask_matrix: np.ndarray = _squeeze_mask(all_scalar_fields_outputs, data_descriptor.stack_relation)
     
-    all_scalar_fields_outputs = _compute_final_block(all_scalar_fields_outputs, final_mask_matrix)
+    combined_scalar_output: List[CombinedScalarFieldsOutput] = _compute_final_block(all_scalar_fields_outputs, final_mask_matrix)
+    all_outputs = []
+    for e, _ in enumerate(all_scalar_fields_outputs):
+        output: InterpOutput = InterpOutput(all_scalar_fields_outputs[e], combined_scalar_output[e])
+        all_outputs.append(output)
 
-    return all_scalar_fields_outputs
+    return all_outputs
 
 
-def _compute_final_block(all_scalar_fields_outputs: List[InterpOutput], squeezed_mask_arrays: np.ndarray) -> List[InterpOutput]:
+def _compute_final_block(all_scalar_fields_outputs: List[ScalarFieldOutput], squeezed_mask_arrays: np.ndarray) -> List[CombinedScalarFieldsOutput]:
     n_scalar_fields = len(all_scalar_fields_outputs)
     squeezed_value_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
     squeezed_scalar_field_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
@@ -46,27 +51,22 @@ def _compute_final_block(all_scalar_fields_outputs: List[InterpOutput], squeezed
     def _mask_and_squeeze(block_to_squeeze: np.ndarray, squeezed_mask_array: np.ndarray, previous_block: np.ndarray) -> np.ndarray:
         return (previous_block + block_to_squeeze * squeezed_mask_array).reshape(-1)
 
-    # ? For the octrees I guess we need to apply the mask also to the ExportedFields
+    all_combined_scalar_fields = []
     for i in range(n_scalar_fields):
-        interp_output: InterpOutput = all_scalar_fields_outputs[i]
+        interp_output: ScalarFieldOutput = all_scalar_fields_outputs[i]
+        squeezed_array = squeezed_mask_arrays[i]
 
-        squeezed_value_block = _mask_and_squeeze(interp_output.values_block, squeezed_mask_arrays[i], squeezed_value_block)
+        squeezed_value_block = _mask_and_squeeze(interp_output.values_block, squeezed_array, squeezed_value_block)
 
-        # shifted_scalar_field = interp_output.exported_fields.scalar_field - interp_output.exported_fields.scalar_field.min()
-        # scalar_field_shift = (squeezed_scalar_field_block.max() - interp_output.exported_fields.scalar_field.min()) * 10 * i  # * Make sure each scalar field is in a different range
-        # shifted_scalar_field = (interp_output.exported_fields.scalar_field + scalar_field_shift)
+        scalar_field = interp_output.exported_fields.scalar_field  
+        squeezed_scalar_field_block = _mask_and_squeeze(scalar_field, squeezed_array, squeezed_scalar_field_block)
+        
+        squeezed_gx_block = _mask_and_squeeze(interp_output.exported_fields.gx_field, squeezed_array, squeezed_gx_block)
+        squeezed_gy_block = _mask_and_squeeze(interp_output.exported_fields.gy_field, squeezed_array, squeezed_gy_block)
+        squeezed_gz_block = _mask_and_squeeze(interp_output.exported_fields.gz_field, squeezed_array, squeezed_gz_block)
 
-        shifted_scalar_field = interp_output.exported_fields.scalar_field  # ! This name here does no make any sense becose I am not shifting 
-
-        squeezed_scalar_field_block = _mask_and_squeeze(shifted_scalar_field, squeezed_mask_arrays[i], squeezed_scalar_field_block)
-        # interp_output.exported_fields.scalar_field_shift = scalar_field_shift
-
-        squeezed_gx_block = _mask_and_squeeze(interp_output.exported_fields.gx_field, squeezed_mask_arrays[i], squeezed_gx_block)
-        squeezed_gy_block = _mask_and_squeeze(interp_output.exported_fields.gy_field, squeezed_mask_arrays[i], squeezed_gy_block)
-        squeezed_gz_block = _mask_and_squeeze(interp_output.exported_fields.gz_field, squeezed_mask_arrays[i], squeezed_gz_block)
-
-        interp_output.final_block = squeezed_value_block
-        interp_output.final_exported_fields = ExportedFields(
+        final_block = squeezed_value_block
+        final_exported_fields = ExportedFields(
             _scalar_field=squeezed_scalar_field_block,
             _gx_field=squeezed_gx_block,
             _gy_field=squeezed_gy_block,
@@ -74,32 +74,49 @@ def _compute_final_block(all_scalar_fields_outputs: List[InterpOutput], squeezed
             n_points_per_surface=interp_output.exported_fields.n_points_per_surface,
             n_surface_points=None
         )
-
-    return all_scalar_fields_outputs
+        
+        combined_scalar_fields = CombinedScalarFieldsOutput(
+            squeezed_mask_array=squeezed_array,
+            final_block=final_block,
+            final_exported_fields=final_exported_fields
+        )
+        
+        all_combined_scalar_fields.append(combined_scalar_fields)
+        
+    return all_combined_scalar_fields
 
 
 def _interpolate_a_scalar_field(interpolation_input: InterpolationInput, options: InterpolationOptions,
-                                data_shape: TensorsStructure, clean_buffer: bool = True) -> InterpOutput:
-    output = InterpOutput()
-    output.grid = interpolation_input.grid
-    output.weights, output.exported_fields = interpolate_scalar_field(interpolation_input, options, data_shape)
-    output.values_block = _segment_scalar_field(output, interpolation_input.unit_values)
+                                data_shape: TensorsStructure, clean_buffer: bool = True) -> ScalarFieldOutput:
+    
+    grid = copy.deepcopy(interpolation_input.grid)
+    weights, exported_fields = interpolate_scalar_field(interpolation_input, options, data_shape)
+    
+    values_block = _segment_scalar_field(exported_fields, interpolation_input.unit_values)
+    mask_components = _compute_mask_components(exported_fields, interpolation_input.stack_relation)
 
-    output.mask_components = _compute_mask_components(output.exported_fields, interpolation_input.stack_relation)
+    output = ScalarFieldOutput(
+        weights=weights,
+        grid=grid,
+        exported_fields=exported_fields,
+        values_block=values_block,
+        mask_components=mask_components
+    )
+    
     if clean_buffer: Buffer.clean()
     return output
 
 
 def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
-                       options: InterpolationOptions) -> InterpOutput | list[InterpOutput]:
+                       options: InterpolationOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
     
-    all_scalar_fields_outputs: List[InterpOutput] = []
+    all_scalar_fields_outputs: List[ScalarFieldOutput] = []
 
     stack_structure = root_data_descriptor.stack_structure
 
     if stack_structure is None:  # ! This branch is just for backward compatibility but we should try to get rid of it as soon as possible
-        solutions = _interpolate_a_scalar_field(interpolation_input, options, root_data_descriptor.tensors_structure)
-        all_scalar_fields_outputs.append(solutions)
+        output = _interpolate_a_scalar_field(interpolation_input, options, root_data_descriptor.tensors_structure)
+        all_scalar_fields_outputs.append(output)
         return all_scalar_fields_outputs
     else:
         for i in range(stack_structure.n_stacks):
@@ -108,13 +125,13 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_
             tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
             interpolation_input_i = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_structure)
 
-            solutions = _interpolate_a_scalar_field(interpolation_input_i, options, tensor_struct_i)
-            all_scalar_fields_outputs.append(solutions)
+            output: ScalarFieldOutput = _interpolate_a_scalar_field(interpolation_input_i, options, tensor_struct_i)
+            all_scalar_fields_outputs.append(output)
 
     return all_scalar_fields_outputs
 
 
-def _squeeze_mask(all_scalar_fields_outputs: List[InterpOutput], stack_relation: List[StackRelationType]) -> np.ndarray:
+def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relation: List[StackRelationType]) -> np.ndarray:
     n_scalar_fields = len(all_scalar_fields_outputs)
     grid_size = all_scalar_fields_outputs[0].grid_size
     mask_matrix = np.zeros((n_scalar_fields, grid_size), dtype=np.bool)
@@ -139,9 +156,10 @@ def _squeeze_mask(all_scalar_fields_outputs: List[InterpOutput], stack_relation:
     final_mask_array[0] = mask_matrix[-1]
     final_mask_array[1:] = np.cumprod(np.invert(mask_matrix[:-1]), axis=0)
     final_mask_array *= mask_matrix
-
-    for i in range(n_scalar_fields):
-        all_scalar_fields_outputs[i].squeezed_mask_array = final_mask_array[i]
+    # 
+    # squeezed_mask_array_list = []
+    # for i in range(n_scalar_fields):
+    #     squeezed_mask_array_list.append(final_mask_array[i])
 
     return final_mask_array
 
@@ -200,8 +218,8 @@ def interpolate_scalar_field(interpolation_input: InterpolationInput, options: d
     return weights, exported_fields
 
 
-def _segment_scalar_field(output: InterpOutput, unit_values: np.ndarray) -> np.ndarray:
-    return activator_interface.activate_formation_block(output.exported_fields, unit_values, sigmoid_slope=50000)
+def _segment_scalar_field(exported_fields: ExportedFields, unit_values: np.ndarray) -> np.ndarray:
+    return activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=50000)
 
 
 def _solve_interpolation(interp_input: SolverInput):

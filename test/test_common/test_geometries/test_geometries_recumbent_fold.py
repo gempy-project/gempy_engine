@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from matplotlib import pyplot as plt
 
 from gempy_engine.core.data.exported_structs import InterpOutput
@@ -8,6 +9,7 @@ from gempy_engine.API.interp_single.interp_single_interface import interpolate_s
 from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_grad_kernel
 from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation, \
     evaluation_vectors_preparations
+from test.conftest import TEST_SPEED
 from test.helper_functions import plot_2d_scalar_y_direction
 from test.test_common.test_geometries.test_geometries import plot
 
@@ -153,8 +155,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         print(weights - weights_sol)
         np.testing.assert_allclose(weights, weights_sol, atol=1e-4)
 
-
-    # @pytest.mark.skip(reason="Trigger only manually since it is too slow")
+    @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Trigger only manually since it is too slow")
     def test_recumbent_fold_scaled(self, recumbent_fold_scaled):
         """
         Old gempy:
@@ -219,6 +220,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         from test.test_common.test_geometries.solutions import recumbent_ui
         np.testing.assert_allclose(kernel_sp[6:-9, -9:], recumbent_ui, atol=.02)
 
+    @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Test speed to low")
     def test_recumbent_fold_universal_degree_2_scalar_kernel(self, recumbent_fold_scaled):
         """
         universal_kernel __str__ =
@@ -255,8 +257,6 @@ class TestRecumbentFoldCovConstructionWithDrift:
         solver_input = SolverInput(sp_internal, ori_internal, options)
         kernel_data = evaluation_vectors_preparations(xyz_lvl0, solver_input)
         kernel = _test_covariance_items(kernel_data, options, "sigma_0_u_sp")
-
-
 
         print(kernel[-9:])
 

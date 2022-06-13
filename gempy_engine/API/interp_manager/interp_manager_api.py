@@ -56,6 +56,7 @@ class MaskBuffer:
 def _dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
                      options: InterpolationOptions, solutions: Solutions) -> List[DualContouringMesh]:
     # Dual Contouring prep:
+    MaskBuffer.clean()
     octree_leaves = solutions.octrees_output[-1]
     all_meshes: List[DualContouringMesh] = []
     if options.debug_water_tight is False:

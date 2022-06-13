@@ -28,7 +28,7 @@ except ImportError:
 def test_regular_grid_preparation(simple_grid_3d_more_points_grid):
     engine_grid = simple_grid_3d_more_points_grid
     print(engine_grid.regular_grid_values[45, 2, 4, 2])
-    np.testing.assert_almost_equal(engine_grid.regular_grid_values[45, 2, 4, 2], .295)
+    np.testing.assert_almost_equal(engine_grid.regular_grid_values[45, 2, 4, 2], .295, 6)
 
 
 def test_regular_grid_point_generation(simple_grid_3d_octree: Grid):
@@ -66,21 +66,20 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
     # interpolate level 0 - center
-    output_0_centers = interp.interpolate_and_segment(interpolation_input, options, data_shape)
+    output_0_centers = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure)
 
     # Interpolate level 0 - corners
     from gempy_engine.modules.octrees_topology._octree_common import _generate_corners
     grid_0_corners = Grid(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
     interpolation_input.grid = grid_0_corners
-    output_0_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape,
-                                                      clean_buffer=False)
+    output_0_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure, clean_buffer=False)
 
     # Create octree level 0
     octree_lvl0 = OctreeLevel()
     octree_lvl0.is_root = True
 
     octree_lvl0 = octree_lvl0.set_interpolation_values(grid_0_centers, grid_0_corners,
-                                                       output_0_centers, output_0_corners)
+                                                       [output_0_centers], [output_0_corners])
 
     # Generate grid_1_centers
     debug_vals = get_next_octree_grid(octree_lvl0, compute_topology=False, debug=True)
@@ -90,17 +89,17 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     # Level 1
     octree_lvl1 = OctreeLevel()
     interpolation_input.grid = grid_1_centers
-    output_1_centers = interp.interpolate_and_segment(interpolation_input, options, data_shape,
+    output_1_centers = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure,
                                                       clean_buffer=False)
 
     # Interpolate level 1 - Corners
     grid_1_corners = Grid(_generate_corners(grid_1_centers.values, grid_1_centers.dxdydz))
     interpolation_input.grid = grid_1_corners
-    output_1_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape,
+    output_1_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure,
                                                       clean_buffer=False)
 
     # Create octree level 1
-    octree_lvl1.set_interpolation_values(grid_1_centers, grid_1_corners, output_1_centers, output_1_corners)
+    octree_lvl1.set_interpolation_values(grid_1_centers, grid_1_corners, [output_1_centers], [output_1_corners])
 
     debug_vals = get_next_octree_grid(octree_lvl1, compute_topology=False, debug=True)
     xyz1, anch1, select1 = debug_vals[:3]
@@ -234,13 +233,12 @@ def _plot_points_in_vista(grid_0_centers, mesh, anch=None):
 def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_points, weights):
     def _compute_high_res_model(data_shape, ids, interp_input, orientations, resolution, scalar_at_surface_points,
                                 surface_points, weights):
-
         from gempy_engine.core.data.grid import Grid, RegularGrid
 
         grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
         grid_internal_high_res, ori_internal, sp_internal = _input_preprocess(
             data_shape, grid_high_res, orientations, surface_points)
-        exported_fields_high_res = _evaluate_sys_eq( grid_internal_high_res, interp_input, weights)
+        exported_fields_high_res = _evaluate_sys_eq(grid_internal_high_res, interp_input, weights)
         exported_fields_high_res.n_points_per_surface = data_shape.reference_sp_position
         exported_fields_high_res.n_surface_points = surface_points.n_points
 

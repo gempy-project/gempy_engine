@@ -61,21 +61,14 @@ class MaskMatrices:
     mask_fault: Optional[np.ndarray]
 
 
-@dataclass(init=False)
-class InterpOutput:
+@dataclass(init=True)
+class ScalarFieldOutput:
     weights: np.ndarray
     grid: Grid
 
     exported_fields: ExportedFields
-    final_exported_fields: ExportedFields  # Masked array containing only the active voxels
     values_block: np.ndarray  # final values ignoring unconformities
-    final_block: np.ndarray  # Masked array containing only the active voxels
-
     mask_components: MaskMatrices
-    squeezed_mask_array: np.ndarray
-
-    # Remember this is only for regular grid
-    octrees: List[np.ndarray]  # TODO: This probably should be one level higher. (unsure what I meant here)
 
     @property
     def grid_size(self):
@@ -98,21 +91,65 @@ class InterpOutput:
     def values_block_regular_grid(self):
         return self.values_block[:, self.grid.len_grids[0]]
 
+
+@dataclass(init=True)
+class CombinedScalarFieldsOutput:
+    squeezed_mask_array: np.ndarray
+    final_block: np.ndarray  # Masked array containing only the active voxels
+    final_exported_fields: ExportedFields   # Masked array containing only the active voxels
+
+
+@dataclass(init=True)
+class InterpOutput:
+    scalar_fields: ScalarFieldOutput
+    combined_scalar_field: Optional[CombinedScalarFieldsOutput] = None
+  
+    @property
+    def weights(self):
+        return self.scalar_fields.weights
+
+    @property
+    def grid(self):
+        return self.scalar_fields.grid
+
+    @property
+    def exported_fields(self):
+        return self.scalar_fields.exported_fields
+
+    @property
+    def values_block(self):
+        return self.scalar_fields.values_block
+    
+    @property
+    def mask_components(self):
+        return self.scalar_fields.mask_components
+    
+    @property
+    def final_exported_fields(self):
+        return self.combined_scalar_field.final_exported_fields
+
+    @property
+    def final_block(self):
+        return self.combined_scalar_field.final_block
+  
     @property
     def ids_block_regular_grid(self):
-        if self.final_block is None:
-            self.final_block = self.values_block
-        
-        return np.rint(self.final_block[:self.grid.len_grids[0]].reshape(self.grid.regular_grid_shape))
+        return np.rint(self.block[:self.grid.len_grids[0]].reshape(self.grid.regular_grid_shape))
 
     @property
     def ids_block(self) -> np.ndarray:
-        return np.rint(self.final_block[:self.grid.len_grids[0]])
-    
+        return np.rint(self.block[:self.grid.len_grids[0]])
+
     @ids_block.setter
     def ids_block(self, value):
-        self.final_block[:self.grid.len_grids[0]] = value
-        
+        self.block[:self.grid.len_grids[0]] = value
+    
+    @property
+    def block(self):
+        if self.combined_scalar_field is None:
+            return self.values_block
+        else:
+            return self.combined_scalar_field.final_block
 
 
 @dataclass(init=False)
@@ -169,19 +206,22 @@ class DualContouringData:
     xyz_on_centers: np.ndarray
     dxdydz: np.ndarray
     
-    exported_fields_on_edges: ExportedFields
+    exported_fields_on_edges: Optional[ExportedFields]
+    
+    n_surfaces: int
     _gradients: np.ndarray = None
     
     # Water tight 
     mask: np.ndarray = None
-    n_surfaces: int =None
+   
 
     bias_center_mass: np.ndarray = None  # * Only for testing
     bias_normals: np.ndarray = None  # * Only for testing
 
     def __post_init__(self):
-        ef = self.exported_fields_on_edges
-        self._gradients = np.stack((ef.gx_field, ef.gy_field, ef.gz_field), axis=0).T  # ! When we are computing the edges for dual contouring there is no surface points
+        if self.exported_fields_on_edges is not None:
+            ef = self.exported_fields_on_edges
+            self._gradients = np.stack((ef.gx_field, ef.gy_field, ef.gz_field), axis=0).T  # ! When we are computing the edges for dual contouring there is no surface points
     
     @property
     def gradients(self):

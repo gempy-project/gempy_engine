@@ -5,6 +5,7 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 
 
 class DualContouringMaskingOptions(enum.Enum):
+    NOTHING = enum.auto()  # * This is only for testing
     DISJOINT = enum.auto()
     INTERSECT = enum.auto()
     RAW = enum.auto()

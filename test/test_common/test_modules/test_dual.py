@@ -49,24 +49,25 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     dc_data = DualContouringData(
         xyz_on_edge=intersection_xyz,
         valid_edges=valid_edges,
-        grid_centers=last_octree_level.grid_centers,
-        exported_fields_on_edges=output_on_edges[0].exported_fields
+        xyz_on_centers=last_octree_level.grid_centers.values,
+        dxdydz=last_octree_level.grid_centers.dxdydz,
+        exported_fields_on_edges=output_on_edges[0].exported_fields,
+        n_surfaces=data_shape.tensors_structure.n_surfaces
     )
 
     gradients = dc_data.gradients
 
-    dc_meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, data_shape.tensors_structure.n_surfaces,
-                                                                  debug=True)
+    dc_meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data)
 
     dc_data = dc_meshes[0].dc_data
     valid_voxels = dc_data.valid_voxels
 
     # Mark active voxels
-    temp_ids = octree_list[-1].output_centers.ids_block  # ! I need this because setters in python sucks
+    temp_ids = octree_list[-1].last_output_center.ids_block  # ! I need this because setters in python sucks
     temp_ids[valid_voxels] = 5
-    octree_list[-1].output_centers.ids_block = temp_ids  # paint valid voxels
+    octree_list[-1].last_output_center.ids_block = temp_ids  # paint valid voxels
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         output_corners: InterpOutput = last_octree_level.outputs_corners[-1]
         vertices = output_corners.grid.values
         intersection_points = intersection_xyz
@@ -81,27 +82,27 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
 
 def test_compute_dual_contouring_complex(unconformity_complex_one_layer, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex_one_layer
-    
+
     options.debug = True
-    
+
     options.number_octree_levels = n_oct_levels
     solutions: Solutions = interpolate_model(interpolation_input, options, structure)
     dc_data = solutions.dc_meshes[0].dc_data
 
-    if True:
+    if plot_pyvista or False:
         output_corners: InterpOutput = solutions.octrees_output[-1].outputs_corners[-1]
         vertices = output_corners.grid.values
 
         intersection_xyz = dc_data.xyz_on_edge
         gradients = dc_data.gradients
-        
+
         center_mass = dc_data.bias_center_mass
         normals = dc_data.bias_normals
         helper_functions_pyvista.plot_pyvista(solutions.octrees_output,
                                               dc_meshes=solutions.dc_meshes,
                                               xyz_on_edge=intersection_xyz, gradients=gradients,
                                               a=center_mass, b=normals,
-                                              #v_just_points=vertices
+                                              # v_just_points=vertices
                                               )
 
 
@@ -115,13 +116,20 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    dc_data = get_intersection_on_edges(last_octree_level)
-    interpolation_input.grid = Grid(dc_data.xyz_on_edge)
-    output_on_edges = interp.interpolate_single_field(interpolation_input, options,
-                                                      data_shape)
-    dc_data.gradients = output_on_edges.exported_fields
+    intersection_xyz, valid_edges = get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
+    interpolation_input.grid = Grid(intersection_xyz)
+    output_on_edges = interp.interpolate_single_field(interpolation_input, options, data_shape.tensors_structure)
 
-    mesh = compute_dual_contouring(dc_data, data_shape.n_surfaces)
+    dc_data = DualContouringData(
+        xyz_on_edge=intersection_xyz,
+        valid_edges=valid_edges,
+        xyz_on_centers=last_octree_level.grid_centers.values,
+        dxdydz=last_octree_level.grid_centers.dxdydz,
+        exported_fields_on_edges=output_on_edges.exported_fields,
+        n_surfaces=data_shape.tensors_structure.n_surfaces
+    )
+
+    mesh = compute_dual_contouring(dc_data)
 
     if plot_pyvista or False:
         _plot_pyvista(last_octree_level, octree_list, simple_model_3_layers,
@@ -144,7 +152,7 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
 
     last_octree_level: OctreeLevel = octree_list[2]
 
-    sfsp = last_octree_level.output_corners.scalar_field_at_sp
+    sfsp = last_octree_level.last_output_corners.scalar_field_at_sp
 
     xyz_on_edge, valid_edges = find_intersection_on_edge(last_octree_level.grid_corners.values, last_octree_level.output_corners.exported_fields.scalar_field, sfsp, )
 
@@ -238,14 +246,7 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
 
         v_mesh.append(v)
 
-    # region triangulate
-    grid_centers = last_octree_level.grid_centers
-    valid_voxels = valid_edges.sum(axis=1, dtype=bool)
-    indices = triangulate_dual_contouring(grid_centers.values, grid_centers.dxdydz,
-                                          valid_edges, valid_voxels)
-    # endregion
-
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers,
                       xyz_on_edge, gradients, a, b, v_pro, np.array(v_mesh), indices=None,
                       plot_label=False, plot_marching_cubes=False)
@@ -323,15 +324,6 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     s3 = np.einsum("ijk,ik->ij", np.transpose(A1, (0, 2, 1)), bb1)
     v_pro = np.einsum("ijk, ij->ik", s2, s3)
 
-    np.testing.assert_array_almost_equal(
-        v_pro[::10],
-        np.array(
-            [[0.522, 0.369, 0.388],
-             [0.515, 0.368, 0.371],
-             [0.181, 0.568, 0.332]]
-        ), 3
-    )
-
     # endregion
 
     # endregion
@@ -340,15 +332,23 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     grid_centers = last_octree_level.grid_centers
     valid_voxels = valid_edges.sum(axis=1, dtype=bool)
 
-    temp_ids = octree_list[-1].output_centers.ids_block  # ! I need this because setters in python sucks
+    temp_ids = octree_list[-1].last_output_center.ids_block  # ! I need this because setters in python sucks
     temp_ids[valid_voxels] = 5
-    octree_list[-1].output_centers.ids_block = temp_ids  # paint valid voxels
-
-    indices = triangulate_dual_contouring(grid_centers.values, grid_centers.dxdydz,
-                                          valid_edges, valid_voxels)
+    octree_list[-1].last_output_center.ids_block = temp_ids  # paint valid voxels
+    
+    dc_data = DualContouringData(
+        xyz_on_edge=xyz_on_edge,
+        xyz_on_centers=grid_centers.values,
+        dxdydz=grid_centers.dxdydz,
+        valid_edges=valid_edges,
+        exported_fields_on_edges=None,
+        n_surfaces=data_shape.tensors_structure.n_surfaces
+    )
+    
+    indices = triangulate_dual_contouring(dc_data)
     # endregion
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         # ! I leave this test for the assert as comparison to the other implementation. The model looks bad
         # ! with this level of BIAS
         center_mass = xyz[:, 12:].reshape(-1, 3)
@@ -441,11 +441,19 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
     temp_ids[valid_voxels] = 5
     octree_list[-1].output_centers.ids_block = temp_ids  # paint valid voxels
 
-    indices = triangulate_dual_contouring(grid_centers.values, grid_centers.dxdydz,
-                                          valid_edges, valid_voxels)
+    dc_data = DualContouringData(
+        xyz_on_edge=xyz_on_edge,
+        xyz_on_centers=grid_centers.values,
+        dxdydz=grid_centers.dxdydz,
+        valid_edges=valid_edges,
+        exported_fields_on_edges=None,
+        n_surfaces=data_shape.tensors_structure.n_surfaces
+    )
+    
+    indices = triangulate_dual_contouring(dc_data)
     # endregion
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         center_mass = xyz[:, 12:].reshape(-1, 3)
         normals = normals[:, 12:].reshape(-1, 3)
         _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers,
