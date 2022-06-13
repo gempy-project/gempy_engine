@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
+from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items,  \
@@ -26,12 +27,12 @@ def test_covariance_cubic_kernel(simple_model_2):
     surface_points = simple_model_2[0]
     orientations = simple_model_2[1]
     options = simple_model_2[2]
-    tensors_structure = simple_model_2[3]
+    input_data_descriptor: InputDataDescriptor = simple_model_2[3]
 
     options.i_res = 1
     options.gi_res = 1
 
-    sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
+    sp_internals = surface_points_preprocess(surface_points, input_data_descriptor.tensors_structure)
     ori_internals = orientations_preprocess(orientations)
 
     cov = yield_covariance(SolverInput(sp_internals, ori_internals, options))
@@ -53,9 +54,9 @@ def test_eval_kernel(simple_model_2, simple_grid_2d):
     surface_points = simple_model_2[0]
     orientations = simple_model_2[1]
     options = simple_model_2[2]
-    tensors_structure = simple_model_2[3]
+    input_data_descriptor: InputDataDescriptor = simple_model_2[3]
 
-    sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
+    sp_internals = surface_points_preprocess(surface_points, input_data_descriptor.tensors_structure)
     ori_internals = orientations_preprocess(orientations)
     kernel_data = evaluation_vectors_preparations(simple_grid_2d, SolverInput(sp_internals, ori_internals, options))
     export_kernel = create_scalar_kernel(kernel_data, options)
@@ -64,40 +65,25 @@ def test_eval_kernel(simple_model_2, simple_grid_2d):
     export_gradient_ = create_grad_kernel(kernel_data, options)
     print(export_gradient_)
 
-# TODO: By default we are not testing if the graph works with tf.function
-# def test_covariance_spline_kernel(simple_model_2):
-#     surface_points = simple_model_2[0]
-#     orientations = simple_model_2[1]
-#     options = simple_model_2[2]
-#     tensors_structure = simple_model_2[3]
-#
-#     options.kernel_function = AvailableKernelFunctions.exponential
-#
-#     sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
-#     ori_internals = orientations_preprocess(orientations)
-#
-#     cov = yield_covariance(sp_internals, ori_internals, options)
-#     cov_sum = cov.sum(axis=1).reshape(-1, 1)
-#     print(cov_sum)
-#     return cov_sum
-#
 
 pykeops_enabled = True
+
+
 # TODO: (bug) When running test_covariance_spline_kernel the running the class test breaks for some weird state change
 class TestPykeopsNumPyEqual():
+    
     @pytest.fixture(scope="class")
     def preprocess_data(self, simple_model_2):
         surface_points = simple_model_2[0]
         orientations = simple_model_2[1]
         options = simple_model_2[2]
-        tensors_structure = simple_model_2[3]
+        input_data_descriptor: InputDataDescriptor = simple_model_2[3]
         # Prepare options
         options.kernel_function = AvailableKernelFunctions.exponential
 
         # Prepare kernel
-        sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
+        sp_internals = surface_points_preprocess(surface_points, input_data_descriptor.tensors_structure)
         ori_internals = orientations_preprocess(orientations)
-
 
         return sp_internals, ori_internals, options
 

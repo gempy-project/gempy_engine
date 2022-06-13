@@ -86,13 +86,13 @@ def test_mask_arrays(unconformity_complex):
     output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)  # TODO: This is unnecessary for the last level except for Dual contouring
 
     if plot_pyvista or False:
-        plot_block(outputs[0].squeezed_mask_array, grid)      
-        plot_block(outputs[1].squeezed_mask_array, grid)
-        plot_block(outputs[2].squeezed_mask_array, grid)
+        plot_block(outputs[0].combined_scalar_field.squeezed_mask_array, grid)      
+        plot_block(outputs[1].combined_scalar_field.squeezed_mask_array, grid)
+        plot_block(outputs[2].combined_scalar_field.squeezed_mask_array, grid)
     
     mask_1 = output_0_corners[0].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
-    mask_2 = output_0_corners[1].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
-    mask_3 = output_0_corners[2].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+    mask_2 = output_0_corners[1].combined_scalar_field.squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+    mask_3 = output_0_corners[2].combined_scalar_field.squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
 
     if True:
 

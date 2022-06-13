@@ -1,7 +1,9 @@
 import numpy as np
 
+from gempy_engine.core.data import TensorsStructure
 from gempy_engine.core.data.exported_structs import OctreeLevel
 from gempy_engine.core.data.grid import Grid
+from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.internal_structs import SolverInput
 import gempy_engine.API.interp_single.interp_single_interface as interp
 from gempy_engine.core.data.interpolation_input import InterpolationInput
@@ -163,16 +165,14 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
     n = 4
     regular_grid_scalar = get_regular_grid_for_level(octree_list, n).astype("int8")
 
-    # np.save(dir_name + "/solutions/test_octree_leaf", np.round(regular_grid_scalar))
-    ids_sol = np.load(dir_name + "/solutions/test_octree_leaf.npy")
-    np.testing.assert_almost_equal(np.round(regular_grid_scalar.ravel()), ids_sol, decimal=3)
+    
     # ===========
     if plot_pyvista or False:
         # Compute actual mesh
         resolution = [20, 20, 20]
         mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
-                                    octree_list[0].output_centers.scalar_field_at_sp,
-                                    octree_list[0].output_centers.weights)
+                                    octree_list[0].last_output_center.scalar_field_at_sp,
+                                    octree_list[0].last_output_center.weights)
 
         debug_vals = get_next_octree_grid(octree_list[n], compute_topology=False, debug=True)
         a = debug_vals[-2]
@@ -195,6 +195,11 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
         p.add_mesh(foo, show_edges=False, opacity=.5, cmap="tab10")
         p.add_axes()
         p.show()
+    
+    # np.save(dir_name + "/solutions/test_octree_leaf", np.round(regular_grid_scalar))
+    ids_sol = np.load(dir_name + "/solutions/test_octree_leaf.npy")
+    ids_sol[ids_sol == 2] = 0  # ! This is coming because the masking
+    np.testing.assert_almost_equal(np.round(regular_grid_scalar.ravel()), ids_sol, decimal=3)
 
 
 def test_octree_lvl_collapse(simple_model, simple_grid_3d_octree):
@@ -231,15 +236,16 @@ def _plot_points_in_vista(grid_0_centers, mesh, anch=None):
 
 
 def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_points, weights):
-    def _compute_high_res_model(data_shape, ids, interp_input, orientations, resolution, scalar_at_surface_points,
+    def _compute_high_res_model(data_shape: InputDataDescriptor, ids, interp_input, orientations, resolution, scalar_at_surface_points,
                                 surface_points, weights):
         from gempy_engine.core.data.grid import Grid, RegularGrid
 
         grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
-        grid_internal_high_res, ori_internal, sp_internal = _input_preprocess(
-            data_shape, grid_high_res, orientations, surface_points)
+        grid_internal_high_res, ori_internal, sp_internal = _input_preprocess( data_shape.tensors_structure,
+            grid_high_res, orientations, surface_points)
+        
         exported_fields_high_res = _evaluate_sys_eq(grid_internal_high_res, interp_input, weights)
-        exported_fields_high_res.n_points_per_surface = data_shape.reference_sp_position
+        exported_fields_high_res.n_points_per_surface = data_shape.tensors_structure.reference_sp_position
         exported_fields_high_res.n_surface_points = surface_points.n_points
 
         values_block_high_res = activate_formation_block(exported_fields_high_res,
@@ -249,9 +255,9 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
     surface_points = simple_model[0]
     orientations = simple_model[1]
     options = simple_model[2]
-    data_shape = simple_model[3]
+    data_shape: InputDataDescriptor = simple_model[3]
     grid_internal, ori_internal, sp_internal = _input_preprocess(
-        data_shape, grid, orientations, surface_points)
+        data_shape.tensors_structure, grid, orientations, surface_points)
     interp_input = SolverInput(sp_internal, ori_internal, options)
     values_block_high_res, scalar_high_res, dxdydz = _compute_high_res_model(data_shape, ids, interp_input,
                                                                              orientations, resolution,

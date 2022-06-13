@@ -14,11 +14,18 @@ from ...modules.octrees_topology import octrees_topology_interface as octrees
 # * Only For testing
 def interpolate_single_field(interpolation_input: InterpolationInput, options: data.InterpolationOptions,
                              data_shape: data.TensorsStructure) -> InterpOutput:
-    output = InterpOutput()
-    output.grid = interpolation_input.grid
-    output.weights, output.exported_fields = interpolate_scalar_field(interpolation_input, options, data_shape)
+    
+    grid = interpolation_input.grid
+    weights, exported_fields = interpolate_scalar_field(interpolation_input, options, data_shape)
+    scalar_output = ScalarFieldOutput(
+        weights= weights,
+        grid=grid,
+        exported_fields=exported_fields,
+        values_block=None,
+        mask_components=None
+    )
 
-    return output
+    return InterpOutput(scalar_output)
 
 
 def compute_n_octree_levels(n_levels: int, interpolation_input_original: InterpolationInput,

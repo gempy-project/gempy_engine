@@ -15,13 +15,13 @@ import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.input_data_descriptor import TensorsStructure, StacksStructure, StackRelationType, InputDataDescriptor
-from gempy_engine.core.data.exported_structs import InterpOutput
+from gempy_engine.core.data.exported_structs import InterpOutput, ScalarFieldOutput
 
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
-from gempy_engine.core.data.kernel_classes.orientations import Orientations
-from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
+from gempy_engine.core.data.kernel_classes.orientations import Orientations, OrientationsInternals
+from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints, SurfacePointsInternals
 from gempy_engine.core.data.options import InterpolationOptions
 from gempy_engine.API.interp_single._interp_single_internals import _solve_interpolation, \
     _input_preprocess, _evaluate_sys_eq
@@ -34,10 +34,8 @@ data_path = dir_name + "/simple_geometries/"
 
 
 @pytest.fixture(scope='session')
-def simple_model_2():
+def simple_model_2() -> Tuple[SurfacePoints, Orientations, InterpolationOptions, InputDataDescriptor]:
     print(BackendTensor.describe_conf())
-
-    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([4, 3]))
 
     sp_coords = np.array([[4, 0],
                           [0, 0],
@@ -62,17 +60,25 @@ def simple_model_2():
     kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0,
                                number_dimensions=2, kernel_function=AvailableKernelFunctions.cubic)
 
-    return spi, ori_i, kri, tensor_struct
+    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([4, 3]))
+    stack_structure = StacksStructure(number_of_points_per_stack=np.array([7]),
+                                      number_of_orientations_per_stack=np.array([2]),
+                                      number_of_surfaces_per_stack=np.array([2]),
+                                      masking_descriptor=[StackRelationType.ERODE])
+
+    input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
+
+    return spi, ori_i, kri, input_data_descriptor
 
 
 @pytest.fixture(scope="session")
-def simple_model_2_internals(simple_model_2):
+def simple_model_2_internals(simple_model_2) -> Tuple[SurfacePointsInternals, OrientationsInternals, InterpolationOptions]:
     surface_points = simple_model_2[0]
     orientations = simple_model_2[1]
     options = simple_model_2[2]
-    tensors_structure = simple_model_2[3]
+    input_data_descriptor: InputDataDescriptor = simple_model_2[3]
 
-    sp_internals = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
+    sp_internals = surface_points_preprocess(surface_points, input_data_descriptor.tensors_structure)
     ori_internals = orientations_preprocess(orientations)
     return sp_internals, ori_internals, options
 
@@ -153,13 +159,19 @@ def simple_model_interpolation_input(simple_grid_3d_octree) -> Tuple[Interpolati
     interpolation_options = InterpolationOptions(range_, co, 0, number_dimensions=3,
                                                  kernel_function=AvailableKernelFunctions.cubic)
 
-    tensor_structure = TensorsStructure(np.array([7]))
-
     ids = np.array([1, 2])
 
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
+    
+    tensor_struct = TensorsStructure(np.array([7]))
+    stack_structure = StacksStructure(number_of_points_per_stack=np.array([7]),
+                                      number_of_orientations_per_stack=np.array([2]),
+                                      number_of_surfaces_per_stack=np.array([2]),
+                                      masking_descriptor=[StackRelationType.ERODE])
 
-    yield interpolation_input, interpolation_options, tensor_structure
+    input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
+
+    yield interpolation_input, interpolation_options, input_data_descriptor
 
 
 @pytest.fixture(scope="session")
@@ -257,13 +269,19 @@ def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid) -> Tuple[Int
     interpolation_options = InterpolationOptions(range_, co, 0,
                                                  number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
 
-    tensor_structure = TensorsStructure(np.array([7, 2, 2]))
-
     ids = np.array([1, 2, 3, 4])
 
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    return interpolation_input, interpolation_options, tensor_structure
+    tensor_struct = TensorsStructure(np.array(np.array([7, 2, 2])))
+    stack_structure = StacksStructure(number_of_points_per_stack=np.array([11]),
+                                      number_of_orientations_per_stack=np.array([2]),
+                                      number_of_surfaces_per_stack=np.array([3]),
+                                      masking_descriptor=[StackRelationType.ERODE])
+
+    input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
+
+    return interpolation_input, interpolation_options, input_data_descriptor
 
 
 @pytest.fixture(scope="session")
@@ -291,13 +309,16 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
     # TODO: [~X] Export block
     values_block: np.ndarray = activate_formation_block(exported_fields, ids, sigmoid_slope=50000)
 
-    output = InterpOutput()
-    output.grid = grid
-    output.exported_fields = exported_fields
-    output.weights = weights
-    output.values_block = values_block
-    output.final_block = None
-
+    output = InterpOutput(
+        ScalarFieldOutput(
+            weights=weights,
+            grid=grid,
+            exported_fields=exported_fields,
+            values_block=values_block,
+            mask_components=None
+        )
+    )
+    
     return output
 
 

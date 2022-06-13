@@ -19,7 +19,7 @@ def test_interpolate_model(simple_model_interpolation_input, n_oct_levels=3):
     if plot_pyvista or True:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
-        plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
+        plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels -1)
         plot_dc_meshes(p, solutions.dc_meshes[0])
         p.show()
 
@@ -65,7 +65,7 @@ def test_interpolate_model_unconformity(unconformity, n_oct_levels=4):
     options.number_octree_levels = n_oct_levels
     solutions = interpolate_model(interpolation_input, options, structure)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
@@ -79,6 +79,4 @@ def test_interpolate_model_unconformity(unconformity, n_oct_levels=4):
 
         p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
         
-        # TODO: Dual contour meshes look like they are not working
-        #plot_dc_meshes(p, solutions.dc_meshes[0])
         p.show()
