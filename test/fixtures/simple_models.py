@@ -52,7 +52,8 @@ def simple_model_2():
     dip_positions = np.array([[0, 6],
                               [2, 13]])
 
-    dip_gradients = np.array([[0, 1], [0, .8]])
+    dip_gradients = np.array([[0, 1],
+                              [0, .8]])
 
     nugget_effect_grad = 0.0000001
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)

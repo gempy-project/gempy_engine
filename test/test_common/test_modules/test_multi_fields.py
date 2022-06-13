@@ -142,7 +142,7 @@ def test_plot_corners(unconformity_complex, n_oct_levels=2):
     helper_functions_pyvista.plot_pyvista(solutions.octrees_output,  v_just_points=vertices)
     
 
-def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct_levels=2):
+def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct_levels=4):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
     options.debug = True
@@ -152,7 +152,7 @@ def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct
     
     if True:
         
-        dc_data = solutions.dc_meshes[1].dc_data # * Scalar field where to show gradients
+        dc_data = solutions.dc_meshes[0].dc_data # * Scalar field where to show gradients
         intersection_xyz = dc_data.xyz_on_edge
         gradients = dc_data.gradients
 
@@ -161,8 +161,8 @@ def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct
 
         helper_functions_pyvista.plot_pyvista(solutions.octrees_output,
                                               dc_meshes=solutions.dc_meshes,
-                                              #xyz_on_edge=intersection_xyz, gradients=gradients, # * Uncomment for more detailed plots
-                                              #a=center_mass, b=normals
+                                          #   xyz_on_edge=intersection_xyz, gradients=gradients, # * Uncomment for more detailed plots
+                                         #     a=center_mass, b=normals
                                               )
 
 
@@ -212,7 +212,7 @@ def test_dual_contouring_multiple_independent_fields_intersect_raw(unconformity_
                                               )
 
 
-def test_dual_contouring_multiple_independent_fields_mask(unconformity_complex, n_oct_levels=4):
+def test_dual_contouring_multiple_independent_fields_mask(unconformity_complex, n_oct_levels=3):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
     options.debug = True
