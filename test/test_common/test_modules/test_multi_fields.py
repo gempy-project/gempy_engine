@@ -1,6 +1,7 @@
 import copy
 from typing import List
 
+import pytest
 from matplotlib import pyplot as plt
 
 from gempy_engine.API.interp_manager.interp_manager_api import _interpolate, interpolate_model, DualContouringMaskingOptions
@@ -10,7 +11,7 @@ from gempy_engine.core.data.input_data_descriptor import TensorsStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_for_level
 from ... import helper_functions_pyvista
-from ...conftest import plot_pyvista
+from ...conftest import plot_pyvista, TEST_SPEED
 
 plot_pyvista = False
 try:
@@ -71,6 +72,7 @@ def test_compute_mask_components_all_erode(unconformity_complex):
         plot_block(outputs[2].mask_components.mask_lith, grid)
 
 
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 # noinspection PyUnreachableCode
 def test_mask_arrays(unconformity_complex):
     interpolation_input, options, structure = copy.deepcopy(unconformity_complex)
@@ -132,6 +134,7 @@ def test_final_exported_fields(unconformity_complex):
         plot_block(outputs[2].final_exported_fields._scalar_field, grid)
     
 
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_plot_corners(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
@@ -143,6 +146,7 @@ def test_plot_corners(unconformity_complex, n_oct_levels=2):
         helper_functions_pyvista.plot_pyvista(solutions.octrees_output,  v_just_points=vertices)
     
 
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
@@ -167,6 +171,7 @@ def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct
                                               )
 
 
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_dual_contouring_multiple_independent_fields_intersect(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
@@ -190,6 +195,7 @@ def test_dual_contouring_multiple_independent_fields_intersect(unconformity_comp
                                               )
         
         
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_dual_contouring_multiple_independent_fields_intersect_raw(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
@@ -213,6 +219,7 @@ def test_dual_contouring_multiple_independent_fields_intersect_raw(unconformity_
                                               )
 
 
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_dual_contouring_multiple_independent_fields_mask(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
@@ -237,6 +244,7 @@ def test_dual_contouring_multiple_independent_fields_mask(unconformity_complex, 
                                               )
 
 
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_dual_contouring_multiple_dependent_fields(unconformity_complex, n_oct_levels=2):
     # * Dependent_dual_contouring seems a bad idea
 
@@ -261,6 +269,7 @@ def test_dual_contouring_multiple_dependent_fields(unconformity_complex, n_oct_l
                                               )
 
 
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels

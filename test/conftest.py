@@ -46,12 +46,13 @@ plot_pyvista = False
 
 
 class TestSpeed(enum.Enum):
-    SECONDS = 0
-    MINUTES = 1
-    HOURS = 2
+    MILLISECONDS = 0
+    SECONDS = 1
+    MINUTES = 2
+    HOURS = 3
 
 
-TEST_SPEED = TestSpeed.SECONDS  # * Use seconds for compile errors, minutes before pushing and hours before release
+TEST_SPEED = TestSpeed.MILLISECONDS  # * Use seconds for compile errors, minutes before pushing and hours before release
 
 
 @pytest.fixture(scope='session')

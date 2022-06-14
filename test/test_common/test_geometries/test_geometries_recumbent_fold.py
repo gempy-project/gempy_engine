@@ -155,7 +155,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         print(weights - weights_sol)
         np.testing.assert_allclose(weights, weights_sol, atol=1e-4)
 
-    @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Trigger only manually since it is too slow")
+    @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
     def test_recumbent_fold_scaled(self, recumbent_fold_scaled):
         """
         Old gempy:
@@ -267,6 +267,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
 
         print(contribution)
 
+    @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
     def test_recumbent_fold_universal_degree_2_gradient(self, recumbent_fold_scaled):
         interpolation_input, options, structure = recumbent_fold_scaled
 

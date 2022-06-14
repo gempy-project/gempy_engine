@@ -5,9 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
+import pytest
+
 from gempy_engine.API.interp_single._interp_single_internals import interpolate_all_fields
 from gempy_engine.core.data.exported_structs import InterpOutput
 from gempy_engine.API.interp_single.interp_single_interface import interpolate_single_field
+from test.conftest import TEST_SPEED
 from test.helper_functions import plot_block
 
 dir_name = os.path.dirname(__file__)
@@ -109,6 +112,7 @@ def test_export_simple_model_low_res(simple_model_interpolation_input, plot=True
         plt.show()
 
 
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_export_3_layers(simple_model_3_layers_high_res, plot=True):
     interpolation_input, options, structure = simple_model_3_layers_high_res
 

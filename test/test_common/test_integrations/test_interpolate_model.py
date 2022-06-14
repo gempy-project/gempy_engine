@@ -1,5 +1,7 @@
+import pytest
+
 from gempy_engine.API.interp_manager.interp_manager_api import interpolate_model
-from ...conftest import plot_pyvista
+from ...conftest import plot_pyvista, TEST_SPEED
 
 try:
     # noinspection PyUnresolvedReferences
@@ -24,6 +26,7 @@ def test_interpolate_model(simple_model_interpolation_input, n_oct_levels=3):
         p.show()
 
 
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_interpolate_model_no_octtree(simple_model_3_layers_high_res, n_oct_levels=1):
     interpolation_input, options, structure = simple_model_3_layers_high_res
     print(interpolation_input)

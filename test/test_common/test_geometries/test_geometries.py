@@ -7,6 +7,7 @@ from gempy_engine.API.interp_single.interp_single_interface import interpolate_s
 from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items
 from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation, \
     evaluation_vectors_preparations
+from test.conftest import TEST_SPEED
 from test.helper_functions import plot_2d_scalar_y_direction
 
 import numpy as np
@@ -170,6 +171,7 @@ class TestHorizontalStatCovConstructionNoDrift:
 
         np.testing.assert_allclose(val[6:, :6], sol, rtol=0.02)
 
+    @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
     def test_horizontal_stratigraphic_scaled_eval_i(self, horizontal_stratigraphic_scaled):
         """
         [0.013 0.013 0.012 ... 0.005 0.005 0.005]
@@ -193,6 +195,7 @@ class TestHorizontalStatCovConstructionNoDrift:
         np.testing.assert_allclose(val[:3], np.array([-0.013, -0.013, -0.012]), rtol=0.06)
         np.testing.assert_allclose(val[-3:], np.array([-0.004, -0.036, -0.004]), rtol=0.06)
 
+    @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
     def test_horizontal_stratigraphic_scaled_eval_gi(self, horizontal_stratigraphic_scaled):
         """
          [-0.206 -0.204 -0.201 ... -0.091 -0.091 -0.091]

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from gempy_engine.core.data import TensorsStructure
 from gempy_engine.core.data.exported_structs import OctreeLevel
@@ -16,7 +17,7 @@ from gempy_engine.modules.octrees_topology.octrees_topology_interface import get
     get_regular_grid_for_level
 import os
 
-from ...conftest import plot_pyvista
+from ...conftest import plot_pyvista, TEST_SPEED
 
 dir_name = os.path.dirname(__file__)
 
@@ -153,6 +154,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
         p.show()
 
 
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_octree_leaf(simple_model, simple_grid_3d_octree):
     spi, ori_i, options, data_shape = simple_model
     ids = np.array([1, 2])
@@ -202,6 +204,7 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
     np.testing.assert_almost_equal(np.round(regular_grid_scalar.ravel()), ids_sol, decimal=3)
 
 
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_octree_lvl_collapse(simple_model, simple_grid_3d_octree):
     octree_list = _run_octree_api(simple_model, simple_grid_3d_octree)
     for i in range(len(octree_list)):

@@ -1,6 +1,8 @@
 import copy
 from typing import List
 
+import pytest
+
 import gempy_engine.API.interp_single._interp_single_internals
 from gempy_engine.API.interp_manager.interp_manager_api import interpolate_model
 from gempy_engine.core.data.grid import Grid
@@ -20,6 +22,7 @@ from gempy_engine.API.interp_single.interp_single_interface import compute_n_oct
 from gempy_engine.modules.dual_contouring.dual_contouring_interface import QEF, find_intersection_on_edge, triangulate_dual_contouring
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_for_level
 from test import helper_functions_pyvista
+from test.conftest import TEST_SPEED
 
 dir_name = os.path.dirname(__file__)
 
@@ -106,6 +109,7 @@ def test_compute_dual_contouring_complex(unconformity_complex_one_layer, n_oct_l
                                               )
 
 
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_grid_3d_octree):
     # region Test find_intersection_on_edge
     interpolation_input, options, data_shape = simple_model_3_layers
