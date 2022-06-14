@@ -1,5 +1,6 @@
 import pytest
 
+from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.exported_structs import InterpOutput
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.API.interp_single._interp_single_internals import _input_preprocess
@@ -271,7 +272,7 @@ class TestHorizontalStatCovConstructionNoDrift:
         """
         interpolation_input, options, structure = horizontal_stratigraphic_scaled
 
-        options.uni_degree = 1
+        options.kernel_options.uni_degree = 1
 
         # Within series
         xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
@@ -333,7 +334,7 @@ class TestHorizontalStatCovConstructionNoDrift:
         """
         interpolation_input, options, structure = horizontal_stratigraphic_scaled
 
-        options.uni_degree = 2
+        options.kernel_options.uni_degree = 2
 
         # Within series
         xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,

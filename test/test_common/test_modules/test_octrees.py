@@ -78,11 +78,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     output_0_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure, clean_buffer=False)
 
     # Create octree level 0
-    octree_lvl0 = OctreeLevel()
-    octree_lvl0.is_root = True
-
-    octree_lvl0 = octree_lvl0.set_interpolation_values(grid_0_centers, grid_0_corners,
-                                                       [output_0_centers], [output_0_corners])
+    octree_lvl0 = OctreeLevel(grid_0_centers, grid_0_corners, [output_0_centers], [output_0_corners])
 
     # Generate grid_1_centers
     debug_vals = get_next_octree_grid(octree_lvl0, compute_topology=False, debug=True)
@@ -90,7 +86,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     grid_1_centers = debug_vals[-1]
 
     # Level 1
-    octree_lvl1 = OctreeLevel()
+  
     interpolation_input.grid = grid_1_centers
     output_1_centers = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure,
                                                       clean_buffer=False)
@@ -102,7 +98,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
                                                       clean_buffer=False)
 
     # Create octree level 1
-    octree_lvl1.set_interpolation_values(grid_1_centers, grid_1_corners, [output_1_centers], [output_1_corners])
+    octree_lvl1 = OctreeLevel(grid_1_centers, grid_1_corners, [output_1_centers], [output_1_corners])
 
     debug_vals = get_next_octree_grid(octree_lvl1, compute_topology=False, debug=True)
     xyz1, anch1, select1 = debug_vals[:3]
@@ -167,7 +163,6 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
     n = 4
     regular_grid_scalar = get_regular_grid_for_level(octree_list, n).astype("int8")
 
-    
     # ===========
     if plot_pyvista or False:
         # Compute actual mesh
@@ -197,7 +192,7 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
         p.add_mesh(foo, show_edges=False, opacity=.5, cmap="tab10")
         p.add_axes()
         p.show()
-    
+
     # np.save(dir_name + "/solutions/test_octree_leaf", np.round(regular_grid_scalar))
     ids_sol = np.load(dir_name + "/solutions/test_octree_leaf.npy")
     ids_sol[ids_sol == 2] = 0  # ! This is coming because the masking
@@ -244,9 +239,9 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
         from gempy_engine.core.data.grid import Grid, RegularGrid
 
         grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
-        grid_internal_high_res, ori_internal, sp_internal = _input_preprocess( data_shape.tensors_structure,
-            grid_high_res, orientations, surface_points)
-        
+        grid_internal_high_res, ori_internal, sp_internal = _input_preprocess(data_shape.tensors_structure,
+                                                                              grid_high_res, orientations, surface_points)
+
         exported_fields_high_res = _evaluate_sys_eq(grid_internal_high_res, interp_input, weights)
         exported_fields_high_res.n_points_per_surface = data_shape.tensors_structure.reference_sp_position
         exported_fields_high_res.n_surface_points = surface_points.n_points

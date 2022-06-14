@@ -18,7 +18,7 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
 
     octree_list = []
     for i in range(0, n_levels):
-        next_octree: OctreeLevel = interpolate_on_octree(interpolation_input, options, data_descriptor)
+        next_octree: OctreeLevel = interpolate_on_octree(interpolation_input, options.kernel_options, data_descriptor)
         grid_1_centers = octrees.get_next_octree_grid(next_octree, compute_topology=False, debug=False)
 
         interpolation_input.grid = grid_1_centers
@@ -31,7 +31,7 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
 def interpolate_all_fields(interpolation_input: InterpolationInput, options: InterpolationOptions,
                            data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
     interpolation_input = copy.deepcopy(interpolation_input)
-    return _interp_single_internals.interpolate_all_fields(interpolation_input, options, data_descriptor)
+    return _interp_single_internals.interpolate_all_fields(interpolation_input, options.kernel_options, data_descriptor)
 
 
 # region testing
@@ -39,7 +39,7 @@ def interpolate_single_field(interpolation_input: InterpolationInput, options: d
                              data_shape: data.TensorsStructure) -> InterpOutput:  # * Only For testing
 
     grid = interpolation_input.grid
-    weights, exported_fields = interpolate_scalar_field(interpolation_input, options, data_shape)
+    weights, exported_fields = interpolate_scalar_field(interpolation_input, options.kernel_options, data_shape)
     scalar_output = ScalarFieldOutput(
         weights=weights,
         grid=grid,
@@ -53,7 +53,7 @@ def interpolate_single_field(interpolation_input: InterpolationInput, options: d
 
 def interpolate_and_segment(interpolation_input: InterpolationInput, options: data.InterpolationOptions,  # * Just for testing
                             data_shape: data.TensorsStructure, clean_buffer=True) -> InterpOutput:
-    output: ScalarFieldOutput = _interp_single_internals._interpolate_a_scalar_field(interpolation_input, options, data_shape, clean_buffer)
+    output: ScalarFieldOutput = _interp_single_internals._interpolate_a_scalar_field(interpolation_input, options.kernel_options, data_shape, clean_buffer)
     return InterpOutput(output)
 
 # endregion

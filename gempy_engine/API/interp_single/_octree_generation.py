@@ -1,7 +1,7 @@
 import copy
 from typing import List
 
-from ...core import data
+from ...core.data.options import KernelOptions
 from ...core.data.exported_structs import OctreeLevel, InterpOutput
 from ...core.data.grid import Grid
 from ...core.data.input_data_descriptor import InputDataDescriptor
@@ -11,7 +11,7 @@ from ._interp_single_internals import interpolate_all_fields
 import numpy as np
 
 
-def interpolate_on_octree(interpolation_input: InterpolationInput, options: data.InterpolationOptions,
+def interpolate_on_octree(interpolation_input: InterpolationInput, options: KernelOptions,
                           data_shape: InputDataDescriptor) -> OctreeLevel:
     interpolation_input = copy.deepcopy(interpolation_input)
     

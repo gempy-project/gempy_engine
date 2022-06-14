@@ -10,6 +10,7 @@ from ...core.data.input_data_descriptor import StackRelationType, InputDataDescr
 from ...core.data.exported_structs import InterpOutput, ExportedFields, MaskMatrices, Solutions, ScalarFieldOutput, CombinedScalarFieldsOutput
 from ...core.data.internal_structs import SolverInput
 from ...core.data.interpolation_input import InterpolationInput
+from ...core.data.options import KernelOptions
 from ...modules.activator import activator_interface
 from ...modules.data_preprocess import data_preprocess_interface
 from ...modules.kernel_constructor import kernel_constructor_interface as kernel_constructor
@@ -24,7 +25,7 @@ class Buffer:
         cls.weights = None
 
 
-def interpolate_all_fields(interpolation_input: InterpolationInput, options: InterpolationOptions,
+def interpolate_all_fields(interpolation_input: InterpolationInput, options: KernelOptions,
                            data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
     """Interpolate all scalar fields given a xyz array of points"""
    
@@ -86,7 +87,7 @@ def _compute_final_block(all_scalar_fields_outputs: List[ScalarFieldOutput], squ
     return all_combined_scalar_fields
 
 
-def _interpolate_a_scalar_field(interpolation_input: InterpolationInput, options: InterpolationOptions,
+def _interpolate_a_scalar_field(interpolation_input: InterpolationInput, options: KernelOptions,
                                 data_shape: TensorsStructure, clean_buffer: bool = True) -> ScalarFieldOutput:
     
     grid = copy.deepcopy(interpolation_input.grid)
@@ -108,7 +109,7 @@ def _interpolate_a_scalar_field(interpolation_input: InterpolationInput, options
 
 
 def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
-                       options: InterpolationOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
+                       options: KernelOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
     
     all_scalar_fields_outputs: List[ScalarFieldOutput] = []
 
@@ -192,7 +193,7 @@ def _compute_mask_components(exported_fields: ExportedFields, stack_relation: St
     return MaskMatrices(mask_lith, None)
 
 
-def interpolate_scalar_field(interpolation_input: InterpolationInput, options: data.InterpolationOptions,
+def interpolate_scalar_field(interpolation_input: InterpolationInput, options: KernelOptions,
                              data_shape: data.TensorsStructure) -> Tuple[np.ndarray, ExportedFields]:
     grid = interpolation_input.grid
     surface_points = interpolation_input.surface_points
