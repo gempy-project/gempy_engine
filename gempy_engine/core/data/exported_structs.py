@@ -168,6 +168,7 @@ class OctreeLevel:
 
     def set_interpolation_values(self, grid_centers: Grid, grid_faces: Grid,
                                  outputs_centers: List[InterpOutput], outputs_faces: List[InterpOutput]):
+        warnings.warn("Deprecated. Use constructor.", DeprecationWarning)
         self.grid_centers: Grid = grid_centers
         self.grid_corners: Grid = grid_faces
         self.outputs_centers: List[InterpOutput] = outputs_centers

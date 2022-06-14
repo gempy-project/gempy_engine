@@ -13,6 +13,7 @@ from ...core.data.interpolation_input import InterpolationInput
 
 def interpolate_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                       data_descriptor: InputDataDescriptor) -> Solutions:
+    interpolation_input = copy.deepcopy(interpolation_input)  # TODO: Make sure if this works with TF
     solutions: Solutions = _interpolate(interpolation_input, options, data_descriptor)
 
     meshes = dual_contouring_multi_scalar(data_descriptor, interpolation_input, options, solutions)

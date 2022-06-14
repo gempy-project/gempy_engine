@@ -151,7 +151,8 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     ids = np.array([1, 2])
     grid_0_centers = copy.deepcopy(simple_grid_3d_octree)
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
-
+    
+    options.number_octree_levels = 5
     octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[2]
