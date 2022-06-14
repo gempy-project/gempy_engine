@@ -387,7 +387,7 @@ def unconformity_complex_implicit():
 
     custom_function = CustomInterpolationFunctions.from_builtin(
         interpolation_function=InterpolationFunctions.SPHERE,
-        scalar_field_at_surface_points=np.array([20]),
+        scalar_field_at_surface_points=np.array([-5]),
         extent=extent)
 
     stack_structure = StacksStructure(

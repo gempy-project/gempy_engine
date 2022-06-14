@@ -72,7 +72,7 @@ def test_mask_arrays(unconformity_complex):
     interpolation_input, options, structure = copy.deepcopy(unconformity_complex)
     outputs: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)
     grid = interpolation_input.grid.regular_grid
-    
+
     grid_0_centers = interpolation_input.grid
     from gempy_engine.modules.octrees_topology._octree_common import _generate_corners
     from gempy_engine.core.data.grid import Grid
@@ -85,13 +85,12 @@ def test_mask_arrays(unconformity_complex):
         plot_block(outputs[0].combined_scalar_field.squeezed_mask_array, grid)
         plot_block(outputs[1].combined_scalar_field.squeezed_mask_array, grid)
         plot_block(outputs[2].combined_scalar_field.squeezed_mask_array, grid)
-    
+
     mask_1 = output_0_corners[0].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
     mask_2 = output_0_corners[1].combined_scalar_field.squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
     mask_3 = output_0_corners[2].combined_scalar_field.squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
 
     if True:
-
         plot_block(mask_1, grid)
         plot_block(mask_2, grid)
         plot_block(mask_3, grid)
@@ -126,7 +125,7 @@ def test_final_exported_fields(unconformity_complex):
         plot_block(outputs[0].final_exported_fields._scalar_field, grid)
         plot_block(outputs[1].final_exported_fields._scalar_field, grid)
         plot_block(outputs[2].final_exported_fields._scalar_field, grid)
-    
+
 
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_plot_corners(unconformity_complex, n_oct_levels=2):
@@ -134,11 +133,11 @@ def test_plot_corners(unconformity_complex, n_oct_levels=2):
     options.number_octree_levels = n_oct_levels
     solutions: Solutions = compute_model(interpolation_input, options, structure)
     output_corners: InterpOutput = solutions.octrees_output[-1].outputs_corners[-1]
-    
+
     vertices = output_corners.grid.values
     if plot_pyvista or False:
-        helper_functions_pyvista.plot_pyvista(solutions.octrees_output,  v_just_points=vertices)
-    
+        helper_functions_pyvista.plot_pyvista(solutions.octrees_output, v_just_points=vertices)
+
 
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct_levels=2):
@@ -146,12 +145,11 @@ def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct
     options.number_octree_levels = n_oct_levels
     options.debug = True
     options.dual_contouring_masking_options = DualContouringMaskingOptions.DISJOINT
-    
+
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     if plot_pyvista or False:
-        
-        dc_data = solutions.dc_meshes[0].dc_data # * Scalar field where to show gradients
+        dc_data = solutions.dc_meshes[0].dc_data  # * Scalar field where to show gradients
         intersection_xyz = dc_data.xyz_on_edge
         gradients = dc_data.gradients
 
@@ -160,8 +158,8 @@ def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct
 
         helper_functions_pyvista.plot_pyvista(solutions.octrees_output,
                                               dc_meshes=solutions.dc_meshes,
-                                          #   xyz_on_edge=intersection_xyz, gradients=gradients, # * Uncomment for more detailed plots
-                                         #     a=center_mass, b=normals
+                                              # xyz_on_edge=intersection_xyz, gradients=gradients, # * Uncomment for more detailed plots
+                                              # a=center_mass, b=normals
                                               )
 
 
@@ -187,8 +185,8 @@ def test_dual_contouring_multiple_independent_fields_intersect(unconformity_comp
                                               # xyz_on_edge=intersection_xyz, gradients=gradients, # * Uncomment for more detailed plots
                                               # a=center_mass, b=normals
                                               )
-        
-        
+
+
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_dual_contouring_multiple_independent_fields_intersect_raw(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
@@ -232,9 +230,9 @@ def test_dual_contouring_multiple_independent_fields_mask(unconformity_complex, 
 
         helper_functions_pyvista.plot_pyvista(octree_list=solutions.octrees_output,
                                               dc_meshes=solutions.dc_meshes,
-                                              #xyz_on_edge=intersection_xyz, gradients=gradients,
-                                              #a=center_mass, b=normals,
-                                              #vertices=solutions.dc_meshes[0].vertices, delaunay_3d=False
+                                              # xyz_on_edge=intersection_xyz, gradients=gradients,
+                                              # a=center_mass, b=normals,
+                                              # vertices=solutions.dc_meshes[0].vertices, delaunay_3d=False
                                               )
 
 
@@ -277,5 +275,3 @@ def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
 
         grid2 = solution.octrees_output[1].grid_centers.regular_grid
         plot_block(final_block2, grid2)
-
-
