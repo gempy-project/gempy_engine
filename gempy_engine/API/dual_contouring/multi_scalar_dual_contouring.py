@@ -2,14 +2,15 @@ from typing import List
 
 import numpy as np
 
-from .dual_contouring import get_intersection_on_edges, compute_dual_contouring
-from ..interp_single.interp_features import interpolate_all_fields_no_octree
 from ...core.data import InterpolationOptions
 from ...core.data.exported_structs import DualContouringMesh, Solutions, DualContouringData, OctreeLevel, InterpOutput, ExportedFields
 from ...core.data.grid import Grid
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.options import DualContouringMaskingOptions
+
+from ._dual_contouring import get_intersection_on_edges, compute_dual_contouring
+from ..interp_single.interp_features import interpolate_all_fields_no_octree
 
 
 class MaskBuffer:

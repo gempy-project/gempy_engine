@@ -13,7 +13,7 @@ import os
 
 import gempy_engine.API.interp_single.interp_features as interp
 
-from gempy_engine.API.dual_contouring.dual_contouring import get_intersection_on_edges, compute_dual_contouring
+from gempy_engine.API.dual_contouring._dual_contouring import get_intersection_on_edges, compute_dual_contouring
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.core.data.internal_structs import SolverInput
 
