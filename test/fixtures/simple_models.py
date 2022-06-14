@@ -8,6 +8,7 @@ import pandas as pd
 
 from gempy_engine.API.interp_single._interp_scalar_field import _input_preprocess, _solve_interpolation, _evaluate_sys_eq
 from gempy_engine.core.data.grid import RegularGrid, Grid
+from gempy_engine.core.data.interpolation_functions import InterpolationFunctions, CustomInterpolationFunctions
 from test.helper_functions import calculate_gradient
 
 import pytest
@@ -336,7 +337,8 @@ def unconformity_complex():
     stack_structure = StacksStructure(number_of_points_per_stack=np.array([3, 2, 6]),
                                       number_of_orientations_per_stack=np.array([2, 1, 6]),
                                       number_of_surfaces_per_stack=np.array([1, 1, 2]),
-                                      masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, False])
+                                      masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, False],
+                                      )
 
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([3, 2, 3, 3]))
     input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
@@ -367,6 +369,12 @@ def unconformity_complex():
 
 @pytest.fixture(scope="session")
 def unconformity_complex_implicit():
+    resolution = [15, 2, 15]
+    extent = [0, 10., 0, 2., 0, 5.]
+
+    regular_grid = RegularGrid(extent, resolution)
+    grid = Grid(regular_grid.values, regular_grid=regular_grid)
+
     orientations = pd.read_csv(data_path + "05_toy_fold_unconformity_orientations.csv")
     sp = pd.read_csv(data_path + "05_toy_fold_unconformity_interfaces.csv")
 
@@ -377,10 +385,17 @@ def unconformity_complex_implicit():
                                         orientations["polarity"])
     dip_gradients = np.vstack(dip_gradients_).T
 
-    stack_structure = StacksStructure(number_of_points_per_stack=np.array([0, 3, 2, 6]),
-                                      number_of_orientations_per_stack=np.array([0, 2, 1, 6]),
-                                      number_of_surfaces_per_stack=np.array([1, 1, 1, 2]),
-                                      masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, StackRelationType.ERODE, False])
+    custom_function = CustomInterpolationFunctions.from_builtin(
+        interpolation_function=InterpolationFunctions.SPHERE,
+        scalar_field_at_surface_points=np.array([20]),
+        extent=extent)
+
+    stack_structure = StacksStructure(
+        number_of_points_per_stack=np.array([0, 3, 2, 6]),
+        number_of_orientations_per_stack=np.array([0, 2, 1, 6]),
+        number_of_surfaces_per_stack=np.array([1, 1, 1, 2]),
+        masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, StackRelationType.ERODE, False],
+        interp_functions_per_stack=[custom_function, None, None, None])  # * For custom functions we need to add the feature on the DataDescriptor (first element in this model)
 
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([0, 3, 2, 3, 3]))
     input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
@@ -394,20 +409,13 @@ def unconformity_complex_implicit():
                                    number_dimensions=3,
                                    kernel_function=AvailableKernelFunctions.cubic)
 
-    resolution = [15, 2, 15]
-    extent = [0, 10., 0, 2., 0, 5.]
-
-    regular_grid = RegularGrid(extent, resolution)
-
-    grid = Grid(regular_grid.values, regular_grid=regular_grid)
-
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)
     ids = np.array([0, 1, 2, 3, 4, 5, 6])
 
     interpolation_input = InterpolationInput(spi, ori, grid, ids)
-    return interpolation_input, options, input_data_descriptor
 
+    return interpolation_input, options, input_data_descriptor
 
 
 @pytest.fixture(scope="session")

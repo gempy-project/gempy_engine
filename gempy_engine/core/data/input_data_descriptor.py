@@ -6,6 +6,8 @@ from typing import Type, List
 
 import numpy as np
 
+from gempy_engine.core.data.interpolation_functions import CustomInterpolationFunctions
+
 
 def _cast_type_inplace(struct_data_instance):
     for key, val in struct_data_instance.__dict__.items():
@@ -36,7 +38,8 @@ class StacksStructure:
     number_of_orientations_per_stack: np.ndarray
     number_of_surfaces_per_stack: np.ndarray
     masking_descriptor: List[StackRelationType]
-
+    interp_functions_per_stack: List[CustomInterpolationFunctions] = None
+    
     number_of_points_per_stack_vector: np.ndarray = np.ones(1)
     number_of_orientations_per_stack_vector: np.ndarray = np.ones(1)
     number_of_surfaces_per_stack_vector: np.ndarray = np.ones(1)
@@ -66,12 +69,16 @@ class StacksStructure:
     @property
     def n_stacks(self):
         return self.number_of_points_per_stack.shape[0]
+    
+    @property
+    def interp_function(self):
+        if self.interp_functions_per_stack is None:
+            return None
+        return self.interp_functions_per_stack[self.stack_number]
 
 
-# TODO: This class should be spat into other classes: e.g. grid, dtype -> options, features
 @dataclass
 class TensorsStructure:
-    # TODO [-]: number of points is misleading because it is used as marker for the location of ref point
     number_of_points_per_surface: np.ndarray
     dtype: Type = np.int32
 

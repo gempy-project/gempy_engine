@@ -56,7 +56,7 @@ def interpolate_single_field(interpolation_input: InterpolationInput, options: d
 
 def interpolate_and_segment(interpolation_input: InterpolationInput, options: data.InterpolationOptions,  # * Just for testing
                             data_shape: data.TensorsStructure, clean_buffer=True) -> InterpOutput:
-    output: ScalarFieldOutput = interpolate_feature(interpolation_input, options.kernel_options, data_shape, clean_buffer)
+    output: ScalarFieldOutput = interpolate_feature(interpolation_input, options.kernel_options, data_shape)
     return InterpOutput(output)
 
 # endregion

@@ -29,4 +29,4 @@ class InterpolationInput:
         unit_values = interpolation_input.unit_values[cum_number_surfaces_l0:cum_number_surfaces_l1]
         
         return cls(sp, o, grid, unit_values, stack_structure.active_masking_descriptor)
-        
+    

@@ -46,7 +46,6 @@ def test_final_block_implicit(unconformity_complex_implicit):
 
 
 
-
 def test_implicit_function(unconformity_complex):
     from gempy_engine.modules.activator.activator_interface import activate_formation_block_from_args
     from gempy_engine.API.interp_single._interp_single_feature import _segment_scalar_field
