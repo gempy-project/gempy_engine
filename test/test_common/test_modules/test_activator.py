@@ -25,12 +25,11 @@ def test_activator(simple_model_values_block_output):
     print(Z_x, Z_x.shape[0])
     print(sasp)
 
-    ids_block = activate_formation_block(simple_model_values_block_output.exported_fields,
-                                         ids, 50000)
+    ids_block = activate_formation_block(simple_model_values_block_output.exported_fields, ids, 50000)
     print(ids_block)
-    #np.save(dir_name+"/solutions/test_activator", np.round(ids_block))
+    # np.save(dir_name+"/solutions/test_activator", np.round(ids_block))
 
-    ids_sol = np.load(dir_name+"/solutions/test_activator.npy")
+    ids_sol = np.load(dir_name + "/solutions/test_activator.npy")
     # np.testing.assert_almost_equal(
     #     np.round(ids_block),
     #     ids_sol, # NOTE(miguel) Now we only segment on the grid
@@ -38,12 +37,12 @@ def test_activator(simple_model_values_block_output):
     if plot:
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
         plt.colorbar()
-        plt.savefig("activator1")
+
         plt.show()
 
         plt.contourf(ids_block[0].reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="viridis")
         plt.colorbar()
-        plt.savefig("activator2")
+
         plt.show()
 
 
@@ -63,5 +62,5 @@ def test_activator_3_layers(simple_model_3_layers):
         xyz = interpolation_input.surface_points.sp_coords
         plt.plot(xyz[:, 0], xyz[:, 2], "o")
         plt.colorbar()
-        plt.savefig("foo")
+        
         plt.show()

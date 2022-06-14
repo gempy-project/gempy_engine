@@ -166,7 +166,7 @@ def simple_model_interpolation_input(simple_grid_3d_octree) -> Tuple[Interpolati
     tensor_struct = TensorsStructure(np.array([7]))
     stack_structure = StacksStructure(number_of_points_per_stack=np.array([7]),
                                       number_of_orientations_per_stack=np.array([2]),
-                                      number_of_surfaces_per_stack=np.array([2]),
+                                      number_of_surfaces_per_stack=np.array([1]),
                                       masking_descriptor=[StackRelationType.ERODE])
 
     input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
