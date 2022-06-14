@@ -41,7 +41,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = interpolate_n_octree_levels(2, interpolation_input, options, data_shape)
+    octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
@@ -116,7 +116,7 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
     ids = np.array([1, 2, 3, 4])
     grid_0_centers = simple_grid_3d_octree
 
-    octree_list = interpolate_n_octree_levels(4, interpolation_input, options, data_shape)
+    octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
@@ -152,7 +152,7 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     grid_0_centers = copy.deepcopy(simple_grid_3d_octree)
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = interpolate_n_octree_levels(3, interpolation_input, options, data_shape)
+    octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[2]
 
@@ -265,7 +265,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = interpolate_n_octree_levels(2, interpolation_input, options, data_shape)
+    octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
@@ -375,7 +375,7 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = interpolate_n_octree_levels(2, interpolation_input, options, data_shape)
+    octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
 

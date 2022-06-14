@@ -161,7 +161,7 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = interp.interpolate_n_octree_levels(5, interpolation_input, options, data_shape)
+    octree_list = interp.interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
     # Assert
     n = 4
@@ -222,7 +222,7 @@ def _run_octree_api(simple_model, simple_grid_3d_octree):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = interp.interpolate_n_octree_levels(4, interpolation_input, options, data_shape)
+    octree_list = interp.interpolate_n_octree_levels(interpolation_input, options, data_shape)
     return octree_list
 
 

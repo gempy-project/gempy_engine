@@ -153,14 +153,13 @@ class InterpOutput:
             return self.combined_scalar_field.final_block
 
 
-@dataclass(init=False)
+@dataclass(init=True)
 class OctreeLevel:
     # Input
     grid_centers: Grid
     grid_corners: Grid
     outputs_centers: List[InterpOutput]
     outputs_corners: List[InterpOutput]
-    is_root: bool = False  # When root is true arrays are dim 3
 
     # Topo
     edges_id: np.ndarray = None
@@ -244,13 +243,12 @@ class DualContouringMesh:
     dc_data: Optional[DualContouringData] = None  # * In principle we need this just for testing
     
 
-
-@dataclass(init=False, )
+@dataclass(init=True)
 class Solutions:
     octrees_output: List[OctreeLevel]
-    dc_meshes: List[DualContouringMesh]
+    dc_meshes: List[DualContouringMesh] = None
     # ------
-    gravity: np.ndarray
-    magnetics: np.ndarray
+    gravity: np.ndarray = None
+    magnetics: np.ndarray = None
 
     debug_input_data = None

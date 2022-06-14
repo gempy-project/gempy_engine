@@ -13,8 +13,6 @@ from ...core.data.interpolation_input import InterpolationInput
 
 def interpolate_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                       data_descriptor: InputDataDescriptor) -> Solutions:
-    interpolation_input = copy.deepcopy(interpolation_input)  # TODO: Make sure if this works with TF
-
     solutions: Solutions = _interpolate(interpolation_input, options, data_descriptor)
 
     meshes = dual_contouring_multi_scalar(data_descriptor, interpolation_input, options, solutions)
@@ -29,11 +27,9 @@ def interpolate_model(interpolation_input: InterpolationInput, options: Interpol
 
 def _interpolate(stack_interpolation_input: InterpolationInput, options: InterpolationOptions,
                  data_descriptor: InputDataDescriptor) -> Solutions:
-    
-    solutions: Solutions = Solutions()
-    number_octree_levels = options.number_octree_levels
-    output: List[OctreeLevel] = interpolate_n_octree_levels(number_octree_levels, stack_interpolation_input,
-                                                            options, data_descriptor)
-    solutions.octrees_output = output
-    solutions.debug_input_data = stack_interpolation_input
+    output: List[OctreeLevel] = interpolate_n_octree_levels(stack_interpolation_input, options, data_descriptor)
+    solutions: Solutions = Solutions(octrees_output=output)
+
+    if options.debug:
+        solutions.debug_input_data = stack_interpolation_input
     return solutions
