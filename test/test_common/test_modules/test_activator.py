@@ -20,7 +20,7 @@ def test_activator(simple_model_values_block_output):
     print(Z_x, Z_x.shape[0])
     print(sasp)
 
-    ids_block = activate_formation_block(simple_model_values_block_output.exported_fields, ids, 50000)
+    ids_block = activate_formation_block(simple_model_values_block_output.exported_fields, ids, 50000)[:, :-7]
     print(ids_block)
     # np.save(dir_name+"/solutions/test_activator", np.round(ids_block))
 
