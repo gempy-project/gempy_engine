@@ -1,3 +1,4 @@
+import warnings
 from typing import List
 
 import numpy as np
@@ -33,6 +34,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_
     stack_structure = root_data_descriptor.stack_structure
 
     if stack_structure is None:  # ! This branch is just for backward compatibility but we should try to get rid of it as soon as possible
+        warnings.warn("Deprecated: stack_structure is not defined in the input data descriptor", DeprecationWarning) 
         output = interpolate_feature(interpolation_input, options, root_data_descriptor.tensors_structure)
         all_scalar_fields_outputs.append(output)
         return all_scalar_fields_outputs

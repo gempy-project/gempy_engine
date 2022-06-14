@@ -11,14 +11,15 @@ from gempy_engine.core.data.input_data_descriptor import TensorsStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_for_level
-from ... import helper_functions_pyvista
-from ...conftest import plot_pyvista, TEST_SPEED
+from test import helper_functions_pyvista
+from test.conftest import plot_pyvista, TEST_SPEED
+from test.helper_functions import plot_block
 
 plot_pyvista = False
 try:
     # noinspection PyUnresolvedReferences
     import pyvista as pv
-    from ...helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
+    from test.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
 except ImportError:
     plot_pyvista = False
 
@@ -43,21 +44,13 @@ def test_compute_several_scalar_fields(unconformity_complex):
     """Plot each individual scalar field"""
     # TODO:
     interpolation_input, options, structure = unconformity_complex
-    outputs: List[InterpOutput] = _interpolate_stack(structure, interpolation_input, options)
+    outputs: List[ScalarFieldOutput] = _interpolate_stack(structure, interpolation_input, options)
 
     if plot_pyvista or False:
         grid = interpolation_input.grid.regular_grid
         plot_block(outputs[0].values_block, grid)
         plot_block(outputs[1].values_block, grid)
         plot_block(outputs[2].values_block, grid)
-
-
-def plot_block(block, grid):
-    resolution = grid.resolution
-    extent = grid.extent
-    block_2d = block.reshape(resolution)[:, resolution[1] // 2, :].T
-    plt.imshow(block_2d, extent=extent[[0, 1, 4, 5]], origin="lower")
-    plt.show()
 
 
 def test_compute_mask_components_all_erode(unconformity_complex):
@@ -89,7 +82,7 @@ def test_mask_arrays(unconformity_complex):
     output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)  # TODO: This is unnecessary for the last level except for Dual contouring
 
     if plot_pyvista or False:
-        plot_block(outputs[0].combined_scalar_field.squeezed_mask_array, grid)      
+        plot_block(outputs[0].combined_scalar_field.squeezed_mask_array, grid)
         plot_block(outputs[1].combined_scalar_field.squeezed_mask_array, grid)
         plot_block(outputs[2].combined_scalar_field.squeezed_mask_array, grid)
     
@@ -107,7 +100,7 @@ def test_mask_arrays(unconformity_complex):
         mask_1_f = mask_1
         mask_2_f = (mask_1_f ^ mask_2) * mask_2
         mask_3_f = (mask_2_f ^ mask_3) * mask_3
-        
+
         plot_block(mask_1_f, grid)
         plot_block(mask_2_f, grid)
         plot_block(mask_3_f, grid)
@@ -117,7 +110,7 @@ def test_final_block(unconformity_complex):
     interpolation_input, options, structure = unconformity_complex
     outputs: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)
 
-    if plot_pyvista or False:
+    if plot_pyvista or True:
         grid = interpolation_input.grid.regular_grid
         plot_block(outputs[0].final_block, grid)
         plot_block(outputs[1].final_block, grid)
@@ -284,3 +277,5 @@ def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
 
         grid2 = solution.octrees_output[1].grid_centers.regular_grid
         plot_block(final_block2, grid2)
+
+

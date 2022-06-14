@@ -10,16 +10,15 @@ from gempy_engine.core.data.grid import Grid
 @dataclass(init=True)
 class ExportedFields:
     _scalar_field: Optional[np.ndarray]
-    _gx_field: np.ndarray
-    _gy_field: np.ndarray
-    _gz_field: np.ndarray = None
-    n_points_per_surface: np.ndarray = None
-    n_surface_points: Optional[int] = None
-    scalar_field_shift: Optional[float] = 0
-
+    _gx_field: Optional[np.ndarray]
+    _gy_field: Optional[np.ndarray]
+    _gz_field: Optional[np.ndarray] = None
+    n_points_per_surface: Optional[np.ndarray] = None
+    n_surface_points: Optional[int] = 0
+    
     @property
     def scalar_field_at_surface_points(self):
-        return self._scalar_field[-self.n_surface_points:][self.npf] + self.scalar_field_shift
+        return self._scalar_field[-self.n_surface_points:][self.npf]
 
     @property
     def scalar_field(self):

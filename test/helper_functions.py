@@ -32,6 +32,7 @@ def calculate_gradient(dip, az, pol):
     g_z = np.cos(np.deg2rad(dip)) * pol
     return g_x, g_y, g_z
 
+
 def plot_block(block, grid):
     resolution = grid.resolution
     extent = grid.extent
