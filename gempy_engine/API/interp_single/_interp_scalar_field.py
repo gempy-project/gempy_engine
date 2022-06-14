@@ -3,7 +3,7 @@ from typing import Tuple
 import numpy as np
 
 from ...core import data
-from ...core.data.exported_structs import ExportedFields
+from ...core.data.exported_fields import ExportedFields
 from ...core.data.input_data_descriptor import TensorsStructure
 from ...core.data.internal_structs import SolverInput
 from ...core.data.interpolation_input import InterpolationInput

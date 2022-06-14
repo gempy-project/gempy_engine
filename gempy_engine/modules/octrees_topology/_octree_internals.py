@@ -1,6 +1,6 @@
 from typing import List
 
-from gempy_engine.core.data.exported_structs import OctreeLevel
+from gempy_engine.core.data.octree_level import OctreeLevel
 import numpy as np
 
 from gempy_engine.core.data.grid import RegularGrid, Grid

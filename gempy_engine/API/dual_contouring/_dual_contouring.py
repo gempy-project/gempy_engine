@@ -1,6 +1,9 @@
 from typing import Tuple, List, Optional
 
-from ...core.data.exported_structs import OctreeLevel, DualContouringData, DualContouringMesh, InterpOutput
+from ...core.data.dual_contouring_mesh import DualContouringMesh
+from ...core.data.dual_contouring_data import DualContouringData
+from ...core.data.octree_level import OctreeLevel
+from ...core.data.interp_output import InterpOutput
 from ...modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge, \
     triangulate_dual_contouring, generate_dual_contouring_vertices
 

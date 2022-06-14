@@ -6,7 +6,9 @@ from matplotlib import pyplot as plt
 
 from gempy_engine.API.interp_single._multi_scalar_field_manager import _interpolate_stack, interpolate_all_fields
 from gempy_engine.API.model.model_api import _interpolate, compute_model
-from gempy_engine.core.data.exported_structs import InterpOutput, Solutions, ScalarFieldOutput
+from gempy_engine.core.data.solutions import Solutions
+from gempy_engine.core.data.interp_output import InterpOutput
+from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data.input_data_descriptor import TensorsStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.options import DualContouringMaskingOptions

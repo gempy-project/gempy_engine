@@ -1,12 +1,12 @@
 from gempy_engine.core.backend_tensor import BackendTensor as bt
 import numpy as np
 
-from gempy_engine.core.data.exported_structs import ExportedFields
+from gempy_engine.core.data.exported_fields import ExportedFields
 
 
 def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray, sigmoid_slope: float) -> np.ndarray:
     
-    Z_x: np.ndarray = exported_fields.scalar_field
+    Z_x: np.ndarray = exported_fields.scalar_field_everywhere
     scalar_value_at_sp: np.ndarray = exported_fields.scalar_field_at_surface_points
 
     sigm = activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slope)

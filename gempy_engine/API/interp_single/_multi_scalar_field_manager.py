@@ -4,7 +4,10 @@ from typing import List
 import numpy as np
 from numpy import ndarray
 
-from ...core.data.exported_structs import InterpOutput, ExportedFields, ScalarFieldOutput, CombinedScalarFieldsOutput
+from ...core.data.exported_structs import CombinedScalarFieldsOutput
+from ...core.data.interp_output import InterpOutput
+from ...core.data.scalar_field_output import ScalarFieldOutput
+from ...core.data.exported_fields import ExportedFields
 from ...core.data.input_data_descriptor import StackRelationType, InputDataDescriptor, TensorsStructure
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.options import KernelOptions

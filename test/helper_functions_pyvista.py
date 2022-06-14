@@ -1,9 +1,9 @@
 from typing import List
 import numpy as np
 
-from gempy_engine.core.data.exported_structs import OctreeLevel
+from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_for_level
-from gempy_engine.core.data.exported_structs import DualContouringMesh
+from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
 
 try:
     # noinspection PyUnresolvedReferences

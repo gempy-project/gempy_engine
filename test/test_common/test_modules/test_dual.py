@@ -17,7 +17,11 @@ from gempy_engine.API.dual_contouring._dual_contouring import get_intersection_o
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.core.data.internal_structs import SolverInput
 
-from gempy_engine.core.data.exported_structs import OctreeLevel, DualContouringData, InterpOutput, DualContouringMesh, Solutions
+from gempy_engine.core.data.solutions import Solutions
+from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
+from gempy_engine.core.data.dual_contouring_data import DualContouringData
+from gempy_engine.core.data.octree_level import OctreeLevel
+from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.API.interp_single.interp_features import interpolate_n_octree_levels, interpolate_and_segment
 from gempy_engine.modules.dual_contouring.dual_contouring_interface import QEF, find_intersection_on_edge, triangulate_dual_contouring

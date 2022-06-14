@@ -3,7 +3,7 @@ import pytest
 from matplotlib import pyplot as plt
 
 from gempy_engine.API.interp_single._interp_scalar_field import _input_preprocess, _solve_interpolation
-from gempy_engine.core.data.exported_structs import InterpOutput
+from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.API.interp_single.interp_features import interpolate_single_field
 from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_grad_kernel

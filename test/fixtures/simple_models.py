@@ -15,7 +15,8 @@ import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.input_data_descriptor import TensorsStructure, StacksStructure, StackRelationType, InputDataDescriptor
-from gempy_engine.core.data.exported_structs import InterpOutput, ScalarFieldOutput
+from gempy_engine.core.data.interp_output import InterpOutput
+from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.core.data.interpolation_input import InterpolationInput

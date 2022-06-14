@@ -3,7 +3,9 @@ from typing import List
 
 from ...core import data
 from ...core.data import InterpolationOptions
-from ...core.data.exported_structs import InterpOutput, OctreeLevel, ScalarFieldOutput
+from ...core.data.octree_level import OctreeLevel
+from ...core.data.interp_output import InterpOutput
+from ...core.data.scalar_field_output import ScalarFieldOutput
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
 

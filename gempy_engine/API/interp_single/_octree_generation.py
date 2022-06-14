@@ -2,7 +2,8 @@ import copy
 from typing import List
 
 from ...core.data.options import KernelOptions
-from ...core.data.exported_structs import OctreeLevel, InterpOutput
+from ...core.data.octree_level import OctreeLevel
+from ...core.data.interp_output import InterpOutput
 from ...core.data.grid import Grid
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput

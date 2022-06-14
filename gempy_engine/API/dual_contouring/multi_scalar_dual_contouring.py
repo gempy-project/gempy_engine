@@ -3,7 +3,12 @@ from typing import List
 import numpy as np
 
 from ...core.data import InterpolationOptions
-from ...core.data.exported_structs import DualContouringMesh, Solutions, DualContouringData, OctreeLevel, InterpOutput, ExportedFields
+from ...core.data.solutions import Solutions
+from ...core.data.dual_contouring_mesh import DualContouringMesh
+from ...core.data.dual_contouring_data import DualContouringData
+from ...core.data.octree_level import OctreeLevel
+from ...core.data.interp_output import InterpOutput
+from ...core.data.exported_fields import ExportedFields
 from ...core.data.grid import Grid
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput

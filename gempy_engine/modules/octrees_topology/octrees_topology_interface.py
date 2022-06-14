@@ -3,7 +3,7 @@ from typing import List, Tuple
 import numpy as np
 
 from ._octree_internals import compute_next_octree_locations
-from ...core.data.exported_structs import OctreeLevel
+from ...core.data.octree_level import OctreeLevel
 from ...core.data.grid import Grid
 
 

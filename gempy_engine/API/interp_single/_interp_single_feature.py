@@ -4,7 +4,9 @@ from typing import Optional
 
 import numpy as np
 
-from ...core.data.exported_structs import ExportedFields, MaskMatrices, ScalarFieldOutput
+from ...core.data.exported_structs import MaskMatrices
+from ...core.data.scalar_field_output import ScalarFieldOutput
+from ...core.data.exported_fields import ExportedFields
 from ...core.data.input_data_descriptor import StackRelationType, TensorsStructure
 from ...core.data.interpolation_functions import InterpolationFunctions, CustomInterpolationFunctions
 from ...core.data.interpolation_input import InterpolationInput

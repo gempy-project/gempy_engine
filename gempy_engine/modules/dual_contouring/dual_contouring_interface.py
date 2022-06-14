@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from ...core.data.exported_structs import DualContouringData
+from ...core.data.dual_contouring_data import DualContouringData
 import numpy as np
 
 

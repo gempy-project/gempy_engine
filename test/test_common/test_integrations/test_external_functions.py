@@ -6,7 +6,10 @@ import pytest
 from gempy_engine.API.interp_single._multi_scalar_field_manager import _interpolate_stack
 from gempy_engine.API.interp_single.interp_features import interpolate_all_fields_no_octree
 from gempy_engine.API.model.model_api import compute_model
-from gempy_engine.core.data.exported_structs import InterpOutput, ExportedFields, ScalarFieldOutput, Solutions
+from gempy_engine.core.data.solutions import Solutions
+from gempy_engine.core.data.interp_output import InterpOutput
+from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
+from gempy_engine.core.data.exported_fields import ExportedFields
 from gempy_engine.core.data.options import DualContouringMaskingOptions
 from test import helper_functions_pyvista
 from test.conftest import TEST_SPEED

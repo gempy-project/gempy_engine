@@ -3,7 +3,7 @@ import pytest
 import matplotlib.pyplot as plt
 import numpy as np
 
-from gempy_engine.core.data.exported_structs import InterpOutput
+from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.API.interp_single.interp_features import interpolate_single_field
 
