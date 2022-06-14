@@ -3,14 +3,15 @@ from typing import List
 
 import pytest
 
-import gempy_engine.API.interp_single._interp_single_internals
-from gempy_engine.API.interp_manager.interp_manager_api import interpolate_model
+import gempy_engine.API.interp_single._interp_single_feature
+from gempy_engine.API.interp_single._interp_scalar_field import _input_preprocess, _evaluate_sys_eq
+from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields
+from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data.grid import Grid
 import numpy as np
 import os
 
-from gempy_engine.API.interp_single._interp_single_internals import _evaluate_sys_eq, _input_preprocess, interpolate_all_fields
-import gempy_engine.API.interp_single.interp_single_interface as interp
+import gempy_engine.API.interp_single.interp_features as interp
 
 from gempy_engine.API.dual_contouring.dual_contouring import get_intersection_on_edges, compute_dual_contouring
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
@@ -18,7 +19,7 @@ from gempy_engine.core.data.internal_structs import SolverInput
 
 from gempy_engine.core.data.exported_structs import OctreeLevel, DualContouringData, InterpOutput, DualContouringMesh, Solutions
 from gempy_engine.core.data.interpolation_input import InterpolationInput
-from gempy_engine.API.interp_single.interp_single_interface import interpolate_n_octree_levels, interpolate_and_segment
+from gempy_engine.API.interp_single.interp_features import interpolate_n_octree_levels, interpolate_and_segment
 from gempy_engine.modules.dual_contouring.dual_contouring_interface import QEF, find_intersection_on_edge, triangulate_dual_contouring
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_for_level
 from test import helper_functions_pyvista
@@ -47,7 +48,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
 
     intersection_xyz, valid_edges = get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
     interpolation_input.grid = Grid(intersection_xyz)
-    output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
+    output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options.kernel_options, data_shape)
 
     dc_data = DualContouringData(
         xyz_on_edge=intersection_xyz,
@@ -89,7 +90,7 @@ def test_compute_dual_contouring_complex(unconformity_complex_one_layer, n_oct_l
     options.debug = True
 
     options.number_octree_levels = n_oct_levels
-    solutions: Solutions = interpolate_model(interpolation_input, options, structure)
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
     dc_data = solutions.dc_meshes[0].dc_data
 
     if plot_pyvista or False:
@@ -553,7 +554,7 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
     orientations = simple_model[1]
     options = simple_model[2]
     data_shape = simple_model[3]
-    grid_internal, ori_internal, sp_internal = gempy_engine.API.interp_single._interp_single_internals._input_preprocess(
+    grid_internal, ori_internal, sp_internal = _input_preprocess(
         data_shape.tensors_structure, grid, orientations, surface_points)
     interp_input = SolverInput(sp_internal, ori_internal, options)
     values_block_high_res, scalar_high_res, dxdydz = _compute_high_res_model(data_shape, ids,

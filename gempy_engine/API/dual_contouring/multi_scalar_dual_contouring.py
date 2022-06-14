@@ -3,7 +3,7 @@ from typing import List
 import numpy as np
 
 from .dual_contouring import get_intersection_on_edges, compute_dual_contouring
-from ..interp_single.interp_single_interface import interpolate_all_fields
+from ..interp_single.interp_features import interpolate_all_fields_no_octree
 from ...core.data import InterpolationOptions
 from ...core.data.exported_structs import DualContouringMesh, Solutions, DualContouringData, OctreeLevel, InterpOutput, ExportedFields
 from ...core.data.grid import Grid
@@ -56,7 +56,7 @@ def _independent_dual_contouring(data_descriptor: InputDataDescriptor, interpola
     intersection_xyz, valid_edges = get_intersection_on_edges(octree_leaves, output_corners, mask)
 
     interpolation_input.grid = Grid(intersection_xyz)
-    output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_descriptor)
+    output_on_edges: List[InterpOutput] = interpolate_all_fields_no_octree(interpolation_input, options, data_descriptor)
 
     dc_data = DualContouringData(
         xyz_on_edge=intersection_xyz,

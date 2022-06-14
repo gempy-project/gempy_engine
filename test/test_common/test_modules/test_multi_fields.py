@@ -4,9 +4,9 @@ from typing import List
 import pytest
 from matplotlib import pyplot as plt
 
-from gempy_engine.API.interp_manager.interp_manager_api import _interpolate, interpolate_model
-from gempy_engine.API.interp_single._interp_single_internals import interpolate_all_fields, _interpolate_stack
-from gempy_engine.core.data.exported_structs import InterpOutput, Solutions
+from gempy_engine.API.interp_single._multi_scalar_field_manager import _interpolate_stack, interpolate_all_fields
+from gempy_engine.API.model.model_api import _interpolate, compute_model
+from gempy_engine.core.data.exported_structs import InterpOutput, Solutions, ScalarFieldOutput
 from gempy_engine.core.data.input_data_descriptor import TensorsStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.options import DualContouringMaskingOptions
@@ -64,7 +64,7 @@ def test_compute_mask_components_all_erode(unconformity_complex):
     """Plot each individual mask compontent"""
     # TODO:
     interpolation_input, options, structure = unconformity_complex
-    outputs: List[InterpOutput] = _interpolate_stack(structure, interpolation_input, options)
+    outputs: List[ScalarFieldOutput] = _interpolate_stack(structure, interpolation_input, options)
 
     if plot_pyvista or False:
         grid = interpolation_input.grid.regular_grid
@@ -139,7 +139,7 @@ def test_final_exported_fields(unconformity_complex):
 def test_plot_corners(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
-    solutions: Solutions = interpolate_model(interpolation_input, options, structure)
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
     output_corners: InterpOutput = solutions.octrees_output[-1].outputs_corners[-1]
     
     vertices = output_corners.grid.values
@@ -154,7 +154,7 @@ def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct
     options.debug = True
     options.dual_contouring_masking_options = DualContouringMaskingOptions.DISJOINT
     
-    solutions: Solutions = interpolate_model(interpolation_input, options, structure)
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     if plot_pyvista or False:
         
@@ -179,7 +179,7 @@ def test_dual_contouring_multiple_independent_fields_intersect(unconformity_comp
     options.debug = True
     options.dual_contouring_masking_options = DualContouringMaskingOptions.INTERSECT
 
-    solutions: Solutions = interpolate_model(interpolation_input, options, structure)
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     if plot_pyvista or False:
         dc_data = solutions.dc_meshes[1].dc_data  # * Scalar field where to show gradients
@@ -203,7 +203,7 @@ def test_dual_contouring_multiple_independent_fields_intersect_raw(unconformity_
     options.debug = True
     options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
 
-    solutions: Solutions = interpolate_model(interpolation_input, options, structure)
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     if plot_pyvista or False:
         dc_data = solutions.dc_meshes[1].dc_data  # * Scalar field where to show gradients
@@ -227,7 +227,7 @@ def test_dual_contouring_multiple_independent_fields_mask(unconformity_complex, 
     options.debug = True
     options.debug_water_tight = True
 
-    solutions: Solutions = interpolate_model(interpolation_input, options, structure)
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     if plot_pyvista or False:
         dc_data = solutions.dc_meshes[0].dc_data  # * Scalar field where to show gradients
@@ -254,7 +254,7 @@ def test_dual_contouring_multiple_dependent_fields(unconformity_complex, n_oct_l
     options.debug = True
     options.dependent_dual_contouring = True
 
-    solutions: Solutions = interpolate_model(interpolation_input, options, structure)
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     if plot_pyvista or False:
         dc_data = solutions.dc_meshes[0].dc_data

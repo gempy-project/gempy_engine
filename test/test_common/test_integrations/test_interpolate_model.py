@@ -1,6 +1,6 @@
 import pytest
 
-from gempy_engine.API.interp_manager.interp_manager_api import interpolate_model
+from gempy_engine.API.model.model_api import compute_model
 from ...conftest import plot_pyvista, TEST_SPEED
 
 try:
@@ -16,7 +16,7 @@ def test_interpolate_model(simple_model_interpolation_input, n_oct_levels=3):
     print(interpolation_input)
 
     options.number_octree_levels = n_oct_levels
-    solutions = interpolate_model(interpolation_input, options, structure)
+    solutions = compute_model(interpolation_input, options, structure)
 
     if plot_pyvista or False:
         pv.global_theme.show_edges = True
@@ -32,7 +32,7 @@ def test_interpolate_model_no_octtree(simple_model_3_layers_high_res, n_oct_leve
     print(interpolation_input)
 
     options.number_octree_levels = n_oct_levels
-    solutions = interpolate_model(interpolation_input, options, structure)
+    solutions = compute_model(interpolation_input, options, structure)
 
     if plot_pyvista or False:
         # pv.global_theme.show_edges = True
@@ -47,7 +47,7 @@ def test_interpolate_model_several_surfaces(simple_model_3_layers, n_oct_levels=
     print(interpolation_input)
 
     options.number_octree_levels = n_oct_levels
-    solutions = interpolate_model(interpolation_input, options, structure)
+    solutions = compute_model(interpolation_input, options, structure)
 
     if plot_pyvista or False:
         # pv.global_theme.show_edges = True
@@ -66,7 +66,7 @@ def test_interpolate_model_unconformity(unconformity, n_oct_levels=4):
     print(interpolation_input)
 
     options.number_octree_levels = n_oct_levels
-    solutions = interpolate_model(interpolation_input, options, structure)
+    solutions = compute_model(interpolation_input, options, structure)
 
     if plot_pyvista or False:
         pv.global_theme.show_edges = True

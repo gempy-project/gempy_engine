@@ -6,7 +6,8 @@ from ...core.data.exported_structs import OctreeLevel, InterpOutput
 from ...core.data.grid import Grid
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
-from ._interp_single_internals import interpolate_all_fields
+
+from ._multi_scalar_field_manager import interpolate_all_fields
 
 import numpy as np
 

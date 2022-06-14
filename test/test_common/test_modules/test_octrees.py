@@ -1,15 +1,15 @@
 import numpy as np
 import pytest
 
+from gempy_engine.API.interp_single._interp_scalar_field import _input_preprocess, _evaluate_sys_eq
 from gempy_engine.core.data import TensorsStructure
 from gempy_engine.core.data.exported_structs import OctreeLevel
 from gempy_engine.core.data.grid import Grid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.internal_structs import SolverInput
-import gempy_engine.API.interp_single.interp_single_interface as interp
+import gempy_engine.API.interp_single.interp_features as interp
 from gempy_engine.core.data.interpolation_input import InterpolationInput
-from gempy_engine.API.interp_single._interp_single_internals import _input_preprocess, \
-    _evaluate_sys_eq
+
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 import matplotlib.pyplot as plt
 

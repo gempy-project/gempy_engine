@@ -7,9 +7,9 @@ import os
 
 import pytest
 
-from gempy_engine.API.interp_single._interp_single_internals import interpolate_all_fields
+from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields
 from gempy_engine.core.data.exported_structs import InterpOutput
-from gempy_engine.API.interp_single.interp_single_interface import interpolate_single_field
+from gempy_engine.API.interp_single.interp_features import interpolate_single_field
 from test.conftest import TEST_SPEED
 from test.helper_functions import plot_block
 

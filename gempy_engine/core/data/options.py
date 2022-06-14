@@ -23,6 +23,19 @@ class KernelOptions:
 
     kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.exponential
 
+    @property
+    def n_uni_eq(self):
+        if self.uni_degree == 1:
+            n = self.number_dimensions
+        elif self.uni_degree == 2:
+            n = self.number_dimensions * 3
+        elif self.uni_degree == 0:
+            n = 0
+        else:
+            raise AttributeError('uni_degree must be 0,1 or 2')
+
+        return n
+
 
 class InterpolationOptions:
     kernel_options: KernelOptions = None  # * This is the compression of the fields above and the way to go in the future
@@ -90,13 +103,4 @@ class InterpolationOptions:
         
     @property
     def n_uni_eq(self):
-        if self.uni_degree == 1:
-            n = self.number_dimensions
-        elif self.uni_degree == 2:
-            n = self.number_dimensions * 3
-        elif self.uni_degree == 0:
-            n = 0
-        else:
-            raise AttributeError('uni_degree must be 0,1 or 2')
-
-        return n
+        return self.kernel_options.n_uni_eq

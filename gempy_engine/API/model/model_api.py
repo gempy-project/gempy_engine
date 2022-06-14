@@ -4,15 +4,15 @@ import copy
 from typing import List
 
 from ..dual_contouring.multi_scalar_dual_contouring import dual_contouring_multi_scalar
-from ..interp_single.interp_single_interface import interpolate_n_octree_levels
+from ..interp_single.interp_features import interpolate_n_octree_levels
 from ...core.data import InterpolationOptions
 from ...core.data.exported_structs import OctreeLevel, Solutions
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
 
 
-def interpolate_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
-                      data_descriptor: InputDataDescriptor) -> Solutions:
+def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
+                  data_descriptor: InputDataDescriptor) -> Solutions:
     interpolation_input = copy.deepcopy(interpolation_input)  # TODO: Make sure if this works with TF
     solutions: Solutions = _interpolate(interpolation_input, options, data_descriptor)
 

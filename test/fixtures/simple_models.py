@@ -6,10 +6,9 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
+from gempy_engine.API.interp_single._interp_scalar_field import _input_preprocess, _solve_interpolation, _evaluate_sys_eq
 from gempy_engine.core.data.grid import RegularGrid, Grid
 from test.helper_functions import calculate_gradient
-
-np.set_printoptions(precision=3, linewidth=200)
 
 import pytest
 
@@ -23,11 +22,11 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 from gempy_engine.core.data.kernel_classes.orientations import Orientations, OrientationsInternals
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints, SurfacePointsInternals
 from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.API.interp_single._interp_single_internals import _solve_interpolation, \
-    _input_preprocess, _evaluate_sys_eq
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
+
+np.set_printoptions(precision=3, linewidth=200)
 
 dir_name = os.path.dirname(__file__)
 data_path = dir_name + "/simple_geometries/"
@@ -162,7 +161,7 @@ def simple_model_interpolation_input(simple_grid_3d_octree) -> Tuple[Interpolati
     ids = np.array([1, 2])
 
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
-    
+
     tensor_struct = TensorsStructure(np.array([7]))
     stack_structure = StacksStructure(number_of_points_per_stack=np.array([7]),
                                       number_of_orientations_per_stack=np.array([2]),
@@ -318,7 +317,7 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
             mask_components=None
         )
     )
-    
+
     return output
 
 
