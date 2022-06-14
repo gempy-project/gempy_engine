@@ -7,6 +7,7 @@ from numpy import ndarray
 from ._interp_single_feature import interpolate_feature
 from ...core.data.exported_structs import InterpOutput, ExportedFields, ScalarFieldOutput, CombinedScalarFieldsOutput
 from ...core.data.input_data_descriptor import StackRelationType, InputDataDescriptor, TensorsStructure
+from ...core.data.interpolation_functions import InterpolationFunctions
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.options import KernelOptions
 
@@ -44,8 +45,14 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_
 
             tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
             interpolation_input_i = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_structure)
-
-            output: ScalarFieldOutput = interpolate_feature(interpolation_input_i, options, tensor_struct_i)
+            
+            if i == 0:
+                output: ScalarFieldOutput = interpolate_feature(interpolation_input_i, options, tensor_struct_i,
+                                                                InterpolationFunctions.SPHERE)
+            else:
+                output: ScalarFieldOutput = interpolate_feature(interpolation_input_i, options, tensor_struct_i,
+                                                                InterpolationFunctions.GAUSSIAN_PROCESS)
+        
             all_scalar_fields_outputs.append(output)
 
     return all_scalar_fields_outputs

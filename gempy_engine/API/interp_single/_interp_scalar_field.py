@@ -23,7 +23,7 @@ class Buffer:
 
 
 def interpolate_scalar_field(interpolation_input: InterpolationInput, options: KernelOptions,
-                              data_shape: data.TensorsStructure) -> Tuple[np.ndarray, ExportedFields]:
+                             data_shape: data.TensorsStructure) -> Tuple[np.ndarray, ExportedFields]:
     grid = interpolation_input.grid
     surface_points = interpolation_input.surface_points
     orientations = interpolation_input.orientations
