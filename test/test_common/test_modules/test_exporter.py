@@ -68,7 +68,7 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
 def test_export_simple_model_low_res(simple_model_interpolation_input, plot=True):
     interpolation_input, options, structure = simple_model_interpolation_input
 
-    output: InterpOutput = interpolate_single_field(interpolation_input, options, structure)
+    output: InterpOutput = interpolate_single_field(interpolation_input, options, structure.tensors_structure)
     Z_x = output.exported_fields.scalar_field
     # ids_block = output.ids_block
     gx = output.exported_fields.gx_field
@@ -112,7 +112,7 @@ def test_export_simple_model_low_res(simple_model_interpolation_input, plot=True
 def test_export_3_layers(simple_model_3_layers_high_res, plot=True):
     interpolation_input, options, structure = simple_model_3_layers_high_res
 
-    output: InterpOutput = interpolate_single_field(interpolation_input, options, structure)
+    output: InterpOutput = interpolate_single_field(interpolation_input, options, structure.tensors_structure)
     Z_x = output.exported_fields.scalar_field
     # ids_block = output.ids_block
     gx = output.exported_fields.gx_field
