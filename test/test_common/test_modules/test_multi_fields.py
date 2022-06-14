@@ -4,11 +4,12 @@ from typing import List
 import pytest
 from matplotlib import pyplot as plt
 
-from gempy_engine.API.interp_manager.interp_manager_api import _interpolate, interpolate_model, DualContouringMaskingOptions
+from gempy_engine.API.interp_manager.interp_manager_api import _interpolate, interpolate_model
 from gempy_engine.API.interp_single._interp_single_internals import interpolate_all_fields, _interpolate_stack
 from gempy_engine.core.data.exported_structs import InterpOutput, Solutions
 from gempy_engine.core.data.input_data_descriptor import TensorsStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
+from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_for_level
 from ... import helper_functions_pyvista
 from ...conftest import plot_pyvista, TEST_SPEED

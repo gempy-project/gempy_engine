@@ -67,8 +67,8 @@ class ScalarFieldOutput:
     grid: Grid
 
     exported_fields: ExportedFields
-    values_block: np.ndarray  # final values ignoring unconformities
-    mask_components: MaskMatrices
+    values_block: Optional[np.ndarray]  # final values ignoring unconformities
+    mask_components: Optional[MaskMatrices]
 
     @property
     def grid_size(self):

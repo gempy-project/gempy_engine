@@ -18,7 +18,7 @@ from gempy_engine.core.data.internal_structs import SolverInput
 
 from gempy_engine.core.data.exported_structs import OctreeLevel, DualContouringData, InterpOutput, DualContouringMesh, Solutions
 from gempy_engine.core.data.interpolation_input import InterpolationInput
-from gempy_engine.API.interp_single.interp_single_interface import compute_n_octree_levels, interpolate_and_segment
+from gempy_engine.API.interp_single.interp_single_interface import interpolate_n_octree_levels, interpolate_and_segment
 from gempy_engine.modules.dual_contouring.dual_contouring_interface import QEF, find_intersection_on_edge, triangulate_dual_contouring
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_for_level
 from test import helper_functions_pyvista
@@ -41,7 +41,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = compute_n_octree_levels(2, interpolation_input, options, data_shape)
+    octree_list = interpolate_n_octree_levels(2, interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
@@ -116,7 +116,7 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
     ids = np.array([1, 2, 3, 4])
     grid_0_centers = simple_grid_3d_octree
 
-    octree_list = compute_n_octree_levels(4, interpolation_input, options, data_shape)
+    octree_list = interpolate_n_octree_levels(4, interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
@@ -152,7 +152,7 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     grid_0_centers = copy.deepcopy(simple_grid_3d_octree)
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = compute_n_octree_levels(3, interpolation_input, options, data_shape)
+    octree_list = interpolate_n_octree_levels(3, interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[2]
 
@@ -265,7 +265,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = compute_n_octree_levels(2, interpolation_input, options, data_shape)
+    octree_list = interpolate_n_octree_levels(2, interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
@@ -375,7 +375,7 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
-    octree_list = compute_n_octree_levels(2, interpolation_input, options, data_shape)
+    octree_list = interpolate_n_octree_levels(2, interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
