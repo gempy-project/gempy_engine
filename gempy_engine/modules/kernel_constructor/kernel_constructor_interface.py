@@ -3,7 +3,7 @@ from ...core.data.internal_structs import SolverInput
 from ...core.data.kernel_classes.orientations import OrientationsInternals
 
 from ._b_vector_assembler import b_vector_assembly
-from ._covariance_assembler import create_cov_kernel, create_scalar_kernel, create_grad_kernel
+from ._kernels_assembler import create_cov_kernel, create_scalar_kernel, create_grad_kernel
 from ._vectors_preparation import cov_vectors_preparation, evaluation_vectors_preparations
 
 tensor_types = BackendTensor.tensor_types

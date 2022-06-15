@@ -24,13 +24,14 @@ class Buffer:
 
 def interpolate_scalar_field(interpolation_input: InterpolationInput, options: KernelOptions,
                              data_shape: data.TensorsStructure) -> Tuple[np.ndarray, ExportedFields]:
-    grid = interpolation_input.grid
-    surface_points = interpolation_input.surface_points
-    orientations = interpolation_input.orientations
-
+    
     # Within series
-    xyz_lvl0, ori_internal, sp_internal = _input_preprocess(data_shape, grid, orientations, surface_points)
-    solver_input = SolverInput(sp_internal, ori_internal, options)
+    xyz_lvl0, ori_internal, sp_internal, fault_internal = _input_preprocess(data_shape, interpolation_input)
+    solver_input = SolverInput(
+        sp_internal=sp_internal,
+        ori_internal=ori_internal,
+        fault_internal=fault_internal,
+        options=options)
 
     if Buffer.weights is None:
         weights = _solve_interpolation(solver_input)
@@ -42,7 +43,7 @@ def interpolate_scalar_field(interpolation_input: InterpolationInput, options: K
     # +++++++++++++++++++
     exported_fields = _evaluate_sys_eq(xyz_lvl0, solver_input, weights)
     exported_fields.n_points_per_surface = data_shape.reference_sp_position
-    exported_fields.n_surface_points = surface_points.n_points
+    exported_fields.n_surface_points = interpolation_input.surface_points.n_points
 
     Buffer.clean()
     return weights, exported_fields
@@ -56,12 +57,18 @@ def _solve_interpolation(interp_input: SolverInput):
     return weights
 
 
-def _input_preprocess(data_shape: TensorsStructure, grid, orientations, surface_points) -> \
-        Tuple[np.ndarray, data.OrientationsInternals, data.SurfacePointsInternals]:
+def _input_preprocess(data_shape: TensorsStructure, interpolation_input: InterpolationInput) -> \
+        Tuple[np.ndarray, data.OrientationsInternals, data.SurfacePointsInternals, data.FaultsInternals]:
+    grid = interpolation_input.grid
+    surface_points = interpolation_input.surface_points
+    orientations = interpolation_input.orientations
+    faults = interpolation_input.fault_values
+    
     sp_internal = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
     ori_internal = data_preprocess_interface.prepare_orientations(orientations)
     grid_internal = data_preprocess_interface.prepare_grid(grid.values, surface_points)
-    return grid_internal, ori_internal, sp_internal
+    faults_internal = data_preprocess_interface.prepare_faults(faults, data_shape)
+    return grid_internal, ori_internal, sp_internal, faults_internal
 
 
 def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput, weights: np.ndarray) -> ExportedFields:

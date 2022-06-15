@@ -12,7 +12,7 @@ from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
 from gempy_engine.core.data.options import InterpolationOptions
 import numpy as np
 
-from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items
+from gempy_engine.modules.kernel_constructor._test_assembler import _test_covariance_items
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
 from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation

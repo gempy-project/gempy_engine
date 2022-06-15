@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, Optional
 
 import numpy as np
 
@@ -86,6 +86,19 @@ class PointsDrift:
 
 
 @dataclass
+class FaultDrift:
+    faults_i: tensor_types = np.empty((0, 1, 3))
+    faults_j: tensor_types = np.empty((1, 0, 3))
+    
+    def __init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray,):
+        self.faults_i = x_degree_1[:, None, :]
+        self.faults_j = y_degree_1[None, :, :]
+    
+        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
+            _upgrade_kernel_input_to_keops_tensor(self)
+
+
+@dataclass
 class CartesianSelector:
     hu_sel_i: tensor_types = np.empty((0, 1, 3))
     hu_sel_j: tensor_types = np.empty((1, 0, 3))
@@ -130,17 +143,20 @@ class DriftMatrixSelector:
     sel_ui: tensor_types = np.empty((0, 1, 3))
     sel_vj: tensor_types = np.empty((1, 0, 3))
 
-    def __init__(self, x_size: int, y_size: int, n_drift_eq: int):
+    def __init__(self, x_size: int, y_size: int, drift_start_post: int, n_drift_eq: int):
         sel_i = np.zeros((x_size, 2))
         sel_j = np.zeros((y_size, 2))
         
         # ! TODO: This need to account for faults too!
         
-        sel_i[:-n_drift_eq, 0] = 1
-        sel_i[-n_drift_eq:, 1] = 1
+        drift_pos_0 = drift_start_post
+        drift_pos_1 = drift_start_post + n_drift_eq
+        
+        sel_i[:drift_pos_0, 0] = 1
+        sel_i[drift_pos_0:drift_pos_1, 1] = 1
 
-        sel_j[:-n_drift_eq, 0] = -1
-        sel_j[-n_drift_eq:, 1] = -1
+        sel_j[:drift_pos_0, 0] = -1
+        sel_j[drift_pos_0:drift_pos_1, 1] = -1
 
         self.sel_ui = sel_i[:, None, :]
         self.sel_vj = sel_j[None, :, :]
@@ -160,3 +176,6 @@ class KernelInput:
     ref_drift: PointsDrift
     rest_drift: PointsDrift
     drift_matrix_selector: DriftMatrixSelector
+
+    ref_fault: Optional[FaultDrift]
+    rest_fault: Optional[FaultDrift] 

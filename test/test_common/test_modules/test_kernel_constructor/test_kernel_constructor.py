@@ -5,8 +5,8 @@ from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
-from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items,  \
-    _compute_all_distance_matrices, create_scalar_kernel, create_grad_kernel
+from gempy_engine.modules.kernel_constructor._kernels_assembler import _compute_all_distance_matrices, create_scalar_kernel, create_grad_kernel
+from gempy_engine.modules.kernel_constructor._test_assembler import _test_covariance_items
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
 from gempy_engine.modules.kernel_constructor._structs import CartesianSelector

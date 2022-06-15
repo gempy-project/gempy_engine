@@ -1,3 +1,4 @@
+import dataclasses
 from dataclasses import dataclass
 from typing import List
 
@@ -14,6 +15,8 @@ class InterpolationInput:
     orientations: Orientations
     grid: Grid
     unit_values: np.ndarray
+    fault_values: np.ndarray = None
+    _fault_values: np.ndarray = dataclasses.field(init=True, repr=False, default=None)
     stack_relation: StackRelationType | List[StackRelationType] = StackRelationType.ERODE # ? Should be here or in the descriptor
     
     @classmethod
@@ -28,5 +31,22 @@ class InterpolationInput:
         
         unit_values = interpolation_input.unit_values[cum_number_surfaces_l0:cum_number_surfaces_l1]
         
-        return cls(sp, o, grid, unit_values, stack_structure.active_masking_descriptor)
+        return cls(
+            surface_points=sp,
+            orientations=o,
+            grid=grid,
+            unit_values=unit_values,
+            stack_relation=stack_structure.active_masking_descriptor
+        )
+    
+    @property
+    def fault_values(self):
+        if self._fault_values is None:
+            return np.zeros((self.surface_points.n_points, 0))
+        return self._fault_values
+    
+    @fault_values.setter
+    def fault_values(self, value):
+        self._fault_values = value
+        
     

@@ -5,9 +5,9 @@ from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
-from gempy_engine.modules.kernel_constructor._covariance_assembler import create_grad_kernel, \
-    create_scalar_kernel, \
-    _test_covariance_items
+from gempy_engine.modules.kernel_constructor._kernels_assembler import create_grad_kernel, \
+    create_scalar_kernel
+from gempy_engine.modules.kernel_constructor._test_assembler import _test_covariance_items
 from gempy_engine.modules.kernel_constructor._vectors_preparation import \
     evaluation_vectors_preparations
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, \

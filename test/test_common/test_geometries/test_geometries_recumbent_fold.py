@@ -6,7 +6,8 @@ from gempy_engine.API.interp_single._interp_scalar_field import _input_preproces
 from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.API.interp_single.interp_features import interpolate_single_field
-from gempy_engine.modules.kernel_constructor._covariance_assembler import _test_covariance_items, create_grad_kernel
+from gempy_engine.modules.kernel_constructor._kernels_assembler import create_grad_kernel
+from gempy_engine.modules.kernel_constructor._test_assembler import _test_covariance_items
 from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation, \
     evaluation_vectors_preparations
 from test.conftest import TEST_SPEED
