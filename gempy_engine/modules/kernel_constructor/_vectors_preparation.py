@@ -1,3 +1,4 @@
+from ._structs import OrientationSurfacePointsCoords
 from ...core.backend_tensor import BackendTensor, AvailableBackends
 from ...core.data.internal_structs import SolverInput
 from ...core.data.options import InterpolationOptions, KernelOptions
@@ -12,23 +13,28 @@ import numpy as np
 
 
 def cov_vectors_preparation(interp_input: SolverInput) -> _structs.KernelInput:
+    
     sp_: SurfacePointsInternals = interp_input.sp_internal
     ori_: OrientationsInternals = interp_input.ori_internal
     options: KernelOptions = interp_input.options
 
     cov_size = ori_.n_orientations_tiled + sp_.n_points + options.n_uni_eq
 
-    orientations_sp_matrices = _assembly_dips_points_tensors(options, ori_, sp_)
+    orientations_sp_matrices: OrientationSurfacePointsCoords = _assembly_dips_points_tensors(options, ori_, sp_)
     dips_ref_ui, dips_rest_ui, dips_ug = _assembly_drift_tensors(options, ori_, sp_)
 
     # Selectors :
     cartesian_selector = _assembly_cartesian_selector_tensors(cov_size, options, ori_, sp_)
     drift_selection = _structs.DriftMatrixSelector(cov_size, cov_size, options.n_uni_eq)
 
-    kernel_input_args = [orientations_sp_matrices, cartesian_selector, dips_ug, dips_ref_ui, dips_rest_ui,
-                         drift_selection]
-
-    return _structs.KernelInput(*kernel_input_args)
+    return _structs.KernelInput(
+        ori_sp_matrices=orientations_sp_matrices,
+        cartesian_selector=cartesian_selector,
+        ori_drift=dips_ug,
+        ref_drift=dips_ref_ui,
+        rest_drift=dips_rest_ui,
+        drift_matrix_selector=drift_selection
+    )
 
 
 def evaluation_vectors_preparations(grid: np.array, interp_input: SolverInput, axis=None) -> _structs.KernelInput:
@@ -47,13 +53,16 @@ def evaluation_vectors_preparations(grid: np.array, interp_input: SolverInput, a
     cartesian_selector = _assembly_cartesian_selector_grid(cov_size, grid, options, ori_, sp_, axis)
     drift_selection = _structs.DriftMatrixSelector(cov_size, grid.shape[0], options.n_uni_eq)
 
-    kernel_input_args = [orientations_sp_matrices, cartesian_selector, dips_ug,
-                         dips_ref_ui, dips_rest_ui, drift_selection]
+    return _structs.KernelInput( 
+        ori_sp_matrices=orientations_sp_matrices,
+        cartesian_selector=cartesian_selector,
+        ori_drift=dips_ug,
+        ref_drift=dips_ref_ui,
+        rest_drift=dips_rest_ui,
+        drift_matrix_selector=drift_selection)
 
-    return _structs.KernelInput(*kernel_input_args)
 
-
-def _assembly_dips_points_tensors(options, ori_, sp_):
+def _assembly_dips_points_tensors(options, ori_, sp_) -> _structs.OrientationSurfacePointsCoords:
     dips_ref_coord = _kernel_constructors.assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.ref_surface_points, options)
     dips_rest_coord = _kernel_constructors.assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.rest_surface_points, options)
     # When we create que core covariance this are the repeated since the distance are with themselves
@@ -93,19 +102,10 @@ def _assembly_cartesian_selector_grid(cov_size, grid, options, ori_, sp_, axis=N
     sel_hu_grid, sel_hv_grid, sel_hu_points_grid = grid_cartesian_selector(grid.shape[0], options.number_dimensions,
                                                                            axis)
 
-    # TODO: Check I need this
-    a = 1 if axis is None else -1  # ! This is very necessary but also we need to add +1 after (hu_sel_i * -hu_sel_j).sum(-1) 
-    
-    # * I leave this as reference
-    
-    hu_sel_i = sel_hu_input[:, None, :]
-    hu_sel_j = sel_hu_grid[None, :, :]
-    foo = (hu_sel_i * hu_sel_j).sum(-1)  # ! This +1 is only if axis is not None too
-    
     cartesian_selector = _structs.CartesianSelector(
         x_sel_hu=sel_hu_input, y_sel_hu=sel_hu_grid,
         x_sel_hv=sel_hv_input, y_sel_hv=sel_hv_grid,
-        x_sel_h_ref= sel_hu_points_input, y_sel_h_ref=sel_hu_points_grid,
+        x_sel_h_ref=sel_hu_points_input, y_sel_h_ref=sel_hu_points_grid,
         x_sel_h_rest=sel_hu_points_input, y_sel_h_rest=sel_hu_points_grid)
     return cartesian_selector
 

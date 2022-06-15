@@ -14,7 +14,7 @@ def test_xla_surface_points_preprocessing(simple_model_2):
 
     @tf.function
     def tf_f(surface_points, tensors_structure):
-        static =  surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
+        static = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
         return static.ref_surface_points
 
     s = tf_f(surface_points, tensors_structure)

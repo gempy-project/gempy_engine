@@ -335,11 +335,12 @@ def unconformity_complex():
                                         orientations["polarity"])
     dip_gradients = np.vstack(dip_gradients_).T
 
-    stack_structure = StacksStructure(number_of_points_per_stack=np.array([3, 2, 6]),
-                                      number_of_orientations_per_stack=np.array([2, 1, 6]),
-                                      number_of_surfaces_per_stack=np.array([1, 1, 2]),
-                                      masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, False],
-                                      )
+    stack_structure = StacksStructure(
+        number_of_points_per_stack=np.array([3, 2, 6]),
+        number_of_orientations_per_stack=np.array([2, 1, 6]),
+        number_of_surfaces_per_stack=np.array([1, 1, 2]),
+        masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, False],
+    )
 
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([3, 2, 3, 3]))
     input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
@@ -349,9 +350,10 @@ def unconformity_complex():
     i_r = 4
     gi_r = 2
 
-    options = InterpolationOptions(range_, c_o, uni_degree=0, i_res=i_r, gi_res=gi_r,
-                                   number_dimensions=3,
-                                   kernel_function=AvailableKernelFunctions.cubic)
+    options = InterpolationOptions(
+        range_, c_o, uni_degree=0, i_res=i_r, gi_res=gi_r,
+        number_dimensions=3,
+        kernel_function=AvailableKernelFunctions.cubic)
 
     resolution = [15, 2, 15]
     extent = [0, 10., 0, 2., 0, 5.]

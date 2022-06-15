@@ -7,7 +7,7 @@ from typing import Type, List
 import numpy as np
 
 from gempy_engine.core.data.interpolation_functions import CustomInterpolationFunctions
-
+from gempy_engine.core.backend_tensor import BackendTensor as b
 
 def _cast_type_inplace(struct_data_instance):
     for key, val in struct_data_instance.__dict__.items():
@@ -118,4 +118,17 @@ class TensorsStructure:
     def n_surfaces(self):
         return self.number_of_points_per_surface.shape[0]
 
+    @property
+    def partitions_bool(self):
+        ref_positions = self.reference_sp_position
+
+        res = np.eye(self.total_number_sp, dtype='int32')[np.array(ref_positions).reshape(-1)]
+        one_hot_ = res.reshape(list(ref_positions.shape) + [self.total_number_sp])
+        
+        partitions = b.tfnp.reduce_sum(one_hot_, axis=0)
+        partitions_bool = partitions.astype(bool)
+
+        return partitions_bool
+    
+    
     

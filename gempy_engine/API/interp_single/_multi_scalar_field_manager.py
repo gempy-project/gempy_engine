@@ -47,7 +47,8 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_
             stack_structure.stack_number = i
 
             tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
-            interpolation_input_i = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_structure)
+            interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
+                interpolation_input, stack_structure)
             
             output: ScalarFieldOutput = interpolate_feature(interpolation_input_i, options, tensor_struct_i,
                                                             stack_structure.interp_function)

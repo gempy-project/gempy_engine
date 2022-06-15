@@ -106,6 +106,7 @@ class CartesianSelector:
                  x_sel_h_ref, y_sel_h_ref,
                  x_sel_h_rest, y_sel_h_rest,
                  is_gradient=False):
+        
         self.hu_sel_i = x_sel_hu[:, None, :]
         self.hu_sel_j = y_sel_hu[None, :, :]
 
@@ -127,16 +128,14 @@ class CartesianSelector:
 @dataclass
 class DriftMatrixSelector:
     sel_ui: tensor_types = np.empty((0, 1, 3))
-
-    # TODO: Check these are unused
-    # sel_uj: tensor_types = np.empty((1, 0, 3))
-    # sel_vi: tensor_types = np.empty((0, 1, 3))
     sel_vj: tensor_types = np.empty((1, 0, 3))
 
     def __init__(self, x_size: int, y_size: int, n_drift_eq: int):
         sel_i = np.zeros((x_size, 2))
         sel_j = np.zeros((y_size, 2))
-
+        
+        # ! TODO: This need to account for faults too!
+        
         sel_i[:-n_drift_eq, 0] = 1
         sel_i[-n_drift_eq:, 1] = 1
 
@@ -144,9 +143,6 @@ class DriftMatrixSelector:
         sel_j[-n_drift_eq:, 1] = -1
 
         self.sel_ui = sel_i[:, None, :]
-        #   self.sel_uj = sel_j[None, :, :]
-
-        #   self.sel_vi = -sel_j[:, None, :]
         self.sel_vj = sel_j[None, :, :]
 
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:

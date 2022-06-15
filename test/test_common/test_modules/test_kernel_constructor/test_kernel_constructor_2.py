@@ -69,8 +69,7 @@ class TestCompareWithGempy_v2:
         options.i_res = 1
         options.gi_res = 1
 
-        sp_internals = surface_points_preprocess(surface_points,
-                                                 tensors_structure.tensors_structure)
+        sp_internals = surface_points_preprocess(surface_points, tensors_structure.tensors_structure)
         ori_internals = orientations_preprocess(orientations)
         return sp_internals, ori_internals, options
 

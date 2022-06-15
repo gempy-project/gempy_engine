@@ -2,11 +2,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, \
-    KernelFunction
-from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.modules.kernel_constructor._structs import KernelInput
+from ...core.backend_tensor import BackendTensor
+from ...core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, KernelFunction
+from ...core.data.options import InterpolationOptions, KernelOptions
+from ._structs import KernelInput
 
 tfnp = BackendTensor.tfnp
 tensor_types = BackendTensor.tensor_types
@@ -34,12 +33,10 @@ class InternalDistancesMatrices:
     hu_rest_grad: np.ndarray
 
 
-def create_cov_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor_types:
+def create_cov_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
-    i_magic = options.i_res
-    gi_magic = options.gi_res
 
     # Calculate euclidean or square distances depending on the function kernel
     global euclidean_distances
@@ -60,21 +57,21 @@ def create_cov_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor_
 
 def _get_cov(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, ki, options):
     cov_grad = _get_cov_grad(dm, k_a, k_p_ref)
-    cov_sp = _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest,
-                                     options)  # It is expanding towards cross
-    # TODO: Add nugget effect properly (individual)
-    # cov_sp += np.eye(cov_sp.shape[0]) * .00000001
+    cov_sp = _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options)  # TODO: Add nugget effect properly (individual) # cov_sp += np.eye(cov_sp.shape[0]) * .00000001
     cov_grad_sp = _get_cross_cov_grad_sp(dm, k_p_ref, k_p_rest, options)  # C
 
+    # Universal drift
     usp = _get_universal_sp_terms(ki, options)
     ug = _get_universal_gradient_terms(ki, options)
     drift = usp + ug
+
+    # Fault component
 
     cov = c_o * (cov_grad + cov_sp + cov_grad_sp) + drift  # *  NOTE: (miguel) The magic terms are real and now they are already included
     return cov
 
 
-def create_scalar_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor_types:
+def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
@@ -108,7 +105,7 @@ def create_scalar_kernel(ki: KernelInput, options: InterpolationOptions) -> tens
     return c_o * (sigma_0_sp + sigma_0_grad_sp) + drift
 
 
-def create_grad_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor_types:
+def create_grad_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
@@ -130,10 +127,10 @@ def create_grad_kernel(ki: KernelInput, options: InterpolationOptions) -> tensor
 
     # region drift
 
-    ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1) # First term
-    ug2 = (ki.ori_drift.dips_ug_bi * ki.ori_drift.dips_ug_bj).sum(axis=-1) # Second term
-    ug3_aux = (ki.ori_drift.dips_ug_ci * ki.ori_drift.dips_ug_cj).sum(axis=-1) # Third term
-    
+    ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)  # First term
+    ug2 = (ki.ori_drift.dips_ug_bi * ki.ori_drift.dips_ug_bj).sum(axis=-1)  # Second term
+    ug3_aux = (ki.ori_drift.dips_ug_ci * ki.ori_drift.dips_ug_cj).sum(axis=-1)  # Third term
+
     third_term_selector = (ki.ori_drift.selector_ci * ki.ori_drift.dips_ug_aj).sum(axis=-1)
     ug3 = ug3_aux * third_term_selector
 
@@ -164,7 +161,6 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatr
     hv = -(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j)).sum(axis=-1)  # C
 
     hu_ref = dif_ref_ref * (cs.hu_sel_i * cs.h_sel_ref_j)
-    test_foo = hu_ref.sum(-1)
 
     hv_ref = dif_ref_ref * (cs.h_sel_ref_i * cs.hv_sel_j)
     huv_ref = hu_ref.sum(axis=-1) - hv_ref.sum(axis=-1)  # C
@@ -172,13 +168,13 @@ def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatr
     hu_rest = dif_rest_rest * (cs.hu_sel_i * cs.h_sel_rest_j)
     hv_rest = dif_rest_rest * (cs.h_sel_rest_i * cs.hv_sel_j)
     huv_rest = hu_rest.sum(axis=-1) - hv_rest.sum(axis=-1)  # C
-    
+
     perp_matrix = (cs.hu_sel_i * cs.hv_sel_j).sum(axis=-1)
-    
+
     # For gradients
     hu_ref_grad = (dif_ref_ref * (cs.h_sel_ref_i * cs.hu_sel_j)).sum(axis=-1)
     hu_rest_grad = (dif_rest_rest * (cs.h_sel_ref_i * cs.hu_sel_j)).sum(axis=-1)
-    
+
     if BackendTensor.pykeops_enabled is True:
 
         r_ref_ref = dif_ref_ref.sqdist(dif_ref_ref)
@@ -216,7 +212,6 @@ def _get_universal_sp_terms(ki, options):
     usp_rest = (ki.rest_drift.dipsPoints_ui_ai * ki.rest_drift.dipsPoints_ui_aj).sum(axis=-1)
 
     # degree 2
-
     usp_ref_d2b = (ki.ref_drift.dipsPoints_ui_bi1 * ki.ref_drift.dipsPoints_ui_bj1).sum(axis=-1)
     usp_ref_d2c = (ki.ref_drift.dipsPoints_ui_bi2 * ki.ref_drift.dipsPoints_ui_bj2).sum(axis=-1)
     usp_ref_d2 = usp_ref_d2b * usp_ref_d2c
@@ -227,6 +222,27 @@ def _get_universal_sp_terms(ki, options):
 
     selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
     usp_d2 = -1 * selector * ((options.i_res * (usp_rest_d2 - usp_ref_d2)) + (options.gi_res * (usp_rest - usp_ref)))
+    return usp_d2
+
+
+def _get_fault_sp_terms(ki, options):
+    # TODO [ ] : Adapt this to something reasonable for the new drift matrix 
+    # degree 1
+    usp_ref = (ki.ref_drift.dipsPoints_ui_ai * ki.ref_drift.dipsPoints_ui_aj).sum(axis=-1)
+    usp_rest = (ki.rest_drift.dipsPoints_ui_ai * ki.rest_drift.dipsPoints_ui_aj).sum(axis=-1)
+
+    # degree 2
+    # usp_ref_d2b = (ki.ref_drift.dipsPoints_ui_bi1 * ki.ref_drift.dipsPoints_ui_bj1).sum(axis=-1)
+    # usp_ref_d2c = (ki.ref_drift.dipsPoints_ui_bi2 * ki.ref_drift.dipsPoints_ui_bj2).sum(axis=-1)
+    # usp_ref_d2 = usp_ref_d2b * usp_ref_d2c
+    # 
+    # usp_rest_d2b = (ki.rest_drift.dipsPoints_ui_bi1 * ki.rest_drift.dipsPoints_ui_bj1).sum(axis=-1)
+    # usp_rest_d2c = (ki.rest_drift.dipsPoints_ui_bi2 * ki.rest_drift.dipsPoints_ui_bj2).sum(axis=-1)
+    # usp_rest_d2 = usp_rest_d2b * usp_rest_d2c
+    # 
+    # selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
+    # usp_d2 = -1 * selector * ((options.i_res * (usp_rest_d2 - usp_ref_d2)) + (options.gi_res * (usp_rest - usp_ref)))
+    fsp = ((usp_rest_d2 - usp_ref_d2))
     return usp_d2
 
 

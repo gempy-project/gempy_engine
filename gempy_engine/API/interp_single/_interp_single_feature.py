@@ -16,25 +16,18 @@ from ...modules.activator import activator_interface
 from ._interp_scalar_field import interpolate_scalar_field, Buffer
 
 
-def interpolate_feature(interpolation_input: InterpolationInput, options: KernelOptions,
-                        data_shape: TensorsStructure, interp_funct: Optional[CustomInterpolationFunctions] = None,
+def interpolate_feature(interpolation_input: InterpolationInput, options: KernelOptions, data_shape: TensorsStructure,
+                        external_interp_funct: Optional[CustomInterpolationFunctions] = None,
                         clean_buffer: bool = True) -> ScalarFieldOutput:
     
     grid = copy.deepcopy(interpolation_input.grid)
     
-    if interp_funct is None:
+    if external_interp_funct is None:
         weights, exported_fields = interpolate_scalar_field(interpolation_input, options, data_shape)
     else:
         weights = None
         xyz = grid.values
-
-        exported_fields = ExportedFields(
-            _scalar_field=interp_funct.implicit_function(xyz),
-            _gx_field=interp_funct.gx_function(xyz),
-            _gy_field=interp_funct.gy_function(xyz),
-            _gz_field=interp_funct.gz_function(xyz),
-            _scalar_field_at_surface_points=interp_funct.scalar_field_at_surface_points
-        )
+        exported_fields: ExportedFields = _interpolate_external_function(external_interp_funct, xyz)
 
     values_block = _segment_scalar_field(exported_fields, interpolation_input.unit_values)
     mask_components = _compute_mask_components(exported_fields, interpolation_input.stack_relation)
@@ -49,6 +42,17 @@ def interpolate_feature(interpolation_input: InterpolationInput, options: Kernel
 
     if clean_buffer: Buffer.clean()
     return output
+
+
+def _interpolate_external_function(interp_funct, xyz):
+    exported_fields = ExportedFields(
+        _scalar_field=interp_funct.implicit_function(xyz),
+        _gx_field=interp_funct.gx_function(xyz),
+        _gy_field=interp_funct.gy_function(xyz),
+        _gz_field=interp_funct.gz_function(xyz),
+        _scalar_field_at_surface_points=interp_funct.scalar_field_at_surface_points
+    )
+    return exported_fields
 
 
 def _segment_scalar_field(exported_fields: ExportedFields, unit_values: np.ndarray) -> np.ndarray:
