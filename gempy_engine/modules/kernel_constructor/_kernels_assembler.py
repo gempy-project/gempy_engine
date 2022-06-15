@@ -90,16 +90,22 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
 
     selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
 
-    drift = selector * (options.gi_res * usp_ref + options.i_res * usp_ref_d2)
+    uni_drift = selector * (options.gi_res * usp_ref + options.i_res * usp_ref_d2)
     # endregion
     
     # region faults_sp
 
     # TODO: Here it goes just if the value of the fault matrix on the grid
-    
+    if ki.ref_fault is not None:
+        fault_vector_ref_i = ki.ref_fault.faults_i[:, None, :]
+        fault_vector_grid_j = ki.ref_fault.faults_j[None, :, :]
+        fault_drift = (fault_vector_ref_i * fault_vector_grid_j).sum(axis=-1)
+    else:
+        fault_drift = 0
+
     # endregion
     
-    return c_o * (sigma_0_sp + sigma_0_grad_sp) + drift
+    return c_o * (sigma_0_sp + sigma_0_grad_sp) + uni_drift + fault_drift
 
 
 def create_grad_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:

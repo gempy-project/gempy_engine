@@ -2,7 +2,7 @@ from typing import Tuple
 
 from ._structs import OrientationSurfacePointsCoords, FaultDrift
 from ...core.backend_tensor import BackendTensor, AvailableBackends
-from ...core.data import FaultsInternals
+from ...core.data import FaultsData
 from ...core.data.internal_structs import SolverInput
 from ...core.data.options import InterpolationOptions, KernelOptions
 from ...core.data.kernel_classes.surface_points import SurfacePointsInternals
@@ -18,7 +18,7 @@ import numpy as np
 def cov_vectors_preparation(interp_input: SolverInput) -> _structs.KernelInput:
     sp_: SurfacePointsInternals = interp_input.sp_internal
     ori_: OrientationsInternals = interp_input.ori_internal
-    faults_val: FaultsInternals = interp_input.fault_internal
+    faults_val: FaultsData = interp_input.fault_internal
     options: KernelOptions = interp_input.options
 
     ori_size = ori_.n_orientations_tiled
@@ -57,13 +57,13 @@ def cov_vectors_preparation(interp_input: SolverInput) -> _structs.KernelInput:
 def evaluation_vectors_preparations(grid: np.array, interp_input: SolverInput, axis=None) -> _structs.KernelInput:
     sp_: SurfacePointsInternals = interp_input.sp_internal
     ori_: OrientationsInternals = interp_input.ori_internal
-    faults_val: FaultsInternals = interp_input.fault_internal
+    faults_vals: FaultsData = interp_input.fault_internal
     options: KernelOptions = interp_input.options
 
     ori_size = ori_.n_orientations_tiled
     sp_size = sp_.n_points
     drift_size = options.n_uni_eq
-    faults_size = faults_val.n_faults
+    faults_size = faults_vals.n_faults
 
     cov_size = ori_size + sp_size + drift_size + faults_size
 
@@ -74,7 +74,8 @@ def evaluation_vectors_preparations(grid: np.array, interp_input: SolverInput, a
 
     # Faults
     if faults_size > 0:
-        fault_vector_ref, fault_vector_rest = _assembly_fault_grid_tensors(grid, options, faults_val, ori_size)
+        faults_val_on_grid = faults_vals.fault_values_on_grid
+        fault_vector_ref, fault_vector_rest = _assembly_fault_grid_tensors(faults_val_on_grid, options, faults_vals, ori_size)
     else:
         fault_vector_ref, fault_vector_rest = None, None
 
@@ -92,7 +93,7 @@ def evaluation_vectors_preparations(grid: np.array, interp_input: SolverInput, a
         rest_drift=dips_rest_ui,
         drift_matrix_selector=drift_selection,
         ref_fault=fault_vector_ref,
-        rest_fault=fault_vector_rest
+        rest_fault=None
     )
 
 
@@ -199,10 +200,10 @@ def _assembly_drift_grid_tensors(grid, options, ori_, sp_, axis):
 
 def _assembly_fault_grid_tensors(grid, options, faults_val, ori_size):
     fault_vector_ref, fault_vector_rest = _assembly_fault_internals(faults_val, options, ori_size)
-    return FaultDrift(fault_vector_ref, grid), FaultDrift(fault_vector_rest, grid)
+    return FaultDrift(fault_vector_ref, grid)
 
 
-def _assembly_fault_tensors(options, faults_val: FaultsInternals, ori_size: int) -> Tuple[FaultDrift, FaultDrift]:
+def _assembly_fault_tensors(options, faults_val: FaultsData, ori_size: int) -> Tuple[FaultDrift, FaultDrift]:
     fault_vector_ref, fault_vector_rest = _assembly_fault_internals(faults_val, options, ori_size)
     return FaultDrift(fault_vector_ref, fault_vector_ref), FaultDrift(fault_vector_rest, fault_vector_rest)
 

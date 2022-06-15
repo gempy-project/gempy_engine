@@ -4,7 +4,7 @@ from typing import List
 
 import numpy as np
 
-from . import SurfacePoints, Orientations
+from . import SurfacePoints, Orientations, FaultsData
 from .grid import Grid
 from .input_data_descriptor import StackRelationType, StacksStructure
 
@@ -15,8 +15,8 @@ class InterpolationInput:
     orientations: Orientations
     grid: Grid
     unit_values: np.ndarray
-    fault_values: np.ndarray = None
-    _fault_values: np.ndarray = dataclasses.field(init=True, repr=False, default=None)
+    fault_values: FaultsData = None
+    _fault_values: FaultsData = dataclasses.field(init=True, repr=False, default=None)
     stack_relation: StackRelationType | List[StackRelationType] = StackRelationType.ERODE # ? Should be here or in the descriptor
     
     @classmethod

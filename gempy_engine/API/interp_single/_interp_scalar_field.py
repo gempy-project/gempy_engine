@@ -3,6 +3,7 @@ from typing import Tuple
 import numpy as np
 
 from ...core import data
+from ...core.data import FaultsData, Orientations, SurfacePoints, SurfacePointsInternals, OrientationsInternals
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.input_data_descriptor import TensorsStructure
 from ...core.data.internal_structs import SolverInput
@@ -58,17 +59,21 @@ def _solve_interpolation(interp_input: SolverInput):
 
 
 def _input_preprocess(data_shape: TensorsStructure, interpolation_input: InterpolationInput) -> \
-        Tuple[np.ndarray, data.OrientationsInternals, data.SurfacePointsInternals, data.FaultsInternals]:
+        Tuple[np.ndarray, data.OrientationsInternals, data.SurfacePointsInternals, data.FaultsData]:
     grid = interpolation_input.grid
-    surface_points = interpolation_input.surface_points
-    orientations = interpolation_input.orientations
-    faults = interpolation_input.fault_values
+    surface_points: SurfacePoints = interpolation_input.surface_points
+    orientations: Orientations = interpolation_input.orientations
+    fault_values: FaultsData = interpolation_input.fault_values
+    faults_on_sp: np.ndarray = fault_values.fault_values_on_sp
     
-    sp_internal = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
-    ori_internal = data_preprocess_interface.prepare_orientations(orientations)
+    sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
+    ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(orientations)
     grid_internal = data_preprocess_interface.prepare_grid(grid.values, surface_points)
-    faults_internal = data_preprocess_interface.prepare_faults(faults, data_shape)
-    return grid_internal, ori_internal, sp_internal, faults_internal
+    
+    fault_ref, fault_rest = data_preprocess_interface.prepare_faults(faults_on_sp, data_shape)
+    fault_values.fault_values_ref, fault_values.fault_values_rest = fault_ref, fault_rest
+    
+    return grid_internal, ori_internal, sp_internal, fault_values
 
 
 def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput, weights: np.ndarray) -> ExportedFields:
