@@ -294,9 +294,9 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
     grid = dataclasses.replace(simple_grid_3d_more_points_grid)
 
     ids = np.array([1, 2])
-
-    grid_internal, ori_internal, sp_internal = _input_preprocess(data_shape, grid, orientations, surface_points)
-    interp_input = SolverInput(sp_internal, ori_internal, options)
+    ii = InterpolationInput(surface_points, orientations, grid, ids)
+    grid_internal, ori_internal, sp_internal, _ = _input_preprocess(data_shape, ii)
+    interp_input = SolverInput(sp_internal, ori_internal, options.kernel_options)
 
     weights = _solve_interpolation(interp_input)
 

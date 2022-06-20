@@ -16,6 +16,7 @@ from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import
 
 import pickle
 import os
+
 dir_name = os.path.dirname(__file__)
 
 
@@ -72,7 +73,7 @@ pykeops_enabled = True
 
 # TODO: (bug) When running test_covariance_spline_kernel the running the class test breaks for some weird state change
 class TestPykeopsNumPyEqual():
-    
+
     @pytest.fixture(scope="class")
     def preprocess_data(self, simple_model_2):
         surface_points = simple_model_2[0]
@@ -99,17 +100,18 @@ class TestPykeopsNumPyEqual():
                                                                                      ori_.n_orientations, sp_.n_points)
 
         cartesian_selector = CartesianSelector(sel_hu_input, sel_hv_input, sel_hv_input, sel_hu_input, sel_hu_points_input,
-                                       sel_hu_points_input, sel_hu_points_input, sel_hu_points_input)
+                                               sel_hu_points_input, sel_hu_points_input, sel_hu_points_input)
 
         with open(dir_name + '/../solutions/cartesian_selector.pickle', 'rb') as handle:
             cartesian_selector_sol = pickle.load(handle)
 
-        np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_i,        cartesian_selector_sol.hu_sel_i, decimal=3)
-        np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_j,        cartesian_selector_sol.hu_sel_j, decimal=3)
-        np.testing.assert_array_almost_equal(cartesian_selector.hv_sel_i,        cartesian_selector_sol.hv_sel_i, decimal=3)
-        np.testing.assert_array_almost_equal(cartesian_selector.hv_sel_j,        cartesian_selector_sol.hv_sel_j, decimal=3)
+        np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_i, cartesian_selector_sol.hu_sel_i, decimal=3)
+        np.testing.assert_array_almost_equal(cartesian_selector.hu_sel_j, cartesian_selector_sol.hu_sel_j, decimal=3)
+        np.testing.assert_array_almost_equal(cartesian_selector.hv_sel_i, cartesian_selector_sol.hv_sel_i, decimal=3)
+        np.testing.assert_array_almost_equal(cartesian_selector.hv_sel_j, cartesian_selector_sol.hv_sel_j, decimal=3)
 
     def test_distance_matrices(self, preprocess_data):
+        import gempy_engine.modules.kernel_constructor._covariance_assembler
         sp_, ori_, options = preprocess_data
         cov_size = ori_.n_orientations_tiled + sp_.n_points + options.n_uni_eq
 
@@ -119,7 +121,7 @@ class TestPykeopsNumPyEqual():
             dm_sol = pickle.load(handle)
         dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
 
-        np.testing.assert_array_almost_equal(dm.dif_ref_ref , dm_sol.dif_ref_ref, decimal=3)
+        np.testing.assert_array_almost_equal(dm.dif_ref_ref, dm_sol.dif_ref_ref, decimal=3)
         np.testing.assert_array_almost_equal(dm.dif_rest_rest, dm_sol.dif_rest_rest, decimal=3)
         np.testing.assert_array_almost_equal(dm.hu, dm_sol.hu, decimal=3)
         np.testing.assert_array_almost_equal(dm.huv_ref, dm_sol.huv_ref, decimal=3)
@@ -130,26 +132,25 @@ class TestPykeopsNumPyEqual():
         np.testing.assert_array_almost_equal(dm.r_rest_ref, dm_sol.r_rest_ref, decimal=3)
         np.testing.assert_array_almost_equal(dm.r_rest_rest, dm_sol.r_rest_rest, decimal=3)
 
-
     def test_compare_cg(self, preprocess_data):
-        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_grad", cov_func = _test_covariance_items)
+        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_grad", cov_func=_test_covariance_items)
 
     def test_compare_ci(self, preprocess_data):
-        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_sp", cov_func = _test_covariance_items)
+        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_sp", cov_func=_test_covariance_items)
 
     def test_compare_cgi(self, preprocess_data):
-        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_grad_sp", cov_func = _test_covariance_items)
+        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_grad_sp", cov_func=_test_covariance_items)
 
     def test_compare_drift(self, preprocess_data):
-        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="drift", cov_func = _test_covariance_items)
+        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="drift", cov_func=_test_covariance_items)
 
     @pytest.mark.skip("This test is broken: the stored covariance has a different c_o")
     def test_copare_full_cov(self, preprocess_data):
-        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov", cov_func = _test_covariance_items)
+        self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov", cov_func=_test_covariance_items)
 
     def _compare_covariance_item_numpy_pykeops(self, preprocess_data, item, cov_func):
         sp_internals, ori_internals, options = preprocess_data
-        
+
         # numpy
         BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=False)
         kernel_data = cov_vectors_preparation(SolverInput(sp_internals, ori_internals, options))
@@ -157,12 +158,11 @@ class TestPykeopsNumPyEqual():
         if False:
             np.save(f"./solutions/{item}", c_n)
 
-        l =  np.load(dir_name + f"/../solutions/{item}.npy")
+        l = np.load(dir_name + f"/../solutions/{item}.npy")
         c_n_sum = c_n.sum(0).reshape(-1, 1)
 
         print(c_n, c_n_sum)
         np.testing.assert_array_almost_equal(np.asarray(c_n), l, decimal=3)
-
 
         # pykeops
         BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=pykeops_enabled)

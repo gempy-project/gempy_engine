@@ -36,6 +36,7 @@ def cov_vectors_preparation(interp_input: SolverInput) -> _structs.KernelInput:
 
     drift_start_position = ori_size + sp_size
     drift_selection = _structs.DriftMatrixSelector(cov_size, cov_size, drift_start_position, drift_size)
+    drift_selection_test = _structs.DriftMatrixSelector.old_method(cov_size, cov_size, drift_size)
 
     if faults_size > 0:
         fault_vector_ref, fault_vector_rest = _assembly_fault_tensors(options, faults_val, ori_size)

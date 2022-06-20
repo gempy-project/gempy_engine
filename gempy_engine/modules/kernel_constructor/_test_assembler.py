@@ -1,6 +1,6 @@
 from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.options import KernelOptions
-from gempy_engine.modules.kernel_constructor._cov_assembler import _get_cov_grad, _get_cov_surface_points, _get_cross_cov_grad_sp, _get_universal_gradient_terms, _get_universal_sp_terms, _get_covariance
+from gempy_engine.modules.kernel_constructor._covariance_assembler import _get_cov_grad, _get_cov_surface_points, _get_cross_cov_grad_sp, _get_universal_gradient_terms, _get_universal_sp_terms, _get_covariance
 from gempy_engine.modules.kernel_constructor._kernels_assembler import _compute_all_distance_matrices, _compute_all_kernel_terms
 from gempy_engine.modules.kernel_constructor._structs import KernelInput
 

@@ -31,10 +31,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         interpolation_input, options, structure = recumbent_fold_scaled
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
-                                                                interpolation_input.grid,
-                                                                interpolation_input.orientations,
-                                                                interpolation_input.surface_points)
+        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
         solver_input = SolverInput(sp_internal, ori_internal, options)
 
         kernel_data = cov_vectors_preparation(solver_input)
@@ -80,11 +77,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         interpolation_input, options, structure = recumbent_fold_scaled
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
-                                                                interpolation_input.grid,
-                                                                interpolation_input.orientations,
-                                                                interpolation_input.surface_points)
-
+        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
         from test.test_common.test_geometries.solutions import recumbent_ref, recumbent_rest, recumbent_dips
         np.testing.assert_allclose(sp_internal.ref_surface_points, recumbent_ref, rtol=1e-7)
         np.testing.assert_allclose(sp_internal.rest_surface_points, recumbent_rest, rtol=1e-7)
@@ -110,10 +103,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         interpolation_input, options, structure = recumbent_fold_scaled
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
-                                                                interpolation_input.grid,
-                                                                interpolation_input.orientations,
-                                                                interpolation_input.surface_points)
+        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
         solver_input = SolverInput(sp_internal, ori_internal, options)
 
         kernel_data = cov_vectors_preparation(solver_input)
@@ -135,10 +125,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         interpolation_input, options, structure = recumbent_fold_scaled
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
-                                                                interpolation_input.grid,
-                                                                interpolation_input.orientations,
-                                                                interpolation_input.surface_points)
+        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
 
         solver_input = SolverInput(sp_internal, ori_internal, options)
         kernel_data = cov_vectors_preparation(solver_input)
@@ -194,10 +181,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         options.uni_degree = 2
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
-                                                                interpolation_input.grid,
-                                                                interpolation_input.orientations,
-                                                                interpolation_input.surface_points)
+        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
 
         solver_input = SolverInput(sp_internal, ori_internal, options)
         kernel_data = cov_vectors_preparation(solver_input)
@@ -250,11 +234,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         options.uni_degree = 2
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
-                                                                interpolation_input.grid,
-                                                                interpolation_input.orientations,
-                                                                interpolation_input.surface_points)
-
+        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
         solver_input = SolverInput(sp_internal, ori_internal, options)
         kernel_data = evaluation_vectors_preparations(xyz_lvl0, solver_input)
         kernel = _test_covariance_items(kernel_data, options, "sigma_0_u_sp")
@@ -265,7 +245,8 @@ class TestRecumbentFoldCovConstructionWithDrift:
             contribution = (recumbent_weights_d1[-3:].reshape(-1, 1) * kernel[-3:]).sum(axis=0)
         elif options.uni_degree == 2:
             contribution = (recumbent_weights[-9:].reshape(-1, 1) * kernel[-9:]).sum(axis=0)
-
+        else:
+            raise ValueError("Unknown uni_degree")
         print(contribution)
 
     @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
@@ -287,10 +268,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         interpolation_input.grid = grid
         # endregion
 
-        xyz_lvl0, ori_internal, sp_internal = _input_preprocess(structure,
-                                                                interpolation_input.grid,
-                                                                interpolation_input.orientations,
-                                                                interpolation_input.surface_points)
+        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
 
         options.uni_degree = 2
 

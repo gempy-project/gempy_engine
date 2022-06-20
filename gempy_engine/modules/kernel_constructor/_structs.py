@@ -146,7 +146,7 @@ class DriftMatrixSelector:
         sel_i = np.zeros((x_size, 2))
         sel_j = np.zeros((y_size, 2))
 
-        drift_pos_0 = drift_start_post + 1
+        drift_pos_0 = drift_start_post
         drift_pos_1 = drift_start_post + n_drift_eq + 1
         
         if n_drift_eq != 0:
@@ -175,7 +175,7 @@ class DriftMatrixSelector:
         sel_j[:-n_drift_eq, 0] = -1
         sel_j[-n_drift_eq:, 1] = -1
 
-        foo = cls(1, 1, 1)
+        foo = cls(1, 1, 1, 1)
         foo.sel_ui = sel_i[:, None, :]
         foo.sel_vj = sel_j[None, :, :]
 

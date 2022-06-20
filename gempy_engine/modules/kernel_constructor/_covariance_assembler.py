@@ -1,6 +1,7 @@
 import numpy as np
 
 from gempy_engine.modules.kernel_constructor import _structs
+from gempy_engine.modules.kernel_constructor._internalDistancesMatrices import InternalDistancesMatrices  # ! Important for loading the pickle in test_distance_matrix
 
 from gempy_engine.modules.kernel_constructor._structs import KernelInput
 
