@@ -105,7 +105,7 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
 
     # endregion
     
-    return c_o * (sigma_0_sp + sigma_0_grad_sp) + uni_drift + fault_drift
+    return c_o * (sigma_0_sp + sigma_0_grad_sp) + uni_drift #+ fault_drift
 
 
 def create_grad_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:

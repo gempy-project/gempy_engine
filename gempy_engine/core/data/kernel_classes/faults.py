@@ -13,5 +13,5 @@ class FaultsData:
     
     @property
     def n_faults(self):
-        return self.fault_values_ref.shape[1]
+        return self.fault_values_on_sp.shape[1]
     

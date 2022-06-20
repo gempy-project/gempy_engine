@@ -113,7 +113,7 @@ class TestPykeopsNumPyEqual():
         sp_, ori_, options = preprocess_data
         cov_size = ori_.n_orientations_tiled + sp_.n_points + options.n_uni_eq
 
-        ki = cov_vectors_preparation(SolverInput(sp_, ori_, options))
+        ki = cov_vectors_preparation(SolverInput(sp_, ori_, options.kernel_options))
 
         with open(dir_name + '/../solutions/distance_matrices.pickle', 'rb') as handle:
             dm_sol = pickle.load(handle)
@@ -149,13 +149,13 @@ class TestPykeopsNumPyEqual():
 
     def _compare_covariance_item_numpy_pykeops(self, preprocess_data, item, cov_func):
         sp_internals, ori_internals, options = preprocess_data
+        
         # numpy
         BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=False)
         kernel_data = cov_vectors_preparation(SolverInput(sp_internals, ori_internals, options))
         c_n = cov_func(kernel_data, options, item=item)
         if False:
             np.save(f"./solutions/{item}", c_n)
-
 
         l =  np.load(dir_name + f"/../solutions/{item}.npy")
         c_n_sum = c_n.sum(0).reshape(-1, 1)

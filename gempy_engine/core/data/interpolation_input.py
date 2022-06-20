@@ -42,7 +42,9 @@ class InterpolationInput:
     @property
     def fault_values(self):
         if self._fault_values is None:
-            return np.zeros((self.surface_points.n_points, 0))
+            empty_fault_values_on_sp = np.zeros((self.surface_points.n_points, 0))
+            empty_fault_values_on_grid = np.zeros((self.grid.len_all_grids, 0))
+            return FaultsData(empty_fault_values_on_grid, empty_fault_values_on_sp)
         return self._fault_values
     
     @fault_values.setter

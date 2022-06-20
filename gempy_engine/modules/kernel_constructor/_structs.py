@@ -89,11 +89,11 @@ class PointsDrift:
 class FaultDrift:
     faults_i: tensor_types = np.empty((0, 1, 3))
     faults_j: tensor_types = np.empty((1, 0, 3))
-    
-    def __init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray,):
+
+    def __init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, ):
         self.faults_i = x_degree_1[:, None, :]
         self.faults_j = y_degree_1[None, :, :]
-    
+
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
 
@@ -119,7 +119,6 @@ class CartesianSelector:
                  x_sel_h_ref, y_sel_h_ref,
                  x_sel_h_rest, y_sel_h_rest,
                  is_gradient=False):
-        
         self.hu_sel_i = x_sel_hu[:, None, :]
         self.hu_sel_j = y_sel_hu[None, :, :]
 
@@ -142,27 +141,47 @@ class CartesianSelector:
 class DriftMatrixSelector:
     sel_ui: tensor_types = np.empty((0, 1, 3))
     sel_vj: tensor_types = np.empty((1, 0, 3))
-
+    
     def __init__(self, x_size: int, y_size: int, drift_start_post: int, n_drift_eq: int):
         sel_i = np.zeros((x_size, 2))
         sel_j = np.zeros((y_size, 2))
-        
-        # ! TODO: This need to account for faults too!
-        
-        drift_pos_0 = drift_start_post
-        drift_pos_1 = drift_start_post + n_drift_eq
-        
-        sel_i[:drift_pos_0, 0] = 1
-        sel_i[drift_pos_0:drift_pos_1, 1] = 1
 
-        sel_j[:drift_pos_0, 0] = -1
-        sel_j[drift_pos_0:drift_pos_1, 1] = -1
+        drift_pos_0 = drift_start_post + 1
+        drift_pos_1 = drift_start_post + n_drift_eq + 1
+        
+        if n_drift_eq != 0:
+            sel_i[:drift_pos_0, 0] = 1
+            sel_i[drift_pos_0:drift_pos_1, 1] = 1
+        
+            sel_j[:drift_pos_0, 0] = -1
+            sel_j[drift_pos_0:drift_pos_1, 1] = -1
 
         self.sel_ui = sel_i[:, None, :]
         self.sel_vj = sel_j[None, :, :]
 
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
+
+    @classmethod
+    def old_method(cls, x_size: int, y_size: int, n_drift_eq: int):  # * This does not account for faults
+        sel_i = np.zeros((x_size, 2))
+        sel_j = np.zeros((y_size, 2))
+
+        # ! TODO [x]: This need to account for faults too. This is what the new __init__ does.
+
+        sel_i[:-n_drift_eq, 0] = 1
+        sel_i[-n_drift_eq:, 1] = 1
+
+        sel_j[:-n_drift_eq, 0] = -1
+        sel_j[-n_drift_eq:, 1] = -1
+
+        foo = cls(1, 1, 1)
+        foo.sel_ui = sel_i[:, None, :]
+        foo.sel_vj = sel_j[None, :, :]
+
+        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
+            _upgrade_kernel_input_to_keops_tensor(cls)
+        return foo
 
 
 @dataclass
@@ -178,4 +197,4 @@ class KernelInput:
     drift_matrix_selector: DriftMatrixSelector
 
     ref_fault: Optional[FaultDrift]
-    rest_fault: Optional[FaultDrift] 
+    rest_fault: Optional[FaultDrift]

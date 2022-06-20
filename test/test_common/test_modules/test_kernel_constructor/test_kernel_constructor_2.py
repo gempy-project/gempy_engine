@@ -101,24 +101,25 @@ class TestCompareWithGempy_v2:
 
     def test_export_to_scalar(self, internals, weights):
         sp_internals, ori_internals, options = internals
-
-        options.uni_degree = 0
+        kernel_options = options.kernel_options
+        
+        kernel_options.uni_degree = 0
 
         # Test sigma 0 sp
-        kernel_data = evaluation_vectors_preparations(grid, SolverInput(sp_internals, ori_internals, options))
-        export_sp_contr = _test_covariance_items(kernel_data, options, item="sigma_0_sp")
+        kernel_data = evaluation_vectors_preparations(grid, SolverInput(sp_internals, ori_internals, kernel_options))
+        export_sp_contr = _test_covariance_items(kernel_data, kernel_options, item="sigma_0_sp")
         sp_contr = weights @ export_sp_contr
 
         # TODO: Add test
         print(f"\n Scalar field sp contr: {sp_contr}")
 
         # Test sigma grad - sp
-        export_grad_sp_contr = _test_covariance_items(kernel_data, options, item="sigma_0_grad_sp")
+        export_grad_sp_contr = _test_covariance_items(kernel_data, kernel_options, item="sigma_0_grad_sp")
         grad_sp_contr = weights @ export_grad_sp_contr
         print(f"\n Scalar field grad contr: {grad_sp_contr}")
 
         # Test scalar field
-        export_scalar_ff = create_scalar_kernel(kernel_data, options)
+        export_scalar_ff = create_scalar_kernel(kernel_data, kernel_options)
         scalar_ff = weights @ export_scalar_ff
         print(f"\n Scalar field: {scalar_ff.reshape(4, 1, 4)}")
 

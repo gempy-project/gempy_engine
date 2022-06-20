@@ -60,16 +60,17 @@ def _solve_interpolation(interp_input: SolverInput):
 
 def _input_preprocess(data_shape: TensorsStructure, interpolation_input: InterpolationInput) -> \
         Tuple[np.ndarray, data.OrientationsInternals, data.SurfacePointsInternals, data.FaultsData]:
+    
     grid = interpolation_input.grid
     surface_points: SurfacePoints = interpolation_input.surface_points
     orientations: Orientations = interpolation_input.orientations
-    fault_values: FaultsData = interpolation_input.fault_values
-    faults_on_sp: np.ndarray = fault_values.fault_values_on_sp
     
     sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
     ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(orientations)
     grid_internal = data_preprocess_interface.prepare_grid(grid.values, surface_points)
-    
+
+    fault_values: FaultsData = interpolation_input.fault_values
+    faults_on_sp: np.ndarray = fault_values.fault_values_on_sp
     fault_ref, fault_rest = data_preprocess_interface.prepare_faults(faults_on_sp, data_shape)
     fault_values.fault_values_ref, fault_values.fault_values_rest = fault_ref, fault_rest
     
