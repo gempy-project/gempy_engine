@@ -161,7 +161,9 @@ class DriftMatrixSelector:
 
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
-
+    
+    
+    
     @classmethod
     def old_method(cls, x_size: int, y_size: int, n_drift_eq: int):  # * This does not account for faults
         sel_i = np.zeros((x_size, 2))

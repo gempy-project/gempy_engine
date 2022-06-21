@@ -20,7 +20,8 @@ class ExportedFields:
     @property
     def scalar_field_at_surface_points(self) -> Optional[np.ndarray]:
         if self._scalar_field_at_surface_points is None:
-            return self._scalar_field[self.slice_feature][self.npf]
+            npf_ = self._scalar_field[self.slice_feature][self.npf]
+            return npf_
         else:
             return self._scalar_field_at_surface_points
     

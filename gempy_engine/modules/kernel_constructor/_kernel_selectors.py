@@ -1,7 +1,14 @@
 import numpy as np
 
+from ...core.data.matrices_sizes import MatricesSizes
 
-def dips_sp_cartesian_selector(vector_size, n_dim, n_dips, n_points, axis: int = None):
+
+def dips_sp_cartesian_selector(matrices_sizes: MatricesSizes, axis: int = None):
+    vector_size = matrices_sizes.cov_size
+    n_dim = matrices_sizes.dim
+    n_dips = matrices_sizes.n_dips
+    n_points = matrices_sizes.sp_size
+
     sel_hu = np.zeros((vector_size, n_dim))
     sel_hv = np.zeros((vector_size, n_dim))
     sel_huv = np.zeros((vector_size, n_dim))
@@ -18,7 +25,10 @@ def dips_sp_cartesian_selector(vector_size, n_dim, n_dips, n_points, axis: int =
     return sel_hu, sel_hv, sel_huv
 
 
-def grid_cartesian_selector(vector_size, n_dim, axis: int = None):
+def grid_cartesian_selector(matrices_sizes: MatricesSizes, axis: int = None):
+    vector_size = matrices_sizes.grid_size
+    n_dim = matrices_sizes.dim
+    
     sel_hu = np.ones((vector_size, n_dim))
     sel_huv = np.ones((vector_size, n_dim))
 

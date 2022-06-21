@@ -22,13 +22,14 @@ def prepare_grid(grid: np.ndarray, surface_points: SurfacePoints) -> np.ndarray:
     return bt.tfnp.concat([grid, surface_points.sp_coords])
 
 
-def prepare_faults(faults_values: np.ndarray, tensors_structure: TensorsStructure) -> Tuple[ndarray, ndarray]:
+def prepare_faults(faults_values_on_sp: np.ndarray, tensors_structure: TensorsStructure) -> Tuple[ndarray, ndarray]:
+    
     partitions_bool = tensors_structure.partitions_bool
     number_repetitions = tensors_structure.number_of_points_per_surface - 1
 
-    ref_points = faults_values[partitions_bool]
+    ref_points = faults_values_on_sp[:, partitions_bool]
 
     ref_matrix_val_repeated = np.repeat(ref_points, number_repetitions, 0)
-    rest_matrix_val = faults_values[~partitions_bool]
+    rest_matrix_val = faults_values_on_sp[:, ~partitions_bool]
 
     return ref_matrix_val_repeated, rest_matrix_val

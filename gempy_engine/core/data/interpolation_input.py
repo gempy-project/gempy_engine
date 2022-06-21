@@ -18,8 +18,6 @@ class InterpolationInput:
     fault_values: FaultsData = None
     _fault_values: FaultsData = dataclasses.field(init=True, repr=False, default=None)
     stack_relation: StackRelationType | List[StackRelationType] = StackRelationType.ERODE  # ? Should be here or in the descriptor
-
-    slice_feature: Optional[slice] = slice(None, None)  # * Used to slice the surface points values of the interpolation (grid.values)
     
     all_surface_points: SurfacePoints = None
     _all_surface_points: SurfacePoints = dataclasses.field(init=False, repr=False, default=None)
@@ -38,8 +36,6 @@ class InterpolationInput:
 
         grid = all_interpolation_input.grid
 
-        slice0 = cum_number_surfaces_l0 + grid.len_all_grids + 1
-        slice1 = cum_number_surfaces_l1 + grid.len_all_grids + 2
         ii_subset = cls(
             surface_points=sp,
             orientations=o,
@@ -47,20 +43,22 @@ class InterpolationInput:
             unit_values=unit_values,
             stack_relation=stack_structure.active_masking_descriptor,
             all_surface_points=all_interpolation_input.surface_points,
-            slice_feature=slice(slice0, slice1)
         )
 
         ii_subset.fault_values = all_interpolation_input._fault_values  # ! Setting this on the constructor does not work God knows why.
 
         return ii_subset
     
+    @property
+    def slice_feature(self):
+        return self.surface_points.slice_feature
     
     
     @property
     def fault_values(self):
         if self._fault_values is None:
-            empty_fault_values_on_sp = np.zeros((self.surface_points.n_points, 0))
-            empty_fault_values_on_grid = np.zeros((self.grid.len_all_grids, 0))
+            empty_fault_values_on_sp = np.zeros((0, self.surface_points.n_points))
+            empty_fault_values_on_grid = np.zeros((0, self.grid.len_all_grids))
             return FaultsData(empty_fault_values_on_grid, empty_fault_values_on_sp)
         return self._fault_values
 

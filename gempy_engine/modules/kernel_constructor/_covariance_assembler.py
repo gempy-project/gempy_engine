@@ -1,9 +1,10 @@
 import numpy as np
 
 from gempy_engine.modules.kernel_constructor import _structs
-from gempy_engine.modules.kernel_constructor._internalDistancesMatrices import InternalDistancesMatrices  # ! Important for loading the pickle in test_distance_matrix
-
 from gempy_engine.modules.kernel_constructor._structs import KernelInput
+
+# ! Important for loading the pickle in test_distance_matrix
+from gempy_engine.modules.kernel_constructor._internalDistancesMatrices import InternalDistancesMatrices
 
 
 def _get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, ki: KernelInput, options):

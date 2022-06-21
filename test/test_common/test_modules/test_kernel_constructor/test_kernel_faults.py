@@ -196,7 +196,7 @@ def test_creating_several_faults_kernel_with_dummy_data(simple_model_2):
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_fault_kernel(unconformity_complex, n_oct_levels=1):
     interpolation_input, options, structure = unconformity_complex
-    #structure.stack_structure.masking_descriptor = [StackRelationType.ERODE, StackRelationType.FAULT, False]
+    structure.stack_structure.masking_descriptor = [StackRelationType.ERODE, StackRelationType.FAULT, False]
     
     options.number_octree_levels = n_oct_levels
     solutions: Solutions = compute_model(interpolation_input, options, structure)
@@ -208,7 +208,7 @@ def test_fault_kernel(unconformity_complex, n_oct_levels=1):
     all_values = output.scalar_fields._values_block
     sp_val = all_values[0, -2:]
 
-    if PLOT or False:
+    if PLOT or True:
         grid = interpolation_input.grid.regular_grid
         plot_block(outputs[0].values_block, grid)
         plot_block(outputs[1].values_block, grid)
@@ -217,5 +217,5 @@ def test_fault_kernel(unconformity_complex, n_oct_levels=1):
     if True:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
-            dc_meshes=solutions.dc_meshes
+            #dc_meshes=solutions.dc_meshes
         )

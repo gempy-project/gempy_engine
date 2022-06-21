@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Union
+from typing import Union, Optional
 
 import numpy as np
 
@@ -13,6 +13,8 @@ class SurfacePoints:
     sp_coords: np.ndarray
     nugget_effect_scalar: Union[np.ndarray, float] = 0.0000001
 
+    slice_feature: Optional[slice] = slice(None, None)  # * Used to slice the surface points values of the interpolation (grid.values)
+    
     def __post_init__(self):
         if type(self.nugget_effect_scalar) is float or type(self.nugget_effect_scalar) is int:
             self.nugget_effect_scalar = np.ones(self.n_points) * self.nugget_effect_scalar
@@ -25,9 +27,13 @@ class SurfacePoints:
         stack_n = data_structure.stack_number
         cum_sp_l0 = data_structure.nspv_stack[stack_n ]#.sum()
         cum_sp_l1 = data_structure.nspv_stack[stack_n + 1]#.sum()
-        
         # TODO: Add nugget selection
-        sp = SurfacePoints(surface_points.sp_coords[cum_sp_l0:cum_sp_l1])
+        
+        sp = SurfacePoints(
+            sp_coords=surface_points.sp_coords[cum_sp_l0:cum_sp_l1],
+            slice_feature= slice(cum_sp_l0, cum_sp_l1)
+        )
+    
         return sp
 
     @property
@@ -42,5 +48,5 @@ class SurfacePointsInternals:
     nugget_effect_ref_rest: tensor_types
 
     @property
-    def n_points(self):
+    def n_points(self) -> int:
         return self.ref_surface_points.shape[0]

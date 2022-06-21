@@ -14,7 +14,7 @@ class SolverInput:
     ori_internal: OrientationsInternals
     options: KernelOptions
     fault_internal:  Optional[FaultsData] = None
-    _fault_internal:  Optional[FaultsData] = dataclasses.field(init=True, repr=False, default=None)
+    _fault_internal:  Optional[FaultsData] = dataclasses.field(init=False, repr=False, default=None)
 
     @property
     def fault_internal(self):

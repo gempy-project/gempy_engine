@@ -3,7 +3,7 @@ from ._internalDistancesMatrices import InternalDistancesMatrices
 from ...core.backend_tensor import BackendTensor
 from ...core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, KernelFunction
 from ...core.data.options import KernelOptions
-from ._structs import KernelInput
+from ._structs import KernelInput, CartesianSelector, OrientationSurfacePointsCoords
 
 tfnp = BackendTensor.tfnp
 tensor_types = BackendTensor.tensor_types
@@ -83,7 +83,7 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
 
     # endregion
     
-    return c_o * (sigma_0_sp + sigma_0_grad_sp) + uni_drift #+ fault_drift
+    return c_o * (sigma_0_sp + sigma_0_grad_sp) + uni_drift + fault_drift
 
 
 def create_grad_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
@@ -134,7 +134,7 @@ def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref
     return k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest
 
 
-def _compute_all_distance_matrices(cs, ori_sp_matrices) -> InternalDistancesMatrices:
+def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: OrientationSurfacePointsCoords) -> InternalDistancesMatrices:
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j
 
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j

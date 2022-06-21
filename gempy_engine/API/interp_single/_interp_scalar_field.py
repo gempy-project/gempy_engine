@@ -43,7 +43,6 @@ def interpolate_scalar_field(interpolation_input: InterpolationInput, options: K
     
     # endregion
     
-
     exported_fields = _evaluate_sys_eq(xyz_lvl0, solver_input, weights)
     
     # TODO: This should be in the TensorsStructure
@@ -104,16 +103,3 @@ def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput, weights: np.nda
         raise ValueError("Number of dimensions have to be 2 or 3")
 
     return ExportedFields(scalar_field, gx_field, gy_field, gz_field)
-
-
-def _get_scalar_field_at_surface_points(Z_x: np.ndarray, number_of_points_per_surface: np.ndarray, n_surface_points: int):
-    npf = number_of_points_per_surface
-    scalar_field_at_surface_points_values = Z_x[-n_surface_points:][npf]
-
-    return scalar_field_at_surface_points_values
-
-
-def _set_scalar_field_at_surface_points(exported_fields: ExportedFields, number_of_points_per_surface: np.ndarray,
-                                        n_surface_points: int):
-    exported_fields.n_points_per_surface = number_of_points_per_surface
-    exported_fields.n_surface_points = n_surface_points

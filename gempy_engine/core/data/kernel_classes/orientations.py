@@ -66,21 +66,21 @@ class OrientationsInternals:
     gradients_tiled: tensor_types
 
     @property
-    def gx_tiled(self):
+    def gx_tiled(self) -> tensor_types:
         return self.gradients_tiled[:, 0]
 
     @property
-    def gy_tiled(self):
+    def gy_tiled(self) -> tensor_types:
         return self.gradients_tiled[:, 1]
 
     @property
-    def gz_tiled(self):
+    def gz_tiled(self) -> tensor_types:
         return self.gradients_tiled[:, 2]
 
     @property
-    def n_orientations_tiled(self):
+    def n_orientations_tiled(self) -> int:
         return self.dip_positions_tiled.shape[0]
 
     @property
-    def n_orientations(self):
+    def n_orientations(self) -> int:
         return int(self.dip_positions_tiled.shape[0]/self.dip_positions_tiled.shape[1])

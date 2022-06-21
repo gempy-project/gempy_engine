@@ -32,46 +32,44 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Ker
     return all_outputs
 
 
-def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
+def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpolation_input: InterpolationInput,
                        options: KernelOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
     all_scalar_fields_outputs: List[ScalarFieldOutput] = []
 
     stack_structure = root_data_descriptor.stack_structure
 
     if stack_structure is None:  # ! This branch is just for backward compatibility but we should try to get rid of it as soon as possible
-        warnings.warn("Deprecated: stack_structure is not defined in the input data descriptor", DeprecationWarning) 
-        output = interpolate_feature(interpolation_input, options, root_data_descriptor.tensors_structure)
+        warnings.warn("Deprecated: stack_structure is not defined in the input data descriptor", DeprecationWarning)
+        output = interpolate_feature(root_interpolation_input, options, root_data_descriptor.tensors_structure)
         all_scalar_fields_outputs.append(output)
         return all_scalar_fields_outputs
     else:
-        
-        fault_values = None
-        sp_points_fault_values = None
-        
         for i in range(stack_structure.n_stacks):
             stack_structure.stack_number = i
 
-            # TODO: Check if is fault?
+            tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
+            interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
+                root_interpolation_input, stack_structure)
+
+            # TODO [x]: Check if is fault?
             feature_type: StackRelationType = stack_structure.masking_descriptor[i]
             if feature_type is StackRelationType.FAULT:
-                if fault_values is None or sp_points_fault_values is None:
-                    raise ValueError("fault_values and sp_points_fault_values must be defined if fault is defined")
-                
-                interpolation_input.fault_values = FaultsData(fault_values, sp_points_fault_values)
+
+                # TODO: Static matrix that contains all the faults. In gempy this static matrix is initialized and 
+                # TODO: then extracted using the matrix_selector function.
+                fault_values_all = all_scalar_fields_outputs[-1]._values_block
+
+                fv_on_grid = fault_values_all[:, :interpolation_input_i.grid.len_all_grids]
+                fv_on_sp = fault_values_all[:, interpolation_input_i.slice_feature]
+                interpolation_input_i.fault_values = FaultsData(
+                    fault_values_on_grid=fv_on_grid,
+                    fault_values_on_sp=fv_on_sp)
             else:
-                interpolation_input.fault_values = None
-            
-            tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
-            interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_structure)
-            
+                interpolation_input_i.fault_values = None
+
             output: ScalarFieldOutput = interpolate_feature(interpolation_input_i, options, tensor_struct_i,
                                                             stack_structure.interp_function)
-            
-            # TODO: Static matrix that contains all the faults. In gempy this static matrix is initialized and 
-            # TODO: then extracted using the matrix_selector function.
-            fault_values = output.values_block
-            sp_points_fault_values = output.scalar_field_at_sp
-            
+
             all_scalar_fields_outputs.append(output)
 
     return all_scalar_fields_outputs
