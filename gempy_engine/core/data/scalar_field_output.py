@@ -22,26 +22,19 @@ class ScalarFieldOutput:
 
     @property
     def values_block(self) -> Optional[np.ndarray]:
-        if self.n_surface_points is None or self.n_surface_points == 0:
-            return self._values_block
-        else:
-            return self._values_block[:, :-self.n_surface_points]
+        return self._values_block[:, :self.grid_size]
 
     @values_block.setter
     def values_block(self, value: np.ndarray):
         self._values_block = value
 
     @property
-    def n_surface_points(self):
-        return self.exported_fields.n_surface_points
+    def grid_size(self):
+        return self.exported_fields.grid_size
 
     @property
     def n_points_per_surface(self):
         return self.exported_fields.n_points_per_surface
-
-    @property
-    def grid_size(self):
-        return self.values_block.shape[1]
 
     @property
     def scalar_field_at_sp(self):

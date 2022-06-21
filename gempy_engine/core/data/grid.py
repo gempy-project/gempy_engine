@@ -164,11 +164,11 @@ class Grid:
         self.len_grids = _check_and_convert_list_to_array(self.len_grids)
 
     @classmethod
-    def from_regular_grid(cls, regular_grid: RegularGrid):
+    def from_regular_grid(cls, regular_grid: RegularGrid) -> "Grid":
         return cls(regular_grid.values, regular_grid=regular_grid)
 
     @property
-    def len_all_grids(self):
+    def len_all_grids(self) -> int:
         return self.len_grids.sum(axis=0)
 
     @property
@@ -186,6 +186,6 @@ class Grid:
         return self.regular_grid.regular_grid_shape
 
     @property
-    def dxdydz(self):
+    def dxdydz(self) -> tuple[float, float, float]:
         return self.regular_grid.dxdydz
 

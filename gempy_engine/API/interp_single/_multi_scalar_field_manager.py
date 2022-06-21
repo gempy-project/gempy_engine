@@ -4,6 +4,7 @@ from typing import List
 import numpy as np
 from numpy import ndarray
 
+from ...core.data import FaultsData
 from ...core.data.exported_structs import CombinedScalarFieldsOutput
 from ...core.data.interp_output import InterpOutput
 from ...core.data.scalar_field_output import ScalarFieldOutput
@@ -43,16 +44,34 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, interpolation_
         all_scalar_fields_outputs.append(output)
         return all_scalar_fields_outputs
     else:
+        
+        fault_values = None
+        sp_points_fault_values = None
+        
         for i in range(stack_structure.n_stacks):
             stack_structure.stack_number = i
 
+            # TODO: Check if is fault?
+            feature_type: StackRelationType = stack_structure.masking_descriptor[i]
+            if feature_type is StackRelationType.FAULT:
+                if fault_values is None or sp_points_fault_values is None:
+                    raise ValueError("fault_values and sp_points_fault_values must be defined if fault is defined")
+                
+                interpolation_input.fault_values = FaultsData(fault_values, sp_points_fault_values)
+            else:
+                interpolation_input.fault_values = None
+            
             tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
-            interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
-                interpolation_input, stack_structure)
+            interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(interpolation_input, stack_structure)
             
             output: ScalarFieldOutput = interpolate_feature(interpolation_input_i, options, tensor_struct_i,
                                                             stack_structure.interp_function)
-        
+            
+            # TODO: Static matrix that contains all the faults. In gempy this static matrix is initialized and 
+            # TODO: then extracted using the matrix_selector function.
+            fault_values = output.values_block
+            sp_points_fault_values = output.scalar_field_at_sp
+            
             all_scalar_fields_outputs.append(output)
 
     return all_scalar_fields_outputs
@@ -119,7 +138,7 @@ def _compute_final_block(all_scalar_fields_outputs: List[ScalarFieldOutput], squ
             _gy_field=squeezed_gy_block,
             _gz_field=squeezed_gz_block,
             n_points_per_surface=interp_output.exported_fields.n_points_per_surface,
-            n_surface_points=None
+            slice_feature=slice(None)
         )
 
         combined_scalar_fields = CombinedScalarFieldsOutput(

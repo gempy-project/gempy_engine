@@ -28,7 +28,7 @@ def interpolate_feature(interpolation_input: InterpolationInput, options: Kernel
         weights = None
         xyz = grid.values
         exported_fields: ExportedFields = _interpolate_external_function(external_interp_funct, xyz)
-
+    
     values_block = _segment_scalar_field(exported_fields, interpolation_input.unit_values)
     mask_components = _compute_mask_components(exported_fields, interpolation_input.stack_relation)
 

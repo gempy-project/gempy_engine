@@ -33,18 +33,23 @@ def interpolate_scalar_field(interpolation_input: InterpolationInput, options: K
         ori_internal=ori_internal,
         fault_internal=fault_internal,
         options=options)
-
+    
+    # region Solver
     if Buffer.weights is None:
         weights = _solve_interpolation(solver_input)
         Buffer.weights = weights
     else:
         weights = Buffer.weights
+    
+    # endregion
+    
 
-    # Within octree level
-    # +++++++++++++++++++
     exported_fields = _evaluate_sys_eq(xyz_lvl0, solver_input, weights)
+    
+    # TODO: This should be in the TensorsStructure
     exported_fields.n_points_per_surface = data_shape.reference_sp_position
-    exported_fields.n_surface_points = interpolation_input.surface_points.n_points
+    exported_fields.slice_feature = interpolation_input.slice_feature
+    exported_fields.grid_size = interpolation_input.grid.len_all_grids
 
     Buffer.clean()
     return weights, exported_fields
@@ -67,7 +72,9 @@ def _input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpo
     
     sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
     ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(orientations)
-    grid_internal = data_preprocess_interface.prepare_grid(grid.values, surface_points)
+    
+    # * We need to interpolate in ALL the surface points not only the surface points of the stack
+    grid_internal = data_preprocess_interface.prepare_grid(grid.values, interpolation_input.all_surface_points)
 
     fault_values: FaultsData = interpolation_input.fault_values
     faults_on_sp: np.ndarray = fault_values.fault_values_on_sp

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -10,15 +10,17 @@ class ExportedFields:
     _gx_field: Optional[np.ndarray] = None
     _gy_field: Optional[np.ndarray] = None
     _gz_field: Optional[np.ndarray] = None
+    
     n_points_per_surface: Optional[np.ndarray] = None
-    n_surface_points: Optional[int] = 0
+    slice_feature: Optional[slice] = slice(None, None)  # Slice all the surface points
+    grid_size: Optional[int] = None
     
     _scalar_field_at_surface_points: Optional[np.ndarray] = None
     
     @property
     def scalar_field_at_surface_points(self) -> Optional[np.ndarray]:
         if self._scalar_field_at_surface_points is None:
-            return self._scalar_field[-self.n_surface_points:][self.npf]
+            return self._scalar_field[self.slice_feature][self.npf]
         else:
             return self._scalar_field_at_surface_points
     
@@ -28,36 +30,27 @@ class ExportedFields:
     
     @property
     def scalar_field(self):
-        if self.n_surface_points is None or self.n_surface_points == 0:
+        if self.slice_feature is None or self.slice_feature == 0:
             return self._scalar_field
 
-        return self._scalar_field[:-self.n_surface_points]
+        return self._scalar_field[:self.grid_size]
     
     @property
     def scalar_field_everywhere(self): return self._scalar_field
     
     @property
     def gx_field(self):
-        if self.n_surface_points is None or self.n_surface_points == 0:
-            return self._gx_field
-        return self._gx_field[:-self.n_surface_points]
+        return self._gx_field[:self.grid_size]
 
     @property
     def gy_field(self):
-        if self.n_surface_points is None or self.n_surface_points == 0:
-            return self._gy_field
-        return self._gy_field[:-self.n_surface_points]
+        return self._gy_field[:self.grid_size]
 
     @property
     def gz_field(self):
-        if self.n_surface_points is None or self.n_surface_points == 0:
-            return self._gz_field
-        return self._gz_field[:-self.n_surface_points]
+        return self._gz_field[:self.grid_size]
 
     @property
     def npf(self):
         return self.n_points_per_surface
 
-    @classmethod
-    def from_interpolation(cls, scalar_field, gx_field, gy_field, gz_field, grid_size: int):
-        return cls(scalar_field[:grid_size], gx_field[:grid_size], gy_field[:grid_size], gz_field[:grid_size])
