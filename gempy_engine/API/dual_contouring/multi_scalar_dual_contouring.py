@@ -56,13 +56,19 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
 def _independent_dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
                                  n_scalar_field: int, octree_leaves: OctreeLevel, options: InterpolationOptions,
                                  ) -> DualContouringData:
+    # TODO: [ ]  _mask_generation is not working with fault StackRelationType
+    
     mask = _mask_generation(n_scalar_field, octree_leaves, options.dual_contouring_masking_options)
 
+    # region define location where we need to interpolate the gradients for dual contouring
     output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
     intersection_xyz, valid_edges = get_intersection_on_edges(octree_leaves, output_corners, mask)
-
     interpolation_input.grid = Grid(intersection_xyz)
-    output_on_edges: List[InterpOutput] = interpolate_all_fields_no_octree(interpolation_input, options, data_descriptor)
+    # endregion
+    
+    # ! (@miguel 21 June) I think by definition in the function `interpolate_all_fields_no_octree`
+    # ! we just need to interpolate up to the n_scalar_field, but I am not sure about this. I need to test it
+    output_on_edges: List[InterpOutput] = interpolate_all_fields_no_octree(interpolation_input, options, data_descriptor)  # ! This has to be done with buffer weights otherwise is a waste
 
     dc_data = DualContouringData(
         xyz_on_edge=intersection_xyz,

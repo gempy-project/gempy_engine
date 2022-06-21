@@ -118,7 +118,8 @@ def create_grad_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
 
     # endregion
 
-    return c_o * (sigma_0_grad + sigma_0_sp_grad) + drift
+    grad_kernel = c_o * (sigma_0_grad + sigma_0_sp_grad) + drift
+    return grad_kernel
 
 
 def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest):

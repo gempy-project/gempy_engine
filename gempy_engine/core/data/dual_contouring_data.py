@@ -12,7 +12,7 @@ class DualContouringData:
     valid_edges: np.ndarray
     
     xyz_on_centers: np.ndarray
-    dxdydz: np.ndarray
+    dxdydz: np.ndarray | tuple[float, float, float]
     
     exported_fields_on_edges: Optional[ExportedFields]
     

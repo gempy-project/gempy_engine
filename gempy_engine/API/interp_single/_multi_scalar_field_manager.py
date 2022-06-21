@@ -52,16 +52,15 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
                 root_interpolation_input, stack_structure)
 
             # TODO [x]: Check if is fault?
-            feature_type: StackRelationType = stack_structure.masking_descriptor[i]
-            if feature_type is StackRelationType.FAULT:
+            if (i > 0) & (stack_structure.masking_descriptor[i - 1] is StackRelationType.FAULT):
 
                 # TODO: Static matrix that contains all the faults. In gempy this static matrix is initialized and 
                 # TODO: then extracted using the matrix_selector function.
                 fault_values_all = all_scalar_fields_outputs[-1]._values_block
-                
+
                 # TODO: !! Here will be the transformation with the ellipsoid
-                
-                #fv_on_grid = fault_values_all[:, :interpolation_input_i.grid.len_all_grids]
+
+                # fv_on_grid = fault_values_all[:, :interpolation_input_i.grid.len_all_grids]
                 fv_on_sp = fault_values_all[:, interpolation_input_i.slice_feature]
                 interpolation_input_i.fault_values = FaultsData(
                     fault_values_everywhere=fault_values_all,
