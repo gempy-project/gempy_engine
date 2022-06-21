@@ -29,7 +29,7 @@ def prepare_faults(faults_values_on_sp: np.ndarray, tensors_structure: TensorsSt
 
     ref_points = faults_values_on_sp[:, partitions_bool]
 
-    ref_matrix_val_repeated = np.repeat(ref_points, number_repetitions, 0)
+    ref_matrix_val_repeated = np.repeat(ref_points, number_repetitions, 1)
     rest_matrix_val = faults_values_on_sp[:, ~partitions_bool]
 
     return ref_matrix_val_repeated, rest_matrix_val

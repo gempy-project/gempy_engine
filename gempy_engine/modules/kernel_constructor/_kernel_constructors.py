@@ -21,7 +21,6 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, interpolation_
         -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     n_ori = ori_internals.n_orientations
     n_dim = matrices_size.dim
-    uni_drift_size = matrices_size.uni_drift_size
     full_cov_size = matrices_size.cov_size
     shift = matrices_size.sp_size + matrices_size.ori_size
 
@@ -80,9 +79,10 @@ def assembly_dips_points_coords(surface_points: np.ndarray, matrices_sizes: Matr
                                 interpolation_options: KernelOptions) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     n_dim = interpolation_options.number_dimensions
     ori_size = matrices_sizes.ori_size
-
+    drifts_size = matrices_sizes.drifts_size
+    
     z = np.zeros((ori_size, n_dim))  # * Orientations area
-    z2 = np.zeros((interpolation_options.n_uni_eq, n_dim))  # * Universal area
+    z2 = np.zeros((drifts_size, n_dim))  # * Universal area
 
     zb = z2.copy()  # ! This block has to be here because it has to be before we modify z2
     zc = z2.copy()

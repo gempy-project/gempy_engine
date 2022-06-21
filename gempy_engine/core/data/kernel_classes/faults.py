@@ -5,7 +5,7 @@ import numpy as np
 
 @dataclasses.dataclass
 class FaultsData:
-    fault_values_on_grid: np.ndarray
+    fault_values_everywhere: np.ndarray
     fault_values_on_sp: np.ndarray
     
     fault_values_ref: np.ndarray = None

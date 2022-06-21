@@ -65,7 +65,7 @@ def _get_faults_terms(ki: KernelInput) -> np.ndarray:
     selector_components = _structs.DriftMatrixSelector(cov_size, cov_size, cov_size-fault_n, fault_n)
     selector = (selector_components.sel_ui * (selector_components.sel_vj + 1)).sum(-1)
 
-    fault_matrix = selector * (fault_rest - fault_ref)
+    fault_matrix = selector * (fault_rest - fault_ref + 0.0001)
     return fault_matrix
 
 

@@ -196,7 +196,7 @@ def test_creating_several_faults_kernel_with_dummy_data(simple_model_2):
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_fault_kernel(unconformity_complex, n_oct_levels=1):
     interpolation_input, options, structure = unconformity_complex
-    structure.stack_structure.masking_descriptor = [StackRelationType.ERODE, StackRelationType.FAULT, False]
+    structure.stack_structure.masking_descriptor = [StackRelationType.ERODE, StackRelationType.ERODE, StackRelationType.FAULT]
     
     options.number_octree_levels = n_oct_levels
     solutions: Solutions = compute_model(interpolation_input, options, structure)

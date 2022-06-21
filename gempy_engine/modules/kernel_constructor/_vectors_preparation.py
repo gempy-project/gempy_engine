@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Optional
 
 import numpy as np
 
@@ -79,12 +79,12 @@ def evaluation_vectors_preparations(grid: np.array, interp_input: SolverInput, a
     dips_ref_ui, dips_rest_ui, dips_ug = _assembly_drift_grid_tensors(grid,options, matrices_sizes, ori_, sp_, axis)
 
     # Faults
+    fault_drift: Optional[FaultDrift]
     if matrices_sizes.faults_size > 0:
-        faults_val_on_grid = faults_vals.fault_values_on_grid
-        fault_vector_ref, fault_vector_rest = _assembly_fault_grid_tensors(faults_val_on_grid, options, faults_vals,
-                                                                           matrices_sizes.ori_size)
+        faults_val_on_grid: np.ndarray = faults_vals.fault_values_everywhere
+        fault_drift = _assembly_fault_grid_tensors(faults_val_on_grid, options, faults_vals, matrices_sizes.ori_size)
     else:
-        fault_vector_ref, fault_vector_rest = None, None
+        fault_drift = None
 
     # Selectors :
     cartesian_selector = _assembly_cartesian_selector_grid(matrices_sizes, axis)
@@ -101,7 +101,7 @@ def evaluation_vectors_preparations(grid: np.array, interp_input: SolverInput, a
         ref_drift=dips_ref_ui,
         rest_drift=dips_rest_ui,
         drift_matrix_selector=drift_selection,
-        ref_fault=fault_vector_ref,
+        ref_fault=fault_drift,
         rest_fault=None
     )
 
@@ -199,9 +199,10 @@ def _assembly_drift_grid_tensors(grid: np.ndarray, options: KernelOptions, matri
     return dips_ref_ui, dips_rest_ui, dips_ug
 
 
-def _assembly_fault_grid_tensors(grid, options, faults_val, ori_size):
+def _assembly_fault_grid_tensors(fault_values_on_grid, options: KernelOptions, faults_val: FaultsData, ori_size: int) -> FaultDrift:
     fault_vector_ref, fault_vector_rest = _assembly_fault_internals(faults_val, options, ori_size)
-    return FaultDrift(fault_vector_ref, grid)
+    fault_drift = FaultDrift(fault_vector_ref, fault_values_on_grid.T)
+    return fault_drift
 
 
 def _assembly_fault_tensors(options, faults_val: FaultsData, ori_size: int) -> Tuple[FaultDrift, FaultDrift]:

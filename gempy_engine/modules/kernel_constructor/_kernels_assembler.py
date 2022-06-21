@@ -75,9 +75,7 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
 
     # TODO: Here it goes just if the value of the fault matrix on the grid
     if ki.ref_fault is not None:
-        fault_vector_ref_i = ki.ref_fault.faults_i[:, None, :]
-        fault_vector_grid_j = ki.ref_fault.faults_j[None, :, :]
-        fault_drift = (fault_vector_ref_i * fault_vector_grid_j).sum(axis=-1)
+        fault_drift = (ki.ref_fault.faults_i * ki.ref_fault.faults_j).sum(axis=-1)
     else:
         fault_drift = 0
 
