@@ -49,7 +49,9 @@ def interpolate_scalar_field(interpolation_input: InterpolationInput, options: K
     exported_fields.n_points_per_surface = data_shape.reference_sp_position
     exported_fields.slice_feature = interpolation_input.slice_feature
     exported_fields.grid_size = interpolation_input.grid.len_all_grids
-
+    
+    exported_fields.debug = solver_input.debug
+    
     Buffer.clean()
     return weights, exported_fields
 

@@ -12,6 +12,8 @@ tensor_types = BackendTensor.tensor_types
 def yield_covariance(interp_input: SolverInput) -> tensor_types:
     kernel_data = cov_vectors_preparation(interp_input)
     cov = create_cov_kernel(kernel_data, interp_input.options)
+    interp_input.debug = cov
+    
     return cov
 
 

@@ -1,3 +1,5 @@
+import numpy as np
+
 from ._covariance_assembler import _get_covariance
 from ._internalDistancesMatrices import InternalDistancesMatrices
 from ...core.backend_tensor import BackendTensor
@@ -76,6 +78,13 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
     # TODO: Here it goes just if the value of the fault matrix on the grid
     if ki.ref_fault is not None:
         fault_drift = (ki.ref_fault.faults_i * ki.ref_fault.faults_j).sum(axis=-1)
+        # ! Hack to make sure the matrix is right
+        # foo = np.zeros_like(fault_drift)
+        # foo[-1, :] = 1
+        # fault_drift *= foo
+        
+        pass
+        #fault_drift=0
     else:
         fault_drift = 0
 

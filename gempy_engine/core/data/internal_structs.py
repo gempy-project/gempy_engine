@@ -16,6 +16,7 @@ class SolverInput:
     fault_internal:  Optional[FaultsData] = None
     _fault_internal:  Optional[FaultsData] = dataclasses.field(init=False, repr=False, default=None)
 
+    debug = None
     @property
     def fault_internal(self):
         if self._fault_internal is None:

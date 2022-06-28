@@ -37,7 +37,8 @@ def cov_vectors_preparation(interp_input: SolverInput) -> KernelInput:
     drift_selection = DriftMatrixSelector(
         x_size=matrices_sizes.cov_size,
         y_size=matrices_sizes.cov_size,
-        drift_start_post= matrices_sizes.ori_size + matrices_sizes.sp_size,
+        drift_start_post_x=matrices_sizes.ori_size + matrices_sizes.sp_size,
+        drift_start_post_y=matrices_sizes.ori_size + matrices_sizes.sp_size,
         n_drift_eq=matrices_sizes.uni_drift_size)
 
     if matrices_sizes.faults_size > 0:
@@ -76,7 +77,7 @@ def evaluation_vectors_preparations(grid: np.array, interp_input: SolverInput, a
     orientations_sp_matrices = _assembly_dips_points_grid_tensors(grid, matrices_sizes, ori_, sp_)
 
     # Universal
-    dips_ref_ui, dips_rest_ui, dips_ug = _assembly_drift_grid_tensors(grid,options, matrices_sizes, ori_, sp_, axis)
+    dips_ref_ui, dips_rest_ui, dips_ug = _assembly_drift_grid_tensors(grid, options, matrices_sizes, ori_, sp_, axis)
 
     # Faults
     fault_drift: Optional[FaultDrift]
@@ -91,8 +92,14 @@ def evaluation_vectors_preparations(grid: np.array, interp_input: SolverInput, a
     drift_selection = DriftMatrixSelector(
         x_size=matrices_sizes.cov_size,
         y_size=matrices_sizes.grid_size,
-        drift_start_post=matrices_sizes.ori_size + matrices_sizes.sp_size,
+        drift_start_post_x=matrices_sizes.ori_size + matrices_sizes.sp_size,
+        drift_start_post_y=matrices_sizes.grid_size,
         n_drift_eq=matrices_sizes.uni_drift_size)
+
+    # drift_selection = DriftMatrixSelector.old_method(
+    #     x_size=matrices_sizes.cov_size,
+    #     y_size=matrices_sizes.grid_size,
+    #     n_drift_eq=matrices_sizes.uni_drift_size)
 
     return KernelInput(
         ori_sp_matrices=orientations_sp_matrices,

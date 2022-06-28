@@ -142,19 +142,22 @@ class DriftMatrixSelector:
     sel_ui: tensor_types = np.empty((0, 1, 3))
     sel_vj: tensor_types = np.empty((1, 0, 3))
     
-    def __init__(self, x_size: int, y_size: int, drift_start_post: int, n_drift_eq: int):
+    def __init__(self, x_size: int, y_size: int, n_drift_eq: int, drift_start_post_x: int, drift_start_post_y: int):
         sel_i = np.zeros((x_size, 2))
         sel_j = np.zeros((y_size, 2))
 
-        drift_pos_0 = drift_start_post
-        drift_pos_1 = drift_start_post + n_drift_eq + 1
+        drift_pos_0_x = drift_start_post_x
+        drift_pos_1_x = drift_start_post_x + n_drift_eq + 1
+
+        drift_pos_0_y = drift_start_post_y
+        drift_pos_1_y = drift_start_post_y + n_drift_eq + 1
         
         if n_drift_eq != 0:
-            sel_i[:drift_pos_0, 0] = 1
-            sel_i[drift_pos_0:drift_pos_1, 1] = 1
+            sel_i[:drift_pos_0_x, 0] = 1
+            sel_i[drift_pos_0_x:drift_pos_1_x, 1] = 1
         
-            sel_j[:drift_pos_0, 0] = -1
-            sel_j[drift_pos_0:drift_pos_1, 1] = -1
+            sel_j[:drift_pos_0_y, 0] = -1
+            sel_j[drift_pos_0_y:drift_pos_1_y, 1] = -1
 
         self.sel_ui = sel_i[:, None, :]
         self.sel_vj = sel_j[None, :, :]

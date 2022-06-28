@@ -11,18 +11,21 @@ def plot_2d_scalar_y_direction(interpolation_input: InterpolationInput, Z_x):
                  extent=extent[[0, 1, 4, 5]]
                  )
 
+    plot_data(interpolation_input)
+
+    plt.show()
+
+
+def plot_data(interpolation_input):
     xyz = interpolation_input.surface_points.sp_coords
     plt.plot(xyz[:, 0], xyz[:, 2], "o")
     plt.colorbar()
-
     plt.quiver(interpolation_input.orientations.dip_positions[:, 0],
                interpolation_input.orientations.dip_positions[:, 2],
                interpolation_input.orientations.dip_gradients[:, 0],
                interpolation_input.orientations.dip_gradients[:, 2],
                scale=10
                )
-
-    plt.show()
 
 
 def calculate_gradient(dip, az, pol):
@@ -33,8 +36,12 @@ def calculate_gradient(dip, az, pol):
     return g_x, g_y, g_z
 
 
-def plot_block(block, grid):
+def plot_block(block, grid, interpolation_input = None):
     resolution = grid.resolution
     extent = grid.extent
     plt.imshow(block.reshape(resolution)[:, resolution[1] // 2, :].T, extent=extent[[0, 1, 4, 5]], origin="lower")
+    
+    if interpolation_input is not None:
+        plot_data(interpolation_input)
+        
     plt.show()

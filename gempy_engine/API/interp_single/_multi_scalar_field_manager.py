@@ -52,16 +52,18 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
                 root_interpolation_input, stack_structure)
 
             # TODO [x]: Check if is fault?
-            if (i > 0) & (stack_structure.masking_descriptor[i - 1] is StackRelationType.FAULT):
+            fault_pos = -2 # ! Hack for running test_one_fault_model
+            if (i > 0) & (stack_structure.masking_descriptor[i + fault_pos] is StackRelationType.FAULT):
 
                 # TODO: Static matrix that contains all the graben_data. In gempy this static matrix is initialized and 
                 # TODO: then extracted using the matrix_selector function.
-                fault_values_all = all_scalar_fields_outputs[-1]._values_block
+                fault_values_all = all_scalar_fields_outputs[fault_pos]._values_block
 
                 # TODO: !! Here will be the transformation with the ellipsoid
 
                 # fv_on_grid = fault_values_all[:, :interpolation_input_i.grid.len_all_grids]
-                fv_on_sp = fault_values_all[:, interpolation_input_i.slice_feature]
+                fv_on_all_sp = fault_values_all[:, interpolation_input_i.grid.len_all_grids:]
+                fv_on_sp = fv_on_all_sp[:, interpolation_input_i.slice_feature]
                 interpolation_input_i.fault_values = FaultsData(
                     fault_values_everywhere=fault_values_all,
                     fault_values_on_sp=fv_on_sp)

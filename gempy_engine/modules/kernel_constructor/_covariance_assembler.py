@@ -41,12 +41,14 @@ def _get_cov_grad(dm, k_a, k_p_ref):
 
 def _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options):
     cov_surface_points = options.i_res * (k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref)
-    if BackendTensor.pykeops_enabled is False:
+    if BackendTensor.pykeops_enabled is False or True:
         # Add nugget effect for ref and rest point
         ref_nugget  = 0.0000001
         rest_nugget = 0.0000001
         nugget_rest_ref = ref_nugget + rest_nugget
-        diag = np.eye(cov_surface_points.shape[0]) * nugget_rest_ref # ! This adds the nugget to the full matrix (including the universal side) and breaks quite a bit the interpolation
+        diag = np.eye(cov_surface_points.shape[0]) * 0.0000001 # ! Add 0.001% nugget
+        multi_matrix = np.ones_like(diag) + diag
+        
         cov_surface_points += diag
     return cov_surface_points
 
@@ -78,10 +80,20 @@ def _get_faults_terms(ki: KernelInput) -> np.ndarray:
     cov_size = ki.ref_fault.faults_i.shape[0]
     fault_n = 1  # TODO: Here we are going to have to loop
 
-    selector_components = _structs.DriftMatrixSelector(cov_size, cov_size, cov_size-fault_n, fault_n)
+    selector_components = _structs.DriftMatrixSelector(
+        x_size=cov_size,
+        y_size=cov_size,
+        n_drift_eq=fault_n,
+        drift_start_post_x=cov_size-fault_n,
+        drift_start_post_y=cov_size-fault_n
+        )
     selector = (selector_components.sel_ui * (selector_components.sel_vj + 1)).sum(-1)
-
-    fault_matrix = selector * (fault_rest - fault_ref + 0.0001)
+    
+    # ! Hack to make sure this was the problem
+    # selector[-1, -4:] = 0
+    # selector[-4:, -1] = 0
+    
+    fault_matrix = selector * (fault_ref - fault_rest + 0.00000001) * 1 
     return fault_matrix
 
 
