@@ -20,8 +20,10 @@ class ExportedFields:
     @property
     def scalar_field_at_surface_points(self) -> Optional[np.ndarray]:
         if self._scalar_field_at_surface_points is None:
-            npf_ = self._scalar_field[self.slice_feature][self.npf]
-            return npf_
+            scalar_field_at_all_sp = self._scalar_field[self.grid_size:]
+            scalar_field_at_feature_sp = scalar_field_at_all_sp[self.slice_feature]
+            scalar_field_at_one_point_per_surface = scalar_field_at_feature_sp[self.npf]
+            return scalar_field_at_one_point_per_surface
         else:
             return self._scalar_field_at_surface_points
     

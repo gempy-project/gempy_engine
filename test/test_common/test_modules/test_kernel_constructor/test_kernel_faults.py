@@ -2,12 +2,14 @@ import numpy as np
 import pytest
 
 from gempy_engine.API.model.model_api import compute_model
-from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor, StackRelationType
+from gempy_engine.core.data import InterpolationOptions
+from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor, StackRelationType, TensorsStructure, StacksStructure
+from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.core.data.interp_output import InterpOutput
 from test import helper_functions_pyvista
 from test.conftest import TEST_SPEED
-from test.helper_functions import plot_block
+from test.helper_functions import plot_block, plot_2d_scalar_y_direction
 
 PLOT = False
 
@@ -106,7 +108,7 @@ def test_creating_scalar_kernel_with_dummy_data(simple_model_interpolation_input
 def _fault_assembler(matrix_val, options, ori_size):
     interpolation_options = None
     n_dim = 1
-    n_uni_eq = options.n_uni_eq  # * Number of equations. This should be how many faults are active
+    n_uni_eq = options.n_uni_eq  # * Number of equations. This should be how many graben_data are active
     n_faults = 1
     z = np.zeros((ori_size, n_dim))
     z2 = np.zeros((n_uni_eq, n_dim))
@@ -152,7 +154,7 @@ def test_creating_several_faults_kernel_with_dummy_data(simple_model_2):
         ori_size = ori_internals.n_orientations_tiled
         interpolation_options = None
         n_dim = n_faults
-        n_uni_eq = options.n_uni_eq  # * Number of equations. This should be how many faults are active
+        n_uni_eq = options.n_uni_eq  # * Number of equations. This should be how many graben_data are active
         
         z = np.zeros((ori_size, n_dim))
         z2 = np.zeros((n_uni_eq, n_dim))
@@ -214,7 +216,6 @@ def test_fault_kernel(unconformity_complex, n_oct_levels=1):
         plot_block(outputs[1].values_block, grid)
         plot_block(outputs[2].values_block, grid)
         
-        
     if True:
         grid = interpolation_input.grid.regular_grid
         plot_block(outputs[0].final_block, grid)
@@ -226,3 +227,46 @@ def test_fault_kernel(unconformity_complex, n_oct_levels=1):
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes
         )
+
+
+def test_one_fault_model(one_fault_model, n_oct_levels=1):
+    interpolation_input: InterpolationInput
+    structure: InputDataDescriptor
+    options: InterpolationOptions
+    
+    interpolation_input, structure, options = one_fault_model
+
+    options.dual_contouring = False
+
+    options.number_octree_levels = n_oct_levels
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
+
+    # TODO: Grab second scalar and create fault kernel
+    outputs = solutions.octrees_output[0].outputs_centers
+
+    if True:
+        
+        plot_scalar_and_input_2d(0, interpolation_input, outputs, structure.stack_structure)
+        plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
+        plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
+
+    if PLOT or False:
+        grid = interpolation_input.grid.regular_grid
+        
+        plot_block(outputs[0].values_block, grid)
+        plot_block(outputs[0].squeezed_mask_array, grid)
+        print(outputs[0].squeezed_mask_array)
+        plot_block(outputs[1].values_block, grid)
+        plot_block(outputs[2].values_block, grid)
+
+    if False:
+        grid = interpolation_input.grid.regular_grid
+        plot_block(outputs[0].final_block, grid)
+        plot_block(outputs[1].final_block, grid)
+        plot_block(outputs[2].final_block, grid)
+
+
+def plot_scalar_and_input_2d(foo, interpolation_input, outputs, structure: StacksStructure):
+    structure.stack_number = foo
+    interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(interpolation_input, structure)
+    plot_2d_scalar_y_direction(interpolation_input_i, outputs[foo].exported_fields.scalar_field)

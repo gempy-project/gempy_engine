@@ -41,14 +41,15 @@ class InterpolationOptions:
     kernel_options: KernelOptions = None  # * This is the compression of the fields above and the way to go in the future
 
     number_octree_levels: int = 1
+    dual_contouring: bool = True
     dual_contouring_masking_options: DualContouringMaskingOptions = DualContouringMaskingOptions.DISJOINT
-
+    
     debug: bool = False
     debug_water_tight: bool = False
     
-    def __init__(self, range: int, c_o: float, uni_degree: int = 1, i_res: float = 4, gi_res: float = 2,
+    def __init__(self, range: int | float, c_o: float, uni_degree: int = 1, i_res: float = 4, gi_res: float = 2,
                  number_dimensions: int = 3, number_octree_levels: int = 1,
-                 kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.exponential):
+                 kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.exponential, dual_contouring: bool = True):
 
         self.number_octree_levels = number_octree_levels
         self.kernel_options = KernelOptions(range, c_o, uni_degree, i_res, gi_res, number_dimensions, kernel_function)

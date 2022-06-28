@@ -1,5 +1,7 @@
 import numpy as np
 
+from gempy_engine.config import DEFAULT_BACKEND, AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.modules.kernel_constructor import _structs
 from gempy_engine.modules.kernel_constructor._structs import KernelInput
 
@@ -29,15 +31,29 @@ def _get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_re
 
 def _get_cov_grad(dm, k_a, k_p_ref):
     cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
+    if BackendTensor.pykeops_enabled is False:
+        grad_nugget = 0.01
+        diag = grad_nugget * dm.perp_matrix
+        cov_grad += diag
+
     return cov_grad
 
 
 def _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options):
-    return options.i_res * (k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref)
+    cov_surface_points = options.i_res * (k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref)
+    if BackendTensor.pykeops_enabled is False:
+        # Add nugget effect for ref and rest point
+        ref_nugget  = 0.0000001
+        rest_nugget = 0.0000001
+        nugget_rest_ref = ref_nugget + rest_nugget
+        diag = np.eye(cov_surface_points.shape[0]) * nugget_rest_ref # ! This adds the nugget to the full matrix (including the universal side) and breaks quite a bit the interpolation
+        cov_surface_points += diag
+    return cov_surface_points
 
 
 def _get_cross_cov_grad_sp(dm, k_p_ref, k_p_rest, options):
     cov_grad_sp = options.gi_res * (- dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref)
+    
     return cov_grad_sp
 
 

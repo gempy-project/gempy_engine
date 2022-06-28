@@ -35,6 +35,8 @@ from test.fixtures.grids import \
     simple_grid_3d_more_points_grid, \
     simple_grid_3d_octree
 
+from test.fixtures.complex_geometries import *
+
 backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflow])
 using_gpu = bool(np.random.choice([True, False]))
 using_pykeops = bool(np.random.choice([True, False]))

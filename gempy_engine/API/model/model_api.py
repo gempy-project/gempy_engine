@@ -16,9 +16,10 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
                   data_descriptor: InputDataDescriptor) -> Solutions:
     interpolation_input = copy.deepcopy(interpolation_input)  # TODO: Make sure if this works with TF
     solutions: Solutions = _interpolate(interpolation_input, options, data_descriptor)
-
-    meshes = dual_contouring_multi_scalar(data_descriptor, interpolation_input, options, solutions)
-    solutions.dc_meshes = meshes
+    
+    if options.dual_contouring:
+        meshes = dual_contouring_multi_scalar(data_descriptor, interpolation_input, options, solutions)
+        solutions.dc_meshes = meshes
 
     # ---------------------
     # TODO: [ ] Gravity
