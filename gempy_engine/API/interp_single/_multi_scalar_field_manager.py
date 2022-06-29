@@ -1,5 +1,5 @@
 import warnings
-from typing import List
+from typing import List, Iterable
 
 import numpy as np
 from numpy import ndarray
@@ -34,15 +34,19 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Ker
 
 def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpolation_input: InterpolationInput,
                        options: KernelOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
-    all_scalar_fields_outputs: List[ScalarFieldOutput] = []
-
+    
     stack_structure = root_data_descriptor.stack_structure
-
+    
+    all_scalar_fields_outputs: List[ScalarFieldOutput | None] = [None] * stack_structure.n_stacks
+    
+    xyz_to_interpolate_size: int = root_interpolation_input.grid.len_all_grids + root_interpolation_input.surface_points.n_points
+    all_stack_values_block: np.ndarray = np.zeros((stack_structure.n_stacks, xyz_to_interpolate_size))  # Used for faults
+    
     if stack_structure is None:  # ! This branch is just for backward compatibility but we should try to get rid of it as soon as possible
         warnings.warn("Deprecated: stack_structure is not defined in the input data descriptor", DeprecationWarning)
-        output = interpolate_feature(root_interpolation_input, options, root_data_descriptor.tensors_structure)
-        all_scalar_fields_outputs.append(output)
-        return all_scalar_fields_outputs
+        # output = interpolate_feature(root_interpolation_input, options, root_data_descriptor.tensors_structure)
+        # all_scalar_fields_outputs.append(output)
+        # return all_scalar_fields_outputs
     else:
         for i in range(stack_structure.n_stacks):
             stack_structure.stack_number = i
@@ -52,28 +56,30 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
                 root_interpolation_input, stack_structure)
 
             # TODO [x]: Check if is fault?
-            fault_pos = -2 # ! Hack for running test_one_fault_model
-            if (i > 0) & (stack_structure.masking_descriptor[i + fault_pos] is StackRelationType.FAULT):
+            fault_pos = -2  # ! Hack for running test_one_fault_model
 
-                # TODO: Static matrix that contains all the graben_data. In gempy this static matrix is initialized and 
-                # TODO: then extracted using the matrix_selector function.
-                fault_values_all = all_scalar_fields_outputs[fault_pos]._values_block
+            fault_relation_on_this_stack: Iterable[bool] = stack_structure.faults_relations[:, i]
+            is_true = np.any(fault_relation_on_this_stack)
+            
+            #if (i > 0) & (stack_structure.masking_descriptor[i + fault_pos] is StackRelationType.FAULT):
+            if is_true:
+                fault_values_all = all_stack_values_block[fault_relation_on_this_stack]
 
-                # TODO: !! Here will be the transformation with the ellipsoid
-
-                # fv_on_grid = fault_values_all[:, :interpolation_input_i.grid.len_all_grids]
                 fv_on_all_sp = fault_values_all[:, interpolation_input_i.grid.len_all_grids:]
                 fv_on_sp = fv_on_all_sp[:, interpolation_input_i.slice_feature]
+                
                 interpolation_input_i.fault_values = FaultsData(
                     fault_values_everywhere=fault_values_all,
-                    fault_values_on_sp=fv_on_sp)
+                    fault_values_on_sp=fv_on_sp
+                )
             else:
                 interpolation_input_i.fault_values = None
 
             output: ScalarFieldOutput = interpolate_feature(interpolation_input_i, options, tensor_struct_i,
                                                             stack_structure.interp_function)
 
-            all_scalar_fields_outputs.append(output)
+            all_scalar_fields_outputs[i] = output
+            all_stack_values_block[i, :] = output.values_on_all_xyz
 
     return all_scalar_fields_outputs
 

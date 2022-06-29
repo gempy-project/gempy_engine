@@ -80,7 +80,7 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
         fault_drift = (ki.ref_fault.faults_i * ki.ref_fault.faults_j).sum(axis=-1)
         # ! Hack to make sure the matrix is right
         # foo = np.zeros_like(fault_drift)
-        # foo[-1, :] = 1
+        # foo[-1, :] = 1x
         # fault_drift *= foo
         
         pass

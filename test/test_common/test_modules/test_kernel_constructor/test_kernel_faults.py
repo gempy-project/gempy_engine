@@ -253,7 +253,7 @@ def test_one_fault_model(one_fault_model, n_oct_levels=1):
         plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
         plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
 
-    if PLOT or False:
+    if PLOT or True:
         grid = interpolation_input.grid.regular_grid
 
         plot_block(outputs[0].values_block, grid)
@@ -262,9 +262,9 @@ def test_one_fault_model(one_fault_model, n_oct_levels=1):
         plot_block(outputs[1].values_block, grid)
         plot_block(outputs[2].values_block, grid)
 
-    if False:
-        plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure)
-        plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
+    if True:
+        #plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure)
+        #plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
 
         # plot_block(outputs[0].final_block, grid)

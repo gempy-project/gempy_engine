@@ -38,6 +38,7 @@ class StacksStructure:
     number_of_orientations_per_stack: np.ndarray
     number_of_surfaces_per_stack: np.ndarray
     masking_descriptor: List[StackRelationType]
+    faults_relations: np.ndarray
     interp_functions_per_stack: List[CustomInterpolationFunctions] = None
     
     number_of_points_per_stack_vector: np.ndarray = np.ones(1)

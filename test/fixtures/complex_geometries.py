@@ -43,11 +43,20 @@ def one_fault_model():
     # endregion
 
     # region Structure
+
+    faults_relations = np.array(
+        [[False, False, True],
+         [False, False, False],
+         [False, False, False]
+         ]
+    )
+
     stack_structure = StacksStructure(
         number_of_points_per_stack=np.array([9, 24, 37]),
         number_of_orientations_per_stack=np.array([1, 4, 6]),
         number_of_surfaces_per_stack=np.array([1, 2, 3]),
         masking_descriptor=[StackRelationType.FAULT, StackRelationType.ERODE, StackRelationType.ERODE, False],
+        faults_relations=faults_relations
     )
 
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([9, 12, 12, 13, 12, 12]))

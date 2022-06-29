@@ -27,7 +27,11 @@ class ScalarFieldOutput:
     @values_block.setter
     def values_block(self, value: np.ndarray):
         self._values_block = value
-
+    
+    @property
+    def values_on_all_xyz(self) -> np.ndarray:
+        return self._values_block
+    
     @property
     def grid_size(self):
         return self.exported_fields.grid_size
