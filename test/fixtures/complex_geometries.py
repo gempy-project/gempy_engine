@@ -34,7 +34,8 @@ def one_fault_model():
     ori = Orientations(dip_postions, dip_gradients)
     ids = np.array([0, 1, 2, 3, 4, 5])
 
-    resolution = [40, 2, 40]
+    #resolution = [40, 2, 40]
+    resolution = [4,4,4]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
     grid = Grid(regular_grid.values, regular_grid=regular_grid)

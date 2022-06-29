@@ -2,7 +2,7 @@ from typing import List
 import numpy as np
 
 from gempy_engine.core.data.octree_level import OctreeLevel
-from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_for_level
+from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_ids_for_level
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
 
 try:
@@ -17,7 +17,7 @@ def plot_octree_pyvista(p: pv.Plotter, octree_list: List[OctreeLevel], n_octree:
 
     shape = octree_list[n].grid_centers.regular_grid_shape
     regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
-    regular_grid_scalar = get_regular_grid_for_level(octree_list, n)
+    regular_grid_scalar = get_regular_grid_ids_for_level(octree_list, n)
 
     grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T
     regular_grid_mesh = pv.StructuredGrid(*grid_3d)
@@ -65,7 +65,7 @@ def plot_pyvista(octree_list=None, dc_meshes:  List[DualContouringMesh] = None, 
     # Plot Regular grid Octree
     if octree_list is not None:
         regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
-        regular_grid_scalar = get_regular_grid_for_level(octree_list, n)
+        regular_grid_scalar = get_regular_grid_ids_for_level(octree_list, n)
     
         shape = octree_list[n].grid_centers.regular_grid_shape
         grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T

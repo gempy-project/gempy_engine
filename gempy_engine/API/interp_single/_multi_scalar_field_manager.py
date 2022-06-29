@@ -54,14 +54,11 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
             tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
             interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
                 root_interpolation_input, stack_structure)
-
-            # TODO [x]: Check if is fault?
-            fault_pos = -2  # ! Hack for running test_one_fault_model
-
+            
+            # region Set fault input if needed
             fault_relation_on_this_stack: Iterable[bool] = stack_structure.faults_relations[:, i]
             is_true = np.any(fault_relation_on_this_stack)
             
-            #if (i > 0) & (stack_structure.masking_descriptor[i + fault_pos] is StackRelationType.FAULT):
             if is_true:
                 fault_values_all = all_stack_values_block[fault_relation_on_this_stack]
 
@@ -74,7 +71,9 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
                 )
             else:
                 interpolation_input_i.fault_values = None
-
+            
+            # endregion
+            
             output: ScalarFieldOutput = interpolate_feature(interpolation_input_i, options, tensor_struct_i,
                                                             stack_structure.interp_function)
 

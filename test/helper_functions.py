@@ -1,4 +1,6 @@
 import numpy as np
+
+from gempy_engine.core.data.grid import RegularGrid
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 import matplotlib.pyplot as plt
 
@@ -36,7 +38,7 @@ def calculate_gradient(dip, az, pol):
     return g_x, g_y, g_z
 
 
-def plot_block(block, grid, interpolation_input = None):
+def plot_block(block, grid: RegularGrid, interpolation_input = None):
     resolution = grid.resolution
     extent = grid.extent
     plt.imshow(block.reshape(resolution)[:, resolution[1] // 2, :].T, extent=extent[[0, 1, 4, 5]], origin="lower")

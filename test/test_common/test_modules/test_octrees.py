@@ -14,7 +14,7 @@ from gempy_engine.modules.activator.activator_interface import activate_formatio
 import matplotlib.pyplot as plt
 
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_next_octree_grid, \
-    get_regular_grid_for_level
+    get_regular_grid_ids_for_level
 import os
 
 from ...conftest import plot_pyvista, TEST_SPEED
@@ -161,7 +161,7 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
 
     # Assert
     n = 4
-    regular_grid_scalar = get_regular_grid_for_level(octree_list, n).astype("int8")
+    regular_grid_scalar = get_regular_grid_ids_for_level(octree_list, n).astype("int8")
 
     # ===========
     if plot_pyvista or False:
@@ -182,7 +182,7 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
 
         shape = octree_list[n].grid_centers.regular_grid_shape
         regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
-        regular_grid_scalar = get_regular_grid_for_level(octree_list, n)
+        regular_grid_scalar = get_regular_grid_ids_for_level(octree_list, n)
 
         grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T
         regular_grid_mesh = pv.StructuredGrid(*grid_3d)
@@ -205,7 +205,7 @@ def test_octree_lvl_collapse(simple_model, simple_grid_3d_octree):
     for i in range(len(octree_list)):
         shape = octree_list[i].grid_centers.regular_grid_shape
         slice = shape[1] // 2
-        regular_grid_scalar = get_regular_grid_for_level(octree_list, level=i).astype("int8")
+        regular_grid_scalar = get_regular_grid_ids_for_level(octree_list, level=i).astype("int8")
         plt.imshow(regular_grid_scalar[:, slice, :].T, origin="lower")
         plt.colorbar()
         plt.show()

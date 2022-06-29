@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import numpy as np
 
@@ -16,7 +16,7 @@ def get_next_octree_grid(prev_octree: OctreeLevel, compute_topology=False, **kwa
     return compute_next_octree_locations(prev_octree, compute_topology, **kwargs)
 
 
-def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):
+def get_regular_grid_ids_for_level(octree_list: List[OctreeLevel], level: Optional[int] = None) -> np.ndarray:
     # region Internal Functions
     def calculate_oct(shape, n_rep: int) -> np.ndarray:
 
@@ -63,9 +63,13 @@ def get_regular_grid_for_level(octree_list: List[OctreeLevel], level: int):
         return active_cells_eo.ravel()
 
     # endregion
-    if level > len(octree_list):
+    if level is None:
+        level = len(octree_list) - 1
+        
+    if level > (len(octree_list) - 1):
         raise ValueError("Level cannot be larger than the number of octrees.")
-
+    
+    
     # Octree - Level 0
     root: OctreeLevel = octree_list[0]
 
