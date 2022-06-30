@@ -1,18 +1,22 @@
 import numpy as np
 import pytest
 
+from gempy_engine.API.interp_single._interp_scalar_field import _input_preprocess
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.grid import Grid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor, StackRelationType, TensorsStructure, StacksStructure
+from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.core.data.interp_output import InterpOutput
+from gempy_engine.modules import kernel_constructor
+from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level, ValueType
 from test import helper_functions_pyvista
-from test.conftest import TEST_SPEED
+from test.conftest import TEST_SPEED, pykeops_enabled
 from test.helper_functions import plot_block, plot_2d_scalar_y_direction
 
 PLOT = False
@@ -233,7 +237,38 @@ def test_fault_kernel(unconformity_complex, n_oct_levels=1):
         )
 
 
-def test_one_fault_model(one_fault_model, n_oct_levels=3):
+def test_one_fault_model_pykeops(one_fault_model, n_oct_levels=3):
+    interpolation_input: InterpolationInput
+    structure: InputDataDescriptor
+    options: InterpolationOptions
+
+    interpolation_input, structure, options = one_fault_model
+
+    i = 1
+    structure.stack_structure.stack_number = i
+    interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
+        interpolation_input, structure.stack_structure)
+
+    tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(structure, i)
+    
+    xyz_lvl0, ori_internal, sp_internal, fault_internal = _input_preprocess(tensor_struct_i, interpolation_input_i)
+    solver_input = SolverInput(
+        sp_internal=sp_internal,
+        ori_internal=ori_internal,
+        fault_internal=fault_internal,
+        options=options.kernel_options)
+
+    A_matrix = yield_covariance(solver_input)
+    array_to_cache = A_matrix
+    
+    if pykeops_enabled is False:
+        cache_array = np.save("cached_array", array_to_cache)
+    cached_array = np.load("cached_array.npy")
+    foo = A_matrix.sum(0).T - cached_array.sum(0)
+    print(cached_array)
+
+
+def test_one_fault_model(one_fault_model,  n_oct_levels=5):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -248,6 +283,12 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
 
     # TODO: Grab second scalar and create fault kernel
     outputs: list[OctreeLevel] = solutions.octrees_output
+
+    array_to_cache = outputs[-1].outputs_centers[1].exported_fields.debug
+
+    if pykeops_enabled is False:
+        cache_array = np.save("cached_array", array_to_cache)
+    cached_array = np.load("cached_array.npy")
 
     if False:  # * This is in case we need to compare the covariance matrices
         last_cov = outputs[-1].outputs_centers.exported_fields.debug
@@ -271,7 +312,7 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
     if True:
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
 
-    if False:
+    if True:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes

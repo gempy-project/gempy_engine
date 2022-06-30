@@ -22,7 +22,7 @@ class StackRelationType(enum.Enum):
     
 
 # noinspection PyArgumentList
-@dataclass
+@dataclass(frozen=True)
 class InputDataDescriptor:
     tensors_structure: TensorsStructure
     stack_structure: StacksStructure = None

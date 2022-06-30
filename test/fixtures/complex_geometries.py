@@ -69,7 +69,7 @@ def one_fault_model():
     # range_ = 1732 / rescaling_factor
     # c_o = 71428.57 / rescaling_factor
 
-    range_ = 7
+    range_ = 7 # ? Since we are not getting the square root should we also square this? 
     c_o = 1
 
     options = InterpolationOptions(

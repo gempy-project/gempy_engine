@@ -28,8 +28,6 @@ def cubic_function_a(r, a):
     return c
 
 
-
-
 def exp_function(r, a):
     exp_den = (2 * a ** 2)
     if BackendTensor.pykeops_enabled:
@@ -43,7 +41,7 @@ def exp_function_p_div_r(r, a):
     if BackendTensor.pykeops_enabled:
         return -1 / exp_den  * (-(r / exp_den)).exp()
     else:
-        return  -1 / exp_den *  BackendTensor.tfnp.exp(-(r / a ** 2))
+        return  -1 / exp_den *  BackendTensor.tfnp.exp(-(r / exp_den))
 
 
 def exp_function_a(r, a):
@@ -51,7 +49,7 @@ def exp_function_a(r, a):
     if BackendTensor.pykeops_enabled:
         return -1 / exp_den**2  * (-(r / exp_den)).exp()
     else:
-        return  -1 / exp_den**2 *  BackendTensor.tfnp.exp(-(r / a ** 2))
+        return  -1 / exp_den**2 *  BackendTensor.tfnp.exp(-(r / exp_den))
 
 
 @dataclass
@@ -63,4 +61,4 @@ class KernelFunction:
 
 class AvailableKernelFunctions(Enum):
     cubic = KernelFunction(cubic_function, cubic_function_p_div_r, cubic_function_a)
-    exponential = KernelFunction(exp_function_a, exp_function_p_div_r, exp_function_a)
+    exponential = KernelFunction(exp_function, exp_function_p_div_r, exp_function_a)

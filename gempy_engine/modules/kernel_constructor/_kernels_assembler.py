@@ -3,7 +3,7 @@ import numpy as np
 from ._covariance_assembler import _get_covariance
 from ._internalDistancesMatrices import InternalDistancesMatrices
 from ...core.backend_tensor import BackendTensor
-from ...core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, KernelFunction
+from ...core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, KernelFunction, exp_function
 from ...core.data.options import KernelOptions
 from ._structs import KernelInput, CartesianSelector, OrientationSurfacePointsCoords
 
@@ -19,7 +19,7 @@ def create_cov_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     a = options.range
     c_o = options.c_o
 
-    # Calculate euclidean or square distances depending on the function kernel
+    # ! Calculate euclidean or square distances depending on the function kernel
     global euclidean_distances
     if options.kernel_function == AvailableKernelFunctions.exponential:
         euclidean_distances = False
@@ -159,10 +159,10 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
 
     if BackendTensor.pykeops_enabled is True:
 
-        r_ref_ref = dif_ref_ref.sqdist(dif_ref_ref)
-        r_rest_rest = dif_rest_rest.sqdist(dif_rest_rest)
+        r_ref_ref = ori_sp_matrices.dip_ref_i.sqdist(ori_sp_matrices.dip_ref_j) # ! Do not compress this
+        r_rest_rest = ori_sp_matrices.diprest_i.sqdist(ori_sp_matrices.diprest_j)
         r_ref_rest = ori_sp_matrices.dip_ref_i.sqdist(ori_sp_matrices.diprest_j)
-        r_rest_ref = ori_sp_matrices.diprest_j.sqdist(ori_sp_matrices.dip_ref_j)
+        r_rest_ref = ori_sp_matrices.diprest_i.sqdist(ori_sp_matrices.dip_ref_j)
 
     else:
         r_ref_ref = (dif_ref_ref ** 2).sum(-1)
