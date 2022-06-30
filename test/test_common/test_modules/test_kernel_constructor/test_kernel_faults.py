@@ -109,12 +109,12 @@ def test_creating_scalar_kernel_with_dummy_data(simple_model_interpolation_input
 
 def _fault_assembler(matrix_val, options, ori_size):
     interpolation_options = None
-    n_dim = 1
-    n_uni_eq = options.n_uni_eq  # * Number of equations. This should be how many graben_data are active
-    n_faults = 1
-    z = np.zeros((ori_size, n_dim))
-    z2 = np.zeros((n_uni_eq, n_dim))
-    z3 = np.ones((n_faults, n_dim))
+    n_dim    = 1                           
+    n_uni_eq = options.n_uni_eq           # * Number of equations. This should be how many graben_data are active
+    n_faults = 1                           
+    z        = np.zeros((ori_size, n_dim))
+    z2       = np.zeros((n_uni_eq, n_dim))
+    z3       = np.ones((n_faults,  n_dim))
     # Degree 1
     return np.vstack((z, matrix_val, z2, z3))
 
@@ -122,10 +122,11 @@ def _fault_assembler(matrix_val, options, ori_size):
 def test_creating_several_faults_kernel_with_dummy_data(simple_model_2):
     from gempy_engine.modules.data_preprocess._input_preparation import orientations_preprocess
 
-    matrix_val = simple_model_2[0]
+    matrix_val   = simple_model_2[0]
     orientations = simple_model_2[1]
-    options = simple_model_2[2]
-    input_data_descriptor: InputDataDescriptor = simple_model_2[3]
+    options      = simple_model_2[2]
+
+    input_data_descriptor: InputDataDescriptor =                 simple_model_2[3]
 
     ori_internals = orientations_preprocess(orientations)
 
@@ -137,7 +138,7 @@ def test_creating_several_faults_kernel_with_dummy_data(simple_model_2):
     # region Preprocess
     # * This dadata has to go to SolverInput
 
-    partitions_bool = input_data_descriptor.tensors_structure.partitions_bool
+    partitions_bool    = input_data_descriptor.tensors_structure.partitions_bool                  
     number_repetitions = input_data_descriptor.tensors_structure.number_of_points_per_surface - 1
 
     ref_points = sp_points_fault_values[partitions_bool]
@@ -164,15 +165,15 @@ def test_creating_several_faults_kernel_with_dummy_data(simple_model_2):
         # Degree 1
         return np.vstack((z, matrix_val, z2, z3))
 
-    matrix_val = rest_matrix_val.reshape(-1, n_faults)
-    fault_vector_rest = foo(matrix_val, options, ori_internals)
-    fault_vector_ref = foo(ref_matrix_val_repeated.reshape(-1, n_faults), options, ori_internals)
+    matrix_val        = rest_matrix_val.reshape(-1,             n_faults)                                
+    fault_vector_rest = foo(matrix_val,                         options,   ori_internals)
+    fault_vector_ref  = foo(ref_matrix_val_repeated.reshape(-1, n_faults), options,       ori_internals)
 
-    fault_vector_ref_i = fault_vector_ref[:, None, :]
-    fault_vector_rest_i = fault_vector_rest[:, None, :]
+    fault_vector_ref_i  = fault_vector_ref[:,     None, :]
+    fault_vector_rest_i = fault_vector_rest[:,    None, :]
+    fault_vector_ref_j  = fault_vector_ref[None,  :,    :]
+    fault_vector_rest_j = fault_vector_rest[None, :,    :]
 
-    fault_vector_ref_j = fault_vector_ref[None, :, :]
-    fault_vector_rest_j = fault_vector_rest[None, :, :]
 
     # endregion
 
@@ -231,7 +232,7 @@ def test_fault_kernel(unconformity_complex, n_oct_levels=1):
         )
 
 
-def test_one_fault_model(one_fault_model, n_oct_levels=5):
+def test_one_fault_model(one_fault_model, n_oct_levels=2):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -246,8 +247,8 @@ def test_one_fault_model(one_fault_model, n_oct_levels=5):
 
     # TODO: Grab second scalar and create fault kernel
     outputs = solutions.octrees_output
-    
-    if False: # * This is in case we need to compare the covariance matrices
+
+    if False:  # * This is in case we need to compare the covariance matrices
         last_cov = outputs[-1].outputs_centers.exported_fields.debug
         gempy_v2_cov = covariance_for_one_fault_model_from_gempy_v2()
         diff = last_cov - gempy_v2_cov
@@ -283,12 +284,11 @@ def plot_scalar_and_input_2d(foo, interpolation_input, outputs, structure: Stack
 
 
 def plot_block_and_input_2d(stack_number, interpolation_input, outputs: list[OctreeLevel], structure: StacksStructure):
-
     from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_ids_for_level
-    
+
     regular_grid_scalar = get_regular_grid_ids_for_level(outputs).astype("int8")
     grid: Grid = outputs[-1].grid_centers
-    
+
     structure.stack_number = stack_number
     interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(interpolation_input, structure)
     plot_block(regular_grid_scalar, grid.regular_grid, interpolation_input_i)

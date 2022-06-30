@@ -8,6 +8,7 @@ import numpy as np
 
 pykeops.config.verbose = True
 
+
 @pytest.mark.skip('Only trigger manually when there is something wrong with'
                   'pykeops compilation', )
 def test_keops_run():
@@ -16,6 +17,7 @@ def test_keops_run():
     #pykeops.set_bin_folder("/home/miguel/.s")
     pykeops.clean_pykeops()  # just in case old build files are still present
     pykeops.test_numpy_bindings()
+
 
 @pytest.mark.skip('Only trigger manually when there is something wrong with'
                   'pykeops compilation', )

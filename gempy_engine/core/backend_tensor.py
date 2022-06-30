@@ -19,7 +19,7 @@ class BackendTensor():
     @classmethod
     def change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled:bool = False, use_gpu: bool = True):
 
-        cls.use_gpu = use_gpu
+        cls.use_gpu = use_gpu & (pykeops_enabled or engine_backend == AvailableBackends.tensorflow)
 
         print(f"Setting Backend To: {engine_backend}")
 

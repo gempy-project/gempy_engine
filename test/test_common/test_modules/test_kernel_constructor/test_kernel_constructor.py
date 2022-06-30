@@ -60,11 +60,11 @@ def test_eval_kernel(simple_model_2, simple_grid_2d):
 
     sp_internals = surface_points_preprocess(surface_points, input_data_descriptor.tensors_structure)
     ori_internals = orientations_preprocess(orientations)
-    kernel_data = evaluation_vectors_preparations(simple_grid_2d, SolverInput(sp_internals, ori_internals, options))
-    export_kernel = create_scalar_kernel(kernel_data, options)
+    kernel_data = evaluation_vectors_preparations(simple_grid_2d, SolverInput(sp_internals, ori_internals, options.kernel_options, None))
+    export_kernel = create_scalar_kernel(kernel_data, options.kernel_options)
     print(export_kernel)
 
-    export_gradient_ = create_grad_kernel(kernel_data, options)
+    export_gradient_ = create_grad_kernel(kernel_data, options.kernel_options)
     print(export_gradient_)
 
 
