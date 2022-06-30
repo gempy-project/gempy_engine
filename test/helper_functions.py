@@ -5,9 +5,13 @@ from gempy_engine.core.data.interpolation_input import InterpolationInput
 import matplotlib.pyplot as plt
 
 
-def plot_2d_scalar_y_direction(interpolation_input: InterpolationInput, Z_x):
-    resolution = interpolation_input.grid.regular_grid.resolution
-    extent = interpolation_input.grid.regular_grid.extent
+def plot_2d_scalar_y_direction(interpolation_input: InterpolationInput, Z_x, grid: RegularGrid=None):
+    if grid is None:
+        resolution = interpolation_input.grid.regular_grid.resolution
+        extent = interpolation_input.grid.regular_grid.extent
+    else:
+        resolution = grid.resolution
+        extent = grid.extent
 
     plt.contourf(Z_x.reshape(resolution)[:, resolution[1] // 2, :].T, N=40, cmap="autumn",
                  extent=extent[[0, 1, 4, 5]]

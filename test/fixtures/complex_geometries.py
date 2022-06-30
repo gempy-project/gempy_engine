@@ -19,7 +19,7 @@ data_path = dir_name + "/graben_data/"
 @pytest.fixture(scope="session")
 def one_fault_model():
     centers = np.array([500, 500, -550])
-    rescaling_factor = 1600
+    rescaling_factor = 240
 
     # region InterpolationInput
     orientations = pd.read_csv(data_path + "Tutorial_ch1-9a_Fault_relations_orientations.csv")
@@ -66,14 +66,17 @@ def one_fault_model():
 
     # region InterpolationOptions
 
-    range_ = 1732 / rescaling_factor
-    c_o = 71428.57 / rescaling_factor
+    # range_ = 1732 / rescaling_factor
+    # c_o = 71428.57 / rescaling_factor
+
+    range_ = 7
+    c_o = 1
 
     options = InterpolationOptions(
         range_, c_o,
         uni_degree=1,
         number_dimensions=3,
-        kernel_function=AvailableKernelFunctions.cubic)
+        kernel_function=AvailableKernelFunctions.exponential)
 
     # endregion
 

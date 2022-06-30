@@ -1,3 +1,4 @@
+import enum
 from typing import List, Tuple, Optional
 
 import numpy as np
@@ -11,12 +12,17 @@ from ...core.data.grid import Grid
 # TODO: Substitute numpy for b.tfnp
 # TODO: Remove all stack to be able to compile TF
 
+class ValueType(enum.Enum):
+    ids = enum.auto()
+    scalar = enum.auto()
+
 
 def get_next_octree_grid(prev_octree: OctreeLevel, compute_topology=False, **kwargs) -> Grid:
     return compute_next_octree_locations(prev_octree, compute_topology, **kwargs)
 
 
-def get_regular_grid_ids_for_level(octree_list: List[OctreeLevel], level: Optional[int] = None) -> np.ndarray:
+def get_regular_grid_value_for_level(octree_list: List[OctreeLevel], level: Optional[int] = None, 
+                                   value_type: ValueType = ValueType.ids, scalar_n = -1) -> np.ndarray:
     # region Internal Functions
     def calculate_oct(shape, n_rep: int) -> np.ndarray:
 
@@ -74,7 +80,16 @@ def get_regular_grid_ids_for_level(octree_list: List[OctreeLevel], level: Option
     root: OctreeLevel = octree_list[0]
 
     regular_grid_shape = root.grid_centers.regular_grid_shape
-    regular_grid: np.ndarray = _expand_regular_grid(root.output_centers.ids_block.reshape(regular_grid_shape), level)
+    
+    match value_type:
+        case ValueType.ids:
+            block = root.outputs_centers[scalar_n].ids_block
+        case ValueType.scalar:
+            block = root.outputs_centers[scalar_n].exported_fields.scalar_field
+        case _:
+            raise ValueError("ValueType not supported.")    
+    
+    regular_grid: np.ndarray = _expand_regular_grid(block.reshape(regular_grid_shape), level)
     shape = regular_grid_shape
 
     active_cells_index: List["np.ndarray[np.int]"] = []
@@ -88,7 +103,16 @@ def get_regular_grid_ids_for_level(octree_list: List[OctreeLevel], level: Option
         local_active_cells: np.ndarray = np.where(active_cells)[0]
         shape: np.ndarray = octree.grid_centers.regular_grid_shape
         oct: np.ndarray = calculate_oct(shape, n_rep)
-        ids: np.ndarray = _expand_octree(octree.output_centers.ids_block.reshape((-1, 2, 2, 2)), n_rep - 1)
+
+        match value_type:
+            case ValueType.ids:
+                block = octree.outputs_centers[scalar_n].ids_block
+            case ValueType.scalar:
+                block = octree.outputs_centers[scalar_n].exported_fields.scalar_field
+            case _:
+                raise ValueError("ValueType not supported.")
+
+        ids: np.ndarray = _expand_octree(block.reshape((-1, 2, 2, 2)), n_rep - 1)
 
         is_branch = e > 0
 

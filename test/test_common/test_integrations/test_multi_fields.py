@@ -12,7 +12,7 @@ from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data.input_data_descriptor import TensorsStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.options import DualContouringMaskingOptions
-from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_ids_for_level
+from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 from test import helper_functions_pyvista
 from test.conftest import plot_pyvista, TEST_SPEED
 from test.helper_functions import plot_block
@@ -269,7 +269,7 @@ def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
     options.number_octree_levels = n_oct_levels
     solution: Solutions = _interpolate(interpolation_input, options, structure)
     final_block = solution.octrees_output[0].output_centers.final_block
-    final_block2 = get_regular_grid_ids_for_level(solution.octrees_output, 1).astype("int8")
+    final_block2 = get_regular_grid_value_for_level(solution.octrees_output, 1).astype("int8")
 
     if plot_pyvista or False:
         grid = interpolation_input.grid.regular_grid

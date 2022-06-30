@@ -25,7 +25,6 @@ class Buffer:
 
 def interpolate_scalar_field(interpolation_input: InterpolationInput, options: KernelOptions,
                              data_shape: data.TensorsStructure) -> Tuple[np.ndarray, ExportedFields]:
-    
     # Within series
     xyz_lvl0, ori_internal, sp_internal, fault_internal = _input_preprocess(data_shape, interpolation_input)
     solver_input = SolverInput(
@@ -33,25 +32,25 @@ def interpolate_scalar_field(interpolation_input: InterpolationInput, options: K
         ori_internal=ori_internal,
         fault_internal=fault_internal,
         options=options)
-    
+
     # region Solver
     if Buffer.weights is None:
         weights = _solve_interpolation(solver_input)
         Buffer.weights = weights
     else:
         weights = Buffer.weights
-    
+
     # endregion
-    
+
     exported_fields = _evaluate_sys_eq(xyz_lvl0, solver_input, weights)
-    
+
     # TODO: This should be in the TensorsStructure
     exported_fields.n_points_per_surface = data_shape.reference_sp_position
     exported_fields.slice_feature = interpolation_input.slice_feature
     exported_fields.grid_size = interpolation_input.grid.len_all_grids
-    
+
     exported_fields.debug = solver_input.debug
-    
+
     Buffer.clean()
     return weights, exported_fields
 
@@ -66,14 +65,13 @@ def _solve_interpolation(interp_input: SolverInput):
 
 def _input_preprocess(data_shape: TensorsStructure, interpolation_input: InterpolationInput) -> \
         Tuple[np.ndarray, data.OrientationsInternals, data.SurfacePointsInternals, data.FaultsData]:
-    
     grid = interpolation_input.grid
     surface_points: SurfacePoints = interpolation_input.surface_points
     orientations: Orientations = interpolation_input.orientations
-    
+
     sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
     ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(orientations)
-    
+
     # * We need to interpolate in ALL the surface points not only the surface points of the stack
     grid_internal = data_preprocess_interface.prepare_grid(grid.values, interpolation_input.all_surface_points)
 
@@ -81,7 +79,7 @@ def _input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpo
     faults_on_sp: np.ndarray = fault_values.fault_values_on_sp
     fault_ref, fault_rest = data_preprocess_interface.prepare_faults(faults_on_sp, data_shape)
     fault_values.fault_values_ref, fault_values.fault_values_rest = fault_ref, fault_rest
-    
+
     return grid_internal, ori_internal, sp_internal, fault_values
 
 
@@ -92,13 +90,13 @@ def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput, weights: np.nda
     eval_gx_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=0)
     eval_gy_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=1)
 
-    scalar_field = weights @ eval_kernel
-    gx_field = weights @ eval_gx_kernel
-    gy_field = weights @ eval_gy_kernel
+    scalar_field = (eval_kernel.T @ weights).reshape(-1)
+    gx_field = (eval_gx_kernel.T @ weights).reshape(-1)
+    gy_field = (eval_gy_kernel.T @ weights).reshape(-1)
 
     if options.number_dimensions == 3:
         eval_gz_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=2)
-        gz_field = weights @ eval_gz_kernel
+        gz_field = (eval_gz_kernel.T @ weights).reshape(-1)
     elif options.number_dimensions == 2:
         gz_field = None
     else:

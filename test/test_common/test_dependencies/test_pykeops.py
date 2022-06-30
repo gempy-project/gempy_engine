@@ -19,8 +19,8 @@ def test_keops_run():
     pykeops.test_numpy_bindings()
 
 
-@pytest.mark.skip('Only trigger manually when there is something wrong with'
-                  'pykeops compilation', )
+# @pytest.mark.skip('Only trigger manually when there is something wrong with'
+#                   'pykeops compilation', )
 def test_basic_op():
     import pykeops
 

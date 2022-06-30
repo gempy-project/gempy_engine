@@ -10,6 +10,7 @@ from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.core.data.interp_output import InterpOutput
+from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level, ValueType
 from test import helper_functions_pyvista
 from test.conftest import TEST_SPEED
 from test.helper_functions import plot_block, plot_2d_scalar_y_direction
@@ -232,7 +233,7 @@ def test_fault_kernel(unconformity_complex, n_oct_levels=1):
         )
 
 
-def test_one_fault_model(one_fault_model, n_oct_levels=2):
+def test_one_fault_model(one_fault_model, n_oct_levels=3):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -246,14 +247,14 @@ def test_one_fault_model(one_fault_model, n_oct_levels=2):
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     # TODO: Grab second scalar and create fault kernel
-    outputs = solutions.octrees_output
+    outputs: list[OctreeLevel] = solutions.octrees_output
 
     if False:  # * This is in case we need to compare the covariance matrices
         last_cov = outputs[-1].outputs_centers.exported_fields.debug
         gempy_v2_cov = covariance_for_one_fault_model_from_gempy_v2()
         diff = last_cov - gempy_v2_cov
 
-    if False:
+    if True:
         plot_scalar_and_input_2d(0, interpolation_input, outputs, structure.stack_structure)
         plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
         plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
@@ -267,26 +268,30 @@ def test_one_fault_model(one_fault_model, n_oct_levels=2):
         plot_block(outputs[1].values_block, grid)
         plot_block(outputs[2].values_block, grid)
 
-    if False:
+    if True:
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
 
-    if True:
+    if False:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes
         )
 
 
-def plot_scalar_and_input_2d(foo, interpolation_input, outputs, structure: StacksStructure):
+def plot_scalar_and_input_2d(foo, interpolation_input, outputs:list[OctreeLevel], structure: StacksStructure):
     structure.stack_number = foo
+
+    regular_grid_scalar = get_regular_grid_value_for_level(outputs, value_type=ValueType.scalar, scalar_n=foo)
+    grid: Grid = outputs[-1].grid_centers
+    
     interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(interpolation_input, structure)
-    plot_2d_scalar_y_direction(interpolation_input_i, outputs[foo].exported_fields.scalar_field)
+    plot_2d_scalar_y_direction(interpolation_input_i, regular_grid_scalar, grid.regular_grid)
 
 
 def plot_block_and_input_2d(stack_number, interpolation_input, outputs: list[OctreeLevel], structure: StacksStructure):
-    from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_ids_for_level
+    from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 
-    regular_grid_scalar = get_regular_grid_ids_for_level(outputs).astype("int8")
+    regular_grid_scalar = get_regular_grid_value_for_level(outputs).astype("int8")
     grid: Grid = outputs[-1].grid_centers
 
     structure.stack_number = stack_number

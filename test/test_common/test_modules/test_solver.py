@@ -13,7 +13,7 @@ from gempy_engine.modules.solver.solver_interface import kernel_reduction
 def kriging_eq(simple_model_2_internals):
     sp_internal, ori_internal, options = simple_model_2_internals
 
-    A_matrix = yield_covariance(SolverInput(sp_internal, ori_internal, options))
+    A_matrix = yield_covariance(SolverInput(sp_internal, ori_internal, options.kernel_options, None))
     b_vector = yield_b_vector(ori_internal, A_matrix.shape[0])
     return A_matrix, b_vector
 

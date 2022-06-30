@@ -25,7 +25,7 @@ from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.API.interp_single.interp_features import interpolate_n_octree_levels, interpolate_and_segment
 from gempy_engine.modules.dual_contouring.dual_contouring_interface import QEF, find_intersection_on_edge, triangulate_dual_contouring
-from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_ids_for_level
+from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 from test import helper_functions_pyvista
 from test.conftest import TEST_SPEED
 
@@ -495,7 +495,7 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
 
     # Plot Regular grid Octree
     regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
-    regular_grid_scalar = get_regular_grid_ids_for_level(octree_list, n)
+    regular_grid_scalar = get_regular_grid_value_for_level(octree_list, n)
 
     shape = octree_list[n].grid_centers.regular_grid_shape
     grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T

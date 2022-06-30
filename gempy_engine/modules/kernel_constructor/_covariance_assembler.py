@@ -22,16 +22,18 @@ def _get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_re
     # Fault component
     if ki.ref_fault is not None:
         faults_drift = _get_faults_terms(ki)
+        cov = c_o * (cov_grad + cov_sp + cov_grad_sp) + uni_drift + faults_drift  # *  NOTE: (miguel) The magic terms are real and now they are already included
     else:
-        faults_drift = np.zeros_like(cov_grad)
+        faults_drift = np.zeros(cov_grad.shape)
+        cov = c_o * (cov_grad + cov_sp + cov_grad_sp) + uni_drift
 
-    cov = c_o * (cov_grad + cov_sp + cov_grad_sp) + uni_drift + faults_drift  # *  NOTE: (miguel) The magic terms are real and now they are already included
+    #cov = c_o * (cov_grad + cov_sp + cov_grad_sp) + uni_drift + faults_drift  # *  NOTE: (miguel) The magic terms are real and now they are already included
     return cov
 
 
 def _get_cov_grad(dm, k_a, k_p_ref):
     cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
-    if BackendTensor.pykeops_enabled is False:
+    if BackendTensor.pykeops_enabled is False and False:
         grad_nugget = 0.01
         diag = grad_nugget * dm.perp_matrix
         cov_grad += diag
@@ -41,7 +43,7 @@ def _get_cov_grad(dm, k_a, k_p_ref):
 
 def _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options):
     cov_surface_points = options.i_res * (k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref)
-    if BackendTensor.pykeops_enabled is False or True:
+    if BackendTensor.pykeops_enabled is False and False:
         # Add nugget effect for ref and rest point
         ref_nugget  = 0.0000001
         rest_nugget = 0.0000001
@@ -87,13 +89,13 @@ def _get_faults_terms(ki: KernelInput) -> np.ndarray:
         drift_start_post_x=cov_size-fault_n,
         drift_start_post_y=cov_size-fault_n
         )
-    selector = (selector_components.sel_ui * (selector_components.sel_vj + 1)).sum(-1)
+    selector = (selector_components.sel_ui * (selector_components.sel_vj + 1)).sum(axis=-1)
     
     # ! Hack to make sure this was the problem
     # selector[-1, -4:] = 0
     # selector[-4:, -1] = 0
     
-    fault_matrix = selector * (fault_ref - fault_rest + 0.00000001) * 1 
+    fault_matrix = selector * (fault_ref - fault_rest + 0.00000001) * 1
     return fault_matrix
 
 

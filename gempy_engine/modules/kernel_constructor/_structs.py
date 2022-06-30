@@ -111,7 +111,7 @@ class CartesianSelector:
     h_sel_rest_i: tensor_types = np.empty((0, 1, 3))
     h_sel_rest_j: tensor_types = np.empty((1, 0, 3))
 
-    is_gradient: bool = False
+    # is_gradient: bool = False (June) This seems to be unused
 
     def __init__(self,
                  x_sel_hu, y_sel_hu,
@@ -131,7 +131,7 @@ class CartesianSelector:
         self.h_sel_rest_i = x_sel_h_rest[:, None, :]
         self.h_sel_rest_j = y_sel_h_rest[None, :, :]
 
-        self.is_gradient = is_gradient
+#        self.is_gradient = is_gradient
 
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
