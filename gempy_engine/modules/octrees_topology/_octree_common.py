@@ -10,7 +10,7 @@ def _generate_next_level_centers(xyz_coord, dxdydz, level=1):
         z_ = np.tile(slr_z, (1, 4))
         z = z_.ravel()
         new_xyz = np.stack((x, y, z)).T
-        return new_xyz
+        return np.ascontiguousarray(new_xyz)
     # ===================================
     x_coord, y_coord, z_coord = xyz_coord[:, 0], xyz_coord[:, 1], xyz_coord[:, 2]
     dx, dy, dz = dxdydz

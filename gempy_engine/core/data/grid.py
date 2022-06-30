@@ -143,10 +143,12 @@ class RegularGrid:
         x = np.linspace(extent[0] + dx / 2, extent[1] - dx / 2, resolution[0], dtype="float64")
         y = np.linspace(extent[2] + dy / 2, extent[3] - dy / 2, resolution[1], dtype="float64")
         z = np.linspace(extent[4] + dz / 2, extent[5] - dz / 2, resolution[2], dtype="float64")
+        
+        # Create C contiguous arrays
         xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
         g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
-
-        return g
+    
+        return np.ascontiguousarray(g)
 
 # TODO: [ ] values is independent field to regular grid. Proabably we want to have an extra field for them
 # TODO: (custom_grid?) and then having a values as a property that brings both together?

@@ -1,6 +1,7 @@
 from typing import Tuple
 
 import numpy as np
+from pykeops.numpy import LazyTensor
 
 from ...core import data
 from ...core.data import FaultsData, Orientations, SurfacePoints, SurfacePointsInternals, OrientationsInternals
@@ -41,7 +42,8 @@ def interpolate_scalar_field(interpolation_input: InterpolationInput, options: K
         weights = Buffer.weights
 
     # endregion
-
+    
+    
     exported_fields = _evaluate_sys_eq(xyz_lvl0, solver_input, weights)
 
     # TODO: This should be in the TensorsStructure
@@ -85,21 +87,39 @@ def _input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpo
 
 def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput, weights: np.ndarray) -> ExportedFields:
     options = interp_input.options
-
+    
+    if xyz.flags['C_CONTIGUOUS'] is False:
+        print("xyz is not C_CONTIGUOUS")
+        
     eval_kernel = kernel_constructor.yield_evaluation_kernel(xyz, interp_input)
     eval_gx_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=0)
     eval_gy_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=1)
 
-    scalar_field = (eval_kernel.T @ weights).reshape(-1)
-    gx_field = (eval_gx_kernel.T @ weights).reshape(-1)
-    gy_field = (eval_gy_kernel.T @ weights).reshape(-1)
+    if True:
+        # ! Seems not to make any difference but we need this if we want to change the backend
+        # ! We need to benchmark GPU vs CPU with more input
+        scalar_field = (eval_kernel.T * LazyTensor(np.asfortranarray(weights), axis=1)).sum(axis=1, backend="GPU").reshape(-1)
+        gx_field = (eval_gx_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend="GPU").reshape(-1)
+        gy_field = (eval_gy_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend="GPU").reshape(-1)
 
-    if options.number_dimensions == 3:
-        eval_gz_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=2)
-        gz_field = (eval_gz_kernel.T @ weights).reshape(-1)
-    elif options.number_dimensions == 2:
-        gz_field = None
+        if options.number_dimensions == 3:
+            eval_gz_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=2)
+            gz_field = (eval_gz_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend="GPU").reshape(-1)
+        elif options.number_dimensions == 2:
+            gz_field = None
+        else:
+            raise ValueError("Number of dimensions have to be 2 or 3")
     else:
-        raise ValueError("Number of dimensions have to be 2 or 3")
+        scalar_field = (eval_kernel.T @ weights).reshape(-1)
+        gx_field = (eval_gx_kernel.T @ weights).reshape(-1)
+        gy_field = (eval_gy_kernel.T @ weights).reshape(-1)
+    
+        if options.number_dimensions == 3:
+            eval_gz_kernel = kernel_constructor.yield_evaluation_grad_kernel(xyz, interp_input, axis=2)
+            gz_field = (eval_gz_kernel.T @ weights).reshape(-1)
+        elif options.number_dimensions == 2:
+            gz_field = None
+        else:
+            raise ValueError("Number of dimensions have to be 2 or 3")
 
     return ExportedFields(scalar_field, gx_field, gy_field, gz_field)

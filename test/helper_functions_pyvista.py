@@ -73,7 +73,7 @@ def plot_pyvista(octree_list=None, dc_meshes:  List[DualContouringMesh] = None, 
         regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
         foo = regular_grid_mesh.threshold([0, 10])
     
-        p.add_mesh(foo, show_edges=False, opacity=.5, cmap="tab10")
+        p.add_mesh(foo, show_edges=True, opacity=.5, cmap="tab10")
 
     # Plot gradients
     if gradients is not None and xyz_on_edge is not None:

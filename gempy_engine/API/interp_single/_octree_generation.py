@@ -45,4 +45,4 @@ def _generate_corners(xyz_coord, dxdydz, level=1):
     z = z_.ravel()
 
     new_xyz = np.stack((x, y, z)).T
-    return new_xyz
+    return np.ascontiguousarray(new_xyz)

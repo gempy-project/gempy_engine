@@ -24,7 +24,7 @@ def test_keops_run():
 def test_basic_op():
     import pykeops
 
-    M, N = 1000, 2000
+    M, N = 1000000, 20000
     x = np.random.rand(M, 2)
     y = np.random.rand(N, 2)
     from pykeops.numpy import LazyTensor

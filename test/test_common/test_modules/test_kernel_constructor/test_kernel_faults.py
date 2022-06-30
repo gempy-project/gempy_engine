@@ -275,7 +275,7 @@ def test_one_fault_model(one_fault_model,  n_oct_levels=5):
 
     interpolation_input, structure, options = one_fault_model
 
-    options.dual_contouring = True
+    options.dual_contouring = False
     options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
 
     options.number_octree_levels = n_oct_levels
@@ -295,7 +295,7 @@ def test_one_fault_model(one_fault_model,  n_oct_levels=5):
         gempy_v2_cov = covariance_for_one_fault_model_from_gempy_v2()
         diff = last_cov - gempy_v2_cov
 
-    if True:
+    if False:
         plot_scalar_and_input_2d(0, interpolation_input, outputs, structure.stack_structure)
         plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
         plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
@@ -309,10 +309,10 @@ def test_one_fault_model(one_fault_model,  n_oct_levels=5):
         plot_block(outputs[1].values_block, grid)
         plot_block(outputs[2].values_block, grid)
 
-    if True:
+    if False:
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
 
-    if True:
+    if False:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes
