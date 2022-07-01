@@ -1,12 +1,12 @@
 import dataclasses
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
 
 import numpy as np
 
-from . import SurfacePoints, Orientations, FaultsData
+from . import SurfacePoints, Orientations
 from .grid import Grid
 from .input_data_descriptor import StackRelationType, StacksStructure
+from .kernel_classes.faults import FaultsData
 
 
 @dataclass
@@ -15,12 +15,21 @@ class InterpolationInput:
     orientations: Orientations
     grid: Grid
     unit_values: np.ndarray
-    fault_values: FaultsData = None
-    _fault_values: FaultsData = dataclasses.field(init=True, repr=False, default=None)
-    stack_relation: StackRelationType | List[StackRelationType] = StackRelationType.ERODE  # ? Should be here or in the descriptor
-    
+
     all_surface_points: SurfacePoints = None
     _all_surface_points: SurfacePoints = dataclasses.field(init=False, repr=False, default=None)
+    
+    # region per model
+    fault_values: FaultsData = None
+    _fault_values: FaultsData = dataclasses.field(init=False, repr=False, default=None)
+    stack_relation: StackRelationType = StackRelationType.ERODE  # ? Should be here or in the descriptor
+    # endregion
+    
+    # def __post_init__(self):
+    #     if self._fault_values is None:
+    #         empty_fault_values_on_sp = np.zeros((0, self.surface_points.n_points))
+    #         empty_fault_values_on_grid = np.zeros((0, self.grid.len_all_grids))
+    #         self._fault_values = [FaultsData(empty_fault_values_on_grid, empty_fault_values_on_sp)] * len(self.stack_relation)
 
     @classmethod
     def from_interpolation_input_subset(cls, all_interpolation_input: "InterpolationInput",
@@ -42,10 +51,11 @@ class InterpolationInput:
             grid=grid,
             unit_values=unit_values,
             stack_relation=stack_structure.active_masking_descriptor,
-            all_surface_points=all_interpolation_input.surface_points,
+            fault_values=stack_structure.active_faults_input_data,
+            all_surface_points=all_interpolation_input.surface_points
         )
 
-        ii_subset.fault_values = all_interpolation_input._fault_values  # ! Setting this on the constructor does not work God knows why.
+        #ii_subset.fault_values = all_interpolation_input._fault_values  # ! Setting this on the constructor does not work God knows why.
 
         return ii_subset
     

@@ -8,6 +8,8 @@ import numpy as np
 
 from gempy_engine.core.data.interpolation_functions import CustomInterpolationFunctions
 from gempy_engine.core.backend_tensor import BackendTensor as b
+from gempy_engine.core.data.kernel_classes.faults import FaultsData
+
 
 def _cast_type_inplace(struct_data_instance):
     for key, val in struct_data_instance.__dict__.items():
@@ -38,6 +40,7 @@ class StacksStructure:
     number_of_orientations_per_stack: np.ndarray
     number_of_surfaces_per_stack: np.ndarray
     masking_descriptor: List[StackRelationType]
+    faults_input_data: List[FaultsData] = None
     faults_relations: np.ndarray = None
     interp_functions_per_stack: List[CustomInterpolationFunctions] = None
     
@@ -54,10 +57,16 @@ class StacksStructure:
         self.number_of_points_per_stack_vector = np.concatenate([np.array([0]), per_stack_cumsum])
         self.number_of_orientations_per_stack_vector = np.concatenate([np.array([0]), per_stack_orientation_cumsum])
         self.number_of_surfaces_per_stack_vector = np.concatenate([np.array([0]), per_stack_surface_cumsum])
+        if self.faults_input_data is None:
+            self.faults_input_data = [None] * self.n_stacks
     
     @property
     def active_masking_descriptor(self) -> StackRelationType:
         return self.masking_descriptor[self.stack_number]
+    
+    @property
+    def active_faults_input_data(self) -> FaultsData:
+        return self.faults_input_data[self.stack_number]
     
     @property
     def nspv_stack(self):

@@ -70,13 +70,14 @@ def _independent_dual_contouring(data_descriptor: InputDataDescriptor, interpola
     # ! we just need to interpolate up to the n_scalar_field, but I am not sure about this. I need to test it
     output_on_edges: List[InterpOutput] = interpolate_all_fields_no_octree(interpolation_input, options, data_descriptor)  # ! This has to be done with buffer weights otherwise is a waste
 
+    n_surfaces_to_export = output_corners.scalar_field_at_sp.shape[0]  # * We need this general way because for example for fault we extract two surfaces from one surface input
     dc_data = DualContouringData(
         xyz_on_edge=intersection_xyz,
         valid_edges=valid_edges,
         xyz_on_centers=octree_leaves.grid_centers.values if mask is None else octree_leaves.grid_centers.values[mask],
         dxdydz=octree_leaves.grid_centers.dxdydz,
         exported_fields_on_edges=output_on_edges[n_scalar_field].exported_fields,
-        n_surfaces=data_descriptor.stack_structure.number_of_surfaces_per_stack[n_scalar_field]
+        n_surfaces=n_surfaces_to_export
     )
     return dc_data
 

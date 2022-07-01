@@ -4,7 +4,8 @@ from typing import Optional
 
 import numpy as np
 
-from . import SurfacePointsInternals, OrientationsInternals, FaultsData
+from . import SurfacePointsInternals, OrientationsInternals
+from .kernel_classes.faults import FaultsData
 from .options import KernelOptions
 
 

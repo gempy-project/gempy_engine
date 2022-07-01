@@ -8,6 +8,7 @@ from gempy_engine.core.data.grid import Grid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor, StackRelationType, TensorsStructure, StacksStructure
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
+from gempy_engine.core.data.kernel_classes.faults import FaultsData
 from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
@@ -54,7 +55,7 @@ def test_one_fault_model_pykeops(one_fault_model, n_oct_levels=3):
 
 
 # noinspection PyUnreachableCode
-def test_one_fault_model(one_fault_model,  n_oct_levels=5):
+def test_one_fault_model(one_fault_model,  n_oct_levels=4):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -100,10 +101,45 @@ def test_one_fault_model(one_fault_model,  n_oct_levels=5):
         plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
         plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
+        
+    if False:
+        plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
+        plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
+        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
 
     if False:
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
 
+    if True:
+        helper_functions_pyvista.plot_pyvista(
+            solutions.octrees_output,
+            dc_meshes=solutions.dc_meshes
+        )
+
+
+def test_one_fault_model_thickness(one_fault_model, n_oct_levels=4):
+    interpolation_input: InterpolationInput
+    structure: InputDataDescriptor
+    options: InterpolationOptions
+
+    interpolation_input, structure, options = one_fault_model
+
+    fault_data: FaultsData = FaultsData.from_user_input(thickness=.5)
+    structure.stack_structure.faults_input_data = [fault_data, None, None]
+    options.dual_contouring = True
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.DISJOINT
+
+    options.number_octree_levels = n_oct_levels
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
+
+    # TODO: Grab second scalar and create fault kernel
+    outputs: list[OctreeLevel] = solutions.octrees_output
+
+    if False:
+        plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
+        plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
+        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
+        
     if True:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,

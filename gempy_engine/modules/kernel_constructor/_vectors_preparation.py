@@ -5,7 +5,7 @@ import numpy as np
 from ._kernel_constructors import assembly_dips_points_tensor, assembly_dips_ug_coords, assembly_dips_points_coords
 from ._kernel_selectors import dips_sp_cartesian_selector, grid_cartesian_selector
 from ._structs import OrientationSurfacePointsCoords, FaultDrift, PointsDrift, DriftMatrixSelector, KernelInput, CartesianSelector, OrientationsDrift
-from ...core.data import FaultsData
+from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.internal_structs import SolverInput
 from ...core.data.kernel_classes.orientations import OrientationsInternals
 from ...core.data.kernel_classes.surface_points import SurfacePointsInternals

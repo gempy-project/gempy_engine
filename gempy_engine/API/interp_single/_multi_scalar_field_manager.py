@@ -5,14 +5,14 @@ import numpy as np
 from memory_profiler import profile
 from numpy import ndarray
 
-from ...core.data import FaultsData
+from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.exported_structs import CombinedScalarFieldsOutput
 from ...core.data.interp_output import InterpOutput
 from ...core.data.scalar_field_output import ScalarFieldOutput
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.input_data_descriptor import StackRelationType, InputDataDescriptor, TensorsStructure
 from ...core.data.interpolation_input import InterpolationInput
-from ...core.data.options import KernelOptions
+from ...core.data.options import KernelOptions, InterpolationOptions
 
 from ._interp_single_feature import interpolate_feature
 
@@ -35,14 +35,13 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Ker
 
 def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpolation_input: InterpolationInput,
                        options: KernelOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
-    
     stack_structure = root_data_descriptor.stack_structure
-    
+
     all_scalar_fields_outputs: List[ScalarFieldOutput | None] = [None] * stack_structure.n_stacks
-    
+
     xyz_to_interpolate_size: int = root_interpolation_input.grid.len_all_grids + root_interpolation_input.surface_points.n_points
     all_stack_values_block: np.ndarray = np.zeros((stack_structure.n_stacks, xyz_to_interpolate_size))  # Used for faults
-    
+
     if stack_structure is None:  # ! This branch is just for backward compatibility but we should try to get rid of it as soon as possible
         warnings.warn("Deprecated: stack_structure is not defined in the input data descriptor", DeprecationWarning)
         # output = interpolate_feature(root_interpolation_input, options, root_data_descriptor.tensors_structure)
@@ -55,25 +54,24 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
             tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
             interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
                 root_interpolation_input, stack_structure)
-            
+
             # region Set fault input if needed
             fault_relation_on_this_stack: Iterable[bool] = stack_structure.faults_relations[:, i]
-            is_true = np.any(fault_relation_on_this_stack)
-            
-            if is_true:
-                fault_values_all = all_stack_values_block[fault_relation_on_this_stack]
 
-                fv_on_all_sp = fault_values_all[:, interpolation_input_i.grid.len_all_grids:]
-                fv_on_sp = fv_on_all_sp[:, interpolation_input_i.slice_feature]
-                
-                interpolation_input_i.fault_values = FaultsData(
-                    fault_values_everywhere=fault_values_all,
-                    fault_values_on_sp=fv_on_sp
-                )
-            else:
-                interpolation_input_i.fault_values = None
-            
-            # endregion
+            fault_values_all = all_stack_values_block[fault_relation_on_this_stack]
+
+            fv_on_all_sp = fault_values_all[:, interpolation_input_i.grid.len_all_grids:]
+            fv_on_sp = fv_on_all_sp[:, interpolation_input_i.slice_feature]
+
+            # Grab Faults data given by the user
+            fault_data = interpolation_input_i.fault_values
+            if fault_data is None:  # * Set default fault data
+                fault_data = FaultsData(fault_values_everywhere=fault_values_all, fault_values_on_sp=fv_on_sp)
+            else: # * Use user given fault data
+                fault_data.fault_values_on_sp = fv_on_sp
+                fault_data.fault_values_everywhere = fault_values_all
+
+            interpolation_input_i.fault_values = fault_data
             
             output: ScalarFieldOutput = interpolate_feature(interpolation_input_i, options, tensor_struct_i,
                                                             stack_structure.interp_function)
@@ -98,7 +96,7 @@ def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_rela
             case StackRelationType.ONLAP:
                 pass
             case StackRelationType.FAULT:
-                pass
+                mask_matrix[i, :] = mask_lith
             case False:
                 mask_matrix[i, :] = mask_lith
             case _:

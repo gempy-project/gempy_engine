@@ -30,7 +30,12 @@ def interpolate_feature(interpolation_input: InterpolationInput, options: Kernel
         exported_fields: ExportedFields = _interpolate_external_function(external_interp_funct, xyz)
     
     values_block = _segment_scalar_field(exported_fields, interpolation_input.unit_values)
-    mask_components = _compute_mask_components(exported_fields, interpolation_input.stack_relation)
+    
+    mask_components = _compute_mask_components(
+        exported_fields=exported_fields,
+        stack_relation=interpolation_input.stack_relation,
+        fault_thickness=interpolation_input.fault_values.thickness
+    )
 
     output = ScalarFieldOutput(
         weights=weights,
@@ -59,7 +64,8 @@ def _segment_scalar_field(exported_fields: ExportedFields, unit_values: np.ndarr
     return activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=50000)
 
 
-def _compute_mask_components(exported_fields: ExportedFields, stack_relation: StackRelationType):
+def _compute_mask_components(exported_fields: ExportedFields, stack_relation: StackRelationType,
+                             fault_thickness: Optional[float] = None) -> MaskMatrices:
     # ! This is how I am setting the stackRelation in gempy
     # is_erosion = self.series.df['BottomRelation'].values[self.non_zero] == 'Erosion'
     # is_onlap = np.roll(self.series.df['BottomRelation'].values[self.non_zero] == 'Onlap', 1)
@@ -78,7 +84,19 @@ def _compute_mask_components(exported_fields: ExportedFields, stack_relation: St
             onlap_limit_value = exported_fields.scalar_field_at_surface_points.max()
             mask_lith = exported_fields.scalar_field > onlap_limit_value
         case StackRelationType.FAULT:
-            mask_lith = np.zeros_like(exported_fields.scalar_field)
+            # TODO [x] Prototyping thickness for faults
+            if fault_thickness is not None:
+                fault_limit_value = exported_fields.scalar_field_at_surface_points.min()
+                thickness_1 = fault_limit_value - fault_thickness
+                thickness_2 = fault_limit_value + fault_thickness
+
+                f1 = exported_fields.scalar_field > thickness_1
+                f2 = exported_fields.scalar_field < thickness_2
+
+                exported_fields.scalar_field_at_fault_shell = np.array([thickness_1, thickness_2])
+                mask_lith = f1 * f2
+            else:
+                mask_lith = np.zeros_like(exported_fields.scalar_field)
         case False:
             mask_lith = np.ones_like(exported_fields.scalar_field)
         case _:

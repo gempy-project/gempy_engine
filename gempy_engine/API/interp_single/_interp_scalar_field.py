@@ -4,11 +4,12 @@ import numpy as np
 from pykeops.numpy import LazyTensor
 
 from ...core import data
-from ...core.data import FaultsData, Orientations, SurfacePoints, SurfacePointsInternals, OrientationsInternals
+from ...core.data import Orientations, SurfacePoints, SurfacePointsInternals, OrientationsInternals
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.input_data_descriptor import TensorsStructure
 from ...core.data.internal_structs import SolverInput
 from ...core.data.interpolation_input import InterpolationInput
+from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.options import KernelOptions
 
 from ...modules.data_preprocess import data_preprocess_interface
@@ -66,7 +67,7 @@ def _solve_interpolation(interp_input: SolverInput):
 
 
 def _input_preprocess(data_shape: TensorsStructure, interpolation_input: InterpolationInput) -> \
-        Tuple[np.ndarray, data.OrientationsInternals, data.SurfacePointsInternals, data.FaultsData]:
+        Tuple[np.ndarray, OrientationsInternals, SurfacePointsInternals, FaultsData]:
     grid = interpolation_input.grid
     surface_points: SurfacePoints = interpolation_input.surface_points
     orientations: Orientations = interpolation_input.orientations

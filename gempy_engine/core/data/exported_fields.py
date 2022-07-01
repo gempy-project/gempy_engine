@@ -16,13 +16,16 @@ class ExportedFields:
     grid_size: Optional[int] = None
     
     _scalar_field_at_surface_points: Optional[np.ndarray] = None
+    scalar_field_at_fault_shell: Optional[np.ndarray] = None
     
     debug = None
     
     
     @property
     def scalar_field_at_surface_points(self) -> Optional[np.ndarray]:
-        if self._scalar_field_at_surface_points is None:
+        if self.scalar_field_at_fault_shell is not None:  # * For now this has priority over everything else
+            return self.scalar_field_at_fault_shell
+        elif self._scalar_field_at_surface_points is None:
             scalar_field_at_all_sp = self._scalar_field[self.grid_size:]
             scalar_field_at_feature_sp = scalar_field_at_all_sp[self.slice_feature]
             scalar_field_at_one_point_per_surface = scalar_field_at_feature_sp[self.npf]

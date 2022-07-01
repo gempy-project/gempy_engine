@@ -32,7 +32,7 @@ def one_fault_model():
 
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)
-    ids = np.array([0, 1, 2, 3, 4, 5])
+    ids = np.array([1, 2, 3, 4, 5, 6])
 
     #resolution = [40, 2, 40]
     resolution = [4,4,4]

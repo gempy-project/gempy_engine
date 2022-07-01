@@ -16,6 +16,7 @@ class ValueType(enum.Enum):
     ids = enum.auto()
     scalar = enum.auto()
     squeeze_mask = enum.auto()
+    mask_component = enum.auto()
 
 
 def get_next_octree_grid(prev_octree: OctreeLevel, compute_topology=False, **kwargs) -> Grid:
@@ -131,6 +132,8 @@ def get_block_from_value_type(root, scalar_n, value_type):
             block = root.outputs_centers[scalar_n].exported_fields.scalar_field
         case ValueType.squeeze_mask:
             block = root.outputs_centers[scalar_n].squeezed_mask_array
+        case ValueType.mask_component:
+            block = root.outputs_centers[scalar_n].mask_components.mask_lith
         case _:
             raise ValueError("ValueType not supported.")
     return block
