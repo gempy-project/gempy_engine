@@ -1,23 +1,45 @@
-import os
+import sys;
+
+print('Python %s on %s' % (sys.version, sys.platform))
+sys.path.extend(['/home/miguel/PycharmProjects/gempy_engine'])
+
+from gempy_engine.config import AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor
+
 
 import numpy as np
 import pandas as pd
-import pytest
+from memory_profiler import profile
 
+
+from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data import SurfacePoints, Orientations, InterpolationOptions
 from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.core.data.input_data_descriptor import StacksStructure, StackRelationType, TensorsStructure, InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
-from test.helper_functions import calculate_gradient
-
-np.set_printoptions(precision=3, linewidth=200)
-dir_name = os.path.dirname(__file__)
-data_path = dir_name + "/graben_data/"
+from gempy_engine.core.data.options import DualContouringMaskingOptions
+from gempy_engine.core.data.solutions import Solutions
 
 
-@pytest.fixture(scope="session")
+@profile
+def my_func():
+    interpolation_input, structure, options = one_fault_model()
+
+    options.dual_contouring = False
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
+
+    options.number_octree_levels = 7
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
+
+    return
+
+
 def one_fault_model():
+    data_path = "../fixtures/graben_data/"
+
+    BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=True, pykeops_enabled=True)
+    
     centers = np.array([500, 500, -550])
     rescaling_factor = 240
 
@@ -34,8 +56,8 @@ def one_fault_model():
     ori = Orientations(dip_postions, dip_gradients)
     ids = np.array([0, 1, 2, 3, 4, 5])
 
-    #resolution = [40, 2, 40]
-    resolution = [4,4,4]
+    # resolution = [40, 2, 40]
+    resolution = [4, 4, 4]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
     grid = Grid(regular_grid.values, regular_grid=regular_grid)
@@ -69,7 +91,7 @@ def one_fault_model():
     # range_ = 1732 / rescaling_factor
     # c_o = 71428.57 / rescaling_factor
 
-    range_ = 7**2 # ? Since we are not getting the square root should we also square this? 
+    range_ = 7 ** 2  # ? Since we are not getting the square root should we also square this? 
     c_o = 1
 
     options = InterpolationOptions(
@@ -77,7 +99,18 @@ def one_fault_model():
         uni_degree=1,
         number_dimensions=3,
         kernel_function=AvailableKernelFunctions.exponential)
-    
+
     # endregion
 
     return interpolation_input, input_data_descriptor, options
+
+def calculate_gradient(dip, az, pol):
+    """Calculates the gradient from dip, azimuth and polarity values."""
+    g_x = np.sin(np.deg2rad(dip)) * np.sin(np.deg2rad(az)) * pol
+    g_y = np.sin(np.deg2rad(dip)) * np.cos(np.deg2rad(az)) * pol
+    g_z = np.cos(np.deg2rad(dip)) * pol
+    return g_x, g_y, g_z
+
+
+if __name__ == '__main__':
+    my_func()

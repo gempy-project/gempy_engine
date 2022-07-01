@@ -268,7 +268,7 @@ def test_one_fault_model_pykeops(one_fault_model, n_oct_levels=3):
     print(cached_array)
 
 
-def test_one_fault_model(one_fault_model,  n_oct_levels=5):
+def test_one_fault_model(one_fault_model,  n_oct_levels=7):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
