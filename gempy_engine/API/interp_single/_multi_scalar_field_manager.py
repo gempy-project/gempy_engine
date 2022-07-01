@@ -17,7 +17,6 @@ from ...core.data.options import KernelOptions
 from ._interp_single_feature import interpolate_feature
 
 
-@profile
 def interpolate_all_fields(interpolation_input: InterpolationInput, options: KernelOptions,
                            data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
     """Interpolate all scalar fields given a xyz array of points"""
@@ -33,7 +32,7 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Ker
 
     return all_outputs
 
-@profile
+
 def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpolation_input: InterpolationInput,
                        options: KernelOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
     

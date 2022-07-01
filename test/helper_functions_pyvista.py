@@ -56,24 +56,24 @@ def plot_vector(p: pv.Plotter, xyz, gradients):
     p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
 
 
-def plot_pyvista(octree_list=None, dc_meshes:  List[DualContouringMesh] = None, vertices=None, indices=None,
-                 xyz_on_edge = None, gradients =None, a=None, b=None, v_just_points=None,
+def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, vertices=None, indices=None,
+                 xyz_on_edge=None, gradients=None, a=None, b=None, v_just_points=None,
                  plot_label=False, delaunay_3d=False):
-    n = len(octree_list) -1 
+    n = len(octree_list) - 1
     p = pv.Plotter()
 
     # Plot Regular grid Octree
     if octree_list is not None:
         regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
         regular_grid_scalar = get_regular_grid_value_for_level(octree_list, n)
-    
+
         shape = octree_list[n].grid_centers.regular_grid_shape
         grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T
         regular_grid_mesh = pv.StructuredGrid(*grid_3d)
         regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
         foo = regular_grid_mesh.threshold([0, 10])
-    
-        p.add_mesh(foo, show_edges=True, opacity=.5, cmap="tab10")
+
+        p.add_mesh(foo, show_edges=False, opacity=.5, cmap="tab10")
 
     # Plot gradients
     if gradients is not None and xyz_on_edge is not None:
@@ -104,18 +104,19 @@ def plot_pyvista(octree_list=None, dc_meshes:  List[DualContouringMesh] = None, 
             p.add_mesh(triangulated, color="w", point_size=4.0, render_points_as_spheres=True, show_edges=True)
         else:
             p.add_mesh(data, color="w", point_size=4.0, render_points_as_spheres=True)
-        
 
     if indices is not None:
         dual_mesh = pv.PolyData(vertices, np.insert(indices, 0, 3, axis=1).ravel())
         p.add_mesh(dual_mesh, opacity=1, silhouette=True, color="green", show_edges=True)
-    
+
     colors = ['green', 'blue', 'red', 'yellow', 'pink', 'brown', 'purple']
     if dc_meshes is not None:
         for e, mesh in enumerate(dc_meshes):
             vertices = mesh.vertices
             indices = mesh.edges
-            
+
+            if vertices.shape[0] == 0: continue
+
             dual_mesh = pv.PolyData(vertices, np.insert(indices, 0, 3, axis=1).ravel())
             p.add_mesh(dual_mesh, opacity=1, silhouette=True, color=colors[e], show_edges=True)
 
