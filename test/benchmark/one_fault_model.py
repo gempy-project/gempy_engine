@@ -22,14 +22,15 @@ from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
 
 
-@profile
+
 def my_func():
     interpolation_input, structure, options = one_fault_model()
-
+    
+    options.compute_scalar_gradient = False
     options.dual_contouring = False
     options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
 
-    options.number_octree_levels = 7
+    options.number_octree_levels = 8
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     return

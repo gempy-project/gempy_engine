@@ -1,8 +1,7 @@
 import warnings
-from typing import List, Iterable
+from typing import List, Iterable, Optional
 
 import numpy as np
-from memory_profiler import profile
 from numpy import ndarray
 
 from ...core.data.kernel_classes.faults import FaultsData
@@ -17,14 +16,16 @@ from ...core.data.options import KernelOptions, InterpolationOptions
 from ._interp_single_feature import interpolate_feature
 
 
-def interpolate_all_fields(interpolation_input: InterpolationInput, options: KernelOptions,
+#@profile
+def interpolate_all_fields(interpolation_input: InterpolationInput, options: InterpolationOptions,
                            data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
     """Interpolate all scalar fields given a xyz array of points"""
 
     all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
     final_mask_matrix: np.ndarray = _squeeze_mask(all_scalar_fields_outputs, data_descriptor.stack_relation)
 
-    combined_scalar_output: List[CombinedScalarFieldsOutput] = _compute_final_block(all_scalar_fields_outputs, final_mask_matrix)
+    combined_scalar_output: List[CombinedScalarFieldsOutput] = _compute_final_block(
+        all_scalar_fields_outputs, final_mask_matrix, options.compute_scalar_gradient)
     all_outputs = []
     for e, _ in enumerate(all_scalar_fields_outputs):
         output: InterpOutput = InterpOutput(all_scalar_fields_outputs[e], combined_scalar_output[e])
@@ -34,7 +35,7 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Ker
 
 
 def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpolation_input: InterpolationInput,
-                       options: KernelOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
+                       options: InterpolationOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
     stack_structure = root_data_descriptor.stack_structure
 
     all_scalar_fields_outputs: List[ScalarFieldOutput | None] = [None] * stack_structure.n_stacks
@@ -111,14 +112,12 @@ def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_rela
     return final_mask_array
 
 
-def _compute_final_block(all_scalar_fields_outputs: List[ScalarFieldOutput], squeezed_mask_arrays: np.ndarray) -> List[CombinedScalarFieldsOutput]:
+def _compute_final_block(all_scalar_fields_outputs: List[ScalarFieldOutput], squeezed_mask_arrays: np.ndarray,
+                         compute_scalar_grad:bool= False) -> List[CombinedScalarFieldsOutput]:
     n_scalar_fields = len(all_scalar_fields_outputs)
     squeezed_value_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
     squeezed_scalar_field_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
-    squeezed_gx_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
-    squeezed_gy_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
-    squeezed_gz_block: ndarray = np.zeros((1, squeezed_mask_arrays.shape[1]))
-
+    
     def _mask_and_squeeze(block_to_squeeze: np.ndarray, squeezed_mask_array: np.ndarray, previous_block: np.ndarray) -> np.ndarray:
         return (previous_block + block_to_squeeze * squeezed_mask_array).reshape(-1)
 
@@ -131,10 +130,19 @@ def _compute_final_block(all_scalar_fields_outputs: List[ScalarFieldOutput], squ
 
         scalar_field = interp_output.exported_fields.scalar_field
         squeezed_scalar_field_block = _mask_and_squeeze(scalar_field, squeezed_array, squeezed_scalar_field_block)
+        
+        if compute_scalar_grad is True:
+            squeezed_gx_block: Optional[ndarray] = np.zeros((1, squeezed_mask_arrays.shape[1]))
+            squeezed_gy_block: Optional[ndarray] = np.zeros((1, squeezed_mask_arrays.shape[1]))
+            squeezed_gz_block: Optional[ndarray] = np.zeros((1, squeezed_mask_arrays.shape[1]))
 
-        squeezed_gx_block = _mask_and_squeeze(interp_output.exported_fields.gx_field, squeezed_array, squeezed_gx_block)
-        squeezed_gy_block = _mask_and_squeeze(interp_output.exported_fields.gy_field, squeezed_array, squeezed_gy_block)
-        squeezed_gz_block = _mask_and_squeeze(interp_output.exported_fields.gz_field, squeezed_array, squeezed_gz_block)
+            squeezed_gx_block = _mask_and_squeeze(interp_output.exported_fields.gx_field, squeezed_array, squeezed_gx_block)
+            squeezed_gy_block = _mask_and_squeeze(interp_output.exported_fields.gy_field, squeezed_array, squeezed_gy_block)
+            squeezed_gz_block = _mask_and_squeeze(interp_output.exported_fields.gz_field, squeezed_array, squeezed_gz_block)
+        else:
+            squeezed_gx_block = None
+            squeezed_gy_block = None
+            squeezed_gz_block = None
 
         final_block = squeezed_value_block
         final_exported_fields = ExportedFields(

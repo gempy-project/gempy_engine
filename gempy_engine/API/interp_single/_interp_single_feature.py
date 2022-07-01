@@ -10,13 +10,13 @@ from ...core.data.exported_fields import ExportedFields
 from ...core.data.input_data_descriptor import StackRelationType, TensorsStructure
 from ...core.data.interpolation_functions import InterpolationFunctions, CustomInterpolationFunctions
 from ...core.data.interpolation_input import InterpolationInput
-from ...core.data.options import KernelOptions
+from ...core.data.options import KernelOptions, InterpolationOptions
 
 from ...modules.activator import activator_interface
 from ._interp_scalar_field import interpolate_scalar_field, Buffer
 
 
-def interpolate_feature(interpolation_input: InterpolationInput, options: KernelOptions, data_shape: TensorsStructure,
+def interpolate_feature(interpolation_input: InterpolationInput, options: InterpolationOptions, data_shape: TensorsStructure,
                         external_interp_funct: Optional[CustomInterpolationFunctions] = None,
                         clean_buffer: bool = True) -> ScalarFieldOutput:
     

@@ -8,6 +8,7 @@ class AvailableBackends(Enum):
     jax = auto()
 
 DEBUG_MODE = True
+OPTIMIZE_MEMORY = True
 DEFAULT_BACKEND = AvailableBackends.numpy
 
 is_numpy_installed = find_spec("numpy") is not None

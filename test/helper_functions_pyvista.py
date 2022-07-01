@@ -66,7 +66,8 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
     if octree_list is not None:
         regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
         regular_grid_scalar = get_regular_grid_value_for_level(octree_list, n)
-
+        print("regular_grid_scalar.shape", regular_grid_scalar.shape)
+        
         shape = octree_list[n].grid_centers.regular_grid_shape
         grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T
         regular_grid_mesh = pv.StructuredGrid(*grid_3d)

@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from memory_profiler import profile
 
 from gempy_engine.API.interp_single._interp_scalar_field import _input_preprocess
 from gempy_engine.API.model.model_api import compute_model
@@ -12,8 +13,6 @@ from gempy_engine.core.data.kernel_classes.faults import FaultsData
 from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
-from gempy_engine.core.data.interp_output import InterpOutput
-from gempy_engine.modules import kernel_constructor
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level, ValueType
 from test import helper_functions_pyvista
@@ -55,14 +54,21 @@ def test_one_fault_model_pykeops(one_fault_model, n_oct_levels=3):
 
 
 # noinspection PyUnreachableCode
-def test_one_fault_model(one_fault_model,  n_oct_levels=4):
+
+def test_one_fault_model(one_fault_model,  n_oct_levels=8):
+    '''
+    300 MB 4 octree levels and no gradient
+    
+    '''
+    
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
 
     interpolation_input, structure, options = one_fault_model
-
-    options.dual_contouring = True
+    
+    options.compute_scalar_gradient = False
+    options.dual_contouring = False
     options.dual_contouring_masking_options = DualContouringMaskingOptions.DISJOINT
 
     options.number_octree_levels = n_oct_levels
@@ -88,16 +94,7 @@ def test_one_fault_model(one_fault_model,  n_oct_levels=4):
         plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
         plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
 
-    if PLOT or False:
-        grid = interpolation_input.grid.regular_grid
-
-        plot_block(outputs[0].values_block, grid)
-        plot_block(outputs[0].squeezed_mask_array, grid)
-        print(outputs[0].squeezed_mask_array)
-        plot_block(outputs[1].values_block, grid)
-        plot_block(outputs[2].values_block, grid)
-
-    if True:
+    if False:
         plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
         plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
@@ -110,7 +107,7 @@ def test_one_fault_model(one_fault_model,  n_oct_levels=4):
     if False:
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
 
-    if True:
+    if False:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes

@@ -16,17 +16,20 @@ from ._interp_scalar_field import Buffer, interpolate_scalar_field
 from ._interp_single_feature import interpolate_feature
 from ._octree_generation import interpolate_on_octree
 
-
+#@profile
 def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options: data.InterpolationOptions,
                                 data_descriptor: InputDataDescriptor) -> List[OctreeLevel]:
     n_levels = options.number_octree_levels
 
     octree_list = []
     for i in range(0, n_levels):
-        next_octree: OctreeLevel = interpolate_on_octree(interpolation_input, options.kernel_options, data_descriptor)
-        grid_1_centers = octrees.get_next_octree_grid(next_octree, compute_topology=False, debug=False)
-
-        interpolation_input.grid = grid_1_centers
+        options.current_octree_level = i
+        
+        next_octree: OctreeLevel = interpolate_on_octree(interpolation_input, options, data_descriptor)
+        
+        if options.is_last_octree_level is False:
+            grid_1_centers = octrees.get_next_octree_grid(next_octree, compute_topology=False, debug=False)
+            interpolation_input.grid = grid_1_centers
         octree_list.append(next_octree)
 
     Buffer.clean()
@@ -36,7 +39,7 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
 def interpolate_all_fields_no_octree(interpolation_input: InterpolationInput, options: InterpolationOptions,
                                      data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
     interpolation_input = copy.deepcopy(interpolation_input)
-    return ms.interpolate_all_fields(interpolation_input, options.kernel_options, data_descriptor)
+    return ms.interpolate_all_fields(interpolation_input, options, data_descriptor)
 
 
 # region testing
@@ -44,7 +47,7 @@ def interpolate_single_field(interpolation_input: InterpolationInput, options: d
                              data_shape: data.TensorsStructure) -> InterpOutput:  # * Only For testing
 
     grid = interpolation_input.grid
-    weights, exported_fields = interpolate_scalar_field(interpolation_input, options.kernel_options, data_shape)
+    weights, exported_fields = interpolate_scalar_field(interpolation_input, options, data_shape)
     scalar_output = ScalarFieldOutput(
         weights=weights,
         grid=grid,
@@ -58,7 +61,7 @@ def interpolate_single_field(interpolation_input: InterpolationInput, options: d
 
 def interpolate_and_segment(interpolation_input: InterpolationInput, options: data.InterpolationOptions,  # * Just for testing
                             data_shape: data.TensorsStructure, clean_buffer=True) -> InterpOutput:
-    output: ScalarFieldOutput = interpolate_feature(interpolation_input, options.kernel_options, data_shape)
+    output: ScalarFieldOutput = interpolate_feature(interpolation_input, options, data_shape)
     return InterpOutput(output)
 
 # endregion

@@ -25,7 +25,7 @@ class MaskBuffer:
     def clean(cls):
         cls.previous_mask = None
 
-
+#@profile
 def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
                                  options: InterpolationOptions, solutions: Solutions) -> List[DualContouringMesh]:
     # Dual Contouring prep:

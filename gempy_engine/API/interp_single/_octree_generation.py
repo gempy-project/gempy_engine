@@ -1,7 +1,7 @@
 import copy
 from typing import List
 
-from ...core.data.options import KernelOptions
+from ...core.data.options import KernelOptions, InterpolationOptions
 from ...core.data.octree_level import OctreeLevel
 from ...core.data.interp_output import InterpOutput
 from ...core.data.grid import Grid
@@ -13,7 +13,7 @@ from ._multi_scalar_field_manager import interpolate_all_fields
 import numpy as np
 
 
-def interpolate_on_octree(interpolation_input: InterpolationInput, options: KernelOptions,
+def interpolate_on_octree(interpolation_input: InterpolationInput, options: InterpolationOptions,
                           data_shape: InputDataDescriptor) -> OctreeLevel:
     interpolation_input = copy.deepcopy(interpolation_input)
     
@@ -21,10 +21,14 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Kern
     output_0_centers: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # interpolate - centers
 
     # Interpolate - corners
-    grid_0_corners = Grid(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
-    interpolation_input.grid = grid_0_corners
-    output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # * This is unnecessary for the last level except for Dual contouring
-
+    if options.compute_corners: 
+        grid_0_corners = Grid(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
+        interpolation_input.grid = grid_0_corners
+        output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # * This is unnecessary for the last level except for Dual contouring
+    else:
+        output_0_corners = []
+        grid_0_corners = None
+    
     # Set values to octree
     next_octree_level = OctreeLevel(grid_0_centers, grid_0_corners, output_0_centers, output_0_corners)
     return next_octree_level

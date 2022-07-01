@@ -34,12 +34,13 @@ class InterpolationInput:
     @classmethod
     def from_interpolation_input_subset(cls, all_interpolation_input: "InterpolationInput",
                                         stack_structure: StacksStructure) -> "InterpolationInput":
+        stack_number = stack_structure.stack_number
 
         sp = SurfacePoints.from_suraface_points_subset(all_interpolation_input.surface_points, stack_structure)
         o = Orientations.from_orientations_subset(all_interpolation_input.orientations, stack_structure)
 
-        cum_number_surfaces_l0 = stack_structure.number_of_surfaces_per_stack[:stack_structure.stack_number].sum()
-        cum_number_surfaces_l1 = stack_structure.number_of_surfaces_per_stack[:stack_structure.stack_number + 1].sum() + 1  # * we need to take one unit extra for the basement
+        cum_number_surfaces_l0 = stack_structure.number_of_surfaces_per_stack[:stack_number].sum()
+        cum_number_surfaces_l1 = stack_structure.number_of_surfaces_per_stack[:stack_number + 1].sum() + 1  # * we need to take one unit extra for the basement
 
         unit_values = all_interpolation_input.unit_values[cum_number_surfaces_l0:cum_number_surfaces_l1]
 

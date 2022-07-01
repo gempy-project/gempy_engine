@@ -3,6 +3,8 @@ from __future__ import annotations
 import copy
 from typing import List
 
+from memory_profiler import profile
+
 from ..dual_contouring.multi_scalar_dual_contouring import dual_contouring_multi_scalar
 from ..interp_single.interp_features import interpolate_n_octree_levels
 from ...core.data import InterpolationOptions
