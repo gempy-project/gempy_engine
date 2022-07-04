@@ -1,7 +1,7 @@
 from typing import Tuple
 
 import numpy as np
-from pykeops.numpy import LazyTensor
+
 
 from ...core import data
 from ...core.backend_tensor import BackendTensor
@@ -96,6 +96,7 @@ def _evaluate_sys_eq(xyz: np.ndarray, interp_input: SolverInput, weights: np.nda
     eval_kernel = kernel_constructor.yield_evaluation_kernel(xyz, interp_input)
     
     if BackendTensor.pykeops_enabled is True:
+        from pykeops.numpy import LazyTensor
         # ! Seems not to make any difference but we need this if we want to change the backend
         # ! We need to benchmark GPU vs CPU with more input
         scalar_field = (eval_kernel.T * LazyTensor(np.asfortranarray(weights), axis=1)).sum(axis=1, backend="GPU").reshape(-1)

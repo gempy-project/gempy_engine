@@ -1,6 +1,4 @@
 import numpy as np
-import pytest
-from memory_profiler import profile
 
 from gempy_engine.API.interp_single._interp_scalar_field import _input_preprocess
 from gempy_engine.API.model.model_api import compute_model
@@ -22,7 +20,23 @@ from test.helper_functions import plot_block, plot_2d_scalar_y_direction
 PLOT = False
 
 
-def test_one_fault_model_pykeops(one_fault_model, n_oct_levels=3):
+def test_graben_fault_model(graben_fault_model):
+    interpolation_input: InterpolationInput
+    structure: InputDataDescriptor
+    options: InterpolationOptions
+
+    interpolation_input, structure, options = graben_fault_model
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
+
+    outputs: list[OctreeLevel] = solutions.octrees_output
+    
+    if True:
+        plot_scalar_and_input_2d(0, interpolation_input, outputs, structure.stack_structure)
+        plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
+        plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
+    
+
+def test_one_fault_model_pykeops(one_fault_model):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -56,10 +70,10 @@ def test_one_fault_model_pykeops(one_fault_model, n_oct_levels=3):
 # noinspection PyUnreachableCode
 
 def test_one_fault_model(one_fault_model,  n_oct_levels=8):
-    '''
+    """
     300 MB 4 octree levels and no gradient
     
-    '''
+    """
     
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
@@ -74,7 +88,6 @@ def test_one_fault_model(one_fault_model,  n_oct_levels=8):
     options.number_octree_levels = n_oct_levels
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
-    # TODO: Grab second scalar and create fault kernel
     outputs: list[OctreeLevel] = solutions.octrees_output
 
     array_to_cache = outputs[-1].outputs_centers[1].exported_fields.debug
