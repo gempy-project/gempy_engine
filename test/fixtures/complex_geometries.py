@@ -102,7 +102,7 @@ def graben_fault_model():
     ori = Orientations(dip_postions, dip_gradients)
     ids = np.array([1, 2, 3, 4, 5, 6])
 
-    resolution = [20, 2, 20]
+    resolution = [30, 2, 30]
     #resolution = [4, 4, 4]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
@@ -115,7 +115,7 @@ def graben_fault_model():
 
     faults_relations = np.array(
         [[False, False, True],
-         [False, False, True],
+         [False, False, False],
          [False, False, False]
          ]
     )
@@ -144,7 +144,7 @@ def graben_fault_model():
         range_, c_o,
         uni_degree=1,
         number_dimensions=3,
-        kernel_function=AvailableKernelFunctions.exponential)
+        kernel_function=AvailableKernelFunctions.cubic)
 
     # endregion
 

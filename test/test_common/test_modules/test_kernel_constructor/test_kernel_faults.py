@@ -20,12 +20,18 @@ from test.helper_functions import plot_block, plot_2d_scalar_y_direction
 PLOT = False
 
 
+# noinspection PyUnreachableCode
 def test_graben_fault_model(graben_fault_model):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
-
+    
     interpolation_input, structure, options = graben_fault_model
+
+    options.compute_scalar_gradient = False
+    options.dual_contouring = False
+
+    #options.number_octree_levels = 3
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     outputs: list[OctreeLevel] = solutions.octrees_output
@@ -34,7 +40,28 @@ def test_graben_fault_model(graben_fault_model):
         plot_scalar_and_input_2d(0, interpolation_input, outputs, structure.stack_structure)
         plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
         plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
-    
+
+    if False:
+        plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
+        plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
+        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
+
+    if False:
+        plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
+        plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
+        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
+
+    if False:
+        plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.values_block)
+        plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.values_block)
+        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.values_block)
+        
+    if True:
+        # plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.ids)
+        # plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.ids)
+        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.ids)
+
+
 
 def test_one_fault_model_pykeops(one_fault_model):
     interpolation_input: InterpolationInput

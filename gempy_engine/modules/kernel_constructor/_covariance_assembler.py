@@ -90,10 +90,6 @@ def _get_faults_terms(ki: KernelInput) -> np.ndarray:
         )
     selector = (selector_components.sel_ui * (selector_components.sel_vj + 1)).sum(axis=-1)
     
-    # ! Hack to make sure this was the problem
-    # selector[-1, -4:] = 0
-    # selector[-4:, -1] = 0
-    
     fault_matrix = selector * (fault_ref - fault_rest + 0.00000001) * 1
     return fault_matrix
 

@@ -17,6 +17,7 @@ class ValueType(enum.Enum):
     scalar = enum.auto()
     squeeze_mask = enum.auto()
     mask_component = enum.auto()
+    values_block = enum.auto()
 
 
 def get_next_octree_grid(prev_octree: OctreeLevel, compute_topology=False, **kwargs) -> Grid:
@@ -128,6 +129,8 @@ def get_block_from_value_type(root, scalar_n, value_type):
     match value_type:
         case ValueType.ids:
             block = root.outputs_centers[scalar_n].ids_block
+        case ValueType.values_block:
+            block = root.outputs_centers[scalar_n].values_block[0]
         case ValueType.scalar:
             block = root.outputs_centers[scalar_n].exported_fields.scalar_field
         case ValueType.squeeze_mask:
