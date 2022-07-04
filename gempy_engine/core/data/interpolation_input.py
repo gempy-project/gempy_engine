@@ -25,12 +25,6 @@ class InterpolationInput:
     stack_relation: StackRelationType = StackRelationType.ERODE  # ? Should be here or in the descriptor
     # endregion
     
-    # def __post_init__(self):
-    #     if self._fault_values is None:
-    #         empty_fault_values_on_sp = np.zeros((0, self.surface_points.n_points))
-    #         empty_fault_values_on_grid = np.zeros((0, self.grid.len_all_grids))
-    #         self._fault_values = [FaultsData(empty_fault_values_on_grid, empty_fault_values_on_sp)] * len(self.stack_relation)
-
     @classmethod
     def from_interpolation_input_subset(cls, all_interpolation_input: "InterpolationInput",
                                         stack_structure: StacksStructure) -> "InterpolationInput":
@@ -72,6 +66,10 @@ class InterpolationInput:
             empty_fault_values_on_grid = np.zeros((0, self.grid.len_all_grids))
             return FaultsData(empty_fault_values_on_grid, empty_fault_values_on_sp)
         return self._fault_values
+
+    @property
+    def not_fault_input(self):
+        return self._fault_values is None
 
     @fault_values.setter
     def fault_values(self, value):

@@ -58,32 +58,51 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
 
             # region Set fault input if needed
             fault_relation_on_this_stack: Iterable[bool] = stack_structure.faults_relations[:, i]
-            if any(fault_relation_on_this_stack):
-                fault_values_all = all_stack_values_block[fault_relation_on_this_stack]
-    
-                fault_val_min = np.min(fault_values_all, axis=1).reshape(-1, 1) # ? Is this as good as it gets?
-    
-                fv_on_all_sp = fault_values_all[:, interpolation_input_i.grid.len_all_grids:]
-                fv_on_sp = fv_on_all_sp[:, interpolation_input_i.slice_feature]
-    
-                # Grab Faults data given by the user
-                fault_data = interpolation_input_i.fault_values
-                if fault_data is None:  # * Set default fault data
-                    fault_data = FaultsData(fault_values_everywhere=fault_values_all, fault_values_on_sp=fv_on_sp)
-                else:  # * Use user given fault data
-                    fault_data.fault_values_on_sp = fv_on_sp - fault_val_min
-                    fault_data.fault_values_everywhere = fault_values_all - fault_val_min
-    
-                interpolation_input_i.fault_values = fault_data
-                
+                    
+            fault_values_all = all_stack_values_block[fault_relation_on_this_stack]
+            fv_on_all_sp = fault_values_all[:, interpolation_input_i.grid.len_all_grids:]
+            fv_on_sp = fv_on_all_sp[:, interpolation_input_i.slice_feature]
+            # Grab Faults data given by the user
+            fault_data = interpolation_input_i.fault_values
+            
+            if interpolation_input_i.not_fault_input:  # * Set default fault data
+                fault_data = FaultsData(fault_values_everywhere=fault_values_all, fault_values_on_sp=fv_on_sp)
+            else:  # * Use user given fault data
+                fault_data.fault_values_on_sp = fv_on_sp
+                fault_data.fault_values_everywhere = fault_values_all
+
+            interpolation_input_i.fault_values = fault_data
+            
             # endregion
             output: ScalarFieldOutput = interpolate_feature(interpolation_input_i, options, tensor_struct_i,
                                                             stack_structure.interp_function)
 
             all_scalar_fields_outputs[i] = output
-            all_stack_values_block[i, :] = output.values_on_all_xyz
+            
+            # This is also for faults!
+            if interpolation_input_i.stack_relation is StackRelationType.FAULT:
+                val_min = np.min(output.values_on_all_xyz, axis=1).reshape(-1, 1)  # ? Is this as good as it gets?
+                shifted_vals = (output.values_on_all_xyz - val_min) * interpolation_input_i.fault_values.offset
+                all_stack_values_block[i, :] = shifted_vals
 
     return all_scalar_fields_outputs
+
+# 
+# fault_relation_on_this_stack: Iterable[bool] = stack_structure.faults_relations[:, i]
+# 
+# fault_values_all = all_stack_values_block[fault_relation_on_this_stack]
+# fv_on_all_sp = fault_values_all[:, interpolation_input_i.grid.len_all_grids:]
+# fv_on_sp = fv_on_all_sp[:, interpolation_input_i.slice_feature]
+# # Grab Faults data given by the user
+# fault_data = interpolation_input_i.fault_values
+# if interpolation_input_i.not_fault_input:  # * Set default fault data
+#     fault_data = FaultsData(fault_values_everywhere=fault_values_all, fault_values_on_sp=fv_on_sp)
+# else:  # * Use user given fault data
+#     fault_val_min = np.min(fault_values_all, axis=1).reshape(-1, 1)  # ? Is this as good as it gets?
+#     fault_data.fault_values_on_sp = fv_on_sp - fault_val_min
+#     fault_data.fault_values_everywhere = fault_values_all - fault_val_min
+# 
+# interpolation_input_i.fault_values = fault_data
 
 
 def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relation: List[StackRelationType]) -> np.ndarray:

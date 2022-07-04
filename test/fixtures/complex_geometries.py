@@ -114,7 +114,7 @@ def graben_fault_model():
     # region Structure
 
     faults_relations = np.array(
-        [[False, False, True],
+        [[False, True, True],
          [False, False, True],
          [False, False, False]
          ]
@@ -144,7 +144,7 @@ def graben_fault_model():
         range_, c_o,
         uni_degree=1,
         number_dimensions=3,
-        kernel_function=AvailableKernelFunctions.cubic)
+        kernel_function=AvailableKernelFunctions.exponential)
 
     # endregion
 

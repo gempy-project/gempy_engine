@@ -25,13 +25,39 @@ def test_graben_fault_model(graben_fault_model):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
-    
+
     interpolation_input, structure, options = graben_fault_model
 
     options.compute_scalar_gradient = False
     options.dual_contouring = False
 
-    #options.number_octree_levels = 3
+    options.number_octree_levels = 1
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
+
+    outputs: list[OctreeLevel] = solutions.octrees_output
+    if True:
+        plot_scalar_and_input_2d(0, interpolation_input, outputs, structure.stack_structure)
+        plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
+        plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
+        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.ids)
+
+
+# noinspection PyUnreachableCode
+def test_graben_fault_model_thickness(graben_fault_model):
+    interpolation_input: InterpolationInput
+    structure: InputDataDescriptor
+    options: InterpolationOptions
+    
+    interpolation_input, structure, options = graben_fault_model
+
+    options.compute_scalar_gradient = False
+    options.dual_contouring = True
+
+    fault_data: FaultsData = FaultsData.from_user_input(thickness=.2)
+    fault_data2: FaultsData = FaultsData.from_user_input(thickness=.2)
+    structure.stack_structure.faults_input_data = [fault_data, fault_data2, None]
+
+    options.number_octree_levels = 4
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     outputs: list[OctreeLevel] = solutions.octrees_output
@@ -61,7 +87,43 @@ def test_graben_fault_model(graben_fault_model):
         # plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.ids)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.ids)
 
+    if True:
+        helper_functions_pyvista.plot_pyvista(
+            solutions.octrees_output,
+            dc_meshes=solutions.dc_meshes
+        )
 
+
+# noinspection PyUnreachableCode
+def test_graben_fault_model_offset(graben_fault_model):
+    interpolation_input: InterpolationInput
+    structure: InputDataDescriptor
+    options: InterpolationOptions
+    
+    interpolation_input, structure, options = graben_fault_model
+
+    options.compute_scalar_gradient = False
+    options.dual_contouring = False
+
+    fault_data: FaultsData = FaultsData.from_user_input(thickness=None, offset=50)
+    structure.stack_structure.faults_input_data = [fault_data, None, None]
+
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
+
+    outputs: list[OctreeLevel] = solutions.octrees_output
+
+    if True:
+        plot_scalar_and_input_2d(0, interpolation_input, outputs, structure.stack_structure)
+        plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
+        plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
+
+    if True:
+        plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.values_block)
+        plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.values_block)
+        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.values_block)
+    
+    if True:
+        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.ids)
 
 def test_one_fault_model_pykeops(one_fault_model):
     interpolation_input: InterpolationInput
@@ -95,7 +157,6 @@ def test_one_fault_model_pykeops(one_fault_model):
 
 
 # noinspection PyUnreachableCode
-
 def test_one_fault_model(one_fault_model,  n_oct_levels=8):
     """
     300 MB 4 octree levels and no gradient
@@ -154,7 +215,7 @@ def test_one_fault_model(one_fault_model,  n_oct_levels=8):
         )
 
 
-def test_one_fault_model_thickness(one_fault_model, n_oct_levels=4):
+def test_one_fault_model_thickness(one_fault_model, n_oct_levels=3):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
