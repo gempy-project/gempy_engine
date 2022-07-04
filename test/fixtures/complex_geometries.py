@@ -115,7 +115,7 @@ def graben_fault_model():
 
     faults_relations = np.array(
         [[False, False, True],
-         [False, False, False],
+         [False, False, True],
          [False, False, False]
          ]
     )

@@ -1,5 +1,6 @@
 import numpy as np
 
+from . import _structs
 from ._covariance_assembler import _get_covariance
 from ._internalDistancesMatrices import InternalDistancesMatrices
 from ...core.backend_tensor import BackendTensor
@@ -75,9 +76,23 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
     
     # region faults_sp
 
-    # TODO: Here it goes just if the value of the fault matrix on the grid
     if ki.ref_fault is not None:
-        fault_drift = (ki.ref_fault.faults_i * ki.ref_fault.faults_j).sum(axis=-1)
+        
+        cov_size = ki.ref_fault.faults_i.shape[0]
+        
+        j_size = ki.ref_fault.faults_j.shape[1]
+        fault_n = ki.ref_fault.faults_i.shape[2]
+        
+        selector_components = _structs.DriftMatrixSelector(
+            x_size=cov_size,
+            y_size=j_size,
+            n_drift_eq=fault_n,
+            drift_start_post_x=cov_size - fault_n,
+            drift_start_post_y=j_size - fault_n
+        )
+        
+        selector = (selector_components.sel_ui * (selector_components.sel_vj + 1)).sum(axis=-1)
+        fault_drift = selector * (ki.ref_fault.faults_i * ki.ref_fault.faults_j).sum(axis=-1)
     else:
         fault_drift = 0
 

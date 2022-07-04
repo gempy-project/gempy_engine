@@ -61,7 +61,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
             if any(fault_relation_on_this_stack):
                 fault_values_all = all_stack_values_block[fault_relation_on_this_stack]
     
-                fault_val_min = np.min(fault_values_all) # ? Is this as good as it gets?
+                fault_val_min = np.min(fault_values_all, axis=1).reshape(-1, 1) # ? Is this as good as it gets?
     
                 fv_on_all_sp = fault_values_all[:, interpolation_input_i.grid.len_all_grids:]
                 fv_on_sp = fv_on_all_sp[:, interpolation_input_i.slice_feature]
@@ -70,7 +70,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
                 fault_data = interpolation_input_i.fault_values
                 if fault_data is None:  # * Set default fault data
                     fault_data = FaultsData(fault_values_everywhere=fault_values_all, fault_values_on_sp=fv_on_sp)
-                else: # * Use user given fault data
+                else:  # * Use user given fault data
                     fault_data.fault_values_on_sp = fv_on_sp - fault_val_min
                     fault_data.fault_values_everywhere = fault_values_all - fault_val_min
     

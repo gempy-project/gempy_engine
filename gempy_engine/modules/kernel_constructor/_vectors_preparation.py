@@ -223,7 +223,7 @@ def _assembly_fault_internals(faults_val, options, ori_size):
         n_faults = matrix_val.shape[1]  # TODO [ ]: We are going to have to tweak this for multiple faults
         z = np.zeros((ori_size_, n_faults))
         z2 = np.zeros((n_uni_eq, n_faults))
-        z3 = np.ones((n_faults, n_faults))
+        z3 = np.eye(n_faults)
         # Degree 1
         return np.vstack((z, matrix_val, z2, z3))
 
