@@ -20,7 +20,6 @@ class ExportedFields:
     
     debug = None
     
-    
     @property
     def scalar_field_at_surface_points(self) -> Optional[np.ndarray]:
         if self.scalar_field_at_fault_shell is not None:  # * For now this has priority over everything else

@@ -13,11 +13,11 @@ from ...core.data.options import KernelOptions
 from ...core.data.matrices_sizes import MatricesSizes
 
 
-def cov_vectors_preparation(interp_input: SolverInput) -> KernelInput:
+def cov_vectors_preparation(interp_input: SolverInput, kernel_options: KernelOptions) -> KernelInput:
     sp_: SurfacePointsInternals = interp_input.sp_internal
     ori_: OrientationsInternals = interp_input.ori_internal
     faults_val: FaultsData = interp_input.fault_internal
-    options: KernelOptions = interp_input.options
+    options: KernelOptions = kernel_options
 
     matrices_sizes = MatricesSizes(
         ori_size=ori_.n_orientations_tiled,
@@ -58,11 +58,13 @@ def cov_vectors_preparation(interp_input: SolverInput) -> KernelInput:
     )
 
 
-def evaluation_vectors_preparations(grid: np.array, interp_input: SolverInput, axis=None) -> KernelInput:
+def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: KernelOptions, axis: int = None) -> KernelInput:
     sp_: SurfacePointsInternals = interp_input.sp_internal
     ori_: OrientationsInternals = interp_input.ori_internal
+    grid: np.ndarray = interp_input.xyz_to_interpolate
+
     faults_vals: FaultsData = interp_input.fault_internal
-    options: KernelOptions = interp_input.options
+    options: KernelOptions = kernel_options
 
     matrices_sizes = MatricesSizes(
         ori_size=ori_.n_orientations_tiled,

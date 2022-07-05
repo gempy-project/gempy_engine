@@ -13,7 +13,7 @@ from ...modules.octrees_topology import octrees_topology_interface as octrees
 
 from . import _multi_scalar_field_manager as ms
 from ._interp_scalar_field import Buffer, interpolate_scalar_field
-from ._interp_single_feature import interpolate_feature
+from ._interp_single_feature import interpolate_feature, input_preprocess
 from ._octree_generation import interpolate_on_octree
 
 #@profile
@@ -47,7 +47,13 @@ def interpolate_single_field(interpolation_input: InterpolationInput, options: d
                              data_shape: data.TensorsStructure) -> InterpOutput:  # * Only For testing
 
     grid = interpolation_input.grid
-    weights, exported_fields = interpolate_scalar_field(interpolation_input, options, data_shape)
+    solver_input = input_preprocess(data_shape, interpolation_input)
+    weights, exported_fields = interpolate_scalar_field(solver_input, options)
+
+    exported_fields.n_points_per_surface = data_shape.reference_sp_position
+    exported_fields.slice_feature = interpolation_input.slice_feature
+    exported_fields.grid_size = interpolation_input.grid.len_all_grids
+    
     scalar_output = ScalarFieldOutput(
         weights=weights,
         grid=grid,

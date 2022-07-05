@@ -42,10 +42,14 @@ def calculate_gradient(dip, az, pol):
     return g_x, g_y, g_z
 
 
-def plot_block(block, grid: RegularGrid, interpolation_input = None):
+def plot_block(block, grid: RegularGrid, interpolation_input = None, direction = "y"):
     resolution = grid.resolution
     extent = grid.extent
-    plt.imshow(block.reshape(resolution)[:, resolution[1] // 2, :].T, extent=extent[[0, 1, 4, 5]], origin="lower")
+    if direction == "y":
+        plt.imshow(block.reshape(resolution)[:, resolution[1] // 2, :].T, extent=extent[[0, 1, 4, 5]], origin="lower")
+    if direction == "x":
+        plt.imshow(block.reshape(resolution)[resolution[0] // 2, :, :].T, extent=extent[[2, 3, 4, 5]], origin="lower")
+    
     
     if interpolation_input is not None:
         plot_data(interpolation_input)

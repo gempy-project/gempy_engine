@@ -6,7 +6,8 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
-from gempy_engine.API.interp_single._interp_scalar_field import _input_preprocess, _solve_interpolation, _evaluate_sys_eq
+from gempy_engine.API.interp_single._interp_scalar_field import _solve_interpolation, _evaluate_sys_eq
+from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.core.data.interpolation_functions import InterpolationFunctions, CustomInterpolationFunctions
 from test.helper_functions import calculate_gradient
@@ -295,12 +296,12 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
 
     ids = np.array([1, 2])
     ii = InterpolationInput(surface_points, orientations, grid, ids)
-    grid_internal, ori_internal, sp_internal, _ = _input_preprocess(data_shape, ii)
-    interp_input = SolverInput(sp_internal, ori_internal, options.kernel_options)
+    grid_internal, ori_internal, sp_internal, _ = input_preprocess(data_shape, ii)
+    interp_input = SolverInput(sp_internal, ori_internal, grid_internal)
 
-    weights = _solve_interpolation(interp_input)
+    weights = _solve_interpolation(interp_input, options.kernel_options)
 
-    exported_fields = _evaluate_sys_eq(grid_internal, interp_input, weights)
+    exported_fields = _evaluate_sys_eq(interp_input, weights, options)
 
     exported_fields.n_points_per_surface = data_shape.reference_sp_position
     exported_fields.n_surface_points = surface_points.n_points

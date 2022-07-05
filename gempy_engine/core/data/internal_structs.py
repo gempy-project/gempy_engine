@@ -13,7 +13,7 @@ from .options import KernelOptions
 class SolverInput:
     sp_internal: SurfacePointsInternals
     ori_internal: OrientationsInternals
-    options: KernelOptions
+    xyz_to_interpolate: np.ndarray
     fault_internal:  Optional[FaultsData] = None
     _fault_internal:  Optional[FaultsData] = dataclasses.field(init=False, repr=False, default=None)
 

@@ -1,35 +1,61 @@
 import copy
-import enum
-from typing import Optional
+from typing import Optional, List, Callable
 
 import numpy as np
 
-from ...core.data.exported_structs import MaskMatrices
-from ...core.data.scalar_field_output import ScalarFieldOutput
-from ...core.data.exported_fields import ExportedFields
-from ...core.data.input_data_descriptor import StackRelationType, TensorsStructure
-from ...core.data.interpolation_functions import InterpolationFunctions, CustomInterpolationFunctions
-from ...core.data.interpolation_input import InterpolationInput
-from ...core.data.options import KernelOptions, InterpolationOptions
-
-from ...modules.activator import activator_interface
 from ._interp_scalar_field import interpolate_scalar_field, Buffer
+from ...core.data import SurfacePoints, SurfacePointsInternals, Orientations, OrientationsInternals
+from ...core.data.exported_fields import ExportedFields
+from ...core.data.exported_structs import MaskMatrices
+from ...core.data.input_data_descriptor import StackRelationType, TensorsStructure
+from ...core.data.internal_structs import SolverInput
+from ...core.data.interpolation_functions import CustomInterpolationFunctions
+from ...core.data.interpolation_input import InterpolationInput
+from ...core.data.kernel_classes.faults import FaultsData
+from ...core.data.options import InterpolationOptions
+from ...core.data.scalar_field_output import ScalarFieldOutput
+from ...modules.activator import activator_interface
+from ...modules.data_preprocess import data_preprocess_interface
 
 
-def interpolate_feature(interpolation_input: InterpolationInput, options: InterpolationOptions, data_shape: TensorsStructure,
+def interpolate_feature(interpolation_input: InterpolationInput,
+                        options: InterpolationOptions,
+                        data_shape: TensorsStructure,
                         external_interp_funct: Optional[CustomInterpolationFunctions] = None,
+                        external_segment_funct: Optional[Callable[[np.ndarray], float]] = None,
                         clean_buffer: bool = True) -> ScalarFieldOutput:
-    
+
     grid = copy.deepcopy(interpolation_input.grid)
     
+    # region Interpolate scalar field
+    solver_input = input_preprocess(data_shape, interpolation_input)
+    xyz = solver_input.xyz_to_interpolate
+    
     if external_interp_funct is None:
-        weights, exported_fields = interpolate_scalar_field(interpolation_input, options, data_shape)
+        weights, exported_fields = interpolate_scalar_field(solver_input, options)
+        
+        # ? This should be somewhere else?
+        exported_fields.n_points_per_surface = data_shape.reference_sp_position
+        exported_fields.slice_feature = interpolation_input.slice_feature
+        exported_fields.grid_size = interpolation_input.grid.len_all_grids
+
+        exported_fields.debug = solver_input.debug
     else:
         weights = None
         xyz = grid.values
         exported_fields: ExportedFields = _interpolate_external_function(external_interp_funct, xyz)
+    # endregion
     
-    values_block = _segment_scalar_field(exported_fields, interpolation_input.unit_values)
+    # region segmentation
+    unit_values = interpolation_input.unit_values
+    if external_segment_funct is not None:
+        sigmoid_slope = external_segment_funct(xyz)
+    else:
+        sigmoid_slope = 50000
+    
+    values_block = activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=sigmoid_slope)
+    
+    # endregion
     
     mask_components = _compute_mask_components(
         exported_fields=exported_fields,
@@ -48,6 +74,32 @@ def interpolate_feature(interpolation_input: InterpolationInput, options: Interp
     if clean_buffer: Buffer.clean()
     return output
 
+    
+def input_preprocess(data_shape: TensorsStructure, interpolation_input: InterpolationInput) -> SolverInput:
+    grid = interpolation_input.grid
+    surface_points: SurfacePoints = interpolation_input.surface_points
+    orientations: Orientations = interpolation_input.orientations
+
+    sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
+    ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(orientations)
+
+    # * We need to interpolate in ALL the surface points not only the surface points of the stack
+    grid_internal: np.ndarray = data_preprocess_interface.prepare_grid(grid.values, interpolation_input.all_surface_points)
+
+    fault_values: FaultsData = interpolation_input.fault_values
+    faults_on_sp: np.ndarray = fault_values.fault_values_on_sp
+    fault_ref, fault_rest = data_preprocess_interface.prepare_faults(faults_on_sp, data_shape)
+    fault_values.fault_values_ref, fault_values.fault_values_rest = fault_ref, fault_rest
+
+    solver_input = SolverInput(
+        sp_internal=sp_internal,
+        ori_internal=ori_internal,
+        fault_internal=fault_values,
+        xyz_to_interpolate=grid_internal
+    )
+
+    return solver_input
+
 
 def _interpolate_external_function(interp_funct, xyz):
     exported_fields = ExportedFields(
@@ -58,10 +110,6 @@ def _interpolate_external_function(interp_funct, xyz):
         _scalar_field_at_surface_points=interp_funct.scalar_field_at_surface_points
     )
     return exported_fields
-
-
-def _segment_scalar_field(exported_fields: ExportedFields, unit_values: np.ndarray) -> np.ndarray:
-    return activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=50000)
 
 
 def _compute_mask_components(exported_fields: ExportedFields, stack_relation: StackRelationType,

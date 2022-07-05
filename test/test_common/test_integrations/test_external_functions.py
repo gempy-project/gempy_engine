@@ -11,6 +11,7 @@ from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data.exported_fields import ExportedFields
 from gempy_engine.core.data.options import DualContouringMaskingOptions
+from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from test import helper_functions_pyvista
 from test.conftest import TEST_SPEED
 from test.helper_functions import plot_block
@@ -59,7 +60,7 @@ def test_implicit_function(unconformity_complex):
     scalar = implicit_sphere(xyz, grid.extent)
 
     exported_fields = ExportedFields(scalar, _scalar_field_at_surface_points=np.array([20]))
-    values_block = _segment_scalar_field(exported_fields, np.array([0, 1]))
+    values_block = activate_formation_block(exported_fields, np.array([0, 1]), 100000)
 
     if PLOT or False:
         plot_block(scalar, grid)

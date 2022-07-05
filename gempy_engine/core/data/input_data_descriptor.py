@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass
-from typing import Type, List
+from typing import Type, List, Callable, Optional
 
 import numpy as np
 
@@ -39,10 +39,12 @@ class StacksStructure:
     number_of_points_per_stack: np.ndarray  # * These fields are the same in all copies of TensorStructure
     number_of_orientations_per_stack: np.ndarray
     number_of_surfaces_per_stack: np.ndarray
-    masking_descriptor: List[StackRelationType]
+    masking_descriptor: List[StackRelationType | False]
     faults_input_data: List[FaultsData] = None
     faults_relations: np.ndarray = None
     interp_functions_per_stack: List[CustomInterpolationFunctions] = None
+    
+    segmentation_functions_per_stack: Optional[List[Callable[[np.ndarray], float]]] = None
     
     number_of_points_per_stack_vector: np.ndarray = np.ones(1)
     number_of_orientations_per_stack_vector: np.ndarray = np.ones(1)
@@ -85,6 +87,13 @@ class StacksStructure:
         if self.interp_functions_per_stack is None:
             return None
         return self.interp_functions_per_stack[self.stack_number]
+    
+    @property
+    def segmentation_function(self):
+        if self.segmentation_functions_per_stack is None:
+            return None
+        return self.segmentation_functions_per_stack[self.stack_number]
+        
 
 
 @dataclass

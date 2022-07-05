@@ -21,7 +21,7 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
     output_0_centers: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # interpolate - centers
 
     # Interpolate - corners
-    if options.compute_corners: 
+    if options.compute_corners:
         grid_0_corners = Grid(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
         interpolation_input.grid = grid_0_corners
         output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # * This is unnecessary for the last level except for Dual contouring

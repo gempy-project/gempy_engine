@@ -173,7 +173,7 @@ class TestHorizontalStatCovConstructionNoDrift:
         # Within series
         xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
         solver_input = SolverInput(sp_internal, ori_internal, options)
-        kernel_data = evaluation_vectors_preparations(xyz_lvl0, solver_input)
+        kernel_data = evaluation_vectors_preparations(solver_input)
         kernel = 4 * _test_covariance_items(kernel_data, options, "sigma_0_sp")
         print(kernel)
 
@@ -195,7 +195,7 @@ class TestHorizontalStatCovConstructionNoDrift:
         # Within series
         xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
         solver_input = SolverInput(sp_internal, ori_internal, options)
-        kernel_data = evaluation_vectors_preparations(xyz_lvl0, solver_input)
+        kernel_data = evaluation_vectors_preparations(solver_input)
         kernel = 2 * _test_covariance_items(kernel_data, options, "sigma_0_grad_sp")
         print(kernel)
 

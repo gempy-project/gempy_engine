@@ -58,12 +58,12 @@ def plot_vector(p: pv.Plotter, xyz, gradients):
 
 def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, vertices=None, indices=None,
                  xyz_on_edge=None, gradients=None, a=None, b=None, v_just_points=None,
-                 plot_label=False, delaunay_3d=False):
-    n = len(octree_list) - 1
+                 plot_label=False, delaunay_3d=False, scalar=None):
     p = pv.Plotter()
 
     # Plot Regular grid Octree
     if octree_list is not None:
+        n = len(octree_list) - 1
         regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
         regular_grid_scalar = get_regular_grid_value_for_level(octree_list, n)
         print("regular_grid_scalar.shape", regular_grid_scalar.shape)
@@ -71,11 +71,14 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
         shape = octree_list[n].grid_centers.regular_grid_shape
         grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T
         regular_grid_mesh = pv.StructuredGrid(*grid_3d)
-        regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
-        foo = regular_grid_mesh.threshold([0, 10])
-
-        p.add_mesh(foo, show_edges=False, opacity=.2, cmap="tab10")
-
+        if scalar is None:
+            regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
+            foo = regular_grid_mesh.threshold([0, 10])
+            p.add_mesh(foo, show_edges=False, opacity=.2, cmap="tab10")
+        else:
+            regular_grid_mesh["lith"] = scalar
+            p.add_mesh(regular_grid_mesh, show_edges=False, opacity=.2)
+       
     # Plot gradients
     if gradients is not None and xyz_on_edge is not None:
         poly = pv.PolyData(xyz_on_edge)

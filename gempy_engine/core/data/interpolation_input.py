@@ -1,5 +1,6 @@
 import dataclasses
 from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
 
@@ -15,7 +16,8 @@ class InterpolationInput:
     orientations: Orientations
     grid: Grid
     unit_values: np.ndarray
-
+    segmentation_function: Optional[callable] = None
+    
     all_surface_points: SurfacePoints = None
     _all_surface_points: SurfacePoints = dataclasses.field(init=False, repr=False, default=None)
     

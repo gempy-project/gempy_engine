@@ -236,7 +236,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         # Within series
         xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
         solver_input = SolverInput(sp_internal, ori_internal, options)
-        kernel_data = evaluation_vectors_preparations(xyz_lvl0, solver_input)
+        kernel_data = evaluation_vectors_preparations(solver_input)
         kernel = _test_covariance_items(kernel_data, options, "sigma_0_u_sp")
 
         print(kernel[-9:])
@@ -279,7 +279,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         Z_x = output.exported_fields.scalar_field
 
         # Gradient x
-        kernel_data = evaluation_vectors_preparations(xyz_lvl0, SolverInput(sp_internal, ori_internal, options),
+        kernel_data = evaluation_vectors_preparations(SolverInput(sp_internal, ori_internal, options),
                                                       axis=0)
 
         export_grad_scalar = create_grad_kernel(kernel_data, options)
@@ -289,7 +289,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         #np.testing.assert_array_almost_equal(grad_x, grad_x_sol, decimal=3)
 
         # Gradient Y
-        kernel_data = evaluation_vectors_preparations(xyz_lvl0, SolverInput(sp_internal, ori_internal, options), axis=1)
+        kernel_data = evaluation_vectors_preparations(SolverInput(sp_internal, ori_internal, options), axis=1)
         export_grad_scalar = create_grad_kernel(kernel_data, options)
         grad_y = (weights @ export_grad_scalar)[:-105]
 
@@ -298,7 +298,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
 
 
         # Gradient Z
-        kernel_data = evaluation_vectors_preparations(xyz_lvl0, SolverInput(sp_internal, ori_internal, options), axis=2)
+        kernel_data = evaluation_vectors_preparations(SolverInput(sp_internal, ori_internal, options), axis=2)
         export_grad_scalar = create_grad_kernel(kernel_data, options)
         grad_z = (weights @ export_grad_scalar)[:-105]
 

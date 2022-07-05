@@ -106,7 +106,7 @@ class TestCompareWithGempy_v2:
         kernel_options.uni_degree = 0
 
         # Test sigma 0 sp
-        kernel_data = evaluation_vectors_preparations(grid, SolverInput(sp_internals, ori_internals, kernel_options))
+        kernel_data = evaluation_vectors_preparations(SolverInput(sp_internals, ori_internals, kernel_options))
         export_sp_contr = _test_covariance_items(kernel_data, kernel_options, item="sigma_0_sp")
         sp_contr = weights @ export_sp_contr
 
@@ -151,14 +151,14 @@ class TestCompareWithGempy_v2:
         sp_internals, ori_internals, options = internals
 
         # Gradient x
-        kernel_data = evaluation_vectors_preparations(grid, SolverInput(sp_internals, ori_internals, options),
+        kernel_data = evaluation_vectors_preparations(SolverInput(sp_internals, ori_internals, options),
                                                       axis=0)
         export_grad_scalar = create_grad_kernel(kernel_data, options)
         grad_x = weights @ export_grad_scalar
 
         print(f"\n Grad x: {grad_x.reshape(4, 1, 4)}")
 
-        kernel_data = evaluation_vectors_preparations(grid, SolverInput(sp_internals, ori_internals, options), axis=2)
+        kernel_data = evaluation_vectors_preparations(SolverInput(sp_internals, ori_internals, options), axis=2)
         export_grad_scalar = create_grad_kernel(kernel_data, options)
         grad_z = weights @ export_grad_scalar
         print(grad_z)
