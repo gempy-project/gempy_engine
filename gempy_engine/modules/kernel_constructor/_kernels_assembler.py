@@ -81,7 +81,7 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
         cov_size = ki.ref_fault.faults_i.shape[0]
         
         j_size = ki.ref_fault.faults_j.shape[1]
-        fault_n = ki.ref_fault.faults_i.shape[2]
+        fault_n = ki.ref_fault.n_faults_i
         
         selector_components = _structs.DriftMatrixSelector(
             x_size=cov_size,

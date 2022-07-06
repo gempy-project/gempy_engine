@@ -79,7 +79,7 @@ def _get_faults_terms(ki: KernelInput) -> np.ndarray:
     fault_rest = (ki.rest_fault.faults_i * ki.rest_fault.faults_j).sum(axis=-1)
 
     cov_size = ki.ref_fault.faults_i.shape[0]
-    fault_n = ki.ref_fault.faults_i.shape[2]  # TODO: Here we are going to have to loop
+    fault_n = ki.ref_fault.n_faults_i  # TODO: Here we are going to have to loop
 
     selector_components = _structs.DriftMatrixSelector(
         x_size=cov_size,

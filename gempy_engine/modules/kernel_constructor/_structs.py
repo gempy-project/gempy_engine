@@ -12,6 +12,8 @@ def _upgrade_kernel_input_to_keops_tensor(struct_data_instance):
     from pykeops.numpy import LazyTensor
 
     for key, val in struct_data_instance.__dict__.items():
+        if key == "n_faults_i": continue
+        
         struct_data_instance.__dict__[key] = LazyTensor(val.astype('float32'))  # ! This as type is quite expensive
 
 
@@ -89,11 +91,15 @@ class PointsDrift:
 class FaultDrift:
     faults_i: tensor_types = np.empty((0, 1, 3))
     faults_j: tensor_types = np.empty((1, 0, 3))
-
+    
+    n_faults_i: int = 0
+    
     def __init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, ):
         self.faults_i = x_degree_1[:, None, :]
         self.faults_j = y_degree_1[None, :, :]
-
+        
+        self.n_faults_i = x_degree_1.shape[1]
+        
         if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
             _upgrade_kernel_input_to_keops_tensor(self)
 
