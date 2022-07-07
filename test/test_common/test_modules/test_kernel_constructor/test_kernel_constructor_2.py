@@ -76,7 +76,8 @@ class TestCompareWithGempy_v2:
     @pytest.fixture(scope="class")
     def weights(self, internals):
         sp_internals, ori_internals, options = internals
-        cov = yield_covariance(SolverInput(sp_internals, ori_internals, options))
+        solver_input = SolverInput(sp_internals, ori_internals)
+        cov = yield_covariance(solver_input, options.kernel_options)
         b_vec = yield_b_vector(ori_internals, cov.shape[0])
         weights = kernel_reduction(cov, b_vec)
         return weights
@@ -84,11 +85,13 @@ class TestCompareWithGempy_v2:
     def test_reduction(self, internals):
         sp_internals, ori_internals, options = internals
         # Test cov
-        cov = yield_covariance(SolverInput(sp_internals, ori_internals, options))
+        solver_input = SolverInput(sp_internals, ori_internals)
+        cov = yield_covariance(solver_input, options.kernel_options)
+        
         print("\n")
         print(cov)
 
-        np.testing.assert_array_almost_equal(np.asarray(cov), cov_sol, decimal=3)
+        np.testing.assert_array_almost_equal(np.asarray(cov), cov_sol, decimal=2)
 
         # Test weights and b vector
         b_vec = yield_b_vector(ori_internals, cov.shape[0])
@@ -99,90 +102,4 @@ class TestCompareWithGempy_v2:
                             1.637e+03, 1.053e+03, 2.499e+02, -2.266e+03]
         np.testing.assert_allclose(np.asarray(weights), weights_gempy_v2, rtol=2)
 
-    def test_export_to_scalar(self, internals, weights):
-        sp_internals, ori_internals, options = internals
-        kernel_options = options.kernel_options
-        
-        kernel_options.uni_degree = 0
-
-        # Test sigma 0 sp
-        kernel_data = evaluation_vectors_preparations(SolverInput(sp_internals, ori_internals, kernel_options))
-        export_sp_contr = _test_covariance_items(kernel_data, kernel_options, item="sigma_0_sp")
-        sp_contr = weights @ export_sp_contr
-
-        # TODO: Add test
-        print(f"\n Scalar field sp contr: {sp_contr}")
-
-        # Test sigma grad - sp
-        export_grad_sp_contr = _test_covariance_items(kernel_data, kernel_options, item="sigma_0_grad_sp")
-        grad_sp_contr = weights @ export_grad_sp_contr
-        print(f"\n Scalar field grad contr: {grad_sp_contr}")
-
-        # Test scalar field
-        export_scalar_ff = create_scalar_kernel(kernel_data, kernel_options)
-        scalar_ff = weights @ export_scalar_ff
-        print(f"\n Scalar field: {scalar_ff.reshape(4, 1, 4)}")
-
-        if plot or True:
-            import matplotlib.pyplot as plt
-
-            plt.contourf(scalar_ff.reshape(4, 1, 4)[:, 0, :].T, N=40, cmap="autumn",
-                         extent=[0.25, 0.75, .12510, .62510])
-            plt.scatter(sp_internals.rest_surface_points[:, 0], sp_internals.rest_surface_points[:, 2])
-
-            plt.show()
-
-        np.testing.assert_allclose(np.asarray(scalar_ff), scalar_sol, rtol=1)
-
-    def test_export_to_grad(self, internals, weights):
-        # Test gradient x
-        np_grad_x = np.gradient(scalar_sol.reshape((4, 1, 4)), axis=0)
-        np_grad_y = np.gradient(scalar_sol.reshape((4, 1, 4)), axis=2)
-
-        grad_x_sol = np.array(
-            [0.154, 0.08, 0.012, -0.048, 0.178, 0.064, -0.138, -0.307, 0.153, 0.052, -0.225, -0.521, 0.049, -0.066,
-             -0.183, -0.475])
-        grad_z_sol = np.array(
-            [0.328, 0.526, 0.818, 0.949, 0.257, 0.412, 0.684, 0.876, 0.182, 0.23, 0.378, 0.803, 0.107, 0.101, 0.086,
-             0.578])
-
-        print(f"\n Grad x 'sol': {np_grad_x}")
-
-        sp_internals, ori_internals, options = internals
-
-        # Gradient x
-        kernel_data = evaluation_vectors_preparations(SolverInput(sp_internals, ori_internals, options),
-                                                      axis=0)
-        export_grad_scalar = create_grad_kernel(kernel_data, options)
-        grad_x = weights @ export_grad_scalar
-
-        print(f"\n Grad x: {grad_x.reshape(4, 1, 4)}")
-
-        kernel_data = evaluation_vectors_preparations(SolverInput(sp_internals, ori_internals, options), axis=2)
-        export_grad_scalar = create_grad_kernel(kernel_data, options)
-        grad_z = weights @ export_grad_scalar
-        print(grad_z)
-        print(f"\n Grad z: {grad_z.reshape(4, 1, 4)}")
-        
-        if plot or True:
-            import matplotlib.pyplot as plt
-
-            plt.contourf(scalar_sol.reshape((4, 1, 4))[:, 0, :].T, N=40, cmap="autumn",
-                         extent=[0.25, 0.75, .12510, .62510]
-                         )
-            plt.quiver(grid[:, 0], grid[:,2], np_grad_x[:, 0, :], np_grad_y[:, 0, :],
-                       pivot="tail",
-                       color='blue', alpha=.6,   )
-
-            plt.scatter(sp_internals.rest_surface_points[:, 0], sp_internals.rest_surface_points[:, 2])
-
-
-            plt.quiver(grid[:, 0], grid[:,2], grad_x.reshape(4, 4), grad_z.reshape(4, 4),
-                       pivot="tail",
-                       color='green', alpha=.6,  )
-
-            plt.show()
-
-        # ! gradient kernel has change (Jun 2022). Before it gave me wrong results for dual contouring. However we need more testing before we fix the result of this test
-        # np.testing.assert_array_almost_equal(grad_x, grad_x_sol, decimal=3)
-        # np.testing.assert_array_almost_equal(grad_z, grad_z_sol, decimal=3)
+   

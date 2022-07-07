@@ -14,6 +14,7 @@ import os
 import gempy_engine.API.interp_single.interp_features as interp
 
 from gempy_engine.API.dual_contouring._dual_contouring import get_intersection_on_edges, compute_dual_contouring
+from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.core.data.internal_structs import SolverInput
 
@@ -541,7 +542,7 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
     surface_points = simple_model[0]
     orientations = simple_model[1]
     options = simple_model[2]
-    shape = simple_model[3]
+    shape: InputDataDescriptor = simple_model[3]
 
     interpolation_input = InterpolationInput(surface_points, orientations, grid, ids)
         
@@ -550,11 +551,11 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
     # region interpolate high res grid
     grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
     interpolation_input.grid = grid_high_res
-    input1: SolverInput = input_preprocess(shape, interpolation_input)
+    input1: SolverInput = input_preprocess(shape.tensors_structure, interpolation_input)
     exported_fields_high_res = _evaluate_sys_eq(input1, weights, options)
 
     exported_fields_high_res.set_structure_values(
-        reference_sp_position=shape.reference_sp_position,
+        reference_sp_position=shape.tensors_structure.reference_sp_position,
         slice_feature=interpolation_input.slice_feature,
         grid_size=interpolation_input.grid.len_all_grids)
 

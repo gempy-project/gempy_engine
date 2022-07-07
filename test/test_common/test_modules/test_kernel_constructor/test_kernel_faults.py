@@ -245,27 +245,30 @@ def test_one_fault_model_thickness(one_fault_model, n_oct_levels=3):
         )
 
 
-    
-
 def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
 
     interpolation_input, structure, options = one_fault_model
+    structure.stack_structure.faults_input_data = None
     
     options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
 
-    rescaling_factor = 240
-    resolution = np.array([20, 4, 20])
-    extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
-    regular_grid = RegularGrid(extent, resolution)
-    grid = Grid(regular_grid.values, regular_grid=regular_grid)
-    interpolation_input.grid = grid
+    # rescaling_factor = 240
+    # resolution = np.array([20, 4, 20])
+    # extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
+    # regular_grid = RegularGrid(extent, resolution)
+    # grid = Grid(regular_grid.values, regular_grid=regular_grid)
+    # interpolation_input.grid = grid
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
     
     fault_mesh = solutions.dc_meshes[0]
+    
+    regular_grid = solutions.octrees_output[-1].outputs_centers[0].grid.regular_grid
+    resolution = regular_grid.resolution
+    
     scalar = _implicit_3d_ellipsoid_to_slope(regular_grid.values, np.array([0, 0, 0]), np.array([1, 1, 2]))
     scalar_fault = _implicit_3d_ellipsoid_to_slope(fault_mesh.vertices, np.array([0, 0, 0]), np.array([1, 1, 2]))
     
@@ -293,7 +296,7 @@ def test_implicit_ellipsoid():
     regular_grid = RegularGrid(extent, resolution)
     
     scalar = _implicit_3d_ellipsoid_to_slope(regular_grid.values, np.array([0, 0, 0]), np.array([1, 1, 2]))
-    if True:
+    if plot_pyvista or False:
         import pyvista as pv
         p = pv.Plotter()
         regular_grid_values = regular_grid.values_vtk_format

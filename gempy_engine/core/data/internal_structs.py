@@ -13,10 +13,16 @@ class SolverInput:
     sp_internal: SurfacePointsInternals
     ori_internal: OrientationsInternals
     xyz_to_interpolate: Optional[np.ndarray] = None  # * if the instance is only used to create the cov
-    fault_internal:  Optional[FaultsData] = None
-    _fault_internal:  Optional[FaultsData] = dataclasses.field(init=False, repr=False, default=None)
+    _fault_internal:  Optional[FaultsData] = None
 
     debug = None
+    
+    def __init__(self, sp_internal, ori_internal, xyz_to_interpolate=None, fault_internal=None):
+        self.sp_internal = sp_internal
+        self.ori_internal = ori_internal
+        self.xyz_to_interpolate = xyz_to_interpolate
+        self._fault_internal = fault_internal
+    
     @property
     def fault_internal(self):
         if self._fault_internal is None:

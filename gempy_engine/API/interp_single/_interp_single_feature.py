@@ -99,8 +99,8 @@ def input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpol
     solver_input = SolverInput(
         sp_internal=sp_internal,
         ori_internal=ori_internal,
-        fault_internal=fault_values,
-        xyz_to_interpolate=grid_internal
+        xyz_to_interpolate=grid_internal,
+        fault_internal=fault_values
     )
 
     return solver_input
