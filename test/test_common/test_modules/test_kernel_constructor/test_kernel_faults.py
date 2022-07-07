@@ -414,7 +414,7 @@ def test_transforming_implicit_ellipsoid():
         p.show()
    
    
-def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=1):
+def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=4):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -422,7 +422,7 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=1):
     interpolation_input, structure, options = one_fault_model
 
     rescaling_factor = 240
-    resolution = [20, 10, 20]
+    resolution = [4,4,4]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
     grid = Grid(regular_grid.values, regular_grid=regular_grid)
@@ -432,7 +432,20 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=1):
     options.compute_scalar_gradient = False
     options.dual_contouring = True
     options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
-
+    
+    # region no faults
+    # faults_relations = np.array(
+    #     [[False, False, False],
+    #      [False, False, False],
+    #      [False, False, False]
+    #      ]
+    # )
+    # structure.stack_structure.faults_relations = faults_relations
+    # solutions: Solutions = compute_model(interpolation_input, options, structure)
+    # meshes = solutions.dc_meshes
+    # endregion
+    
+    # region finite fault
     faults_relations = np.array(
         [[False, True, True],
          [False, False, False],
@@ -440,16 +453,16 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=1):
          ]
     )
     structure.stack_structure.faults_relations = faults_relations
-    
-    f1_finite_fault: Callable = ellipsoid_3d_factory(np.array([0, 0, 0]), np.array([1, 3, 2]), 100000, 0.001)
-    scalar = f1_finite_fault(regular_grid.values)
-    
+    f1_finite_fault: Callable = ellipsoid_3d_factory(np.array([0, 0, 0]), np.array([3, 1, 1]), 1000, 0.001)
     structure.stack_structure.segmentation_functions_per_stack = [f1_finite_fault, None, None]
     
     solutions: Solutions = compute_model(interpolation_input, options, structure)
+    meshes = solutions.dc_meshes #+ meshes
 
     outputs: list[OctreeLevel] = solutions.octrees_output
-
+    scalar = f1_finite_fault(solutions.octrees_output[-1].grid_centers.regular_grid.values)
+    # endregion
+    
     if True:
         plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
         plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
@@ -463,8 +476,9 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=1):
     if True:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
-            dc_meshes=solutions.dc_meshes,
-            scalar = scalar
+            dc_meshes=meshes,
+            scalar = scalar,
+            v_just_points=interpolation_input.surface_points.sp_coords
         )
 
 

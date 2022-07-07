@@ -77,6 +77,7 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
             p.add_mesh(foo, show_edges=False, opacity=.2, cmap="tab10")
         else:
             regular_grid_mesh["lith"] = scalar
+            regular_grid_mesh = regular_grid_mesh.threshold([50, 1000000])
             p.add_mesh(regular_grid_mesh, show_edges=False, opacity=.2)
        
     # Plot gradients
@@ -99,7 +100,7 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
 
     # Plot QEF
     if v_just_points is not None:
-        p.add_mesh(pv.PolyData(v_just_points), color="b", point_size=5.0, render_points_as_spheres=False)
+        p.add_mesh(pv.PolyData(v_just_points), color="b", point_size=20.0, render_points_as_spheres=True)
 
     if vertices is not None:
         data = pv.PolyData(vertices)
