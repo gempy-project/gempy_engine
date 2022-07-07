@@ -34,8 +34,9 @@ def test_graben_fault_model(graben_fault_model):
 
     options.compute_scalar_gradient = False
     options.dual_contouring = True
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
 
-    options.number_octree_levels = 4
+    options.number_octree_levels = 3
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     outputs: list[OctreeLevel] = solutions.octrees_output
@@ -62,6 +63,7 @@ def test_graben_fault_model_thickness(graben_fault_model, n_octree_levels=3):
 
     options.compute_scalar_gradient = False
     options.dual_contouring = True
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
 
     fault_data: FaultsData = FaultsData.from_user_input(thickness=.2)
     fault_data2: FaultsData = FaultsData.from_user_input(thickness=.2)
@@ -177,8 +179,8 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
     interpolation_input, structure, options = one_fault_model
 
     options.compute_scalar_gradient = False
-    options.dual_contouring = False
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.DISJOINT
+    options.dual_contouring = True
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
 
     options.number_octree_levels = n_oct_levels
     solutions: Solutions = compute_model(interpolation_input, options, structure)
@@ -212,10 +214,12 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
         plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
 
-    if False:
-        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
+    if True:
+        plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
+        plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
+        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
 
-    if False:
+    if True:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes

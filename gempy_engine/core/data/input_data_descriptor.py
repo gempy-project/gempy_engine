@@ -74,7 +74,7 @@ class StacksStructure:
     def active_faults_relations(self) -> Iterable[bool]:
         if self.faults_relations is None:
             return [False] * self.n_stacks
-        return self.faults_relations[self.stack_number]
+        return self.faults_relations[:, self.stack_number]
     
     @property
     def nspv_stack(self):

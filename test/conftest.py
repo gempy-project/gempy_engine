@@ -26,7 +26,7 @@ using_pykeops = bool(np.random.choice([True, False]))
 
 # TODO: For now pykeops is always disabled
 
-pykeops_enabled = False
+pykeops_enabled = True
 BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=True, pykeops_enabled=pykeops_enabled)
 
 plot_pyvista = False
