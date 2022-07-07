@@ -1,28 +1,11 @@
 import enum
 
-import pandas as pd
-import numpy as np
-import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
-from gempy_engine.core.data.kernel_classes.orientations import Orientations
-from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
-from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.modules.data_preprocess._input_preparation import orientations_preprocess, surface_points_preprocess
 
 # ! Do not delete the fixtures imports
 # Import fixtures
-from test.fixtures.simple_models import\
-    simple_model_2,\
-    simple_model_2_internals,\
-    simple_model,\
-    simple_model_3_layers,\
-    simple_model_3_layers_high_res, \
-    simple_model_values_block_output, \
-    simple_model_interpolation_input, \
-    unconformity_complex, \
-    unconformity_complex_one_layer, \
-    unconformity_complex_implicit
+from test.fixtures.simple_models import *
 
 from test.fixtures.simple_geometries import\
     horizontal_stratigraphic,\

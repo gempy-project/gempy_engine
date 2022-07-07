@@ -78,11 +78,11 @@ pykeops_enabled = True
 class TestPykeopsNumPyEqual():
 
     @pytest.fixture(scope="class")
-    def preprocess_data(self, simple_model_2):
-        surface_points = simple_model_2[0]
-        orientations = simple_model_2[1]
-        options = simple_model_2[2]
-        input_data_descriptor: InputDataDescriptor = simple_model_2[3]
+    def preprocess_data(self, simple_model_2_b):
+        surface_points = simple_model_2_b[0]
+        orientations = simple_model_2_b[1]
+        options = simple_model_2_b[2]
+        input_data_descriptor: InputDataDescriptor = simple_model_2_b[3]
         # Prepare options
         options.kernel_function = AvailableKernelFunctions.exponential
 
@@ -174,7 +174,6 @@ class TestPykeopsNumPyEqual():
 
         l = np.load(path)
         c_n_sum = c_n.sum(0).reshape(-1, 1)
-
 
         # pykeops
         BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=pykeops_enabled)

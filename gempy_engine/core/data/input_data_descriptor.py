@@ -59,15 +59,15 @@ class StacksStructure:
         self.number_of_points_per_stack_vector = np.concatenate([np.array([0]), per_stack_cumsum])
         self.number_of_orientations_per_stack_vector = np.concatenate([np.array([0]), per_stack_orientation_cumsum])
         self.number_of_surfaces_per_stack_vector = np.concatenate([np.array([0]), per_stack_surface_cumsum])
-        if self.faults_input_data is None:
-            self.faults_input_data = [None] * self.n_stacks
-    
+        
     @property
     def active_masking_descriptor(self) -> StackRelationType:
         return self.masking_descriptor[self.stack_number]
     
     @property
     def active_faults_input_data(self) -> FaultsData:
+        if self.faults_input_data is None:
+            self.faults_input_data = [None] * self.n_stacks
         return self.faults_input_data[self.stack_number]
 
     @property

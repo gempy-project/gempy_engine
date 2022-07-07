@@ -33,9 +33,9 @@ def test_graben_fault_model(graben_fault_model):
     interpolation_input, structure, options = graben_fault_model
 
     options.compute_scalar_gradient = False
-    options.dual_contouring = False
+    options.dual_contouring = True
 
-    options.number_octree_levels = 1
+    options.number_octree_levels = 4
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     outputs: list[OctreeLevel] = solutions.octrees_output
@@ -44,6 +44,12 @@ def test_graben_fault_model(graben_fault_model):
         plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
         plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.ids)
+
+    if plot_pyvista or True:
+        helper_functions_pyvista.plot_pyvista(
+            solutions.octrees_output,
+            dc_meshes=solutions.dc_meshes
+        )
 
 
 # noinspection PyUnreachableCode
@@ -148,12 +154,13 @@ def test_one_fault_model_pykeops(one_fault_model):
     
     A_matrix = yield_covariance(solver_input, options.kernel_options)
     array_to_cache = A_matrix
-
-    if pykeops_enabled is False:
-        cache_array = np.save("cached_array", array_to_cache)
-    cached_array = np.load("cached_array.npy")
-    foo = A_matrix.sum(0).T - cached_array.sum(0)
-    print(cached_array)
+    
+    if True:
+        if pykeops_enabled is False:
+            cache_array = np.save("cached_array", array_to_cache)
+        cached_array = np.load("cached_array.npy")
+        foo = A_matrix.sum(0).T - cached_array.sum(0)
+        print(cached_array)
 
 
 # noinspection PyUnreachableCode

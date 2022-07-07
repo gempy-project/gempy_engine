@@ -35,10 +35,8 @@ dir_name = os.path.dirname(__file__)
 data_path = dir_name + "/simple_geometries/"
 
 
-@pytest.fixture(scope='session')
-def simple_model_2() -> Tuple[SurfacePoints, Orientations, InterpolationOptions, InputDataDescriptor]:
+def simple_model_2_factory() -> Tuple[SurfacePoints, Orientations, InterpolationOptions, InputDataDescriptor]:
     print(BackendTensor.describe_conf())
-
     sp_coords = np.array([[4, 0],
                           [0, 0],
                           [2, 0],
@@ -46,31 +44,33 @@ def simple_model_2() -> Tuple[SurfacePoints, Orientations, InterpolationOptions,
                           [3, 3],
                           [0, 2],
                           [2, 2]])
-
     nugget_effect_scalar = 0
     spi = SurfacePoints(sp_coords, nugget_effect_scalar)
-
     dip_positions = np.array([[0, 6],
                               [2, 13]])
-
     dip_gradients = np.array([[0, 1],
                               [0, .8]])
-
     nugget_effect_grad = 0.0000001
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
-
     kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0,
                                number_dimensions=2, kernel_function=AvailableKernelFunctions.cubic)
-
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([4, 3]))
     stack_structure = StacksStructure(number_of_points_per_stack=np.array([7]),
                                       number_of_orientations_per_stack=np.array([2]),
                                       number_of_surfaces_per_stack=np.array([2]),
                                       masking_descriptor=[StackRelationType.ERODE])
-
     input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
-
     return spi, ori_i, kri, input_data_descriptor
+
+
+@pytest.fixture(scope='session')
+def simple_model_2() -> Tuple[SurfacePoints, Orientations, InterpolationOptions, InputDataDescriptor]:
+    return simple_model_2_factory()
+
+
+@pytest.fixture(scope="session")
+def simple_model_2_b() -> Tuple[SurfacePoints, Orientations, InterpolationOptions, InputDataDescriptor]:
+    return simple_model_2_factory()
 
 
 @pytest.fixture(scope="session")
