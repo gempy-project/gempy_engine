@@ -13,7 +13,7 @@ plot = True
 
 
 def test_activator(simple_model_values_block_output):
-    Z_x = simple_model_values_block_output.exported_fields.scalar_field
+    Z_x: np.ndarray = simple_model_values_block_output.exported_fields.scalar_field
     sasp = simple_model_values_block_output.scalar_field_at_sp
     ids = np.array([1, 2])
 

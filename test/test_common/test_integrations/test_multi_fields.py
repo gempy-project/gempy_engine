@@ -150,7 +150,7 @@ def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         dc_data = solutions.dc_meshes[0].dc_data  # * Scalar field where to show gradients
         intersection_xyz = dc_data.xyz_on_edge
         gradients = dc_data.gradients

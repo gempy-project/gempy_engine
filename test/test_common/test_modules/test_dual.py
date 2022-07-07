@@ -552,8 +552,12 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
     interpolation_input.grid = grid_high_res
     input1: SolverInput = input_preprocess(shape, interpolation_input)
     exported_fields_high_res = _evaluate_sys_eq(input1, weights, options)
-    exported_fields_high_res.n_points_per_surface = shape.reference_sp_position
-    exported_fields_high_res.n_surface_points = interpolation_input.surface_points.n_points
+
+    exported_fields_high_res.set_structure_values(
+        reference_sp_position=shape.reference_sp_position,
+        slice_feature=interpolation_input.slice_feature,
+        grid_size=interpolation_input.grid.len_all_grids)
+
     res = activate_formation_block(exported_fields_high_res, ids, sigmoid_slope=50000)
     result = res, exported_fields_high_res, grid_high_res.dxdydz
     values_block_high_res, scalar_high_res, dxdydz = result

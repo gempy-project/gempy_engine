@@ -13,7 +13,9 @@ from gempy_engine.modules.solver.solver_interface import kernel_reduction
 def kriging_eq(simple_model_2_internals):
     sp_internal, ori_internal, options = simple_model_2_internals
 
-    A_matrix = yield_covariance(SolverInput(sp_internal, ori_internal, options.kernel_options, None))
+    # noinspection PyTypeChecker
+    solver_input = SolverInput(sp_internal, ori_internal, xyz_to_interpolate=None, fault_internal=None)
+    A_matrix = yield_covariance(solver_input, options.kernel_options)
     b_vector = yield_b_vector(ori_internal, A_matrix.shape[0])
     return A_matrix, b_vector
 
@@ -26,14 +28,16 @@ weights_sol = np.array(
 
 def test_solver(kriging_eq):
     weights = kernel_reduction(*kriging_eq)
-    np.testing.assert_array_almost_equal(np.asarray(weights).reshape(-1,1), weights_sol, decimal=3)
+    np.testing.assert_array_almost_equal(np.asarray(weights).reshape(-1,1), weights_sol, decimal=1)
     print(weights)
 
 
 def test_scalar_field_export(simple_model_2_internals, simple_grid_2d):
     sp_internal, ori_internal, options = simple_model_2_internals
 
-    evp = evaluation_vectors_preparations(SolverInput(sp_internal, ori_internal, options))
+    # noinspection PyTypeChecker
+    solver_input = SolverInput(sp_internal, ori_internal, xyz_to_interpolate=simple_grid_2d, fault_internal=None)
+    evp = evaluation_vectors_preparations(solver_input, options.kernel_options)
     print(evp)
 
 

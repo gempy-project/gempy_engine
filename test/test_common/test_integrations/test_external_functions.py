@@ -46,8 +46,6 @@ def test_final_block_implicit(unconformity_complex_implicit):
 
 
 def test_implicit_function(unconformity_complex):
-    from gempy_engine.API.interp_single._interp_single_feature import _segment_scalar_field
-
     def implicit_sphere(xyz: np.ndarray, extent: np.ndarray):
         x_dir = np.minimum(xyz[:, 0] - extent[0], extent[1] - xyz[:, 0])
         y_dir = np.minimum(xyz[:, 1] - extent[2], extent[3] - xyz[:, 1])

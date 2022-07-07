@@ -91,24 +91,6 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
     return all_scalar_fields_outputs
 
 
-# 
-# fault_relation_on_this_stack: Iterable[bool] = stack_structure.faults_relations[:, i]
-# 
-# fault_values_all = all_stack_values_block[fault_relation_on_this_stack]
-# fv_on_all_sp = fault_values_all[:, interpolation_input_i.grid.len_all_grids:]
-# fv_on_sp = fv_on_all_sp[:, interpolation_input_i.slice_feature]
-# # Grab Faults data given by the user
-# fault_data = interpolation_input_i.fault_values
-# if interpolation_input_i.not_fault_input:  # * Set default fault data
-#     fault_data = FaultsData(fault_values_everywhere=fault_values_all, fault_values_on_sp=fv_on_sp)
-# else:  # * Use user given fault data
-#     fault_val_min = np.min(fault_values_all, axis=1).reshape(-1, 1)  # ? Is this as good as it gets?
-#     fault_data.fault_values_on_sp = fv_on_sp - fault_val_min
-#     fault_data.fault_values_everywhere = fault_values_all - fault_val_min
-# 
-# interpolation_input_i.fault_values = fault_data
-
-
 def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relation: List[StackRelationType]) -> np.ndarray:
     n_scalar_fields = len(all_scalar_fields_outputs)
     grid_size = all_scalar_fields_outputs[0].grid_size
@@ -176,8 +158,8 @@ def _compute_final_block(all_scalar_fields_outputs: List[ScalarFieldOutput], squ
             _gx_field=squeezed_gx_block,
             _gy_field=squeezed_gy_block,
             _gz_field=squeezed_gz_block,
-            n_points_per_surface=interp_output.exported_fields.n_points_per_surface,
-            slice_feature=slice(None)
+            _n_points_per_surface=interp_output.exported_fields._n_points_per_surface,
+            _slice_feature=slice(None)
         )
 
         combined_scalar_fields = CombinedScalarFieldsOutput(

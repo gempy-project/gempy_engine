@@ -296,16 +296,18 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
 
     ids = np.array([1, 2])
     ii = InterpolationInput(surface_points, orientations, grid, ids)
-    grid_internal, ori_internal, sp_internal, _ = input_preprocess(data_shape, ii)
-    interp_input = SolverInput(sp_internal, ori_internal, grid_internal)
+    interp_input: SolverInput = input_preprocess(data_shape, ii)
 
     weights = _solve_interpolation(interp_input, options.kernel_options)
 
     exported_fields = _evaluate_sys_eq(interp_input, weights, options)
 
-    exported_fields.n_points_per_surface = data_shape.reference_sp_position
-    exported_fields.n_surface_points = surface_points.n_points
+    exported_fields.set_structure_values(
+        reference_sp_position=data_shape.reference_sp_position,
+        slice_feature=ii.slice_feature,
+        grid_size=ii.grid.len_all_grids)
 
+    
     # -----------------
     # Export and Masking operations can happen even in parallel
     # TODO: [~X] Export block

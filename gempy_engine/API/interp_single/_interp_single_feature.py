@@ -34,16 +34,21 @@ def interpolate_feature(interpolation_input: InterpolationInput,
     if external_interp_funct is None:
         weights, exported_fields = interpolate_scalar_field(solver_input, options)
         
-        # ? This should be somewhere else?
-        exported_fields.n_points_per_surface = data_shape.reference_sp_position
-        exported_fields.slice_feature = interpolation_input.slice_feature
-        exported_fields.grid_size = interpolation_input.grid.len_all_grids
-
+        exported_fields.set_structure_values(
+            reference_sp_position=data_shape.reference_sp_position,
+            slice_feature=interpolation_input.slice_feature,
+            grid_size=interpolation_input.grid.len_all_grids)
+        
         exported_fields.debug = solver_input.debug
     else:
         weights = None
         xyz = grid.values
         exported_fields: ExportedFields = _interpolate_external_function(external_interp_funct, xyz)
+        exported_fields.set_structure_values(
+            reference_sp_position=None,
+            slice_feature=None,
+            grid_size=xyz.shape[0])
+
     # endregion
     
     # region segmentation

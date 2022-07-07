@@ -34,11 +34,11 @@ class ScalarFieldOutput:
     
     @property
     def grid_size(self):
-        return self.exported_fields.grid_size
+        return self.exported_fields._grid_size
 
     @property
     def n_points_per_surface(self):
-        return self.exported_fields.n_points_per_surface
+        return self.exported_fields._n_points_per_surface
 
     @property
     def scalar_field_at_sp(self):

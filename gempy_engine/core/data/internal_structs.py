@@ -6,14 +6,13 @@ import numpy as np
 
 from . import SurfacePointsInternals, OrientationsInternals
 from .kernel_classes.faults import FaultsData
-from .options import KernelOptions
 
 
 @dataclass
 class SolverInput:
     sp_internal: SurfacePointsInternals
     ori_internal: OrientationsInternals
-    xyz_to_interpolate: np.ndarray
+    xyz_to_interpolate: Optional[np.ndarray] = None  # * if the instance is only used to create the cov
     fault_internal:  Optional[FaultsData] = None
     _fault_internal:  Optional[FaultsData] = dataclasses.field(init=False, repr=False, default=None)
 

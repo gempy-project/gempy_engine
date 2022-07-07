@@ -18,7 +18,7 @@ from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level, ValueType
 from test import helper_functions_pyvista
-from test.conftest import TEST_SPEED, pykeops_enabled
+from test.conftest import TEST_SPEED, pykeops_enabled, plot_pyvista
 from test.helper_functions import plot_block, plot_2d_scalar_y_direction
 
 PLOT = False
@@ -91,7 +91,7 @@ def test_graben_fault_model_thickness(graben_fault_model, n_octree_levels=3):
         # plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.ids)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.ids)
 
-    if True:
+    if plot_pyvista or False:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes
@@ -157,7 +157,7 @@ def test_one_fault_model_pykeops(one_fault_model):
 
 
 # noinspection PyUnreachableCode
-def test_one_fault_model(one_fault_model, n_oct_levels=8):
+def test_one_fault_model(one_fault_model, n_oct_levels=3):
     """
     300 MB 4 octree levels and no gradient
     
@@ -238,7 +238,7 @@ def test_one_fault_model_thickness(one_fault_model, n_oct_levels=3):
         plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
 
-    if True:
+    if plot_pyvista or False:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes
@@ -246,7 +246,6 @@ def test_one_fault_model_thickness(one_fault_model, n_oct_levels=3):
 
 
     
-
 
 def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
     interpolation_input: InterpolationInput
@@ -270,7 +269,7 @@ def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
     scalar = _implicit_3d_ellipsoid_to_slope(regular_grid.values, np.array([0, 0, 0]), np.array([1, 1, 2]))
     scalar_fault = _implicit_3d_ellipsoid_to_slope(fault_mesh.vertices, np.array([0, 0, 0]), np.array([1, 1, 2]))
     
-    if True:
+    if plot_pyvista or False:
         import pyvista as pv
         p = pv.Plotter()
         regular_grid_values = regular_grid.values_vtk_format
@@ -357,7 +356,7 @@ def test_transforming_implicit_ellipsoid():
         # plt.show()
         # 
 
-    if True:
+    if plot_pyvista or False:
         import pyvista as pv
         
         p = pv.Plotter()
@@ -432,7 +431,7 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=4):
         plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
         plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
         
-    if True:
+    if plot_pyvista or False:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=meshes,

@@ -158,8 +158,8 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
     octree_list = interp.interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
     # Assert
-    n = 4
-    regular_grid_scalar = get_regular_grid_value_for_level(octree_list, n).astype("int8")
+    
+    regular_grid_scalar = get_regular_grid_value_for_level(octree_list).astype("int8")
 
     # ===========
     if plot_pyvista or False:
