@@ -166,7 +166,7 @@ def test_one_fault_model_pykeops(one_fault_model):
 
 
 # noinspection PyUnreachableCode
-def test_one_fault_model(one_fault_model, n_oct_levels=3):
+def test_one_fault_model(one_fault_model, n_oct_levels=4):
     """
     300 MB 4 octree levels and no gradient
     
@@ -219,7 +219,7 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
         plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
 
-    if False:
+    if True:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes
