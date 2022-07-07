@@ -3,8 +3,8 @@ from typing import List
 
 import pytest
 
-import gempy_engine.API.interp_single._interp_single_feature
-from gempy_engine.API.interp_single._interp_scalar_field import _input_preprocess, _evaluate_sys_eq
+from gempy_engine.API.interp_single._interp_scalar_field import _evaluate_sys_eq
+from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data.grid import Grid
@@ -52,7 +52,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
 
     intersection_xyz, valid_edges = get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
     interpolation_input.grid = Grid(intersection_xyz)
-    output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options.kernel_options, data_shape)
+    output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
 
     dc_data = DualContouringData(
         xyz_on_edge=intersection_xyz,
@@ -538,36 +538,27 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
 
 
 def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_points, weights):
-    def _compute_high_res_model(data_shape, ids, interp_input, orientations, resolution,
-                                scalar_at_surface_points,
-                                surface_points, weights):
-        from gempy_engine.core.data.grid import Grid, RegularGrid
-
-        grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
-        grid_internal_high_res, ori_internal, sp_internal = _input_preprocess(data_shape.tensors_structure,
-                                                                              grid_high_res, orientations, surface_points)
-        exported_fields_high_res = _evaluate_sys_eq(grid_internal_high_res, interp_input, weights)
-        exported_fields_high_res.n_points_per_surface = data_shape.tensors_structure.reference_sp_position
-        exported_fields_high_res.n_surface_points = surface_points.n_points
-
-        values_block_high_res = activate_formation_block(exported_fields_high_res, ids, sigmoid_slope=50000)
-
-        return values_block_high_res, exported_fields_high_res, grid_high_res.dxdydz
-
     surface_points = simple_model[0]
     orientations = simple_model[1]
     options = simple_model[2]
-    data_shape = simple_model[3]
-    grid_internal, ori_internal, sp_internal = _input_preprocess(
-        data_shape.tensors_structure, grid, orientations, surface_points)
-    interp_input = SolverInput(sp_internal, ori_internal, options)
-    values_block_high_res, scalar_high_res, dxdydz = _compute_high_res_model(data_shape, ids,
-                                                                             interp_input,
-                                                                             orientations,
-                                                                             resolution,
-                                                                             scalar_at_surface_points,
-                                                                             surface_points,
-                                                                             weights)
+    shape = simple_model[3]
+
+    interpolation_input = InterpolationInput(surface_points, orientations, grid, ids)
+        
+    from gempy_engine.core.data.grid import Grid, RegularGrid
+    
+    # region interpolate high res grid
+    grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
+    interpolation_input.grid = grid_high_res
+    input1: SolverInput = input_preprocess(shape, interpolation_input)
+    exported_fields_high_res = _evaluate_sys_eq(input1, weights, options)
+    exported_fields_high_res.n_points_per_surface = shape.reference_sp_position
+    exported_fields_high_res.n_surface_points = interpolation_input.surface_points.n_points
+    res = activate_formation_block(exported_fields_high_res, ids, sigmoid_slope=50000)
+    result = res, exported_fields_high_res, grid_high_res.dxdydz
+    values_block_high_res, scalar_high_res, dxdydz = result
+    # endregion
+    
     from skimage.measure import marching_cubes
     import pyvista as pv
     vert, edges, _, _ = marching_cubes(scalar_high_res.scalar_field.reshape(resolution),

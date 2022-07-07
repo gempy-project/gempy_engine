@@ -18,12 +18,11 @@ class InterpolationInput:
     unit_values: np.ndarray
     segmentation_function: Optional[callable] = None
     
-    all_surface_points: SurfacePoints = None
-    _all_surface_points: SurfacePoints = dataclasses.field(init=False, repr=False, default=None)
+    _all_surface_points: SurfacePoints = None#dataclasses.field(init=True, repr=False, default=None)
     
     # region per model
-    fault_values: FaultsData = None
-    _fault_values: FaultsData = dataclasses.field(init=False, repr=False, default=None)
+    
+    _fault_values: FaultsData = None
     stack_relation: StackRelationType = StackRelationType.ERODE  # ? Should be here or in the descriptor
     # endregion
     
@@ -48,12 +47,12 @@ class InterpolationInput:
             grid=grid,
             unit_values=unit_values,
             stack_relation=stack_structure.active_masking_descriptor,
-            fault_values=stack_structure.active_faults_input_data,
-            all_surface_points=all_interpolation_input.surface_points
         )
 
-        #ii_subset.fault_values = all_interpolation_input._fault_values  # ! Setting this on the constructor does not work God knows why.
-
+        # ! Setting this on the constructor does not work with data classes.
+        ii_subset.fault_values = stack_structure.active_faults_input_data
+        ii_subset.all_surface_points = all_interpolation_input.surface_points
+        
         return ii_subset
     
     @property
@@ -80,7 +79,7 @@ class InterpolationInput:
     @property
     def all_surface_points(self):
         if self._all_surface_points is None:
-            return None
+            return self.surface_points # * This is for backwards compatibility with some tests
         else:
             return self._all_surface_points
 

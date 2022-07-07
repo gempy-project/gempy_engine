@@ -47,7 +47,7 @@ def test_graben_fault_model(graben_fault_model):
 
 
 # noinspection PyUnreachableCode
-def test_graben_fault_model_thickness(graben_fault_model):
+def test_graben_fault_model_thickness(graben_fault_model, n_octree_levels=3):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -61,7 +61,7 @@ def test_graben_fault_model_thickness(graben_fault_model):
     fault_data2: FaultsData = FaultsData.from_user_input(thickness=.2)
     structure.stack_structure.faults_input_data = [fault_data, fault_data2, None]
 
-    options.number_octree_levels = 4
+    options.number_octree_levels = n_octree_levels
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     outputs: list[OctreeLevel] = solutions.octrees_output
@@ -245,48 +245,7 @@ def test_one_fault_model_thickness(one_fault_model, n_oct_levels=3):
         )
 
 
-def project_xyz_coordinates_to_plane_defined_by_set_of_coords(xyz_to_project: np.ndarray, xyz_defining_plane: np.ndarray):
-    """
-    Find best fit plane using SVD to xyz_defining_plane and project xyz_to_project onto it.
-    """
-    xyz_to_project = xyz_to_project.astype(np.float64)
-    xyz_defining_plane = xyz_defining_plane.astype(np.float64)
-
-    # Find best fit plane using SVD to xyz_defining_plane and project xyz_to_project onto it.
-    u, s, vh = np.linalg.svd(xyz_defining_plane - xyz_to_project.mean(0))
-    xyz_projected = np.dot(xyz_to_project - xyz_to_project.mean(0), vh.T)
-    return xyz_projected
     
-
-def test_data_rotation_for_final_faults(one_fault_model, n_oct_levels=1):
-    interpolation_input: InterpolationInput
-    structure: InputDataDescriptor
-    options: InterpolationOptions
-
-    interpolation_input, structure, options = one_fault_model
-    rescaling_factor = 240
-    resolution = [20, 4, 20]
-    extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
-    regular_grid = RegularGrid(extent, resolution)
-    grid = Grid(regular_grid.values, regular_grid=regular_grid)
-    interpolation_input.grid = grid
-
-    structure.stack_structure.stack_number = 0
-    interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(interpolation_input,
-                                                                                                   structure.stack_structure)
-
-    fault_sp_coord = interpolation_input_i.surface_points.sp_coords
-    grid_coord = grid.values
-
-    rotated_coords = project_xyz_coordinates_to_plane_defined_by_set_of_coords(grid_coord, fault_sp_coord)
-
-    if True:
-        import pyvista as pv
-        p = pv.Plotter()
-        p.add_mesh(pv.PolyData(grid_coord), color="b", point_size=1.0, render_points_as_spheres=False)
-        p.add_mesh(pv.PolyData(fault_sp_coord), color="g", point_size=10.0, render_points_as_spheres=True)
-        p.add_mesh(pv.PolyData(rotated_coords), color="r", point_size=2.0, render_points_as_spheres=False)
-        p.show()
 
 
 def test_implicit_ellipsoid_projection_on_fault(one_fault_model):

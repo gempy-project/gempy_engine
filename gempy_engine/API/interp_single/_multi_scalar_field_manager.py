@@ -54,7 +54,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
             root_interpolation_input, stack_structure)
 
         # region Set fault input if needed
-        fault_relation_on_this_stack: Iterable[bool] = stack_structure.faults_relations[:, i]
+        fault_relation_on_this_stack: Iterable[bool] = stack_structure.active_faults_relations
 
         fault_values_all = all_stack_values_block[fault_relation_on_this_stack]
         fv_on_all_sp = fault_values_all[:, interpolation_input_i.grid.len_all_grids:]

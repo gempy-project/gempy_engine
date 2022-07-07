@@ -6,6 +6,7 @@ import numpy as np
 
 from ..fixtures.simple_models import simple_model_2
 
+
 def test_xla_surface_points_preprocessing(simple_model_2):
     surface_points = simple_model_2[0]
     tensors_structure = simple_model_2[3]
@@ -17,7 +18,7 @@ def test_xla_surface_points_preprocessing(simple_model_2):
         static = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
         return static.ref_surface_points
 
-    s = tf_f(surface_points, tensors_structure)
+    s = tf_f(surface_points, tensors_structure.tensors_structure)
     print(s)
 
 

@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 from matplotlib import pyplot as plt
 
-from gempy_engine.API.interp_single._interp_scalar_field import _input_preprocess, _solve_interpolation
+from gempy_engine.API.interp_single._interp_scalar_field import _solve_interpolation
+from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.API.interp_single.interp_features import interpolate_single_field
@@ -31,11 +32,9 @@ class TestRecumbentFoldCovConstructionWithDrift:
         interpolation_input, options, structure = recumbent_fold_scaled
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
-        solver_input = SolverInput(sp_internal, ori_internal, options)
-
-        kernel_data = cov_vectors_preparation(solver_input)
-        cov = _test_covariance_items(kernel_data, options, "cov_grad")
+        solver_input = input_preprocess(structure, interpolation_input)
+        kernel_data = cov_vectors_preparation(solver_input, kernel_options=options.kernel_options)
+        cov = _test_covariance_items(kernel_data, options.kernel_options, "cov_grad")
 
         print(options.c_o * cov[:6, :6])
         sol = np.array(
@@ -77,7 +76,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         interpolation_input, options, structure = recumbent_fold_scaled
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
+        xyz_lvl0, ori_internal, sp_internal, _ = input_preprocess(structure, interpolation_input)
         from test.test_common.test_geometries.solutions import recumbent_ref, recumbent_rest, recumbent_dips
         np.testing.assert_allclose(sp_internal.ref_surface_points, recumbent_ref, rtol=1e-7)
         np.testing.assert_allclose(sp_internal.rest_surface_points, recumbent_rest, rtol=1e-7)
@@ -103,11 +102,9 @@ class TestRecumbentFoldCovConstructionWithDrift:
         interpolation_input, options, structure = recumbent_fold_scaled
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
-        solver_input = SolverInput(sp_internal, ori_internal, options)
-
-        kernel_data = cov_vectors_preparation(solver_input)
-        cov = _test_covariance_items(kernel_data, options, "cov_grad_sp")
+        solver_input = input_preprocess(structure, interpolation_input)
+        kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
+        cov = _test_covariance_items(kernel_data, options.kernel_options, "cov_grad_sp")
         #   print(cov)
         val = options.c_o * cov
 
@@ -125,18 +122,15 @@ class TestRecumbentFoldCovConstructionWithDrift:
         interpolation_input, options, structure = recumbent_fold_scaled
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
+        solver_input: SolverInput = input_preprocess(structure, interpolation_input)
+        kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
 
-        solver_input = SolverInput(sp_internal, ori_internal, options)
-        kernel_data = cov_vectors_preparation(solver_input)
-
-        cov = _test_covariance_items(kernel_data, options, "cov")
+        cov = _test_covariance_items(kernel_data, options.kernel_options, "cov")
         print(cov)
 
-        weights = _solve_interpolation(solver_input)
+        weights = _solve_interpolation(solver_input, options.kernel_options)
 
         print(weights)
-
 
         weights_sol = recumbent_weights
 
@@ -159,8 +153,8 @@ class TestRecumbentFoldCovConstructionWithDrift:
         Z_x = output.exported_fields.scalar_field
         print(Z_x)
 
-        np.testing.assert_allclose(Z_x[:3], np.array([1.3106523,  1.34144988, 1.37089355]), rtol=.02)
-        np.testing.assert_allclose(Z_x[-3:], np.array([0.93999536, 0.90814532,  0.87492965 ]), rtol=.02)
+        np.testing.assert_allclose(Z_x[:3], np.array([1.3106523, 1.34144988, 1.37089355]), rtol=.02)
+        np.testing.assert_allclose(Z_x[-3:], np.array([0.93999536, 0.90814532, 0.87492965]), rtol=.02)
 
         if plot:
             plot_2d_scalar_y_direction(interpolation_input, Z_x)
@@ -181,11 +175,9 @@ class TestRecumbentFoldCovConstructionWithDrift:
         options.uni_degree = 2
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
-
-        solver_input = SolverInput(sp_internal, ori_internal, options)
-        kernel_data = cov_vectors_preparation(solver_input)
-        kernel = _test_covariance_items(kernel_data, options, "drift_ug")
+        solver_input: SolverInput = input_preprocess(structure, interpolation_input)
+        kernel_data = cov_vectors_preparation(solver_input, kernel_options=options.kernel_options)
+        kernel = _test_covariance_items(kernel_data, options.kernel_options, "drift_ug")
         print(kernel)
 
         kernel_ug = np.array(
@@ -199,7 +191,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
 
         np.testing.assert_allclose(kernel[:6, -9:], kernel_ug, atol=.02)
 
-        kernel_sp = _test_covariance_items(kernel_data, options, "drift_usp")
+        kernel_sp = _test_covariance_items(kernel_data, options.kernel_options, "drift_usp")
 
         print(kernel_sp[6:-9, -9:])
         from test.test_common.test_geometries.solutions import recumbent_ui
@@ -234,10 +226,9 @@ class TestRecumbentFoldCovConstructionWithDrift:
         options.uni_degree = 2
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
-        solver_input = SolverInput(sp_internal, ori_internal, options)
-        kernel_data = evaluation_vectors_preparations(solver_input)
-        kernel = _test_covariance_items(kernel_data, options, "sigma_0_u_sp")
+        solver_input: SolverInput = input_preprocess(structure, interpolation_input)
+        kernel_data = evaluation_vectors_preparations(solver_input, options.kernel_options)
+        kernel = _test_covariance_items(kernel_data, options.kernel_options, "sigma_0_u_sp")
 
         print(kernel[-9:])
 
@@ -268,7 +259,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         interpolation_input.grid = grid
         # endregion
 
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
+        solver_input: SolverInput = input_preprocess(structure, interpolation_input)
 
         options.uni_degree = 2
 
@@ -279,32 +270,31 @@ class TestRecumbentFoldCovConstructionWithDrift:
         Z_x = output.exported_fields.scalar_field
 
         # Gradient x
-        kernel_data = evaluation_vectors_preparations(SolverInput(sp_internal, ori_internal, options),
-                                                      axis=0)
+        kernel_data = evaluation_vectors_preparations(solver_input,                                                      options.kernel_options, axis=0)
 
-        export_grad_scalar = create_grad_kernel(kernel_data, options)
+        export_grad_scalar = create_grad_kernel(kernel_data, options.kernel_options)
         grad_x = (weights @ export_grad_scalar)[:-105]
 
         print(f"\n Grad x: {grad_x.reshape(resolution)}")
-        #np.testing.assert_array_almost_equal(grad_x, grad_x_sol, decimal=3)
+        # np.testing.assert_array_almost_equal(grad_x, grad_x_sol, decimal=3)
 
         # Gradient Y
-        kernel_data = evaluation_vectors_preparations(SolverInput(sp_internal, ori_internal, options), axis=1)
-        export_grad_scalar = create_grad_kernel(kernel_data, options)
+        kernel_data = evaluation_vectors_preparations(solver_input,                                                      options.kernel_options, axis=1)
+        export_grad_scalar = create_grad_kernel(kernel_data, options.kernel_options)
         grad_y = (weights @ export_grad_scalar)[:-105]
 
         print(grad_y)
         print(f"\n Grad y: {grad_y.reshape(resolution)}")
 
-
         # Gradient Z
-        kernel_data = evaluation_vectors_preparations(SolverInput(sp_internal, ori_internal, options), axis=2)
-        export_grad_scalar = create_grad_kernel(kernel_data, options)
+        kernel_data = evaluation_vectors_preparations(solver_input,
+                                                      options.kernel_options, axis=2)
+        export_grad_scalar = create_grad_kernel(kernel_data, options.kernel_options)
         grad_z = (weights @ export_grad_scalar)[:-105]
 
         print(grad_z)
         print(f"\n Grad z: {grad_z.reshape(resolution)}")
-        #np.testing.assert_array_almost_equal(grad_z, grad_z_sol, decimal=3)
+        # np.testing.assert_array_almost_equal(grad_z, grad_z_sol, decimal=3)
 
         if plot or True:
             import matplotlib.pyplot as plt
@@ -316,17 +306,19 @@ class TestRecumbentFoldCovConstructionWithDrift:
 
             # region Plot GxGz
             plt.contourf(Z_x.reshape(resolution)[:, 5, :].T, N=40, cmap="autumn",
-                         extent= extent
+                         extent=extent
                          )
-
+            sp_internal = solver_input.sp_internal
+            xyz_lvl0 = solver_input.xyz_to_interpolate
+            
             plt.scatter(sp_internal.rest_surface_points[:, 0], sp_internal.rest_surface_points[:, 2])
 
-            g_x = xyz_lvl0[:-105,0].reshape(resolution)
-            g_z = xyz_lvl0[:-105,2].reshape(resolution)
+            g_x = xyz_lvl0[:-105, 0].reshape(resolution)
+            g_z = xyz_lvl0[:-105, 2].reshape(resolution)
 
             plt.quiver(g_x[:, 5, :], g_z[:, 5, :],
-                       grad_x.reshape(resolution)[:,5,:],
-                       grad_z.reshape(resolution)[:,5,:],
+                       grad_x.reshape(resolution)[:, 5, :],
+                       grad_z.reshape(resolution)[:, 5, :],
                        pivot="tail",
                        color='green', alpha=.6, )
 
@@ -339,14 +331,13 @@ class TestRecumbentFoldCovConstructionWithDrift:
                       interpolation_input.grid.regular_grid.extent[4],
                       interpolation_input.grid.regular_grid.extent[5]]
 
-
             plt.contourf(Z_x.reshape(resolution)[5, :, :].T, N=40, cmap="autumn",
-                         extent= extent
+                         extent=extent
                          )
 
             plt.scatter(sp_internal.rest_surface_points[:, 1], sp_internal.rest_surface_points[:, 2])
 
-            g_y = xyz_lvl0[:-105,1].reshape(resolution)
+            g_y = xyz_lvl0[:-105, 1].reshape(resolution)
 
             plt.quiver(g_y[5, :, :], g_z[5, :, :],
                        grad_y.reshape(resolution)[5, :, :],
@@ -356,5 +347,3 @@ class TestRecumbentFoldCovConstructionWithDrift:
 
             plt.show()
             # endregion
-
-

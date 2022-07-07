@@ -1,6 +1,6 @@
 import pytest
 
-from gempy_engine.API.interp_single._interp_scalar_field import _input_preprocess
+from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.API.interp_single.interp_features import interpolate_single_field
@@ -47,10 +47,9 @@ class TestHorizontalStatCovConstructionNoDrift:
         interpolation_input, options, structure = horizontal_stratigraphic_scaled
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
-        solver_input = SolverInput(sp_internal, ori_internal, options)
+        solver_input = input_preprocess(structure, interpolation_input)
 
-        kernel_data = cov_vectors_preparation(solver_input)
+        kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
         cov = _test_covariance_items(kernel_data, options, "cov_grad")
 
         print(options.c_o * cov)
@@ -82,10 +81,9 @@ class TestHorizontalStatCovConstructionNoDrift:
         interpolation_input, options, structure = horizontal_stratigraphic_scaled
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
-        solver_input = SolverInput(sp_internal, ori_internal, options)
+        solver_input = input_preprocess(structure, interpolation_input)
 
-        kernel_data = cov_vectors_preparation(solver_input)
+        kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
         cov = _test_covariance_items(kernel_data, options, "cov_sp")
 
         val = options.c_o * cov
@@ -136,10 +134,8 @@ class TestHorizontalStatCovConstructionNoDrift:
         interpolation_input, options, structure = horizontal_stratigraphic_scaled
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
-        solver_input = SolverInput(sp_internal, ori_internal, options)
-
-        kernel_data = cov_vectors_preparation(solver_input)
+        solver_input = input_preprocess(structure, interpolation_input)
+        kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
         cov = _test_covariance_items(kernel_data, options, "cov_grad_sp")
         #   print(cov)
         val = options.c_o * cov
@@ -171,9 +167,8 @@ class TestHorizontalStatCovConstructionNoDrift:
         interpolation_input, options, structure = horizontal_stratigraphic_scaled
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
-        solver_input = SolverInput(sp_internal, ori_internal, options)
-        kernel_data = evaluation_vectors_preparations(solver_input)
+        solver_input = input_preprocess(structure, interpolation_input)
+        kernel_data = evaluation_vectors_preparations(solver_input, options.kernel_options)
         kernel = 4 * _test_covariance_items(kernel_data, options, "sigma_0_sp")
         print(kernel)
 
@@ -193,9 +188,8 @@ class TestHorizontalStatCovConstructionNoDrift:
         interpolation_input, options, structure = horizontal_stratigraphic_scaled
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
-        solver_input = SolverInput(sp_internal, ori_internal, options)
-        kernel_data = evaluation_vectors_preparations(solver_input)
+        solver_input = input_preprocess(structure, interpolation_input)
+        kernel_data = evaluation_vectors_preparations(solver_input, options.kernel_options)
         kernel = 2 * _test_covariance_items(kernel_data, options, "sigma_0_grad_sp")
         print(kernel)
 
@@ -259,9 +253,8 @@ class TestHorizontalStatCovConstructionNoDrift:
         options.kernel_options.uni_degree = 1
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
-        solver_input = SolverInput(sp_internal, ori_internal, options)
-        kernel_data = cov_vectors_preparation(solver_input)
+        solver_input = input_preprocess(structure, interpolation_input)
+        kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
         kernel = _test_covariance_items(kernel_data, options, "drift_ug")
 
         U_G = np.array([[1., 0., 0.],
@@ -318,10 +311,8 @@ class TestHorizontalStatCovConstructionNoDrift:
         options.kernel_options.uni_degree = 2
 
         # Within series
-        xyz_lvl0, ori_internal, sp_internal, _ = _input_preprocess(structure, interpolation_input)
-        
-        solver_input = SolverInput(sp_internal, ori_internal, options)
-        kernel_data = cov_vectors_preparation(solver_input)
+        solver_input = input_preprocess(structure, interpolation_input)
+        kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
         kernel = _test_covariance_items(kernel_data, options, "drift_ug")
         # print(kernel)
 

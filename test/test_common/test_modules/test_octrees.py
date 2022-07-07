@@ -1,22 +1,20 @@
+import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from gempy_engine.API.interp_single._interp_scalar_field import _input_preprocess, _evaluate_sys_eq
-from gempy_engine.core.data import TensorsStructure
-from gempy_engine.core.data.octree_level import OctreeLevel
+import gempy_engine.API.interp_single.interp_features as interp
+from gempy_engine.API.interp_single._interp_scalar_field import _evaluate_sys_eq
 from gempy_engine.core.data.grid import Grid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.internal_structs import SolverInput
-import gempy_engine.API.interp_single.interp_features as interp
 from gempy_engine.core.data.interpolation_input import InterpolationInput
-
+from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
-import matplotlib.pyplot as plt
-
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_next_octree_grid, \
     get_regular_grid_value_for_level
-import os
-
+from .test_dual import _compute_actual_mesh
 from ...conftest import plot_pyvista, TEST_SPEED
 
 dir_name = os.path.dirname(__file__)
@@ -231,43 +229,3 @@ def _plot_points_in_vista(grid_0_centers, mesh, anch=None):
     p.add_mesh(pv.PolyData(xyz), color="w", point_size=3.0, render_points_as_spheres=False)
 
     return p
-
-
-def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_points, weights):
-    def _compute_high_res_model(data_shape: InputDataDescriptor, ids, interp_input, orientations, resolution, scalar_at_surface_points,
-                                surface_points, weights):
-        from gempy_engine.core.data.grid import Grid, RegularGrid
-
-        grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
-        grid_internal_high_res, ori_internal, sp_internal = _input_preprocess(data_shape.tensors_structure,
-                                                                              grid_high_res, orientations, surface_points)
-
-        exported_fields_high_res = _evaluate_sys_eq(grid_internal_high_res, interp_input, weights)
-        exported_fields_high_res.n_points_per_surface = data_shape.tensors_structure.reference_sp_position
-        exported_fields_high_res.n_surface_points = surface_points.n_points
-
-        values_block_high_res = activate_formation_block(exported_fields_high_res,
-                                                         ids, sigmoid_slope=50000)
-        return values_block_high_res, exported_fields_high_res, grid_high_res.dxdydz
-
-    surface_points = simple_model[0]
-    orientations = simple_model[1]
-    options = simple_model[2]
-    data_shape: InputDataDescriptor = simple_model[3]
-    grid_internal, ori_internal, sp_internal = _input_preprocess(
-        data_shape.tensors_structure, grid, orientations, surface_points)
-    interp_input = SolverInput(sp_internal, ori_internal, options)
-    values_block_high_res, scalar_high_res, dxdydz = _compute_high_res_model(data_shape, ids, interp_input,
-                                                                             orientations, resolution,
-                                                                             scalar_at_surface_points, surface_points,
-                                                                             weights)
-    from skimage.measure import marching_cubes
-    import pyvista as pv
-    vert, edges, _, _ = marching_cubes(scalar_high_res.scalar_field.reshape(resolution),
-                                       scalar_at_surface_points[0],
-                                       spacing=dxdydz)
-
-    loc_0 = np.array([0.25, .25, .25]) + np.array(dxdydz) / 2
-    vert += np.array(loc_0).reshape(1, 3)
-    mesh = pv.PolyData(vert, np.insert(edges, 0, 3, axis=1).ravel())
-    return mesh

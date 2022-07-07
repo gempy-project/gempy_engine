@@ -90,7 +90,7 @@ def horizontal_stratigraphic_scaled():
 
 
 @pytest.fixture(scope="session")
-def recumbent_fold_scaled():
+def recumbent_fold_scaled() -> Tuple[InterpolationInput, InterpolationOptions, TensorsStructure]:
     orientations = pd.read_csv(data_path + "model3_orientations_scaled.csv")
     sp = pd.read_csv(data_path + "model3_surface_points_scaled-2.csv")
 

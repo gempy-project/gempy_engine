@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass
-from typing import Type, List, Callable, Optional
+from typing import Type, List, Callable, Optional, Iterable
 
 import numpy as np
 
@@ -69,6 +69,12 @@ class StacksStructure:
     @property
     def active_faults_input_data(self) -> FaultsData:
         return self.faults_input_data[self.stack_number]
+
+    @property
+    def active_faults_relations(self) -> Iterable[bool]:
+        if self.faults_relations is None:
+            return [False] * self.n_stacks
+        return self.faults_relations[self.stack_number]
     
     @property
     def nspv_stack(self):
