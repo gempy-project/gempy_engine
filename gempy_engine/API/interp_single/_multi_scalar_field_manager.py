@@ -43,9 +43,6 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
     xyz_to_interpolate_size: int = root_interpolation_input.grid.len_all_grids + root_interpolation_input.surface_points.n_points
     all_stack_values_block: np.ndarray = np.zeros((stack_structure.n_stacks, xyz_to_interpolate_size))  # Used for faults
 
-    if stack_structure is None:  # ! This branch is just for backward compatibility but we should try to get rid of it as soon as possible
-        raise ValueError("Deprecated: stack_structure is not defined in the input data descriptor")
-
     for i in range(stack_structure.n_stacks):
         stack_structure.stack_number = i
 

@@ -46,7 +46,7 @@ def test_graben_fault_model(graben_fault_model):
         plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.ids)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes
@@ -219,7 +219,7 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
         plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
 
-    if True:
+    if False:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes
