@@ -165,11 +165,17 @@ def test_one_fault_model_pykeops(one_fault_model):
         print(cached_array)
 
 
+def test_reshaping():
+    foo = np.arange(100)
+    foo.reshape((-1, 10, 2))
+    pass
+    
+
 # noinspection PyUnreachableCode
 def test_one_fault_model(one_fault_model, n_oct_levels=4):
     """
     300 MB 4 octree levels and no gradient
-    
+
     """
 
     interpolation_input: InterpolationInput
@@ -183,6 +189,7 @@ def test_one_fault_model(one_fault_model, n_oct_levels=4):
     options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
 
     options.number_octree_levels = n_oct_levels
+
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     outputs: list[OctreeLevel] = solutions.octrees_output
@@ -226,7 +233,7 @@ def test_one_fault_model(one_fault_model, n_oct_levels=4):
         )
 
 
-def test_one_fault_model_thickness(one_fault_model, n_oct_levels=3):
+def test_one_fault_model_thickness(one_fault_model, n_oct_levels=2):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions

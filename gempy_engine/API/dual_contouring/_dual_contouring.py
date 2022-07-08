@@ -15,11 +15,8 @@ def get_intersection_on_edges(octree_level: OctreeLevel, output_corners: InterpO
     # First find xyz on edges:
     xyz_corners = octree_level.grid_corners.values
     
-    scalar_field_at_all_sp = np.zeros(0)
-    if multiple_scalars: raise Exception("This branch is deprecated") # ! This branch is DEP
-    else:
-        scalar_field_corners = output_corners.exported_fields.scalar_field
-        scalar_field_at_all_sp = output_corners.scalar_field_at_sp
+    scalar_field_corners = output_corners.exported_fields.scalar_field
+    scalar_field_at_all_sp = output_corners.scalar_field_at_sp
     
     intersection_xyz, valid_edges = find_intersection_on_edge(xyz_corners, scalar_field_corners, scalar_field_at_all_sp, mask)
     return intersection_xyz, valid_edges

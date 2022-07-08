@@ -10,7 +10,7 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray
     scalar_8_ = scalar_field
     scalar_8 = scalar_8_.reshape((1, -1, 8))
     xyz_8 = _xyz_corners.reshape((-1, 8, 3))
-    
+
     if masking is not None:
         ma_8 = masking
         xyz_8 = xyz_8[ma_8]
@@ -68,71 +68,85 @@ def triangulate_dual_contouring(dc_data: DualContouringData):
     connecting the minimizing vertices of the four cubes containing the edge.\
     """
     dxdydz = dc_data.dxdydz
-    values = dc_data.xyz_on_centers
+
+    # per surface
     n_surfaces = dc_data.n_surfaces
-    centers_xyz = np.tile(values, (n_surfaces, 1))
-    valid_voxels = dc_data.valid_voxels
-    valid_edges = dc_data.valid_edges
+    centers_xyz = dc_data.xyz_on_centers
+    all_valid_voxels = dc_data.valid_voxels.reshape((n_surfaces, -1))
+    all_valid_edges = dc_data.valid_edges.reshape((n_surfaces, -1, 12))
 
-    # ! This assumes a vertex per voxel
-    dx, dy, dz = dxdydz
-    x_1 = centers_xyz[valid_voxels][:, None, :]
-    x_2 = centers_xyz[valid_voxels][None, :, :]
+    indices_arrays = []
+    shift = 0
 
-    manhattan = x_1 - x_2
-    zeros = np.isclose(manhattan[:, :, :], 0, .00001)
-    x_direction_neighbour = np.isclose(manhattan[:, :, 0], dx, .00001)
-    nx_direction_neighbour = np.isclose(manhattan[:, :, 0], -dx, .00001)
-    y_direction_neighbour = np.isclose(manhattan[:, :, 1], dy, .00001)
-    ny_direction_neighbour = np.isclose(manhattan[:, :, 1], -dy, .00001)
-    z_direction_neighbour = np.isclose(manhattan[:, :, 2], dz, .00001)
-    nz_direction_neighbour = np.isclose(manhattan[:, :, 2], -dz, .00001)
+    for i in range(n_surfaces):
+        valid_voxels = all_valid_voxels[i]
+        valid_edges = all_valid_edges[i]
 
-    x_direction = x_direction_neighbour * zeros[:, :, 1] * zeros[:, :, 2]
-    nx_direction = nx_direction_neighbour * zeros[:, :, 1] * zeros[:, :, 2]
-    y_direction = y_direction_neighbour * zeros[:, :, 0] * zeros[:, :, 2]
-    ny_direction = ny_direction_neighbour * zeros[:, :, 0] * zeros[:, :, 2]
-    z_direction = z_direction_neighbour * zeros[:, :, 0] * zeros[:, :, 1]
-    nz_direction = nz_direction_neighbour * zeros[:, :, 0] * zeros[:, :, 1]
+        # ! This assumes a vertex per voxel
+        dx, dy, dz = dxdydz
+        x_1 = centers_xyz[valid_voxels][:, None, :]
+        x_2 = centers_xyz[valid_voxels][None, :, :]
 
-    np.fill_diagonal(x_direction, True)
-    np.fill_diagonal(nx_direction, True)
-    np.fill_diagonal(y_direction, True)
-    np.fill_diagonal(nx_direction, True)
-    np.fill_diagonal(z_direction, True)
-    np.fill_diagonal(nz_direction, True)
+        manhattan = x_1 - x_2
+        zeros = np.isclose(manhattan[:, :, :], 0, .00001)
+        x_direction_neighbour = np.isclose(manhattan[:, :, 0], dx, .00001)
+        nx_direction_neighbour = np.isclose(manhattan[:, :, 0], -dx, .00001)
+        y_direction_neighbour = np.isclose(manhattan[:, :, 1], dy, .00001)
+        ny_direction_neighbour = np.isclose(manhattan[:, :, 1], -dy, .00001)
+        z_direction_neighbour = np.isclose(manhattan[:, :, 2], dz, .00001)
+        nz_direction_neighbour = np.isclose(manhattan[:, :, 2], -dz, .00001)
 
-    # X edges
-    nynz_direction = ny_direction + nz_direction
-    nyz_direction = ny_direction + z_direction
-    ynz_direction = y_direction + nz_direction
-    yz_direction = y_direction + z_direction
+        x_direction = x_direction_neighbour * zeros[:, :, 1] * zeros[:, :, 2]
+        nx_direction = nx_direction_neighbour * zeros[:, :, 1] * zeros[:, :, 2]
+        y_direction = y_direction_neighbour * zeros[:, :, 0] * zeros[:, :, 2]
+        ny_direction = ny_direction_neighbour * zeros[:, :, 0] * zeros[:, :, 2]
+        z_direction = z_direction_neighbour * zeros[:, :, 0] * zeros[:, :, 1]
+        nz_direction = nz_direction_neighbour * zeros[:, :, 0] * zeros[:, :, 1]
 
-    # Y edges
-    nxnz_direction = nx_direction + nz_direction
-    xnz_direction = x_direction + nz_direction
-    nxz_direction = nx_direction + z_direction
-    xz_direction = x_direction + z_direction
+        np.fill_diagonal(x_direction, True)
+        np.fill_diagonal(nx_direction, True)
+        np.fill_diagonal(y_direction, True)
+        np.fill_diagonal(nx_direction, True)
+        np.fill_diagonal(z_direction, True)
+        np.fill_diagonal(nz_direction, True)
 
-    # Z edges
-    nxny_direction = nx_direction + ny_direction
-    nxy_direction = nx_direction + y_direction
-    xny_direction = x_direction + ny_direction
-    xy_direction = x_direction + y_direction
+        # X edges
+        nynz_direction = ny_direction + nz_direction
+        nyz_direction = ny_direction + z_direction
+        ynz_direction = y_direction + nz_direction
+        yz_direction = y_direction + z_direction
 
-    # Stack all 12 directions
-    directions = np.dstack([nynz_direction, nyz_direction, ynz_direction, yz_direction,
-                            nxnz_direction, xnz_direction, nxz_direction, xz_direction,
-                            nxny_direction, nxy_direction, xny_direction, xy_direction])
+        # Y edges
+        nxnz_direction = nx_direction + nz_direction
+        xnz_direction = x_direction + nz_direction
+        nxz_direction = nx_direction + z_direction
+        xz_direction = x_direction + z_direction
 
-    valid_edg = valid_edges[valid_voxels][:, :]
-    direction_each_edge = (directions * valid_edg)
+        # Z edges
+        nxny_direction = nx_direction + ny_direction
+        nxy_direction = nx_direction + y_direction
+        xny_direction = x_direction + ny_direction
+        xy_direction = x_direction + y_direction
 
-    # Pick only edges with more than 2 voxels nearby
-    three_neighbours = (directions * valid_edg).sum(axis=0) == 3
-    matrix_to_right_C_order = np.transpose((direction_each_edge * three_neighbours), (1, 2, 0))
-    indices = np.where(matrix_to_right_C_order)[2].reshape(-1, 3)
-    return indices
+        # Stack all 12 directions
+        directions = np.dstack([nynz_direction, nyz_direction, ynz_direction, yz_direction,
+                                nxnz_direction, xnz_direction, nxz_direction, xz_direction,
+                                nxny_direction, nxy_direction, xny_direction, xy_direction])
+
+        valid_edg = valid_edges[valid_voxels][:, :]
+        direction_each_edge = (directions * valid_edg)
+
+        # Pick only edges with more than 2 voxels nearby
+        three_neighbours = (directions * valid_edg).sum(axis=0) == 3
+        matrix_to_right_C_order = np.transpose((direction_each_edge * three_neighbours), (1, 2, 0))
+        indices = np.where(matrix_to_right_C_order)[2].reshape(-1, 3)
+
+        indices_shift = indices + shift
+        indices_arrays.append(indices_shift)
+        shift = indices_shift.max() + 1
+
+    indices_arrays_f = np.vstack(indices_arrays)
+    return indices_arrays_f
 
 
 def generate_dual_contouring_vertices(dc_data: DualContouringData, debug: bool = False):
@@ -150,7 +164,6 @@ def generate_dual_contouring_vertices(dc_data: DualContouringData, debug: bool =
     edges_normals = np.zeros((n_edges, 15, 3))
     edges_normals[:, :12][valid_edges] = gradients
 
-    
     bias_xyz = np.copy(edges_xyz[:, :12])
     isclose = np.isclose(bias_xyz, 0)
     bias_xyz[isclose] = np.nan  # np zero values to nans
@@ -176,11 +189,11 @@ def generate_dual_contouring_vertices(dc_data: DualContouringData, debug: bool =
     term2 = np.linalg.inv(term1)
     term3 = np.einsum("ijk,ik->ij", np.transpose(A, (0, 2, 1)), b)
     vertices = np.einsum("ijk, ij->ik", term2, term3)
-    
+
     if debug:
         dc_data.bias_center_mass = edges_xyz[:, 12:].reshape(-1, 3)
         dc_data.bias_normals = edges_normals[:, 12:].reshape(-1, 3)
-    
+
     return vertices
 
 
