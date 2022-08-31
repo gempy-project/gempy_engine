@@ -1,5 +1,10 @@
+import json
+
+import fastapi
 import numpy as np
+from fastapi.openapi.models import Response
 from pydantic import BaseModel
+from starlette.responses import FileResponse, StreamingResponse
 
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data import InterpolationOptions, SurfacePoints, Orientations
@@ -7,7 +12,9 @@ from gempy_engine.core.data.grid import Grid, RegularGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor, TensorsStructure, StacksStructure, StackRelationType
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
+from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.kernel_classes.server.input_parser import GemPyInput
+from ...core.data.solutions import Solutions
 
 try:
     # noinspection PyUnresolvedReferences
@@ -92,25 +99,42 @@ default_input_data_descriptor: InputDataDescriptor = InputDataDescriptor(
 
 
 @app.get("/")
-def compute_gempy_model():
-    vertex_n_10 = _compute_model(default_interpolation_input, default_interpolation_options, default_input_data_descriptor)
-    return {"Hello": "World - vertex_n_10: {}".format(vertex_n_10)}
-
-
-@app.get("/test_parsing")
-def parse_data(input_json: GemPyInput):
+def compute_gempy_model(input_json: GemPyInput):
+    import subsurface
     
     input_json.interpolation_input.grid = default_grid # ! Hack inject default grid:
     
     interpolation_input: InterpolationInput = InterpolationInput.from_schema(input_json.interpolation_input)
     input_data_descriptor: InputDataDescriptor = InputDataDescriptor.from_schema(input_json.input_data_descriptor)
 
-    vertex_n_10 = _compute_model(interpolation_input, default_interpolation_options, input_data_descriptor)
-    return {"Hello": "World - vertex_n_10: {}".format(vertex_n_10)}
+    solutions: Solutions = _compute_model(interpolation_input, default_interpolation_options, input_data_descriptor)
+
+    meshes: list[DualContouringMesh] = solutions.dc_meshes
+    vertex_array = np.concatenate([meshes[i].vertices for i in range(len(meshes))])
+    simplex_array = np.concatenate([meshes[i].edges for i in range(len(meshes))])
+
+    unstructured_data = subsurface.UnstructuredData.from_array(
+        vertex=vertex_array,
+        cells=simplex_array,
+        #  cells_attr=pd.DataFrame(ids_array, columns=['id'])  TODO: We have to create an array with the shape of simplex array with the id of each simplex
+    )
+
+    body, header = unstructured_data.to_binary()
+    
+    # encode json header and insert it into the binary body
+    header_json = json.dumps(header)
+    header_json_bytes = header_json.encode('utf-8')
+    header_json_length = len(header_json_bytes)
+    header_json_length_bytes = header_json_length.to_bytes(4, byteorder='big')
+    body = header_json_length_bytes + header_json_bytes + body
+        
+    response = fastapi.Response(content=body, media_type='application/octet-stream')
+    return response
 
 
 # noinspection DuplicatedCode
-def _compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions, structure: InputDataDescriptor):
+def _compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions, structure: InputDataDescriptor) \
+        -> Solutions:
     n_oct_levels = options.number_octree_levels
     solutions = compute_model(interpolation_input, options, structure)
 
@@ -121,4 +145,4 @@ def _compute_model(interpolation_input: InterpolationInput, options: Interpolati
         plot_dc_meshes(p, solutions.dc_meshes[0])
         p.show()
 
-    return solutions.dc_meshes[0].vertices[10]
+    return solutions
