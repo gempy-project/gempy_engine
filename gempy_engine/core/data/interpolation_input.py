@@ -15,7 +15,8 @@ class InterpolationInput:
     surface_points: SurfacePoints
     orientations: Orientations
     grid: Grid
-    unit_values: np.ndarray
+    
+    _unit_values: Optional[np.ndarray] = None
     segmentation_function: Optional[callable] = None  # * From scalar field to values
     
     _all_surface_points: SurfacePoints = None
@@ -26,9 +27,24 @@ class InterpolationInput:
     stack_relation: StackRelationType = StackRelationType.ERODE  # ? Should be here or in the descriptor
     # endregion
     
+    def __init__(self, surface_points: SurfacePoints, orientations: Orientations, grid: Grid,
+                 unit_values: Optional[np.ndarray] = None, segmentation_function: Optional[callable] = None,
+                 fault_values: Optional[FaultsData] = None, stack_relation: StackRelationType = StackRelationType.ERODE):
+        self.surface_points = surface_points
+        self.orientations = orientations
+        self.grid = grid
+        self.unit_values = unit_values
+        self.segmentation_function = segmentation_function
+        self.fault_values = fault_values
+        self.stack_relation = stack_relation
+    
     @classmethod
     def from_interpolation_input_subset(cls, all_interpolation_input: "InterpolationInput",
                                         stack_structure: StacksStructure) -> "InterpolationInput":
+        """
+        This is the constructor used to extract subsets for each feature/series
+        """
+        
         stack_number = stack_structure.stack_number
 
         sp = SurfacePoints.from_suraface_points_subset(all_interpolation_input.surface_points, stack_structure)
@@ -86,3 +102,15 @@ class InterpolationInput:
     @all_surface_points.setter
     def all_surface_points(self, value):
         self._all_surface_points = value
+
+    @property
+    def unit_values(self):
+        if self._unit_values is None:
+            return np.arange(1000, dtype=np.int32) + 1
+        else:
+            return self._unit_values
+    
+    @unit_values.setter
+    def unit_values(self, value):
+        self._unit_values = value
+        
