@@ -1,0 +1,13 @@
+GET http://localhost:8000/
+Accept: application/json
+Content-Type: application/json
+
+< ./_old_example.json
+
+### 
+GET http://localhost:8000/test_parsing
+Accept: application/json
+Content-Type: application/json
+
+< ./example.json
+###

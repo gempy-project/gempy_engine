@@ -8,6 +8,7 @@ from . import SurfacePoints, Orientations
 from .grid import Grid
 from .input_data_descriptor import StackRelationType, StacksStructure
 from .kernel_classes.faults import FaultsData
+from .kernel_classes.server.input_parser import InterpolationInputSchema
 
 
 @dataclass
@@ -70,6 +71,14 @@ class InterpolationInput:
         ii_subset.all_surface_points = all_interpolation_input.surface_points
         
         return ii_subset
+    
+    @classmethod
+    def from_schema(cls, schema: InterpolationInputSchema) -> "InterpolationInput":
+        return cls(
+            surface_points=SurfacePoints.from_schema(schema.surface_points),
+            orientations=Orientations.from_schema(schema.orientations),
+            grid=schema.grid,
+        )
     
     @property
     def slice_feature(self):

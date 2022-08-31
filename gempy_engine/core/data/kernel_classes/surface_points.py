@@ -5,6 +5,7 @@ import numpy as np
 
 from gempy_engine.core.data import TensorsStructure
 from gempy_engine.core.data.input_data_descriptor import StacksStructure
+from gempy_engine.core.data.kernel_classes.server.input_parser import SurfacePointsSchema
 from gempy_engine.modules.kernel_constructor._structs import tensor_types
 
 
@@ -13,6 +14,7 @@ class SurfacePoints:
     sp_coords: np.ndarray
     nugget_effect_scalar: Union[np.ndarray, float] = 0.0000001
 
+    # TODO (Sep 2022): Pretty sure this has to be private
     slice_feature: Optional[slice] = slice(None, None)  # * Used to slice the surface points values of the interpolation (grid.values)
     
     def __post_init__(self):
@@ -21,6 +23,10 @@ class SurfacePoints:
 
     def __hash__(self):
         return hash(5) # TODO: These should be self.__repr__ instead of 5
+    
+    @classmethod
+    def from_schema(cls, schema: SurfacePointsSchema):
+        return cls(sp_coords=np.array(schema.sp_coords))
     
     @classmethod
     def from_suraface_points_subset(cls, surface_points: "SurfacePoints", data_structure: StacksStructure):

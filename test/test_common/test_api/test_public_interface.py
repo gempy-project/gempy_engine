@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data import InterpolationOptions, SurfacePoints, Orientations

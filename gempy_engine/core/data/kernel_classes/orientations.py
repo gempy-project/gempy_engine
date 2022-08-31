@@ -6,6 +6,7 @@ import numpy as np
 
 from gempy_engine.core.data import TensorsStructure
 from gempy_engine.core.data.input_data_descriptor import StacksStructure
+from gempy_engine.core.data.kernel_classes.server.input_parser import OrientationsSchema
 
 tensor_types = BackendTensor.tensor_types
 
@@ -30,6 +31,10 @@ class Orientations:
         # TODO: Add nugget selection
         o = Orientations(orientations.dip_positions[cum_o_l0:cum_o_l1], orientations.dip_gradients[cum_o_l0:cum_o_l1])
         return o
+
+    @classmethod
+    def from_schema(cls, schema: OrientationsSchema):
+        return cls(dip_positions=np.array(schema.dip_positions), dip_gradients=np.array(schema.dip_gradients))
     
     @property
     def gx(self):
