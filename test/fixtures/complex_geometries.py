@@ -30,17 +30,22 @@ def one_fault_model():
     dip_gradients_ = calculate_gradient(orientations["dip"], orientations["azimuth"], orientations["polarity"])
     dip_gradients = np.vstack(dip_gradients_).T
 
-    spi = SurfacePoints(sp_coords)
-    ori = Orientations(dip_postions, dip_gradients)
+    spi: SurfacePoints = SurfacePoints(sp_coords)
+    ori: Orientations = Orientations(dip_postions, dip_gradients)
     ids = np.array([1, 2, 3, 4, 5, 6])
 
-    #resolution = [40, 2, 40]
     resolution = [4,4,4]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
-    regular_grid = RegularGrid(extent, resolution)
-    grid = Grid(regular_grid.values, regular_grid=regular_grid)
+    regular_grid: RegularGrid = RegularGrid(extent, resolution)
+    grid: Grid = Grid(regular_grid.values, regular_grid=regular_grid)
 
-    interpolation_input = InterpolationInput(spi, ori, grid, ids)
+    interpolation_input: InterpolationInput = InterpolationInput(
+        surface_points=spi,
+        orientations=ori,
+        grid=grid,
+        unit_values=ids
+    )
+        
     # endregion
 
     # region Structure
@@ -52,7 +57,7 @@ def one_fault_model():
          ]
     )
 
-    stack_structure = StacksStructure(
+    stack_structure: StacksStructure = StacksStructure(
         number_of_points_per_stack=np.array([9, 24, 37]),
         number_of_orientations_per_stack=np.array([1, 4, 6]),
         number_of_surfaces_per_stack=np.array([1, 2, 3]),
@@ -66,8 +71,6 @@ def one_fault_model():
 
     # region InterpolationOptions
 
-    # range_ = 1732 / rescaling_factor
-    # c_o = 71428.57 / rescaling_factor
 
     range_ = 7**2 # ? Since we are not getting the square root should we also square this? 
     c_o = 1

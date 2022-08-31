@@ -172,7 +172,7 @@ def test_reshaping():
     
 
 # noinspection PyUnreachableCode
-def test_one_fault_model(one_fault_model, n_oct_levels=4):
+def test_one_fault_model(one_fault_model, n_oct_levels=3):
     """
     300 MB 4 octree levels and no gradient
 
@@ -221,7 +221,7 @@ def test_one_fault_model(one_fault_model, n_oct_levels=4):
         plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
 
-    if True:
+    if False:
         plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
         plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)

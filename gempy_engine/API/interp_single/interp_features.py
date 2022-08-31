@@ -16,7 +16,7 @@ from ._interp_scalar_field import Buffer, interpolate_scalar_field
 from ._interp_single_feature import interpolate_feature, input_preprocess
 from ._octree_generation import interpolate_on_octree
 
-#@profile
+
 def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options: data.InterpolationOptions,
                                 data_descriptor: InputDataDescriptor) -> List[OctreeLevel]:
     n_levels = options.number_octree_levels

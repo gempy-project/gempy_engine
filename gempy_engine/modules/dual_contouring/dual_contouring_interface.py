@@ -82,7 +82,9 @@ def triangulate_dual_contouring(dc_data: DualContouringData):
         valid_voxels = all_valid_voxels[i]
         valid_edges = all_valid_edges[i]
 
+        # region direction
         # ! This assumes a vertex per voxel
+        
         dx, dy, dz = dxdydz
         x_1 = centers_xyz[valid_voxels][:, None, :]
         x_2 = centers_xyz[valid_voxels][None, :, :]
@@ -132,7 +134,9 @@ def triangulate_dual_contouring(dc_data: DualContouringData):
         directions = np.dstack([nynz_direction, nyz_direction, ynz_direction, yz_direction,
                                 nxnz_direction, xnz_direction, nxz_direction, xz_direction,
                                 nxny_direction, nxy_direction, xny_direction, xy_direction])
-
+        
+        # endregion
+        
         valid_edg = valid_edges[valid_voxels][:, :]
         direction_each_edge = (directions * valid_edg)
 

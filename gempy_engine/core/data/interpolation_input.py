@@ -16,9 +16,9 @@ class InterpolationInput:
     orientations: Orientations
     grid: Grid
     unit_values: np.ndarray
-    segmentation_function: Optional[callable] = None
+    segmentation_function: Optional[callable] = None  # * From scalar field to values
     
-    _all_surface_points: SurfacePoints = None#dataclasses.field(init=True, repr=False, default=None)
+    _all_surface_points: SurfacePoints = None
     
     # region per model
     
