@@ -19,7 +19,7 @@ from ...core.data.solutions import Solutions
 try:
     # noinspection PyUnresolvedReferences
     import pyvista as pv
-    from ...helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
+    from test.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_pyvista
 except ImportError:
     plot_pyvista = False
 
@@ -53,7 +53,8 @@ orientations: Orientations = Orientations(
 )
 
 regular_grid = RegularGrid(
-    extent=[0.25, .75, 0.25, .75, 0.25, .75],
+    #extent=[0.25, .75, 0.25, .75, 0.25, .75],
+    extent=[0, 10,0,10,0,10],
     regular_grid_shape=[2, 2, 3]
 )
 default_grid: Grid = Grid.from_regular_grid(regular_grid)
@@ -69,10 +70,11 @@ default_interpolation_input: InterpolationInput = InterpolationInput(
 # region InterpolationOptions
 
 default_interpolation_options: InterpolationOptions = InterpolationOptions(
-    range=4.166666666667,  # TODO: have constructor from RegularGrid
-    c_o=0.1428571429,  # TODO: This should be a property
-    number_octree_levels=3,
-    kernel_function=AvailableKernelFunctions.cubic
+    range=40.166666666667,  # TODO: have constructor from RegularGrid
+    c_o=1.1428571429,  # TODO: This should be a property
+    number_octree_levels=4,
+    kernel_function=AvailableKernelFunctions.cubic,
+    dual_contouring=True
 )
 
 # endregion
@@ -93,14 +95,14 @@ default_input_data_descriptor: InputDataDescriptor = InputDataDescriptor(
     tensors_structure=tensor_struct,
     stack_structure=stack_structure
 )
-
-
 # endregion
 
 
-@app.get("/")
+@app.post("/")
 def compute_gempy_model(input_json: GemPyInput):
     import subsurface
+    import pandas as pd
+    print("Running GemPy Engine")
     
     input_json.interpolation_input.grid = default_grid # ! Hack inject default grid:
     
@@ -110,13 +112,27 @@ def compute_gempy_model(input_json: GemPyInput):
     solutions: Solutions = _compute_model(interpolation_input, default_interpolation_options, input_data_descriptor)
 
     meshes: list[DualContouringMesh] = solutions.dc_meshes
-    vertex_array = np.concatenate([meshes[i].vertices for i in range(len(meshes))])
-    simplex_array = np.concatenate([meshes[i].edges for i in range(len(meshes))])
-
+    n_meshes = len(meshes)
+    print(f"Number of meshes: {n_meshes}")
+    
+    vertex_array = np.concatenate([meshes[i].vertices for i in range(n_meshes)])
+    simplex_array = np.concatenate([meshes[i].edges for i in range(n_meshes)])
+    ids_array = np.ones(simplex_array.shape[0])
+    l0 = 0
+    id = 1
+    
+    for mesh in meshes:
+        l1 = l0 + mesh.edges.shape[0]
+        ids_array[l0:l1] = id
+        l0 = l1
+        id += 1
+    
+    print("ids_array", ids_array)
+    
     unstructured_data = subsurface.UnstructuredData.from_array(
         vertex=vertex_array,
         cells=simplex_array,
-        #  cells_attr=pd.DataFrame(ids_array, columns=['id'])  TODO: We have to create an array with the shape of simplex array with the id of each simplex
+        cells_attr=pd.DataFrame(ids_array, columns=['id'])  # TODO: We have to create an array with the shape of simplex array with the id of each simplex
     )
 
     body, header = unstructured_data.to_binary()
@@ -125,7 +141,7 @@ def compute_gempy_model(input_json: GemPyInput):
     header_json = json.dumps(header)
     header_json_bytes = header_json.encode('utf-8')
     header_json_length = len(header_json_bytes)
-    header_json_length_bytes = header_json_length.to_bytes(4, byteorder='big')
+    header_json_length_bytes = header_json_length.to_bytes(4, byteorder='little')
     body = header_json_length_bytes + header_json_bytes + body
         
     response = fastapi.Response(content=body, media_type='application/octet-stream')
