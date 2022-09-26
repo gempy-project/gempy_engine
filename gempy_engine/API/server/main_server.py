@@ -54,8 +54,8 @@ orientations: Orientations = Orientations(
 
 regular_grid = RegularGrid(
     #extent=[0.25, .75, 0.25, .75, 0.25, .75],
-    extent=[0, 10,0,10,0,10],
-    regular_grid_shape=[2, 2, 3]
+    extent=[0, 20, 0, 20, 0, 20],
+    regular_grid_shape=[5, 5, 5]
 )
 default_grid: Grid = Grid.from_regular_grid(regular_grid)
 
@@ -103,32 +103,36 @@ def compute_gempy_model(input_json: GemPyInput):
     import subsurface
     import pandas as pd
     print("Running GemPy Engine")
-    
+
     input_json.interpolation_input.grid = default_grid # ! Hack inject default grid:
-    
+
     interpolation_input: InterpolationInput = InterpolationInput.from_schema(input_json.interpolation_input)
     input_data_descriptor: InputDataDescriptor = InputDataDescriptor.from_schema(input_json.input_data_descriptor)
+
+    print(input_data_descriptor.stack_structure.masking_descriptor)
+    print(input_data_descriptor.stack_structure)
 
     solutions: Solutions = _compute_model(interpolation_input, default_interpolation_options, input_data_descriptor)
 
     meshes: list[DualContouringMesh] = solutions.dc_meshes
     n_meshes = len(meshes)
     print(f"Number of meshes: {n_meshes}")
-    
+
     vertex_array = np.concatenate([meshes[i].vertices for i in range(n_meshes)])
     simplex_array = np.concatenate([meshes[i].edges for i in range(n_meshes)])
     ids_array = np.ones(simplex_array.shape[0])
     l0 = 0
     id = 1
-    
+
     for mesh in meshes:
+        print(f"Number of points: {mesh.edges.shape[0]}")
         l1 = l0 + mesh.edges.shape[0]
         ids_array[l0:l1] = id
         l0 = l1
         id += 1
-    
+
     print("ids_array", ids_array)
-    
+
     unstructured_data = subsurface.UnstructuredData.from_array(
         vertex=vertex_array,
         cells=simplex_array,
@@ -136,14 +140,20 @@ def compute_gempy_model(input_json: GemPyInput):
     )
 
     body, header = unstructured_data.to_binary()
-    
+    with open('test.json', 'w') as outfile:
+        json.dump(header, outfile)
+
+    new_file = open("test.le", "wb")
+    new_file.write(body)
+    print("Wrote files.")
+
     # encode json header and insert it into the binary body
     header_json = json.dumps(header)
     header_json_bytes = header_json.encode('utf-8')
     header_json_length = len(header_json_bytes)
     header_json_length_bytes = header_json_length.to_bytes(4, byteorder='little')
     body = header_json_length_bytes + header_json_bytes + body
-        
+
     response = fastapi.Response(content=body, media_type='application/octet-stream')
     return response
 
@@ -154,11 +164,13 @@ def _compute_model(interpolation_input: InterpolationInput, options: Interpolati
     n_oct_levels = options.number_octree_levels
     solutions = compute_model(interpolation_input, options, structure)
 
-    if plot_pyvista or False:
+    if plot_pyvista or True:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
-        plot_dc_meshes(p, solutions.dc_meshes[0])
+        for mesh in solutions.dc_meshes:
+            plot_dc_meshes(p, dc_mesh=mesh)
+        #plot_dc_meshes(p, solutions.dc_meshes[1])
         p.show()
 
     return solutions
