@@ -9,5 +9,5 @@ POST http://localhost:8000/
 Accept: application/json
 Content-Type: application/json
 
-< ./GemPyInput.json
+< ./2features_inclined.json
 ###
