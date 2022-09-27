@@ -2,6 +2,7 @@ import json
 
 import fastapi
 import numpy as np
+import subsurface.visualization
 from fastapi.openapi.models import Response
 from pydantic import BaseModel
 from starlette.responses import FileResponse, StreamingResponse
@@ -138,14 +139,19 @@ def compute_gempy_model(input_json: GemPyInput):
         cells=simplex_array,
         cells_attr=pd.DataFrame(ids_array, columns=['id'])  # TODO: We have to create an array with the shape of simplex array with the id of each simplex
     )
+    print(unstructured_data)
+    obj = subsurface.TriSurf(unstructured_data)
+    pv_unstruct = subsurface.visualization.to_pyvista_mesh(obj)
+    print(pv_unstruct)
+    subsurface.visualization.pv_plot([pv_unstruct])
 
     body, header = unstructured_data.to_binary()
-    with open('test.json', 'w') as outfile:
-        json.dump(header, outfile)
-
-    new_file = open("test.le", "wb")
-    new_file.write(body)
-    print("Wrote files.")
+    # with open('test.json', 'w') as outfile:
+    #     json.dump(header, outfile)
+    #
+    # new_file = open("test.le", "wb")
+    # new_file.write(body)
+    # print("Wrote files.")
 
     # encode json header and insert it into the binary body
     header_json = json.dumps(header)
@@ -153,6 +159,8 @@ def compute_gempy_model(input_json: GemPyInput):
     header_json_length = len(header_json_bytes)
     header_json_length_bytes = header_json_length.to_bytes(4, byteorder='little')
     body = header_json_length_bytes + header_json_bytes + body
+    # apifile = open("apibinary.le", "wb")
+    # apifile.write(body)
 
     response = fastapi.Response(content=body, media_type='application/octet-stream')
     return response
@@ -170,7 +178,6 @@ def _compute_model(interpolation_input: InterpolationInput, options: Interpolati
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
         for mesh in solutions.dc_meshes:
             plot_dc_meshes(p, dc_mesh=mesh)
-        #plot_dc_meshes(p, solutions.dc_meshes[1])
         p.show()
 
     return solutions
