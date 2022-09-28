@@ -114,25 +114,52 @@ def compute_gempy_model(input_json: GemPyInput):
     print(input_data_descriptor.stack_structure)
 
     solutions: Solutions = _compute_model(interpolation_input, default_interpolation_options, input_data_descriptor)
-
     meshes: list[DualContouringMesh] = solutions.dc_meshes
     n_meshes = len(meshes)
-    print(f"Number of meshes: {n_meshes}")
+    for i in range(n_meshes):
+        meshes[i].edges.dump(f"edges_mesh{i}1series.json")
+        meshes[i].vertices.dump(f"vertices_mesh{i}1series.json")
+
+    vtk_edges = np.concatenate([np.insert(meshes[i].edges.reshape(-1, 3), 0, 3, axis=1).ravel() for i in range(n_meshes)])
 
     vertex_array = np.concatenate([meshes[i].vertices for i in range(n_meshes)])
     simplex_array = np.concatenate([meshes[i].edges for i in range(n_meshes)])
+    unc, count = np.unique(simplex_array, axis=0, return_counts=True)
+
+    if unc[count > 1][0][0] == 0:
+        simplex_array = meshes[0].edges
+        for i in range(n_meshes):
+            adder = 0
+            if i == 0:
+                continue
+            elif meshes[i].edges[0,0] == meshes[0].edges[0,0]:
+                adder = np.max(meshes[i-1].edges) + 1
+                addmesh = meshes[i].edges + adder
+                simplex_array = np.append(simplex_array, addmesh) ## TODO fix the simplex array as this ugly code fails
+
+    # for i in range(n_meshes):
+    #     adder = 0
+    #     if i == 0:
+    #         continue
+    #     elif (i > 0 and meshes[i].edges[0,0] == meshes[0].edges[0,0]):
+    #         print("HELLO HERE!")
+    #         adder = (np.max(meshes[i-1].edges) + 1)
+    #         addmesh = meshes[i].edges + adder
+    #         simplex_array = np.append(simplex_array_0, addmesh)
+    #     else:
+    #         simplex_array = np.concatenate(meshes[i].edges)
+    # print(f"simplex array: {simplex_array}")
+
     ids_array = np.ones(simplex_array.shape[0])
     l0 = 0
     id = 1
 
     for mesh in meshes:
-        print(f"Number of points: {mesh.edges.shape[0]}")
         l1 = l0 + mesh.edges.shape[0]
         ids_array[l0:l1] = id
         l0 = l1
         id += 1
-
-    print("ids_array", ids_array)
+    ids_array.dump("ids.json")
 
     unstructured_data = subsurface.UnstructuredData.from_array(
         vertex=vertex_array,
@@ -140,6 +167,8 @@ def compute_gempy_model(input_json: GemPyInput):
         cells_attr=pd.DataFrame(ids_array, columns=['id'])  # TODO: We have to create an array with the shape of simplex array with the id of each simplex
     )
     print(unstructured_data)
+    unxarray = unstructured_data.to_xarray()
+    unxarray.to_netcdf("test_1series.nc")
     obj = subsurface.TriSurf(unstructured_data)
     pv_unstruct = subsurface.visualization.to_pyvista_mesh(obj)
     print(pv_unstruct)
