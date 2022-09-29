@@ -125,6 +125,7 @@ def compute_gempy_model(input_json: GemPyInput):
     vertex_array = np.concatenate([meshes[i].vertices for i in range(n_meshes)])
     simplex_array = np.concatenate([meshes[i].edges for i in range(n_meshes)])
     unc, count = np.unique(simplex_array, axis=0, return_counts=True)
+    print(f"edges shape {simplex_array.shape}")
 
     if unc[count > 1][0][0] == 0:
         simplex_array = meshes[0].edges
@@ -135,8 +136,9 @@ def compute_gempy_model(input_json: GemPyInput):
             elif meshes[i].edges[0,0] == meshes[0].edges[0,0]:
                 adder = np.max(meshes[i-1].edges) + 1
                 addmesh = meshes[i].edges + adder
-                simplex_array = np.append(simplex_array, addmesh) ## TODO fix the simplex array as this ugly code fails
+                simplex_array = np.append(simplex_array, addmesh, axis=0) 
 
+    print(f"edges shape {simplex_array.shape}")
     # for i in range(n_meshes):
     #     adder = 0
     #     if i == 0:
