@@ -58,7 +58,7 @@ def plot_vector(p: pv.Plotter, xyz, gradients):
 
 def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, vertices=None, indices=None,
                  xyz_on_edge=None, gradients=None, a=None, b=None, v_just_points=None,
-                 plot_label=False, delaunay_3d=False, scalar=None):
+                 plot_label=False, delaunay_3d=False, scalar=None, plot=True):
     p = pv.Plotter()
 
     # Plot Regular grid Octree
@@ -74,7 +74,7 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
         if scalar is None:
             regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
             foo = regular_grid_mesh.threshold([0, 10])
-            p.add_mesh(foo, show_edges=False, opacity=.2, cmap="tab10")
+            p.add_mesh(foo, show_edges=True, opacity=.2, cmap="tab10")
         else:
             regular_grid_mesh["lith"] = scalar
             regular_grid_mesh = regular_grid_mesh.threshold([50, 1000000])
@@ -128,4 +128,7 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
             p.add_mesh(pv.PolyData(vertices), color=colors[e], point_size=1.0, render_points_as_spheres=True)
 
     p.add_axes()
-    p.show()
+    if plot:
+        p.show()
+    else:
+        return p

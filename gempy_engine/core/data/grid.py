@@ -159,6 +159,8 @@ class Grid:
     regular_grid: RegularGrid = None
     custom_grid: Dict[str, np.ndarray] = None
 
+    debug_vals = None
+
     def __post_init__(self):
         if self.len_grids is None:
             self.len_grids = [self.values.shape[0]]

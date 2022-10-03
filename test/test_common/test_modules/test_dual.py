@@ -7,7 +7,7 @@ from gempy_engine.API.interp_single._interp_scalar_field import _evaluate_sys_eq
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields
 from gempy_engine.API.model.model_api import compute_model
-from gempy_engine.core.data.grid import Grid
+from gempy_engine.core.data.grid import Grid, RegularGrid
 import numpy as np
 import os
 
@@ -76,7 +76,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     temp_ids[valid_voxels] = 5
     octree_list[-1].last_output_center.ids_block = temp_ids  # paint valid voxels
 
-    if plot_pyvista or False:
+    if plot_pyvista or True:
         output_corners: InterpOutput = last_octree_level.outputs_corners[-1]
         vertices = output_corners.grid.values
         intersection_points = intersection_xyz
@@ -86,6 +86,157 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
                                               a=center_mass, b=normals,
                                               xyz_on_edge=intersection_xyz,
                                               v_just_points=vertices, vertices=intersection_points)
+        # endregion
+
+
+def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3d_octree):
+    def simple_grid_3d_octree_regular():
+        import dataclasses
+        resolution = [2, 2, 2]
+        extent = [0.25, .75, 0.25, .75, 0.25, .75]
+
+        regular_grid = RegularGrid(extent, resolution)
+        grid = Grid.from_regular_grid(regular_grid)
+        return dataclasses.replace(grid)
+
+    # region Test find_intersection_on_edge
+    spi, ori_i, options, data_shape = simple_model
+
+    options.number_octree_levels = 2
+
+    ids = np.array([1, 2])
+    grid_0_centers = simple_grid_3d_octree_regular()
+    interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
+
+    octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
+
+    last_octree_level: OctreeLevel = octree_list[-1]
+
+    intersection_xyz, valid_edges = get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
+    interpolation_input.grid = Grid(intersection_xyz)
+    output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
+
+    dc_data = DualContouringData(
+        xyz_on_edge=intersection_xyz,
+        valid_edges=valid_edges,
+        xyz_on_centers=last_octree_level.grid_centers.values,
+        dxdydz=last_octree_level.grid_centers.dxdydz,
+        exported_fields_on_edges=output_on_edges[0].exported_fields,
+        n_surfaces=data_shape.tensors_structure.n_surfaces
+    )
+
+    gradients = dc_data.gradients
+
+    dc_meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data)
+
+    dc_data = dc_meshes[0].dc_data
+    valid_voxels = dc_data.valid_voxels
+
+    # Mark active voxels
+    temp_ids = last_octree_level.last_output_center.ids_block  # ! I need this because setters in python sucks
+    temp_ids[valid_voxels] = 5
+    last_octree_level.last_output_center.ids_block = temp_ids  # paint valid voxels
+
+    # * ---- New code Here ----
+    # # TODO: Create regular grid that is False left and True on right
+
+    foo = octree_list[1].grid_centers.debug_vals[4]
+    bool_idx = octree_list[1].grid_centers.debug_vals[3]
+
+    x_foo = np.zeros(8, dtype=bool)
+    x_foo[4:] = True
+    x_dir_lvl0 = np.repeat(x_foo[foo], 8)
+    x_foo_lvl2 = np.tile(x_foo, 8)
+    binary_x = np.vstack(( bool_idx[:, 0], x_dir_lvl0))
+
+    y_foo = np.zeros(8, dtype=bool)
+    y_foo[[2, 3, 6, 7]] = True
+    y_dir_lvl0 = np.tile(np.repeat(y_foo, 4), 2)
+    y_foo_lvl2 = np.repeat(np.tile(y_foo, 4), 2)
+
+    y_dir_rep = np.repeat(y_foo[foo], 8)
+    binary_y = np.vstack((bool_idx[:, 1], y_dir_rep))
+
+    z_foo = np.zeros(8, dtype=bool)
+    z_foo[1::2] = True
+    z_dir_lvl0 = np.tile(z_foo, 8)
+    z_foo_lvl2 = np.repeat(z_foo, 8)
+    z_dir_rep = np.repeat(z_foo[foo], 8)
+    binary_z = np.vstack((bool_idx[:, 2], z_dir_rep))
+
+    bool_to_int_x = np.packbits(binary_x, axis=0, bitorder="little")
+    bool_to_int_y = np.packbits(binary_y, axis=0, bitorder="little")
+    bool_to_int_z = np.packbits(binary_z, axis=0, bitorder="little")
+
+    stacked = np.vstack((bool_to_int_x, bool_to_int_y, bool_to_int_z)).T
+
+    valid_voxels_idx = stacked[valid_voxels]
+    valid_edges_voxels = valid_edges[valid_voxels]
+
+    # region X edges
+    n = 10
+    
+    first_edge = valid_edges_voxels[:, n]
+    first_edge_idx = valid_voxels_idx[first_edge]
+    idx_2 = first_edge_idx[9, 2]
+    idx_0 = first_edge_idx[9, 0] + 1
+    idx_1 = first_edge_idx[9, 1] - 1
+    
+    idx_a = np.array([2, 1, 1])
+    idx_b = np.array([3, 1,1])
+    idx_c = np.array([2, 0, 1])
+    i_0 = np.where((valid_voxels_idx == idx_a).sum(axis=1) == 3)
+    i_1 = np.where((valid_voxels_idx == idx_b).sum(axis=1) == 3)
+    i_2 = np.where((valid_voxels_idx == idx_c).sum(axis=1) == 3)  
+    
+    # endregion
+
+    # region Y edges
+
+    # endregion
+
+    # TODO: [x] Plot lables on the vertex
+
+    # TODO: Plot the edges
+    n_edges = valid_edges.shape[0]
+    edges_xyz = np.zeros((n_edges, 15, 3))
+    edges_xyz[:, :12][valid_edges] = intersection_xyz
+    valid_edges_xyz = edges_xyz[valid_voxels] 
+    
+    
+    a_point_on_edge_n = valid_edges_xyz[:, n]
+    # remove zeros rows
+    a_point_on_edge_n = a_point_on_edge_n[~np.all(a_point_on_edge_n == 0, axis=1)]    
+    
+    if plot_pyvista or True:
+        output_corners: InterpOutput = last_octree_level.outputs_corners[-1]
+        voxels_corners = output_corners.grid.values
+        intersection_points = intersection_xyz
+        center_mass = dc_data.bias_center_mass
+        normals = dc_data.bias_normals
+        p = helper_functions_pyvista.plot_pyvista(octree_list,
+                                                  dc_meshes=dc_meshes,
+                                                  # gradients=gradients,
+                                                  a=center_mass,
+                                                  # b=normals,
+                                                  xyz_on_edge=intersection_xyz,
+                                                  v_just_points=a_point_on_edge_n,
+                                                  vertices=intersection_points,
+                                                  plot=False
+                                                  )
+        # Convert stacked array row in list of strings
+        all_labels = [str(row) for row in valid_voxels_idx]
+        
+        labels = [str(row) for row in first_edge_idx]
+    
+        #p.add_point_labels(dc_meshes[0].vertices, all_labels, point_size=5, font_size=10)\
+        
+        p.add_point_labels(a_point_on_edge_n, labels, point_size=5, font_size=10, point_color="red", render_points_as_spheres=True)
+        
+        fancy_mesh = pv.PolyData(dc_meshes[0].vertices, np.array([3, i_0[0][0], i_1[0][0], i_2[0][0]]))
+        p.add_mesh(fancy_mesh, silhouette=True, color="red", show_edges=True)
+        
+        p.show()
         # endregion
 
 
@@ -157,7 +308,7 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     ids = np.array([1, 2])
     grid_0_centers = copy.deepcopy(simple_grid_3d_octree)
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
-    
+
     options.number_octree_levels = 5
     octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
@@ -346,7 +497,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     temp_ids = octree_list[-1].last_output_center.ids_block  # ! I need this because setters in python sucks
     temp_ids[valid_voxels] = 5
     octree_list[-1].last_output_center.ids_block = temp_ids  # paint valid voxels
-    
+
     dc_data = DualContouringData(
         xyz_on_edge=xyz_on_edge,
         xyz_on_centers=grid_centers.values,
@@ -355,7 +506,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
         exported_fields_on_edges=None,
         n_surfaces=data_shape.tensors_structure.n_surfaces
     )
-    
+
     indices = triangulate_dual_contouring(dc_data)
     # endregion
 
@@ -460,7 +611,7 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
         exported_fields_on_edges=None,
         n_surfaces=data_shape.tensors_structure.n_surfaces
     )
-    
+
     indices = triangulate_dual_contouring(dc_data)
     # endregion
 
@@ -545,9 +696,9 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
     shape: InputDataDescriptor = simple_model[3]
 
     interpolation_input = InterpolationInput(surface_points, orientations, grid, ids)
-        
+
     from gempy_engine.core.data.grid import Grid, RegularGrid
-    
+
     # region interpolate high res grid
     grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
     interpolation_input.grid = grid_high_res
@@ -563,7 +714,7 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
     result = res, exported_fields_high_res, grid_high_res.dxdydz
     values_block_high_res, scalar_high_res, dxdydz = result
     # endregion
-    
+
     from skimage.measure import marching_cubes
     import pyvista as pv
     vert, edges, _, _ = marching_cubes(scalar_high_res.scalar_field.reshape(resolution),
