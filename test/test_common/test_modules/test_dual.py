@@ -178,13 +178,18 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     
     first_edge = valid_edges_voxels[:, n]
     first_edge_idx = valid_voxels_idx[first_edge]
-    idx_2 = first_edge_idx[9, 2]
-    idx_0 = first_edge_idx[9, 0] + 1
-    idx_1 = first_edge_idx[9, 1] - 1
     
+    idx_2 = first_edge_idx[9, 2] # * Z idx since the intersection is happening in the Z direction
+    idx_0 = first_edge_idx[9, 0] + 1 # * +1 in x due to the specific edge
+    idx_1 = first_edge_idx[9, 1] - 1 # * -1 in y due to the specific edge
+    
+    
+    # * Compose valid voxeld idx for each voxel that compose the triangle 
     idx_a = np.array([2, 1, 1])
     idx_b = np.array([3, 1,1])
     idx_c = np.array([2, 0, 1])
+    
+    # * Find the arg of the 3 vectors of voxels idx to compose the triangle 
     i_0 = np.where((valid_voxels_idx == idx_a).sum(axis=1) == 3)
     i_1 = np.where((valid_voxels_idx == idx_b).sum(axis=1) == 3)
     i_2 = np.where((valid_voxels_idx == idx_c).sum(axis=1) == 3)  
