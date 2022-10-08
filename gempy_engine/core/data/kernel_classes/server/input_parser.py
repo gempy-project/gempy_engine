@@ -1,6 +1,9 @@
-from pydantic import BaseModel
-
-from gempy_engine.core.data.grid import Grid
+# Check if pydantic is installed and import it
+try:
+    from pydantic import BaseModel, Field
+except ImportError:
+    print("Pydantic is not installed. No server capabilities will be available.")
+    BaseModel = object
 
 
 class SurfacePointsSchema(BaseModel):
