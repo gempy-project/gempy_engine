@@ -56,7 +56,7 @@ orientations: Orientations = Orientations(
 regular_grid = RegularGrid(
     #extent=[0.25, .75, 0.25, .75, 0.25, .75],
     extent=[0, 20, 0, 20, 0, 20],
-    regular_grid_shape=[5, 5, 5]
+    regular_grid_shape=[3, 3, 3]
 )
 default_grid: Grid = Grid.from_regular_grid(regular_grid)
 
@@ -136,7 +136,7 @@ def compute_gempy_model(input_json: GemPyInput):
             elif meshes[i].edges[0,0] == meshes[0].edges[0,0]:
                 adder = np.max(meshes[i-1].edges) + 1
                 addmesh = meshes[i].edges + adder
-                simplex_array = np.append(simplex_array, addmesh, axis=0) 
+                simplex_array = np.append(simplex_array, addmesh, axis=0)
 
     print(f"edges shape {simplex_array.shape}")
     # for i in range(n_meshes):
