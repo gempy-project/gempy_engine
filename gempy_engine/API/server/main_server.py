@@ -109,9 +109,9 @@ def compute_gempy_model(input_json: GemPyInput):
 
     interpolation_input: InterpolationInput = InterpolationInput.from_schema(input_json.interpolation_input)
     input_data_descriptor: InputDataDescriptor = InputDataDescriptor.from_schema(input_json.input_data_descriptor)
-
-    print(input_data_descriptor.stack_structure.masking_descriptor)
-    print(input_data_descriptor.stack_structure)
+    n_stack = len(input_data_descriptor.stack_structure.masking_descriptor)
+    print(input_data_descriptor.stack_structure.masking_descriptor, len(input_data_descriptor.stack_structure.masking_descriptor))
+    # print(input_data_descriptor.stack_structure)
 
     solutions: Solutions = _compute_model(interpolation_input, default_interpolation_options, input_data_descriptor)
     meshes: list[DualContouringMesh] = solutions.dc_meshes
@@ -127,7 +127,9 @@ def compute_gempy_model(input_json: GemPyInput):
     unc, count = np.unique(simplex_array, axis=0, return_counts=True)
     print(f"edges shape {simplex_array.shape}")
 
-    if unc[count > 1][0][0] == 0:
+    print(f"UNC COUNT {unc[count > 1][0]}")
+
+    if n_stack > 1: # if unc[count > 1][0][0] == 0:
         simplex_array = meshes[0].edges
         for i in range(n_meshes):
             adder = 0
