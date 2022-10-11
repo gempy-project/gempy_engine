@@ -112,7 +112,7 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
 
     if indices is not None:
         dual_mesh = pv.PolyData(vertices, np.insert(indices, 0, 3, axis=1).ravel())
-        p.add_mesh(dual_mesh, opacity=1, silhouette=True, color="green", show_edges=True)
+        p.add_mesh(dual_mesh, opacity=.6, silhouette=False, color="green", show_edges=False)
 
     colors = ['green', 'blue', 'red', 'yellow', 'pink', 'brown', 'purple']
     if dc_meshes is not None:
@@ -123,7 +123,7 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
             if vertices.shape[0] == 0: continue
 
             dual_mesh = pv.PolyData(vertices, np.insert(indices, 0, 3, axis=1).ravel())
-            p.add_mesh(dual_mesh, opacity=1, silhouette=True, color=colors[e], show_edges=True)
+            p.add_mesh(dual_mesh, opacity=.6, silhouette=False, color=colors[e], show_edges=False)
 
             p.add_mesh(pv.PolyData(vertices), color=colors[e], point_size=1.0, render_points_as_spheres=True)
 
