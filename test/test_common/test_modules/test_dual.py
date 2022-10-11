@@ -140,107 +140,59 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     # * ---- New code Here ----
     # # TODO: Create regular grid that is False left and True on right
 
-    foo = octree_list[1].grid_centers.debug_vals[4]
-    bool_idx = octree_list[1].grid_centers.debug_vals[3]
+    voxel_select = octree_list[1].grid_centers.debug_vals[4]  # This is voxel select
+    left_right = octree_list[1].grid_centers.debug_vals[3]  # This is bool idx. E.g False is left, True is right for XYZ 
 
-    x_foo = np.zeros(8, dtype=bool)
-    x_foo[4:] = True
-    x_dir_lvl0 = np.repeat(x_foo[foo], 8)
-    x_foo_lvl2 = np.tile(x_foo, 8)
-    binary_x = np.vstack(( bool_idx[:, 0], x_dir_lvl0))
-
-    y_foo = np.zeros(8, dtype=bool)
-    y_foo[[2, 3, 6, 7]] = True
-    y_dir_lvl0 = np.tile(np.repeat(y_foo, 4), 2)
-    y_foo_lvl2 = np.repeat(np.tile(y_foo, 4), 2)
-
-    y_dir_rep = np.repeat(y_foo[foo], 8)
-    binary_y = np.vstack((bool_idx[:, 1], y_dir_rep))
-
-    z_foo = np.zeros(8, dtype=bool)
-    z_foo[1::2] = True
-    z_dir_lvl0 = np.tile(z_foo, 8)
-    z_foo_lvl2 = np.repeat(z_foo, 8)
-    z_dir_rep = np.repeat(z_foo[foo], 8)
-    binary_z = np.vstack((bool_idx[:, 2], z_dir_rep))
-
-    bool_to_int_x = np.packbits(binary_x, axis=0, bitorder="little")
-    bool_to_int_y = np.packbits(binary_y, axis=0, bitorder="little")
-    bool_to_int_z = np.packbits(binary_z, axis=0, bitorder="little")
-
-    stacked = np.vstack((bool_to_int_x, bool_to_int_y, bool_to_int_z)).T
-
-    valid_voxels_idx = stacked[valid_voxels]
-    valid_edges_voxels = valid_edges[valid_voxels]
-
-    # region X edges
-    n = 10
+    from gempy_engine.modules.dual_contouring.fancy_triangulation import get_left_right_array, triangulate_example, triangulate
+    stacked = get_left_right_array(voxel_select, left_right)
+    first_edge_idx, i_0, i_1, i_2, n, valid_voxels_idx = triangulate_example(stacked, valid_edges, valid_voxels)
+    indices_array: np.ndarray = triangulate(stacked, valid_edges, valid_voxels)
     
-    first_edge = valid_edges_voxels[:, n]
-    first_edge_idx = valid_voxels_idx[first_edge]
-    
-    idx_2 = first_edge_idx[9, 2] # * Z idx since the intersection is happening in the Z direction
-    idx_0 = first_edge_idx[9, 0] + 1 # * +1 in x due to the specific edge
-    idx_1 = first_edge_idx[9, 1] - 1 # * -1 in y due to the specific edge
-    
-    
-    # * Compose valid voxeld idx for each voxel that compose the triangle 
-    idx_a = np.array([2, 1, 1])
-    idx_b = np.array([3, 1,1])
-    idx_c = np.array([2, 0, 1])
-    
-    # * Find the arg of the 3 vectors of voxels idx to compose the triangle 
-    i_0 = np.where((valid_voxels_idx == idx_a).sum(axis=1) == 3)
-    i_1 = np.where((valid_voxels_idx == idx_b).sum(axis=1) == 3)
-    i_2 = np.where((valid_voxels_idx == idx_c).sum(axis=1) == 3)  
-    
-    # endregion
-
-    # region Y edges
 
     # endregion
-
-    # TODO: [x] Plot lables on the vertex
 
     # TODO: Plot the edges
     n_edges = valid_edges.shape[0]
     edges_xyz = np.zeros((n_edges, 15, 3))
     edges_xyz[:, :12][valid_edges] = intersection_xyz
-    valid_edges_xyz = edges_xyz[valid_voxels] 
-    
-    
+    valid_edges_xyz = edges_xyz[valid_voxels]
+
     a_point_on_edge_n = valid_edges_xyz[:, n]
     # remove zeros rows
-    a_point_on_edge_n = a_point_on_edge_n[~np.all(a_point_on_edge_n == 0, axis=1)]    
-    
+    a_point_on_edge_n = a_point_on_edge_n[~np.all(a_point_on_edge_n == 0, axis=1)]
+
     if plot_pyvista or True:
         output_corners: InterpOutput = last_octree_level.outputs_corners[-1]
         voxels_corners = output_corners.grid.values
         intersection_points = intersection_xyz
         center_mass = dc_data.bias_center_mass
         normals = dc_data.bias_normals
-        p = helper_functions_pyvista.plot_pyvista(octree_list,
-                                                  dc_meshes=dc_meshes,
-                                                  # gradients=gradients,
-                                                  a=center_mass,
-                                                  # b=normals,
-                                                  xyz_on_edge=intersection_xyz,
-                                                  v_just_points=a_point_on_edge_n,
-                                                  vertices=intersection_points,
-                                                  plot=False
-                                                  )
+        p = helper_functions_pyvista.plot_pyvista(
+            octree_list,
+            dc_meshes=dc_meshes,
+            # gradients=gradients,
+            a=center_mass,
+            # b=normals,
+            xyz_on_edge=intersection_xyz,
+            v_just_points=a_point_on_edge_n,
+            vertices=intersection_points,
+            plot=False
+        )
         # Convert stacked array row in list of strings
         all_labels = [str(row) for row in valid_voxels_idx]
-        
+
         labels = [str(row) for row in first_edge_idx]
-    
-        #p.add_point_labels(dc_meshes[0].vertices, all_labels, point_size=5, font_size=10)\
-        
+
+        # p.add_point_labels(dc_meshes[0].vertices, all_labels, point_size=5, font_size=10)\
+
         p.add_point_labels(a_point_on_edge_n, labels, point_size=5, font_size=10, point_color="red", render_points_as_spheres=True)
-        
+
         fancy_mesh = pv.PolyData(dc_meshes[0].vertices, np.array([3, i_0[0][0], i_1[0][0], i_2[0][0]]))
-        p.add_mesh(fancy_mesh, silhouette=True, color="red", show_edges=True)
-        
+        p.add_mesh(fancy_mesh, silhouette=True, color="orange", show_edges=True)
+
+        fancy_mesh_complete = pv.PolyData(dc_meshes[0].vertices, np.insert(indices_array, 0, 3, axis=1).ravel())
+        p.add_mesh(fancy_mesh_complete, silhouette=True, color="red", show_edges=True)
+
         p.show()
         # endregion
 
