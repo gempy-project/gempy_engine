@@ -90,6 +90,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
 
 
 def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3d_octree):
+    from gempy_engine.modules.dual_contouring.fancy_triangulation import get_left_right_array, triangulate
     def simple_grid_3d_octree_regular():
         import dataclasses
         resolution = [2, 2, 2]
@@ -102,7 +103,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
 
-    options.number_octree_levels = 2
+    options.number_octree_levels = 3
 
     ids = np.array([1, 2])
     grid_0_centers = simple_grid_3d_octree_regular()
@@ -125,10 +126,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
         n_surfaces=data_shape.tensors_structure.n_surfaces
     )
 
-    gradients = dc_data.gradients
-
     dc_meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data)
-
     dc_data = dc_meshes[0].dc_data
     valid_voxels = dc_data.valid_voxels
 
@@ -138,61 +136,48 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     last_octree_level.last_output_center.ids_block = temp_ids  # paint valid voxels
 
     # * ---- New code Here ----
-    # # TODO: Create regular grid that is False left and True on right
 
-    voxel_select = octree_list[1].grid_centers.debug_vals[4]  # This is voxel select
-    left_right = octree_list[1].grid_centers.debug_vals[3]  # This is bool idx. E.g False is left, True is right for XYZ 
-
-    from gempy_engine.modules.dual_contouring.fancy_triangulation import get_left_right_array, triangulate_example, triangulate
-    stacked = get_left_right_array(voxel_select, left_right)
-    first_edge_idx, i_0, i_1, i_2, n, valid_voxels_idx = triangulate_example(stacked, valid_edges, valid_voxels)
-    indices_array: np.ndarray = triangulate(stacked, valid_edges, valid_voxels)
+    # TODO: Pass voxels_select and left_right properly
+    # TODO: Figure out if left_right is necessary
+    # voxel_select = octree_list[1].grid_centers.debug_vals[4]  # This is voxel select
+    left_right_1 = octree_list[1].grid_centers.debug_vals[3]  # This is bool idx. E.g False is left, True is right for XYZ 
+    voxel_select_1 = octree_list[1].grid_centers.regular_grid.active_cells
     
-
+    left_right_2 = octree_list[2].grid_centers.debug_vals[3]  # This is bool idx. E.g False is left, True is right for XYZ
+    voxel_select_2 = octree_list[2].grid_centers.regular_grid.active_cells
+    
+    stacked = get_left_right_array(octree_list)
+    validated_stacked = stacked[valid_voxels]
+    validated_edges = valid_edges[valid_voxels]
+    indices_array: np.ndarray = triangulate(validated_stacked, validated_edges)
+    
     # endregion
 
     # TODO: Plot the edges
     n_edges = valid_edges.shape[0]
     edges_xyz = np.zeros((n_edges, 15, 3))
     edges_xyz[:, :12][valid_edges] = intersection_xyz
-    valid_edges_xyz = edges_xyz[valid_voxels]
-
-    a_point_on_edge_n = valid_edges_xyz[:, n]
-    # remove zeros rows
-    a_point_on_edge_n = a_point_on_edge_n[~np.all(a_point_on_edge_n == 0, axis=1)]
 
     if plot_pyvista or True:
         output_corners: InterpOutput = last_octree_level.outputs_corners[-1]
-        voxels_corners = output_corners.grid.values
         intersection_points = intersection_xyz
         center_mass = dc_data.bias_center_mass
-        normals = dc_data.bias_normals
         p = helper_functions_pyvista.plot_pyvista(
             octree_list,
             dc_meshes=dc_meshes,
-            # gradients=gradients,
             a=center_mass,
-            # b=normals,
             xyz_on_edge=intersection_xyz,
-            v_just_points=a_point_on_edge_n,
             vertices=intersection_points,
             plot=False
         )
-        # Convert stacked array row in list of strings
-        all_labels = [str(row) for row in valid_voxels_idx]
-
-        labels = [str(row) for row in first_edge_idx]
-
-        # p.add_point_labels(dc_meshes[0].vertices, all_labels, point_size=5, font_size=10)\
-
-        p.add_point_labels(a_point_on_edge_n, labels, point_size=5, font_size=10, point_color="red", render_points_as_spheres=True)
-
-        fancy_mesh = pv.PolyData(dc_meshes[0].vertices, np.array([3, i_0[0][0], i_1[0][0], i_2[0][0]]))
-        p.add_mesh(fancy_mesh, silhouette=True, color="orange", show_edges=True)
-
-        fancy_mesh_complete = pv.PolyData(dc_meshes[0].vertices, np.insert(indices_array, 0, 3, axis=1).ravel())
-        p.add_mesh(fancy_mesh_complete, silhouette=True, color="red", show_edges=True)
-
+        
+        for e, indices_array_ in enumerate(indices_array):
+            # paint the triangles in different colors
+            color = ["b", "r", "m", "y", "k", "w"][e % 6]
+            
+            fancy_mesh_complete = pv.PolyData(dc_meshes[0].vertices, np.insert(indices_array_, 0, 3, axis=1).ravel())
+            p.add_mesh(fancy_mesh_complete, silhouette=True, color=color, show_edges=True)
+        
         p.show()
         # endregion
 

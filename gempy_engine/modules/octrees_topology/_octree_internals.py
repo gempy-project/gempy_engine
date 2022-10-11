@@ -51,9 +51,10 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
     grid_next_centers = Grid(
         xyz_coords,
         regular_grid=RegularGrid(
-            prev_octree.grid_centers.regular_grid.extent,
-            prev_octree.grid_centers.regular_grid.resolution * 2,
-            voxel_select
+            extent=prev_octree.grid_centers.regular_grid.extent,
+            regular_grid_shape=prev_octree.grid_centers.regular_grid.resolution * 2,
+            _active_cells=voxel_select,
+            left_right=bool_idx
         ),
     )
 

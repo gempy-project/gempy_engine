@@ -17,6 +17,7 @@ class RegularGrid:
     extent: Union[np.ndarray, List]
     regular_grid_shape: Union[np.ndarray, List]  # Shape(3)
     _active_cells: np.ndarray = None # Bool array
+    left_right: np.ndarray = None
 
     def __post_init__(self):
         self.regular_grid_shape = _check_and_convert_list_to_array(self.regular_grid_shape)
