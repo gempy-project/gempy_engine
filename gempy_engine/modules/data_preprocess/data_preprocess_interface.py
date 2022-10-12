@@ -19,7 +19,9 @@ def prepare_orientations(orientations: Orientations) -> OrientationsInternals:
 
 
 def prepare_grid(grid: np.ndarray, surface_points: SurfacePoints) -> np.ndarray:
-    return bt.tfnp.concat([grid, surface_points.sp_coords])
+    concat = bt.tfnp.concatenate([grid, surface_points.sp_coords])
+    #concat = np.concatenate([grid, surface_points.sp_coords])    
+    return concat
 
 
 def prepare_faults(faults_values_on_sp: np.ndarray, tensors_structure: TensorsStructure) -> Tuple[ndarray, ndarray]:

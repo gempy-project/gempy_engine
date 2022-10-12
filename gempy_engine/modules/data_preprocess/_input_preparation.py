@@ -16,7 +16,7 @@ def surface_points_preprocess(sp_input: SurfacePoints, tensors_structure: Tensor
 
     partitions_bool = tensors_structure.partitions_bool
 
-    if BackendTensor.engine_backend is AvailableBackends.tensorflow:
+    if False:#BackendTensor.engine_backend is AvailableBackends.tensorflow:
         ref_nugget, ref_points, rest_nugget, rest_points = _compute_rest_ref_in_tf(partitions_bool, sp_input)
     else:
         ref_nugget, ref_points, rest_nugget, rest_points = _compute_rest_ref_in_numpy(partitions_bool, sp_input)

@@ -20,14 +20,21 @@ from test.fixtures.grids import \
 
 from test.fixtures.complex_geometries import *
 
-backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflow])
-using_gpu = bool(np.random.choice([True, False]))
-using_pykeops = bool(np.random.choice([True, False]))
+# * Eventually I want this to be random... Hopefully
+# backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflow])
+# using_gpu = bool(np.random.choice([True, False]))
+# using_pykeops = bool(np.random.choice([True, False]))
 
 # TODO: For now pykeops is always disabled
+from tensorflow.python.ops.numpy_ops import np_config
+np_config.enable_numpy_behavior()
+
 
 pykeops_enabled = False
-BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=True, pykeops_enabled=pykeops_enabled)
+backend = AvailableBackends.tensorflow
+use_gpu = False
+
+BackendTensor.change_backend(backend, use_gpu=use_gpu, pykeops_enabled=pykeops_enabled)
 
 plot_pyvista = False
 

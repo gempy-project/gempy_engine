@@ -45,14 +45,15 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
 
 
 def _evaluate_sys_eq(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions) -> ExportedFields:
-    if solver_input.xyz_to_interpolate.flags['C_CONTIGUOUS'] is False:
-        print("xyz is not C_CONTIGUOUS")
 
     compute_gradient: bool = options.compute_scalar_gradient
 
     eval_kernel = kernel_constructor.yield_evaluation_kernel(solver_input, options.kernel_options)
 
     if BackendTensor.pykeops_enabled is True:
+        if solver_input.xyz_to_interpolate.flags['C_CONTIGUOUS'] is False:  # ! This is not working with TF yet
+            print("xyz is not C_CONTIGUOUS")
+
         from pykeops.numpy import LazyTensor
         # ! Seems not to make any difference but we need this if we want to change the backend
         # ! We need to benchmark GPU vs CPU with more input

@@ -166,7 +166,7 @@ class TensorsStructure:
         res = np.eye(self.total_number_sp, dtype='int32')[np.array(ref_positions).reshape(-1)]
         one_hot_ = res.reshape(list(ref_positions.shape) + [self.total_number_sp])
 
-        partitions = b.tfnp.reduce_sum(one_hot_, axis=0)
+        partitions = b.tfnp.sum(one_hot_, axis=0)
         partitions_bool = partitions.astype(bool)
 
         return partitions_bool
