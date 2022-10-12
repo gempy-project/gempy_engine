@@ -1,6 +1,7 @@
 import numpy as np
 
 from gempy_engine.API.model.model_api import compute_model
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data import InterpolationOptions, SurfacePoints, Orientations
 from gempy_engine.core.data.grid import Grid, RegularGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor, TensorsStructure, StacksStructure, StackRelationType
@@ -100,6 +101,15 @@ def _compute_model(interpolation_input: InterpolationInput, options: Interpolati
     
     if options.debug:
         weights = Solutions.debug_input_data["weights"]
+        A_matrix = Solutions.debug_input_data["A_matrix"]
+        b_vector = Solutions.debug_input_data["b_vector"]
+        cov_gradients = Solutions.debug_input_data["cov_grad"]
+        cov_sp = Solutions.debug_input_data["cov_sp"]
+        
+        gempy_verify_array(BackendTensor.tfnp.sum(cov_gradients, axis=1, keepdims=True), "cov_gradients", 1e-2)
+        gempy_verify_array(BackendTensor.tfnp.sum(cov_sp, axis=1, keepdims=True), "cov_sp", 1e-2)
+        gempy_verify_array(b_vector, "b_vector")
+        gempy_verify_array(BackendTensor.tfnp.sum(A_matrix, axis=1, keepdims=True), "A_matrix")
         gempy_verify_array(weights.reshape(1, -1), "weights")
     
     if plot_pyvista or True:

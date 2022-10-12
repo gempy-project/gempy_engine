@@ -46,6 +46,8 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
     if gempy_engine.config.DEBUG_MODE:
         from gempy_engine.core.data.solutions import Solutions
         Solutions.debug_input_data["weights"] = weights
+        Solutions.debug_input_data["A_matrix"] = A_matrix
+        Solutions.debug_input_data["b_vector"] = b_vector
     
     return weights
 

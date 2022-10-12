@@ -79,7 +79,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
 
         all_scalar_fields_outputs[i] = output
 
-        # This is also for faults!
+        # * This is also for faults!
         if interpolation_input_i.stack_relation is StackRelationType.FAULT:
             val_min = np.min(output.values_on_all_xyz, axis=1).reshape(-1, 1)  # ? Is this as good as it gets?
             shifted_vals = (output.values_on_all_xyz - val_min) * interpolation_input_i.fault_values.offset

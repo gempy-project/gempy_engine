@@ -98,11 +98,6 @@ def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: K
         drift_start_post_y=matrices_sizes.grid_size,
         n_drift_eq=matrices_sizes.uni_drift_size)
 
-    # drift_selection = DriftMatrixSelector.old_method(
-    #     x_size=matrices_sizes.cov_size,
-    #     y_size=matrices_sizes.grid_size,
-    #     n_drift_eq=matrices_sizes.uni_drift_size)
-
     return KernelInput(
         ori_sp_matrices=orientations_sp_matrices,
         cartesian_selector=cartesian_selector,

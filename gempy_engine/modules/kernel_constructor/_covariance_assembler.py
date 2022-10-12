@@ -1,7 +1,9 @@
 import numpy as np
 
+import gempy_engine.config
 from gempy_engine.config import DEFAULT_BACKEND, AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
+from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.kernel_constructor import _structs
 from gempy_engine.modules.kernel_constructor._structs import KernelInput
 
@@ -27,6 +29,15 @@ def _get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_re
         faults_drift = np.zeros(cov_grad.shape)
         cov = c_o * (cov_grad + cov_sp + cov_grad_sp) + uni_drift
 
+    if gempy_engine.config.DEBUG_MODE:
+        Solutions.debug_input_data['cov_grad'] = cov_grad
+        Solutions.debug_input_data['cov_sp'] = cov_sp
+        Solutions.debug_input_data['cov_grad_sp'] = cov_grad_sp
+        Solutions.debug_input_data['usp'] = usp
+        Solutions.debug_input_data['ug'] = ug
+        Solutions.debug_input_data['uni_drift'] = uni_drift
+        Solutions.debug_input_data['faults_drift'] = faults_drift    
+    
     return cov
 
 

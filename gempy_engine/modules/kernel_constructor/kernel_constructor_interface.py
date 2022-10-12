@@ -7,6 +7,7 @@ from ._b_vector_assembler import b_vector_assembly
 from ._kernels_assembler import create_cov_kernel, create_scalar_kernel, create_grad_kernel
 from ._vectors_preparation import cov_vectors_preparation, evaluation_vectors_preparations
 from ...core.data.options import KernelOptions
+from ...core.data.solutions import Solutions
 
 tensor_types = BackendTensor.tensor_types
 
@@ -14,8 +15,7 @@ tensor_types = BackendTensor.tensor_types
 def yield_covariance(interp_input: SolverInput, kernel_options: KernelOptions) -> tensor_types:
     kernel_data = cov_vectors_preparation(interp_input, kernel_options)
     cov = create_cov_kernel(kernel_data, kernel_options)
-    if DEBUG_MODE: interp_input.debug = cov
-
+        
     return cov
 
 
