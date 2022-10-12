@@ -1,3 +1,4 @@
+from ...config import DEBUG_MODE
 from ...core.backend_tensor import BackendTensor
 from ...core.data.internal_structs import SolverInput
 from ...core.data.kernel_classes.orientations import OrientationsInternals
@@ -13,7 +14,7 @@ tensor_types = BackendTensor.tensor_types
 def yield_covariance(interp_input: SolverInput, kernel_options: KernelOptions) -> tensor_types:
     kernel_data = cov_vectors_preparation(interp_input, kernel_options)
     cov = create_cov_kernel(kernel_data, kernel_options)
-    interp_input.debug = cov
+    if DEBUG_MODE: interp_input.debug = cov
 
     return cov
 

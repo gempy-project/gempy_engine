@@ -3,6 +3,7 @@ import enum
 import warnings
 from dataclasses import dataclass
 
+import gempy_engine.config
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, KernelFunction
 
 
@@ -50,7 +51,7 @@ class InterpolationOptions:
     dual_contouring: bool = True
     dual_contouring_masking_options: DualContouringMaskingOptions = DualContouringMaskingOptions.DISJOINT
     
-    debug: bool = False
+    debug: bool = gempy_engine.config.DEBUG_MODE
     debug_water_tight: bool = False
     
     def __init__(self, range: int | float, c_o: float, uni_degree: int = 1, i_res: float = 4, gi_res: float = 2,

@@ -2,6 +2,7 @@ from typing import Tuple
 
 import numpy as np
 
+import gempy_engine.config
 from ...core.backend_tensor import BackendTensor
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import SolverInput
@@ -41,6 +42,11 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
     b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
     # TODO: Smooth should be taken from options
     weights = solver_interface.kernel_reduction(A_matrix, b_vector, smooth=0.01)
+    
+    if gempy_engine.config.DEBUG_MODE:
+        from gempy_engine.core.data.solutions import Solutions
+        Solutions.debug_input_data["weights"] = weights
+    
     return weights
 
 

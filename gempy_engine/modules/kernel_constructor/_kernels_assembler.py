@@ -154,6 +154,59 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j
 
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j
+    hu = (dif_ref_ref * (cs.hu_sel_i * cs.hu_sel_j)).sum(axis=-1)  # C
+    hv = -(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j)).sum(axis=-1)  # C
+
+    hu_ref = dif_ref_ref * (cs.hu_sel_i * cs.h_sel_ref_j)
+
+    hv_ref = dif_ref_ref * (cs.h_sel_ref_i * cs.hv_sel_j)
+    huv_ref = hu_ref.sum(axis=-1) - hv_ref.sum(axis=-1)  # C
+
+    hu_rest = dif_rest_rest * (cs.hu_sel_i * cs.h_sel_rest_j)
+    hv_rest = dif_rest_rest * (cs.h_sel_rest_i * cs.hv_sel_j)
+    huv_rest = hu_rest.sum(axis=-1) - hv_rest.sum(axis=-1)  # C
+
+    perp_matrix = (cs.hu_sel_i * cs.hv_sel_j).sum(axis=-1)
+
+    # For gradients
+    hu_ref_grad = (dif_ref_ref * (cs.h_sel_ref_i * cs.hu_sel_j)).sum(axis=-1)
+    hu_rest_grad = (dif_rest_rest * (cs.h_sel_ref_i * cs.hu_sel_j)).sum(axis=-1)
+
+    if BackendTensor.pykeops_enabled is True:
+
+        r_ref_ref = ori_sp_matrices.dip_ref_i.sqdist(ori_sp_matrices.dip_ref_j) # ! Do not compress this
+        r_rest_rest = ori_sp_matrices.diprest_i.sqdist(ori_sp_matrices.diprest_j)
+        r_ref_rest = ori_sp_matrices.dip_ref_i.sqdist(ori_sp_matrices.diprest_j)
+        r_rest_ref = ori_sp_matrices.diprest_i.sqdist(ori_sp_matrices.dip_ref_j)
+
+    else:
+        r_ref_ref = (dif_ref_ref ** 2).sum(-1)
+        r_rest_rest = (dif_rest_rest ** 2).sum(-1)
+        r_ref_rest = ((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2).sum(-1)
+        r_rest_ref = ((ori_sp_matrices.diprest_i - ori_sp_matrices.dip_ref_j) ** 2).sum(-1)
+
+        if False: #euclidean_distances:
+            r_ref_ref = tfnp.sqrt(r_ref_ref)
+            r_rest_rest = tfnp.sqrt(r_rest_rest)
+            r_ref_rest = tfnp.sqrt(r_ref_rest)
+            r_rest_ref = tfnp.sqrt(r_rest_ref)
+
+    return InternalDistancesMatrices(
+        dif_ref_ref, dif_rest_rest,
+        hu, hv, huv_ref, huv_rest,
+        perp_matrix,
+        r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest,
+        hu_ref.sum(axis=-1),
+        hu_rest.sum(axis=-1),
+        hu_ref_grad,
+        hu_rest_grad
+    )
+
+
+def _compute_all_distance_matrices_v2(cs: CartesianSelector, ori_sp_matrices: OrientationSurfacePointsCoords) -> InternalDistancesMatrices:
+    dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j
+
+    dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j
 
     if BackendTensor.pykeops_enabled:  # TODO: Try to wrap this with functions of BackendTensor
         hu = (dif_ref_ref * (cs.hu_sel_i * cs.hu_sel_j)).sum(axis=-1)  # C
@@ -168,8 +221,8 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
         hv_rest = dif_rest_rest * (cs.h_sel_rest_i * cs.hv_sel_j)
         huv_rest = hu_rest.sum(axis=-1) - hv_rest.sum(axis=-1)  # C
 
-        hu_ref = hu_ref.sum(axis=-1),
-        hu_rest = hu_rest.sum(axis=-1),
+        hu_ref = hu_ref.sum(axis=-1)
+        hu_rest = hu_rest.sum(axis=-1)
 
         perp_matrix = (cs.hu_sel_i * cs.hv_sel_j).sum(axis=-1)
 

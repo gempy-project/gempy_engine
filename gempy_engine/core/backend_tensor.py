@@ -90,7 +90,11 @@ class BackendTensor():
                 if is_numpy_installed is False:
                     raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: numpy")
             
-                import numpy as tfnp
+                # * Import a copy of numpy as tfnp
+                from importlib.util import find_spec, module_from_spec
+                spec = find_spec('numpy')
+                tfnp = module_from_spec(spec)
+                spec.loader.exec_module(tfnp)
                 
                 # ? DEP: Now we are using numpy as default
                 tfnp.reduce_sum = tfnp.sum
@@ -104,9 +108,11 @@ class BackendTensor():
                     case (True, True):
                         cls.pykeops_enabled = is_pykeops_installed
                         cls.use_gpu = True
+                        cls._wrap_pykeops_functions()
                     case (True, False):
                         cls.pykeops_enabled = is_pykeops_installed
                         cls.use_gpu = False
+                        cls._wrap_pykeops_functions()
                     case (False, _):
                         cls.pykeops_enabled = False
                         cls.use_gpu = False
@@ -141,6 +147,8 @@ class BackendTensor():
             case (_):
                 raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library"
                                      f"is not installed:")
+        
+        # cls._wrap_backend_functions()
 
     @classmethod
     def _set_active_backend_pointers(cls, engine_backend, tfnp):
@@ -159,5 +167,10 @@ class BackendTensor():
         print(f"\n Using gpu: {cls.use_gpu}. \n")
         print(f"\n Using pykeops: {cls.pykeops_enabled}. \n")
 
+    @classmethod
+    def _wrap_pykeops_functions(cls):
+        
+        # ! This is rewriting the whole numpy function
+        cls.tfnp.sum = lambda tensor, axis, keepdims=False: tensor.sum(axis=axis)
 
 BackendTensor.change_backend(DEFAULT_BACKEND)

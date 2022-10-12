@@ -28,7 +28,7 @@ from test.fixtures.complex_geometries import *
 # TODO: For now pykeops is always disabled
 
 
-pykeops_enabled = False
+pykeops_enabled = True
 backend = AvailableBackends.numpy
 use_gpu = False
 
@@ -45,6 +45,23 @@ class TestSpeed(enum.Enum):
 
 
 TEST_SPEED = TestSpeed.MINUTES  # * Use seconds for compile errors, minutes before pushing and hours before release
+
+
+@pytest.fixture(scope='session', autouse=True)
+def set_up_approval_tests():
+    try:
+        from approvaltests.reporters import GenericDiffReporter, DiffReporter, set_default_reporter
+    except ImportError:
+        return
+
+    path_to_pycharm_executable = "/home/miguel/pycharm-2022.1.3/bin/pycharm.sh"
+    if (path_to_pycharm_executable is not None) and os.path.exists(path_to_pycharm_executable):
+        reporter = GenericDiffReporter.create(path_to_pycharm_executable)
+        reporter.extra_args = ["diff"]
+    else:
+        reporter = DiffReporter()
+    
+    set_default_reporter(reporter) 
 
 
 @pytest.fixture(scope='session')

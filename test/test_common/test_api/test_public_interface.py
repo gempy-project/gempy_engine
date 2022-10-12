@@ -6,6 +6,8 @@ from gempy_engine.core.data.grid import Grid, RegularGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor, TensorsStructure, StacksStructure, StackRelationType
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
+from gempy_engine.core.data.solutions import Solutions
+from ...verify_helper import gempy_verify_array
 from ...conftest import plot_pyvista, TEST_SPEED
 
 try:
@@ -91,7 +93,15 @@ def test_public_interface_simplest_model():
 # noinspection DuplicatedCode
 def _compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions, structure: InputDataDescriptor):
     n_oct_levels = options.number_octree_levels
-    solutions = compute_model(interpolation_input, options, structure)
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
+    
+    # TODO [x]: Move Comparer to a separate file
+    # TODO [ ]: Verify a bunch of the results to find discrepancies
+    
+    if options.debug:
+        weights = Solutions.debug_input_data["weights"]
+        gempy_verify_array(weights.reshape(1, -1), "weights")
+    
     if plot_pyvista or True:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
