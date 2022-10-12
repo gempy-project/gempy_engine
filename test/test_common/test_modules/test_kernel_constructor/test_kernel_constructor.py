@@ -41,7 +41,7 @@ def test_covariance_cubic_kernel(simple_model_2):
     cov = yield_covariance(solver_input, options.kernel_options)
     print(cov)
     print(l)
-    np.save(dir_name + '/../solutions/test_kernel_numeric2.npy', cov)
+    # np.save(dir_name + '/../solutions/test_kernel_numeric2.npy', cov)
 
     np.testing.assert_array_almost_equal(np.asarray(cov), l, decimal=2)
 

@@ -115,12 +115,14 @@ class BackendTensor():
                     raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: tensorflow")
                 
                 import tensorflow as tf
+                from tensorflow.python.ops.numpy_ops import np_config
                 experimental_numpy_api = tf.experimental.numpy
                 cls._set_active_backend_pointers(engine_backend, experimental_numpy_api)  # * Here is where we set the tensorflow-numpy backend
                 cls.tensor_types = Union[tf.Tensor, tf.Variable]  # tensor Types with respect the backend:
+                np_config.enable_numpy_behavior()
 
                 physical_devices = tf.config.list_physical_devices('GPU')
-
+                
                 if DEBUG_MODE:
                     
                     import logging

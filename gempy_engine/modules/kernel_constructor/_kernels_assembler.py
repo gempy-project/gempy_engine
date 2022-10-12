@@ -183,30 +183,28 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
         r_rest_ref = ori_sp_matrices.diprest_i.sqdist(ori_sp_matrices.dip_ref_j)
 
     else:
+        dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j
+        dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j
+
         hu = tfnp.sum(dif_ref_ref * (cs.hu_sel_i * cs.hu_sel_j), axis=-1)  # C
         hv = -tfnp.sum(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j), axis=-1)  # C
 
-        hu_ref = tfnp.sum(dif_ref_ref * (cs.hu_sel_i * cs.h_sel_ref_j), axis=-1)
-        hv_ref = tfnp.sum(dif_ref_ref * (cs.h_sel_ref_i * cs.hv_sel_j), axis=-1)
-        huv_ref = hu_ref - hv_ref  # C
+        hu_ref = dif_ref_ref * (cs.hu_sel_i * cs.h_sel_ref_j)
+        hv_ref = dif_ref_ref * (cs.h_sel_ref_i * cs.hv_sel_j)
+        huv_ref = tfnp.sum(hu_ref, axis=-1) - tfnp.sum(hv_ref, axis=-1)  # C
 
-        hu_rest = tfnp.sum(dif_rest_rest * (cs.hu_sel_i * cs.h_sel_rest_j), axis=-1)
-        hv_rest = tfnp.sum(dif_rest_rest * (cs.h_sel_rest_i * cs.hv_sel_j), axis=-1)
-        huv_rest = hu_rest - hv_rest  # C
+        hu_rest = dif_rest_rest * (cs.hu_sel_i * cs.h_sel_rest_j)
+        hv_rest = dif_rest_rest * (cs.h_sel_rest_i * cs.hv_sel_j)
+        huv_rest = tfnp.sum(hu_rest, axis=-1) - tfnp.sum(hv_rest, axis=-1)  # C
 
-        hu_ref = tfnp.sum(hu_ref, axis=-1, keepdims=True)
-        hu_rest = tfnp.sum(hu_rest, axis=-1, keepdims=True)
+        hu_ref = tfnp.sum(hu_ref, axis=-1, keepdims=False)
+        hu_rest = tfnp.sum(hu_rest, axis=-1, keepdims=False)
 
         perp_matrix = tfnp.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1)
 
         # For gradients
         hu_ref_grad = tfnp.sum(dif_ref_ref * (cs.h_sel_ref_i * cs.hu_sel_j), axis=-1)
         hu_rest_grad = tfnp.sum(dif_rest_rest * (cs.h_sel_ref_i * cs.hu_sel_j), axis=-1)
-
-        # r_ref_ref = (dif_ref_ref ** 2).sum(-1)
-        # r_rest_rest = (dif_rest_rest ** 2).sum(-1)
-        # r_ref_rest = ((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2).sum(-1)
-        # r_rest_ref = ((ori_sp_matrices.diprest_i - ori_sp_matrices.dip_ref_j) ** 2).sum(-1)
 
         r_ref_ref = tfnp.sum(dif_ref_ref ** 2, axis=-1)
         r_rest_rest = tfnp.sum(dif_rest_rest ** 2, axis=-1)
