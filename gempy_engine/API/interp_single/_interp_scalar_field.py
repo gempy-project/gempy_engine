@@ -20,8 +20,8 @@ class Buffer:
         cls.weights = None
 
 
-def interpolate_scalar_field(solver_input: SolverInput,
-                             options: InterpolationOptions) -> Tuple[np.ndarray, ExportedFields]:
+def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions) ->\
+        Tuple[np.ndarray, ExportedFields]:
     # region Solver
     if Buffer.weights is None:
         weights = _solve_interpolation(solver_input, options.kernel_options)
@@ -42,18 +42,23 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
     b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
     # TODO: Smooth should be taken from options
     weights = solver_interface.kernel_reduction(A_matrix, b_vector, smooth=0.01)
-    
+
     if gempy_engine.config.DEBUG_MODE:
+        # Save debug data for later
         from gempy_engine.core.data.solutions import Solutions
         Solutions.debug_input_data["weights"] = weights
         Solutions.debug_input_data["A_matrix"] = A_matrix
         Solutions.debug_input_data["b_vector"] = b_vector
-    
+
+        # Check matrices have the right dtype:
+        assert A_matrix.dtype == gempy_engine.config.TENSOR_DTYPE, f"Wrong dtype for A_matrix: {A_matrix.dtype}. should be {gempy_engine.config.TENSOR_DTYPE}"
+        assert b_vector.dtype == gempy_engine.config.TENSOR_DTYPE, f"Wrong dtype for b_vector: {b_vector.dtype}. should be {gempy_engine.config.TENSOR_DTYPE}"
+        assert weights.dtype == gempy_engine.config.TENSOR_DTYPE, f"Wrong dtype for weights: {weights.dtype}. should be {gempy_engine.config.TENSOR_DTYPE}"
+
     return weights
 
 
 def _evaluate_sys_eq(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions) -> ExportedFields:
-
     compute_gradient: bool = options.compute_scalar_gradient
 
     eval_kernel = kernel_constructor.yield_evaluation_kernel(solver_input, options.kernel_options)

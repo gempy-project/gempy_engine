@@ -1,5 +1,3 @@
-import copy
-
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from test.conftest import plot_pyvista

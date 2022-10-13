@@ -10,6 +10,7 @@ class AvailableBackends(Enum):
 DEBUG_MODE = True
 OPTIMIZE_MEMORY = True
 DEFAULT_BACKEND = AvailableBackends.numpy
+TENSOR_DTYPE = 'float32'
 
 is_numpy_installed = find_spec("numpy") is not None
 is_tensorflow_installed = find_spec("tensorflow") is not None

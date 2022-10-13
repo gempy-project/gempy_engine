@@ -3,6 +3,7 @@ from typing import Optional, List, Callable
 
 import numpy as np
 
+import gempy_engine.config
 from ._interp_scalar_field import interpolate_scalar_field, Buffer
 from ...core.data import SurfacePoints, SurfacePointsInternals, Orientations, OrientationsInternals
 from ...core.data.exported_fields import ExportedFields
@@ -58,7 +59,7 @@ def interpolate_feature(interpolation_input: InterpolationInput,
     else:
         sigmoid_slope = 50000
     
-    values_block = activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=sigmoid_slope)
+    values_block: np.ndarray = activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=sigmoid_slope)
     
     # endregion
     
@@ -77,6 +78,12 @@ def interpolate_feature(interpolation_input: InterpolationInput,
     )
 
     if clean_buffer: Buffer.clean()
+
+    if gempy_engine.config.TENSOR_DTYPE:
+        # Check matrices have the right dtype:
+        assert values_block.dtype == gempy_engine.config.TENSOR_DTYPE, f"Wrong dtype for values_bloc: {values_block.dtype}. should be {gempy_engine.config.TENSOR_DTYPE}"
+        assert exported_fields.scalar_field.dtype == gempy_engine.config.TENSOR_DTYPE, f"Wrong dtype for scalar_field: {exported_fields.scalar_field.dtype}. should be {gempy_engine.config.TENSOR_DTYPE}"
+
     return output
 
     

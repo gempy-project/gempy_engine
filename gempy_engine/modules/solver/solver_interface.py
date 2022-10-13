@@ -1,3 +1,4 @@
+import gempy_engine.config
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 import numpy as np
@@ -8,7 +9,7 @@ bt = BackendTensor
 def kernel_reduction(cov, b, smooth=0.000001):
     # ? Maybe we should always compute the conditional_number no matter the branch
     
-    dtype = 'float32'    
+    dtype = gempy_engine.config.TENSOR_DTYPE    
     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled):
         case (AvailableBackends.tensorflow, True):
             raise NotImplementedError('Pykeops is not implemented for tensorflow yet')
