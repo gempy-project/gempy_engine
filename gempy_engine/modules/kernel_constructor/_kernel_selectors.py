@@ -33,9 +33,9 @@ def grid_cartesian_selector(matrices_sizes: MatricesSizes, axis: int = None):
     sel_huv = np.ones((vector_size, n_dim), dtype="int8")
 
     if axis is None:
-        sel_hv = np.ones((vector_size, n_dim))
+        sel_hv = np.ones((vector_size, n_dim), dtype="int8")
     else:
-        sel_hv = np.zeros((vector_size, n_dim))
+        sel_hv = np.zeros((vector_size, n_dim), dtype="int8")
         sel_hv[:, axis] = 1
 
     return sel_hu, sel_hv, sel_huv

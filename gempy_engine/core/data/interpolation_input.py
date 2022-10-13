@@ -115,9 +115,9 @@ class InterpolationInput:
     @property
     def unit_values(self):
         if self._unit_values is None:
-            return np.arange(1000, dtype=np.int32) + 1
+            return np.arange(1000, dtype=np.int16) + 1
         else:
-            return self._unit_values
+            return self._unit_values.astype(np.int16)
     
     @unit_values.setter
     def unit_values(self, value):
