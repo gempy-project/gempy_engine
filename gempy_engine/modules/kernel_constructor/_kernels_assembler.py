@@ -140,7 +140,7 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
     hu_ref = bt.t.sum(hu_ref, axis=-1, keepdims=False)
     hu_rest = bt.t.sum(hu_rest, axis=-1, keepdims=False)
 
-    perp_matrix = bt.t.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1)
+    perp_matrix = bt.t.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1,  dtype="int8")
 
     # For gradients
     hu_ref_grad = bt.t.sum(dif_ref_ref * (cs.h_sel_ref_i * cs.hu_sel_j), axis=-1)

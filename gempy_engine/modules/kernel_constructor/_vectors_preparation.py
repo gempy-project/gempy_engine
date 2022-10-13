@@ -27,8 +27,6 @@ def cov_vectors_preparation(interp_input: SolverInput, kernel_options: KernelOpt
         dim=options.number_dimensions,
         n_dips=ori_.n_orientations
     )
-    cov_size = matrices_sizes.cov_size
-
     orientations_sp_matrices: OrientationSurfacePointsCoords = _assembly_dips_points_tensors(matrices_sizes, ori_, sp_)
     dips_ref_ui, dips_rest_ui, dips_ug = _assembly_drift_tensors(options, ori_, sp_, matrices_sizes)
 

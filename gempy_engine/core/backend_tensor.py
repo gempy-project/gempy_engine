@@ -31,14 +31,11 @@ class BackendTensor:
                 spec = find_spec('numpy')
                 tfnp = module_from_spec(spec)
                 spec.loader.exec_module(tfnp)
-                
-                # ? DEP: Now we are using numpy as default
-                tfnp.reduce_sum = tfnp.sum
-                tfnp.concat = tfnp.concatenate
-                tfnp.constant = tfnp.array
-
+            
                 cls._set_active_backend_pointers(engine_backend, tfnp)
                 cls.tensor_types = Union[tfnp.ndarray]  # tensor Types with respect the backend
+
+                cls._wrap_numpy_functions()
 
                 match (pykeops_enabled, use_gpu):
                     case (True, True):
@@ -56,12 +53,13 @@ class BackendTensor:
                 if is_tensorflow_installed is False:
                     raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: tensorflow")
                 
-                import tensorflow as tf
-                from tensorflow.python.ops.numpy_ops import np_config
+                import tensorflow as tf               
                 experimental_numpy_api = tf.experimental.numpy
                 cls._set_active_backend_pointers(engine_backend, experimental_numpy_api)  # * Here is where we set the tensorflow-numpy backend
                 cls.tensor_types = Union[tf.Tensor, tf.Variable]  # tensor Types with respect the backend:
-                np_config.enable_numpy_behavior()
+
+                from tensorflow.python.ops.numpy_ops import np_config 
+                np_config.enable_numpy_behavior( prefer_float32=True)
 
                 physical_devices = tf.config.list_physical_devices('GPU')
                 
@@ -109,9 +107,16 @@ class BackendTensor:
             if type(tensor) == numpy.ndarray: return numpy.exp(tensor)
             elif type(tensor) == pykeops.numpy.LazyTensor: return tensor.exp()
         
-        # ! This is rewriting the whole numpy function
-        cls.tfnp.sum = lambda tensor, axis, keepdims=False: tensor.sum(axis=axis)
+        cls.tfnp.sum = lambda tensor, axis, keepdims=False, dtype=None: tensor.sum(axis=axis)
         cls.tfnp.sqrt = lambda tensor: tensor.sqrt()
         cls.tfnp.exp = exp
-        
+
+    @classmethod
+    def _wrap_numpy_functions(cls):
+        cls.tfnp.cast = lambda tensor, dtype: tensor.astype(dtype)
+        cls.tfnp.reduce_sum = cls.tfnp.sum
+        cls.tfnp.concat     = cls.tfnp.concatenate
+        cls.tfnp.constant   = cls.tfnp.array
+
+
 BackendTensor.change_backend(DEFAULT_BACKEND)

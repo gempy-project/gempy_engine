@@ -3,9 +3,10 @@ from typing import Union, Optional
 
 import numpy as np
 
-from gempy_engine.core.data import TensorsStructure
+
 from gempy_engine.core.data.input_data_descriptor import StacksStructure
 from gempy_engine.core.data.kernel_classes.server.input_parser import SurfacePointsSchema
+from gempy_engine.core.utils import cast_type_inplace
 from gempy_engine.modules.kernel_constructor._structs import tensor_types
 
 
@@ -20,6 +21,7 @@ class SurfacePoints:
     def __post_init__(self):
         if type(self.nugget_effect_scalar) is float or type(self.nugget_effect_scalar) is int:
             self.nugget_effect_scalar = np.ones(self.n_points) * self.nugget_effect_scalar
+        cast_type_inplace(self)
 
     def __hash__(self):
         return hash(5) # TODO: These should be self.__repr__ instead of 5

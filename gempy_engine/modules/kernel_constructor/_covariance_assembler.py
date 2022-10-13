@@ -1,7 +1,6 @@
 import numpy as np
 
 import gempy_engine.config
-from gempy_engine.config import DEFAULT_BACKEND, AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.kernel_constructor import _structs
@@ -58,7 +57,7 @@ def _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, opti
         ref_nugget  = 0.0000001
         rest_nugget = 0.0000001
         nugget_rest_ref = ref_nugget + rest_nugget
-        diag = np.eye(cov_surface_points.shape[0]) * 0.001 # ! Add 0.001% nugget
+        diag = np.eye(cov_surface_points.shape[0], dtype=gempy_engine.config.TENSOR_DTYPE) * 0.001 # ! Add 0.001% nugget
         multi_matrix = np.ones_like(diag) + diag    
         cov_surface_points += diag
 

@@ -27,7 +27,7 @@ from test.fixtures.complex_geometries import *
 
 
 pykeops_enabled = False
-backend = AvailableBackends.numpy
+backend = AvailableBackends.tensorflow
 use_gpu = False
 plot_pyvista = True # ! Set here if you want to plot the results
 
