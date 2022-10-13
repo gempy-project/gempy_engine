@@ -26,8 +26,8 @@ from test.fixtures.complex_geometries import *
 # using_pykeops = bool(np.random.choice([True, False]))
 
 
-pykeops_enabled = True
-backend = AvailableBackends.numpy
+pykeops_enabled = False
+backend = AvailableBackends.tensorflow
 use_gpu = False
 
 BackendTensor.change_backend(backend, use_gpu=use_gpu, pykeops_enabled=pykeops_enabled)

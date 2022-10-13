@@ -116,7 +116,7 @@ def _compute_model(interpolation_input: InterpolationInput, options: Interpolati
         gempy_verify_array(b_vector, "b_vector")
         gempy_verify_array(BackendTensor.tfnp.sum(A_matrix, axis=1, keepdims=True), "A_matrix", 1e-2)
         gempy_verify_array(weights.reshape(1, -1), "weights", rtol=.1)
-    
+
     if plot_pyvista or True:
         pv.global_theme.show_edges = True
         p = pv.Plotter()

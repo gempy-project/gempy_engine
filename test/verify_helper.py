@@ -6,7 +6,7 @@ from approvaltests.namer import NamerFactory
 
 def gempy_verify_array(item, name: str, rtol: float = 1e-5, atol: float = 1e-5,):
     parameters: Options = NamerFactory.with_parameters(name).with_comparator(ArrayComparator(atol=atol, rtol=rtol))
-    verify(item, options=parameters)
+    verify(np.asarray(item), options=parameters)
 
 
 class ArrayComparator(Comparator):
