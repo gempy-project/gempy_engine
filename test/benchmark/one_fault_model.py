@@ -1,16 +1,10 @@
-import sys;
-
-print('Python %s on %s' % (sys.version, sys.platform))
-sys.path.extend(['/home/miguel/PycharmProjects/gempy_engine'])
-
-from gempy_engine.config import AvailableBackends
-from gempy_engine.core.backend_tensor import BackendTensor
-
+import sys
 
 import numpy as np
 import pandas as pd
-from memory_profiler import profile
 
+from gempy_engine.config import AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor
 
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data import SurfacePoints, Orientations, InterpolationOptions
@@ -21,11 +15,13 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
 
+print('Python %s on %s' % (sys.version, sys.platform))
+sys.path.extend(['/home/miguel/PycharmProjects/gempy_engine'])
 
 
 def my_func():
     interpolation_input, structure, options = one_fault_model()
-    
+
     options.compute_scalar_gradient = False
     options.dual_contouring = False
     options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
@@ -40,7 +36,7 @@ def one_fault_model():
     data_path = "../fixtures/graben_data/"
 
     BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=True, pykeops_enabled=True)
-    
+
     centers = np.array([500, 500, -550])
     rescaling_factor = 240
 
@@ -104,6 +100,7 @@ def one_fault_model():
     # endregion
 
     return interpolation_input, input_data_descriptor, options
+
 
 def calculate_gradient(dip, az, pol):
     """Calculates the gradient from dip, azimuth and polarity values."""

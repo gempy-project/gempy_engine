@@ -103,7 +103,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
 
-    options.number_octree_levels = 3
+    options.number_octree_levels = 4
 
     ids = np.array([1, 2])
     grid_0_centers = simple_grid_3d_octree_regular()
@@ -140,11 +140,11 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     # TODO: Pass voxels_select and left_right properly
     # TODO: Figure out if left_right is necessary
     # voxel_select = octree_list[1].grid_centers.debug_vals[4]  # This is voxel select
-    left_right_1 = octree_list[1].grid_centers.debug_vals[3]  # This is bool idx. E.g False is left, True is right for XYZ 
-    voxel_select_1 = octree_list[1].grid_centers.regular_grid.active_cells
-    
-    left_right_2 = octree_list[2].grid_centers.debug_vals[3]  # This is bool idx. E.g False is left, True is right for XYZ
-    voxel_select_2 = octree_list[2].grid_centers.regular_grid.active_cells
+    # left_right_1 = octree_list[1].grid_centers.debug_vals[3]  # This is bool idx. E.g False is left, True is right for XYZ 
+    # voxel_select_1 = octree_list[1].grid_centers.regular_grid.active_cells
+    # 
+    # left_right_2 = octree_list[2].grid_centers.debug_vals[3]  # This is bool idx. E.g False is left, True is right for XYZ
+    # voxel_select_2 = octree_list[2].grid_centers.regular_grid.active_cells
     
     stacked = get_left_right_array(octree_list)
     validated_stacked = stacked[valid_voxels]

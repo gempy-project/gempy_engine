@@ -5,65 +5,42 @@ from gempy_engine.core.data.octree_level import OctreeLevel
 
 
 def get_left_right_array(octree_list: list[OctreeLevel]) -> np.ndarray:
-    """
-    Args:
-        voxel_select (np.ndarray): Array of booleans with the shape (n_voxels, 8) indicating the
-            selected voxels.
-        left_right (np.ndarray): Array of booleans with the shape (n_voxels, 8) indicating the
-            left-right position of the voxel.
+    def _compute_voxel_binary_code(idx_from_root, dir_idx: int, left_right_all, voxel_select_all):
+        
+        # Calculate the voxels from root
+        for active_voxels_per_lvl in voxel_select_all:  # * The first level is all True
+            idx_from_root = np.repeat(idx_from_root[active_voxels_per_lvl], 8)
+       
+        left_right_list = []
+        voxel_select_op = list(voxel_select_all[1:])
+        voxel_select_op.append(np.ones(left_right_all[-1].shape[0], bool))
+        left_right_all = left_right_all[::-1]
+        voxel_select_op = voxel_select_op[::-1]
+        
+        for e, left_right_per_lvl in enumerate(left_right_all):
+            left_right_per_lvl_dir = left_right_per_lvl[:, dir_idx]
+            for n_rep in range(e):
+                left_right_per_lvl_dir = np.repeat(left_right_per_lvl_dir[voxel_select_op[e-n_rep]], 8)  # ? Is it always e?
+            left_right_list.append(left_right_per_lvl_dir)
+        
+        left_right_list.append(idx_from_root)
+        binary_code = np.vstack(left_right_list) 
+        return binary_code
 
-    Returns:
-        np.ndarray: Array with the shape (n_faces, 3) with the indices of the vertices of the
-            triangulated faces.
-    """
-
-    left_right_1 = octree_list[1].grid_centers.regular_grid.left_right
-    voxel_select_1 = octree_list[1].grid_centers.regular_grid.active_cells
-
-    left_right_2 = octree_list[2].grid_centers.regular_grid.left_right  # This is bool idx. E.g False is left, True is right for XYZ
-    voxel_select_2 = octree_list[2].grid_centers.regular_grid.active_cells
-
-    # TODO: Can I just replace binary x for some sort of formula    
-    # region x
+    voxel_select_all = [octree_iter.grid_centers.regular_grid.active_cells for octree_iter in octree_list[1:]]
+    left_right_all = [octree_iter.grid_centers.regular_grid.left_right for octree_iter in octree_list[1:]]
+    
     idx_root_x = np.zeros(8, dtype=bool)
     idx_root_x[4:] = True
-    idx_from_parent = np.repeat(idx_root_x[voxel_select_1], 8)
-    idx_from_parent_2 = np.repeat(idx_from_parent[voxel_select_2], 8)
+    binary_x = _compute_voxel_binary_code(idx_root_x, 0, left_right_all, voxel_select_all)
 
-    left_right_12 = np.repeat(left_right_1[voxel_select_2, 0], 8)
-    left_right_2_x = left_right_2[:, 0]
-
-    binary_x = np.vstack((left_right_2_x, left_right_12, idx_from_parent_2))
-
-    # endregion
-
-    # region y
     idx_root_y = np.zeros(8, dtype=bool)
     idx_root_y[[2, 3, 6, 7]] = True
+    binary_y = _compute_voxel_binary_code(idx_root_y, 1, left_right_all, voxel_select_all)
 
-    idx_from_parent = np.repeat(idx_root_y[voxel_select_1], 8)
-    idx_from_parent_2 = np.repeat(idx_from_parent[voxel_select_2], 8)
-    left_right_12 = np.repeat(left_right_1[voxel_select_2, 1], 8)
-    left_right_2_y = left_right_2[:, 1]
-
-    binary_y = np.vstack((left_right_2_y, left_right_12, idx_from_parent_2))
-    # endregion
-    # region z
     idx_root_z = np.zeros(8, dtype=bool)
     idx_root_z[1::2] = True
-
-    idx_from_parent = np.repeat(idx_root_z[voxel_select_1], 8)
-    idx_from_parent_2 = np.repeat(idx_from_parent[voxel_select_2], 8)
-    left_right_12 = np.repeat(left_right_1[voxel_select_2, 2], 8)
-    left_right_2_z = left_right_2[:, 2]
-
-    binary_z = np.vstack((left_right_2_z, left_right_12, idx_from_parent_2))
-
-    # z_dir_lvl0 = np.tile(idx_root_z, 8)
-    # z_foo_lvl2 = np.repeat(idx_root_z, 8)
-    # z_dir_rep = np.repeat(idx_root_z[voxel_select], 8)
-    # binary_z = np.vstack((left_right[:, 2], z_dir_rep))
-    # endregion
+    binary_z = _compute_voxel_binary_code(idx_root_z, 2, left_right_all, voxel_select_all)
 
     bool_to_int_x = np.packbits(binary_x, axis=0, bitorder="little")
     bool_to_int_y = np.packbits(binary_y, axis=0, bitorder="little")
@@ -180,6 +157,31 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c, firs
     return indices
 
 
+def triangulate_example(left_right_array: np.ndarray, valid_edges: np.ndarray, valid_voxels: np.ndarray):
+    voxel_binary_idx = left_right_array[valid_voxels]
+    valid_edges_voxels = valid_edges[valid_voxels]
+
+    # region X edges
+    n = 10  # This is the edge we chose
+    first_edge = valid_edges_voxels[:, n]
+    first_edge_idx = voxel_binary_idx[first_edge]
+    idx_2 = first_edge_idx[9, 2]  # * Z idx since the intersection is happening in the Z direction
+    idx_0 = first_edge_idx[9, 0] + 1  # * +1 in x due to the specific edge
+    idx_1 = first_edge_idx[9, 1] - 1  # * -1 in y due to the specific edge
+
+    # * Compose valid voxeld idx for each voxel that compose the triangle
+    idx_a = np.array([2, 1, 1])
+    idx_b = np.array([3, 1, 1])
+    idx_c = np.array([2, 0, 1])
+
+    # * Find the arg of the 3 vectors of voxels idx to compose the triangle 
+    i_0 = np.where((voxel_binary_idx == idx_a).sum(axis=1) == 3)
+    i_1 = np.where((voxel_binary_idx == idx_b).sum(axis=1) == 3)
+    i_2 = np.where((voxel_binary_idx == idx_c).sum(axis=1) == 3)
+
+    return first_edge_idx, i_0, i_1, i_2, n, voxel_binary_idx
+
+
 def triangulate_dep(left_right_array: np.ndarray, valid_edges: np.ndarray, valid_voxels: np.ndarray, voxel_code):
     voxel_binary_idx = left_right_array[valid_voxels]
     valid_edges_voxels = valid_edges[valid_voxels]
@@ -279,28 +281,3 @@ def triangulate_dep(left_right_array: np.ndarray, valid_edges: np.ndarray, valid
     # This triangle is [17,13,15]
     # TODO: Generalize for all edges
     return foobar
-
-
-def triangulate_example(left_right_array: np.ndarray, valid_edges: np.ndarray, valid_voxels: np.ndarray):
-    voxel_binary_idx = left_right_array[valid_voxels]
-    valid_edges_voxels = valid_edges[valid_voxels]
-
-    # region X edges
-    n = 10  # This is the edge we chose
-    first_edge = valid_edges_voxels[:, n]
-    first_edge_idx = voxel_binary_idx[first_edge]
-    idx_2 = first_edge_idx[9, 2]  # * Z idx since the intersection is happening in the Z direction
-    idx_0 = first_edge_idx[9, 0] + 1  # * +1 in x due to the specific edge
-    idx_1 = first_edge_idx[9, 1] - 1  # * -1 in y due to the specific edge
-
-    # * Compose valid voxeld idx for each voxel that compose the triangle
-    idx_a = np.array([2, 1, 1])
-    idx_b = np.array([3, 1, 1])
-    idx_c = np.array([2, 0, 1])
-
-    # * Find the arg of the 3 vectors of voxels idx to compose the triangle 
-    i_0 = np.where((voxel_binary_idx == idx_a).sum(axis=1) == 3)
-    i_1 = np.where((voxel_binary_idx == idx_b).sum(axis=1) == 3)
-    i_2 = np.where((voxel_binary_idx == idx_c).sum(axis=1) == 3)
-
-    return first_edge_idx, i_0, i_1, i_2, n, voxel_binary_idx
