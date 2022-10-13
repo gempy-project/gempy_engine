@@ -150,7 +150,7 @@ def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref
     return k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest
 
 
-def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: OrientationSurfacePointsCoords) -> InternalDistancesMatrices:
+def _compute_all_distance_matrices_old(cs: CartesianSelector, ori_sp_matrices: OrientationSurfacePointsCoords) -> InternalDistancesMatrices:
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j
 
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j
@@ -208,12 +208,12 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
     )
 
 
-def _compute_all_distance_matrices_v2(cs: CartesianSelector, ori_sp_matrices: OrientationSurfacePointsCoords) -> InternalDistancesMatrices:
+def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: OrientationSurfacePointsCoords) -> InternalDistancesMatrices:
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j
 
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j
 
-    if BackendTensor.pykeops_enabled:  # TODO: Try to wrap this with functions of BackendTensor
+    if False:  # TODO: Try to wrap this with functions of BackendTensor
         hu = (dif_ref_ref * (cs.hu_sel_i * cs.hu_sel_j)).sum(axis=-1)  # C
         hv = -(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j)).sum(axis=-1)  # C
 
@@ -239,7 +239,13 @@ def _compute_all_distance_matrices_v2(cs: CartesianSelector, ori_sp_matrices: Or
         r_rest_rest = ori_sp_matrices.diprest_i.sqdist(ori_sp_matrices.diprest_j)
         r_ref_rest = ori_sp_matrices.dip_ref_i.sqdist(ori_sp_matrices.diprest_j)
         r_rest_ref = ori_sp_matrices.diprest_i.sqdist(ori_sp_matrices.dip_ref_j)
-
+        
+        if True: # * This depends on the kernel. There are a few kernels that are defined with distance r2
+            r_ref_ref = r_ref_ref.sqrt()
+            r_rest_rest = r_rest_rest.sqrt()
+            r_ref_rest = r_ref_rest.sqrt()
+            r_rest_ref = r_rest_ref.sqrt()
+        
     else:
         dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j
         dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j
@@ -269,7 +275,7 @@ def _compute_all_distance_matrices_v2(cs: CartesianSelector, ori_sp_matrices: Or
         r_ref_rest = tfnp.sum((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2, axis=-1)
         r_rest_ref = tfnp.sum((ori_sp_matrices.diprest_i - ori_sp_matrices.dip_ref_j) ** 2, axis=-1)
 
-        if euclidean_distances:
+        if True:
             r_ref_ref = tfnp.sqrt(r_ref_ref)
             r_rest_rest = tfnp.sqrt(r_rest_rest)
             r_ref_rest = tfnp.sqrt(r_ref_rest)

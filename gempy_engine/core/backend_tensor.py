@@ -172,5 +172,6 @@ class BackendTensor():
         
         # ! This is rewriting the whole numpy function
         cls.tfnp.sum = lambda tensor, axis, keepdims=False: tensor.sum(axis=axis)
+        cls.tfnp.sqrt = lambda tensor: tensor.sqrt()
 
 BackendTensor.change_backend(DEFAULT_BACKEND)
