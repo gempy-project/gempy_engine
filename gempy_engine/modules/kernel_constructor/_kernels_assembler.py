@@ -117,13 +117,7 @@ def create_grad_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     sigma_0_sp_grad = -options.gi_res * (dm.hu_ref_grad * k_p_ref - dm.hu_rest_grad * k_p_rest)
 
     # region drift
-
-    # ug = (ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj).sum(axis=-1)  # First term
-    # ug2 = (ki.ori_drift.dips_ug_bi * ki.ori_drift.dips_ug_bj).sum(axis=-1)  # Second term
-    # ug3_aux = (ki.ori_drift.dips_ug_ci * ki.ori_drift.dips_ug_cj).sum(axis=-1)  # Third term
-    # third_term_selector = (ki.ori_drift.selector_ci * ki.ori_drift.dips_ug_aj).sum(axis=-1)
-    # selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
-    # 
+    
     ug = bt.t.sum(ki.ori_drift.dips_ug_ai * ki.ori_drift.dips_ug_aj, axis=-1)  # First term
     ug2 = bt.t.sum(ki.ori_drift.dips_ug_bi * ki.ori_drift.dips_ug_bj, axis=-1)  # Second term
     ug3_aux = bt.t.sum(ki.ori_drift.dips_ug_ci * ki.ori_drift.dips_ug_cj, axis=-1)  # Third term

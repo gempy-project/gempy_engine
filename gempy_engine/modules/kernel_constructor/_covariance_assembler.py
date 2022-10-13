@@ -58,7 +58,7 @@ def _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, opti
         ref_nugget  = 0.0000001
         rest_nugget = 0.0000001
         nugget_rest_ref = ref_nugget + rest_nugget
-        diag = np.eye(cov_surface_points.shape[0]) * 0.0000001 # ! Add 0.001% nugget
+        diag = np.eye(cov_surface_points.shape[0]) * 0.001 # ! Add 0.001% nugget
         multi_matrix = np.ones_like(diag) + diag    
         cov_surface_points += diag
 

@@ -1,13 +1,12 @@
-import warnings
 from typing import Union, Any
-
-from ..config import is_pykeops_installed, is_numpy_installed, is_jax_installed, is_tensorflow_installed, DEBUG_MODE, \
-    DEFAULT_BACKEND, AvailableBackends
 
 import numpy
 
+from ..config import is_pykeops_installed, is_numpy_installed, is_tensorflow_installed, DEBUG_MODE, \
+    DEFAULT_BACKEND, AvailableBackends
 
-class BackendTensor():
+
+class BackendTensor:
     engine_backend: AvailableBackends
 
     pykeops_enabled: bool
