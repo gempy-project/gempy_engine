@@ -25,8 +25,6 @@ from test.fixtures.complex_geometries import *
 # using_gpu = bool(np.random.choice([True, False]))
 # using_pykeops = bool(np.random.choice([True, False]))
 
-# TODO: For now pykeops is always disabled
-
 
 pykeops_enabled = True
 backend = AvailableBackends.numpy

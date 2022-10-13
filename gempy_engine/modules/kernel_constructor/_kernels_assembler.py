@@ -179,13 +179,18 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
         r_ref_rest = ori_sp_matrices.dip_ref_i.sqdist(ori_sp_matrices.diprest_j)
         r_rest_ref = ori_sp_matrices.diprest_i.sqdist(ori_sp_matrices.dip_ref_j)
 
+        if True: # * This depends on the kernel. There are a few kernels that are defined with distance r2
+            r_ref_ref = r_ref_ref.sqrt()
+            r_rest_rest = r_rest_rest.sqrt()
+            r_ref_rest = r_ref_rest.sqrt()
+            r_rest_ref = r_rest_ref.sqrt()
     else:
         r_ref_ref = (dif_ref_ref ** 2).sum(-1)
         r_rest_rest = (dif_rest_rest ** 2).sum(-1)
         r_ref_rest = ((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2).sum(-1)
         r_rest_ref = ((ori_sp_matrices.diprest_i - ori_sp_matrices.dip_ref_j) ** 2).sum(-1)
 
-        if False: #euclidean_distances:
+        if True: #euclidean_distances:
             r_ref_ref = tfnp.sqrt(r_ref_ref)
             r_rest_rest = tfnp.sqrt(r_rest_rest)
             r_ref_rest = tfnp.sqrt(r_ref_rest)
