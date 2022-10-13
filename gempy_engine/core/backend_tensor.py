@@ -1,6 +1,7 @@
 from typing import Union, Any
 
 import numpy
+import pykeops.numpy
 
 from ..config import is_pykeops_installed, is_numpy_installed, is_tensorflow_installed, DEBUG_MODE, \
     DEFAULT_BACKEND, AvailableBackends
@@ -104,9 +105,13 @@ class BackendTensor:
 
     @classmethod
     def _wrap_pykeops_functions(cls):
+        def exp(tensor):
+            if type(tensor) == numpy.ndarray: return numpy.exp(tensor)
+            elif type(tensor) == pykeops.numpy.LazyTensor: return tensor.exp()
         
         # ! This is rewriting the whole numpy function
         cls.tfnp.sum = lambda tensor, axis, keepdims=False: tensor.sum(axis=axis)
         cls.tfnp.sqrt = lambda tensor: tensor.sqrt()
-
+        cls.tfnp.exp = exp
+        
 BackendTensor.change_backend(DEFAULT_BACKEND)

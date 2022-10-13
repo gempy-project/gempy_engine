@@ -1,32 +1,20 @@
-import numpy as np
-
 from . import _structs
 from ._covariance_assembler import _get_covariance
 from ._internalDistancesMatrices import InternalDistancesMatrices
-from ...core.backend_tensor import BackendTensor as bt
-from ...core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, KernelFunction, exp_function
-from ...core.data.options import KernelOptions
 from ._structs import KernelInput, CartesianSelector, OrientationSurfacePointsCoords
+from ...core.backend_tensor import BackendTensor as bt
+from ...core.data.kernel_classes.kernel_functions import KernelFunction
+from ...core.data.options import KernelOptions
 
 tensor_types = bt.tensor_types
 
-# TODO: Move this to its right place
-euclidean_distances = True
-
 
 def create_cov_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
-    kernel_f = options.kernel_function.value
+    kernel_f: KernelFunction = options.kernel_function.value
     a = options.range
     c_o = options.c_o
 
-    # ! Calculate euclidean or square distances depending on the function kernel
-    global euclidean_distances
-    if options.kernel_function == AvailableKernelFunctions.exponential:
-        euclidean_distances = False
-    else:
-        euclidean_distances = True
-
-    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
+    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices, kernel_f.consume_sq_distance)
 
     k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
         _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
@@ -36,20 +24,14 @@ def create_cov_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     return cov
 
 
+# noinspection DuplicatedCode
 def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
 
     # region distances
-    # Calculate euclidean or square distances depending on the function kernel
-    global euclidean_distances
-    if options.kernel_function == AvailableKernelFunctions.exponential:
-        euclidean_distances = False
-    else:
-        euclidean_distances = True
-
-    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
+    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices, kernel_f.consume_sq_distance)
 
     k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
         _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
@@ -96,19 +78,13 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
     return c_o * (sigma_0_sp + sigma_0_grad_sp) + uni_drift + fault_drift
 
 
+# noinspection DuplicatedCode
 def create_grad_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
 
-    # Calculate euclidean or square distances depending on the function kernel
-    global euclidean_distances
-    if options.kernel_function == AvailableKernelFunctions.exponential:
-        euclidean_distances = False
-    else:
-        euclidean_distances = True
-
-    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices)
+    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices, kernel_f.consume_sq_distance)
 
     k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
         _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
@@ -145,7 +121,8 @@ def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref
     return k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest
 
 
-def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: OrientationSurfacePointsCoords) -> InternalDistancesMatrices:
+def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: OrientationSurfacePointsCoords,
+                                   square_distance: bool) -> InternalDistancesMatrices:
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j
 
@@ -174,7 +151,7 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
     r_ref_rest = bt.t.sum((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2, axis=-1)
     r_rest_ref = bt.t.sum((ori_sp_matrices.diprest_i - ori_sp_matrices.dip_ref_j) ** 2, axis=-1)
 
-    if True:
+    if square_distance is False:
         r_ref_ref = bt.t.sqrt(r_ref_ref)
         r_rest_rest = bt.t.sqrt(r_rest_rest)
         r_ref_rest = bt.t.sqrt(r_ref_rest)

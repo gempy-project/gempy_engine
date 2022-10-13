@@ -32,9 +32,10 @@ def test_interpolate_model_exponential(simple_grid_3d_octree, n_oct_levels=3):
 
     if plot_pyvista or True:
         import pyvista as pv
-        from test.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes
+        from test.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels -1)
         plot_dc_meshes(p, solutions.dc_meshes[0])
+        plot_points(p, interpolation_input.surface_points.sp_coords)
         p.show()
