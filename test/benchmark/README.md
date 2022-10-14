@@ -4,3 +4,15 @@ python -m memory_profiler benchmark.py
 mprof run <executable>
 mprof plot
 ``` 
+
+### Compare previous runs
+
+`pytest-benchmark compare 0001 0002`
+
+
+
+### List of optimizations
+
+- [ ]  Caching weights
+- [ ]  Use new fancy triangulation
+- [ ]  fancy triangulation in gpu

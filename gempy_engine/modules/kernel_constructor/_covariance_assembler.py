@@ -54,8 +54,8 @@ def _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, opti
     cov_surface_points = options.i_res * (k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref)
     if BackendTensor.pykeops_enabled is False:
         # Add nugget effect for ref and rest point
-        ref_nugget  = 0.0000001
-        rest_nugget = 0.0000001
+        ref_nugget  = 0.01
+        rest_nugget = 0.01
         nugget_rest_ref = ref_nugget + rest_nugget
         diag = np.eye(cov_surface_points.shape[0], dtype=gempy_engine.config.TENSOR_DTYPE) * 0.001 # ! Add 0.001% nugget
         multi_matrix = np.ones_like(diag) + diag    

@@ -35,12 +35,13 @@ def moureze_model() -> Tuple[InterpolationInput, InterpolationOptions, InputData
     
     # region: Set up GemPy Data
     
-    pick_every = 4
+    pick_every = 8
     surface_points: SurfacePoints = SurfacePoints(sp_coords=sp[['X', 'Y', 'Z']].values[::pick_every])
-
+    
+    pick_every = 8
     orientations: Orientations = Orientations(
-        dip_positions=orientations_raw[['X', 'Y', 'Z']].values,
-        dip_gradients=orientations_raw[['G_x', 'G_y', 'G_z']].values
+        dip_positions=orientations_raw[['X', 'Y', 'Z']].values[::pick_every],
+        dip_gradients=orientations_raw[['G_x', 'G_y', 'G_z']].values[::pick_every]
     )
     
     # Get extent from sp[['X', 'Y', 'Z']].values
@@ -67,8 +68,8 @@ def moureze_model() -> Tuple[InterpolationInput, InterpolationOptions, InputData
     # region InterpolationOptions
 
     interpolation_options: InterpolationOptions = InterpolationOptions(
-        range=10.,  
-        c_o=1., 
+        range=100.,  
+        c_o=10., 
         number_octree_levels=3,
         kernel_function=AvailableKernelFunctions.cubic,
         uni_degree=1
@@ -95,3 +96,20 @@ def moureze_model() -> Tuple[InterpolationInput, InterpolationOptions, InputData
     # endregion
     # endregion
     return interpolation_input, interpolation_options, input_data_descriptor
+
+
+def dep_code_to_duplicate_dips_moureze_orientations_heavy(moureze):
+    _, ori = moureze
+    n = 2
+    ori_poss = ori[['X', 'Y', 'Z']].values,
+    ori_pos = ori_poss[0]
+    ori_grad = ori[['G_x', 'G_y', 'G_z']].values
+
+    for i in range(n):
+        ori_pos = np.vstack([ori_pos, ori_pos + np.array([i * 100, i * 100, i * 100])])
+        ori_grad = np.vstack([ori_grad, ori_grad])
+
+    ori_t = Orientations(ori_pos, dip_gradients=ori_grad)
+
+    return ori_t
+
