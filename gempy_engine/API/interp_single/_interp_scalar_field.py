@@ -17,7 +17,7 @@ class Buffer:
     
     @classmethod
     def add(cls, value: np.ndarray, solver_input: SolverInput, kernel_options: KernelOptions):
-        input_hash = hash((solver_input, kernel_options))
+        input_hash = hash((solver_input, kernel_options)) # ! This seems more expensive that compute the weights!
         cls.weights[input_hash] = value
     
     @classmethod

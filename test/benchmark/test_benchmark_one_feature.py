@@ -18,7 +18,6 @@ def test_one_feature_numpy(moureze_model, benchmark):
         use_gpu=False,
         pykeops_enabled=False
     )
-    from scalene import scalene_profiler
     _run_model(benchmark, moureze_model, True)
     
 def test_one_feature_numpy_pykeops_CPU(moureze_model, benchmark):

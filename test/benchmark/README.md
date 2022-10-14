@@ -18,10 +18,10 @@ mprof plot
 - [ ]  fancy triangulation in gpu
   (after profiling)
 - [ ]  dtype
+- [ ] Gradients calculations (we only need it on the edges). More info on Notability->GemPy Engine Page 60
 
 
 ### Scalene Profiling
 The only thing I have been able to run consistenly is with the arg profile only
 
-` scalene --profile-all --profile-only profile_runner.py`  
-`
+`scalene --profile-all --profile-only model,interp,octree,scalar_field,solver_interface,kernel,vectors profile_runner.py`  
