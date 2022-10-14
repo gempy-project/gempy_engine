@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 import numpy as np
@@ -9,11 +9,11 @@ from ...config import TENSOR_DTYPE
 
 
 @dataclass
-class SolverInput:
+class SolverInput(object):
     sp_internal: SurfacePointsInternals
-    ori_internal: OrientationsInternals
-    xyz_to_interpolate: Optional[np.ndarray] = None  # * it is optional if the instance is only used to create the cov
-    _fault_internal:  Optional[FaultsData] = None
+    ori_internal: OrientationsInternals = field(init=False, hash=False)
+    xyz_to_interpolate: Optional[np.ndarray] = field(init=False, hash=False)  # * it is optional if the instance is only used to create the cov
+    _fault_internal:  Optional[FaultsData] = field(init=False, hash=False)
 
     debug = None
     
@@ -23,6 +23,11 @@ class SolverInput:
         self.xyz_to_interpolate = xyz_to_interpolate.astype(TENSOR_DTYPE)
         self._fault_internal = fault_internal
     
+    def __hash__(self):
+        # xyz_to_interpolate and _faults are dependent on the octree levels
+        combined = hash((self.sp_internal, self.ori_internal))
+        return combined
+    # 
     @property
     def fault_internal(self):
         if self._fault_internal is None:

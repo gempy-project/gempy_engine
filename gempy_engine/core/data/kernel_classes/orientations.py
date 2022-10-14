@@ -71,6 +71,9 @@ class OrientationsInternals:
     dip_positions_tiled: tensor_types
     gradients_tiled: tensor_types
 
+    def __hash__(self):
+        return hash(self.__repr__())
+
     @property
     def gx_tiled(self) -> tensor_types:
         return self.gradients_tiled[:, 0]

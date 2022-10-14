@@ -14,7 +14,7 @@ class DualContouringMaskingOptions(enum.Enum):
     RAW = enum.auto()
 
 
-@dataclass
+@dataclass(frozen=True)
 class KernelOptions:
     range: int  # TODO: have constructor from RegularGrid
     c_o: float  # TODO: This should be a property

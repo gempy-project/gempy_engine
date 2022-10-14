@@ -35,10 +35,11 @@ def moureze_model() -> Tuple[InterpolationInput, InterpolationOptions, InputData
     
     # region: Set up GemPy Data
     
+    # * LowInput pick_every=8 | MidInput pick_every=4 | HighInput pick_every=1
+    
     pick_every = 8
     surface_points: SurfacePoints = SurfacePoints(sp_coords=sp[['X', 'Y', 'Z']].values[::pick_every])
     
-    pick_every = 8
     orientations: Orientations = Orientations(
         dip_positions=orientations_raw[['X', 'Y', 'Z']].values[::pick_every],
         dip_gradients=orientations_raw[['G_x', 'G_y', 'G_z']].values[::pick_every]

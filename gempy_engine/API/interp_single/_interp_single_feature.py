@@ -77,8 +77,6 @@ def interpolate_feature(interpolation_input: InterpolationInput,
         mask_components=mask_components
     )
 
-    if clean_buffer: Buffer.clean()
-
     if gempy_engine.config.TENSOR_DTYPE:
         # Check matrices have the right dtype:
         assert values_block.dtype == gempy_engine.config.TENSOR_DTYPE, f"Wrong dtype for values_bloc: {values_block.dtype}. should be {gempy_engine.config.TENSOR_DTYPE}"

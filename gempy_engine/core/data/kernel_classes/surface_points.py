@@ -23,9 +23,6 @@ class SurfacePoints:
             self.nugget_effect_scalar = np.ones(self.n_points) * self.nugget_effect_scalar
         cast_type_inplace(self)
 
-    def __hash__(self):
-        return hash(5) # TODO: These should be self.__repr__ instead of 5
-    
     @classmethod
     def from_schema(cls, schema: SurfacePointsSchema):
         return cls(sp_coords=np.array(schema.sp_coords))
@@ -49,12 +46,16 @@ class SurfacePoints:
         return self.sp_coords.shape[0]
 
 
-@dataclass
+@dataclass(frozen=True)
 class SurfacePointsInternals:
     ref_surface_points: tensor_types
     rest_surface_points: tensor_types
     nugget_effect_ref_rest: tensor_types
-
+    
+    def __hash__(self):
+        i = hash(self.__repr__())
+        return i        
+    
     @property
     def n_points(self) -> int:
         return self.ref_surface_points.shape[0]

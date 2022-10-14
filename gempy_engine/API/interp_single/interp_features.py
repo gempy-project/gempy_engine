@@ -32,7 +32,6 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
             interpolation_input.grid = grid_1_centers
         octree_list.append(next_octree)
 
-    Buffer.clean()
     return octree_list
 
 

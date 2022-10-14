@@ -13,7 +13,8 @@ mprof plot
 
 ### List of optimizations
 
-- [ ]  Caching weights
+- [x]  Caching weights
 - [ ]  Use new fancy triangulation
 - [ ]  fancy triangulation in gpu
-- [ ] dtype
+  (after profiling)
+- [ ]  dtype

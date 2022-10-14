@@ -34,7 +34,6 @@ def _interpolate(stack_interpolation_input: InterpolationInput, options: Interpo
     output: List[OctreeLevel] = interpolate_n_octree_levels(stack_interpolation_input, options, data_descriptor)
     solutions: Solutions = Solutions(octrees_output=output)
     
-    
     if options.debug:
         solutions.debug_input_data["stack_interpolation_input"] = stack_interpolation_input
     return solutions

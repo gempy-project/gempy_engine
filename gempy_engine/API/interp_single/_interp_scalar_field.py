@@ -13,27 +13,37 @@ from ...modules.solver import solver_interface
 
 
 class Buffer:
-    weights = None
-
+    weights: dict[hash, np.ndarray] = {}
+    
+    @classmethod
+    def add(cls, value: np.ndarray, solver_input: SolverInput, kernel_options: KernelOptions):
+        input_hash = hash((solver_input, kernel_options))
+        cls.weights[input_hash] = value
+    
     @classmethod
     def clean(cls):
-        cls.weights = None
-
+        cls.weights = {}
+        
+    @classmethod
+    def get(cls, solver_input: SolverInput, kernel_options: KernelOptions):        
+        input_hash = hash((solver_input, kernel_options))
+        current_weights = cls.weights.get(input_hash, None)
+        return current_weights
+        
 
 def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions) ->\
         Tuple[np.ndarray, ExportedFields]:
     # region Solver
-    if Buffer.weights is None:
+    if Buffer.get(solver_input, options.kernel_options) is None:
         weights = _solve_interpolation(solver_input, options.kernel_options)
-        Buffer.weights = weights
+        Buffer.add(weights, solver_input, options.kernel_options)
     else:
-        weights = Buffer.weights
+        weights = Buffer.get(solver_input, options.kernel_options)
 
     # endregion
 
     exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options)
 
-    Buffer.clean()
     return weights, exported_fields
 
 
