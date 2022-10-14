@@ -61,21 +61,25 @@ class BackendTensor:
                 from tensorflow.python.ops.numpy_ops import np_config 
                 np_config.enable_numpy_behavior( prefer_float32=True)
 
-                physical_devices = tf.config.list_physical_devices('GPU')
-                
+                physical_devices_gpu = tf.config.list_physical_devices('GPU')
+                physical_devices_cpu = tf.config.list_physical_devices('CPU')
+                tf.config.experimental.set_memory_growth(physical_devices_gpu[0], True) # * This cannot be modified on run time
+               
                 if DEBUG_MODE:
-                    
                     import logging
                     tf.get_logger().setLevel(logging.ERROR)
                     logging.getLogger("tensorflow").setLevel(logging.ERROR)
-                    tf.debugging.set_log_device_placement(True) # To find out which devices your operations and tensors are assigned to
+                    tf.debugging.set_log_device_placement(False)  # * To find out which devices your operations and tensors are assigned to
 
                 match (pykeops_enabled, use_gpu):
-                    case (False, True):
-                        tf.config.experimental.set_memory_growth(physical_devices[0], True)
+                    # * device visibility can only be set once. In case of CPU and GPU visible, tf will use the GPU
+                    # * The only thing I can do in here is to remove the GPU from the list of visible devices
+                    case (False, True):    
                         cls.use_gpu = True
+                        cls.pykeops_enabled = False
                     case (False, False):
-                        tf.config.set_visible_devices(physical_devices[1:], 'GPU')
+                        tf.config.set_visible_devices([], 'GPU')
+                        cls.pykeops_enabled = False
                     case (True, _):
                         raise NotImplementedError("Pykeops is not compatible with Tensorflow yet")
             case (_):

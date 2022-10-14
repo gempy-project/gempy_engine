@@ -16,3 +16,4 @@ mprof plot
 - [ ]  Caching weights
 - [ ]  Use new fancy triangulation
 - [ ]  fancy triangulation in gpu
+- [ ] dtype
