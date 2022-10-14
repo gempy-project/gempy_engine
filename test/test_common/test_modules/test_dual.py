@@ -103,7 +103,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
 
-    options.number_octree_levels = 4
+    options.number_octree_levels = 5
 
     ids = np.array([1, 2])
     grid_0_centers = simple_grid_3d_octree_regular()
@@ -137,19 +137,10 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
 
     # * ---- New code Here ----
 
-    # TODO: Pass voxels_select and left_right properly
-    # TODO: Figure out if left_right is necessary
-    # voxel_select = octree_list[1].grid_centers.debug_vals[4]  # This is voxel select
-    # left_right_1 = octree_list[1].grid_centers.debug_vals[3]  # This is bool idx. E.g False is left, True is right for XYZ 
-    # voxel_select_1 = octree_list[1].grid_centers.regular_grid.active_cells
-    # 
-    # left_right_2 = octree_list[2].grid_centers.debug_vals[3]  # This is bool idx. E.g False is left, True is right for XYZ
-    # voxel_select_2 = octree_list[2].grid_centers.regular_grid.active_cells
-    
     stacked = get_left_right_array(octree_list)
     validated_stacked = stacked[valid_voxels]
     validated_edges = valid_edges[valid_voxels]
-    indices_array: np.ndarray = triangulate(validated_stacked, validated_edges)
+    indices_array: np.ndarray = triangulate(validated_stacked, validated_edges, options.number_octree_levels)
     
     # endregion
 
@@ -159,12 +150,11 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     edges_xyz[:, :12][valid_edges] = intersection_xyz
 
     if plot_pyvista or True:
-        output_corners: InterpOutput = last_octree_level.outputs_corners[-1]
         intersection_points = intersection_xyz
         center_mass = dc_data.bias_center_mass
         p = helper_functions_pyvista.plot_pyvista(
             octree_list,
-            dc_meshes=dc_meshes,
+            # dc_meshes=dc_meshes, Uncomment to see the OG mesh
             a=center_mass,
             xyz_on_edge=intersection_xyz,
             vertices=intersection_points,
@@ -176,7 +166,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
             color = ["b", "r", "m", "y", "k", "w"][e % 6]
             
             fancy_mesh_complete = pv.PolyData(dc_meshes[0].vertices, np.insert(indices_array_, 0, 3, axis=1).ravel())
-            p.add_mesh(fancy_mesh_complete, silhouette=True, color=color, show_edges=True)
+            p.add_mesh(fancy_mesh_complete, silhouette=False, color=color, show_edges=True)
         
         p.show()
         # endregion
