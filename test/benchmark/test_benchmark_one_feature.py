@@ -18,16 +18,16 @@ def test_one_feature_numpy(moureze_model, benchmark):
         use_gpu=False,
         pykeops_enabled=False
     )
-    _run_model(benchmark, moureze_model)
+    _run_model(benchmark, moureze_model, False)
 
 
-def test_one_feature_numpy_pykeops(moureze_model, benchmark):
+def _test_one_feature_numpy_pykeops(moureze_model, benchmark):
     BackendTensor.change_backend(
         engine_backend=AvailableBackends.numpy,
         use_gpu=False,
         pykeops_enabled=True
     )
-    _run_model(benchmark, moureze_model)
+    _run_model(benchmark, moureze_model, False)
     
 
 class TestTF:
@@ -56,18 +56,24 @@ class TestTF:
         with tf.device('/CPU:0'):
             _run_model(benchmark, moureze_model)
     
-
-
-def _run_model(benchmark, moureze_model):
+    
+def _run_model(benchmark, moureze_model, benchmark_active=True):
+    """Use benchmark_active=False to debug"""
+    
     interpolation_input: InterpolationInput
     options: InterpolationOptions
     structure: InputDataDescriptor
     interpolation_input, options, structure = moureze_model
     n_oct_levels = options.number_octree_levels
-    solutions: Solutions = benchmark.pedantic(
-        target=compute_model,
-        args=(interpolation_input, options, structure)
-    )
+    
+    if benchmark_active:
+        solutions: Solutions = benchmark.pedantic(
+            target=compute_model,
+            args=(interpolation_input, options, structure)
+        )
+    else:
+        solutions: Solutions = compute_model(interpolation_input, options, structure)
+        
     if plot_pyvista and False:
         import pyvista as pv
         from test.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points

@@ -32,7 +32,7 @@ class InternalDistancesMatrices:
             assert self.hv.dtype == TENSOR_DTYPE, f"Wrong dtype for hv: {self.hv.dtype}. should be {TENSOR_DTYPE}"
             assert self.huv_ref.dtype == TENSOR_DTYPE, f"Wrong dtype for huv_ref: {self.huv_ref.dtype}. should be {TENSOR_DTYPE}"
             assert self.huv_rest.dtype == TENSOR_DTYPE, f"Wrong dtype for huv_rest: {self.huv_rest.dtype}. should be {TENSOR_DTYPE}"
-            assert self.perp_matrix.dtype == "int8", f"Wrong dtype for perp_matrix: {self.perp_matrix.dtype}. should be int8"
+            assert (self.perp_matrix.dtype == "int8" or self.perp_matrix.dtype == "float32"), f"Wrong dtype for perp_matrix: {self.perp_matrix.dtype}. should be int8 or float32 for pykeops"
             assert self.r_ref_ref.dtype == TENSOR_DTYPE, f"Wrong dtype for r_ref_ref: {self.r_ref_ref.dtype}. should be {TENSOR_DTYPE}"
             assert self.r_ref_rest.dtype == TENSOR_DTYPE, f"Wrong dtype for r_ref_rest: {self.r_ref_rest.dtype}. should be {TENSOR_DTYPE}"
             assert self.r_rest_ref.dtype == TENSOR_DTYPE, f"Wrong dtype for r_rest_ref: {self.r_rest_ref.dtype}. should be {TENSOR_DTYPE}"

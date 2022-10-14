@@ -20,7 +20,7 @@ def kernel_reduction(cov, b, smooth=0.000001):
         case (AvailableBackends.numpy, True):
             w = cov.solve(
                 np.asarray(b).astype(dtype),
-                alpha=0,
+                alpha=10,
                 dtype_acc=dtype,
                 backend="CPU"
             )
@@ -28,7 +28,8 @@ def kernel_reduction(cov, b, smooth=0.000001):
             if True:
                 cond_number = np.linalg.cond(cov)
                 svd = np.linalg.svd(cov)
-                print(f'Condition number: {cond_number}')
+                is_positive_definite = np.all(np.linalg.eigvals(cov) > 0)
+                print(f'Condition number: {cond_number}. Is positive definite: {is_positive_definite}')
             
             w = bt.tfnp.linalg.solve(cov.astype(dtype), b[:, 0])
         case _:

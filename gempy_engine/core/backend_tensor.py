@@ -25,13 +25,13 @@ class BackendTensor:
             case (engine_backend.numpy):
                 if is_numpy_installed is False:
                     raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: numpy")
-            
+
                 # * Import a copy of numpy as tfnp
                 from importlib.util import find_spec, module_from_spec
                 spec = find_spec('numpy')
                 tfnp = module_from_spec(spec)
                 spec.loader.exec_module(tfnp)
-            
+
                 cls._set_active_backend_pointers(engine_backend, tfnp)
                 cls.tensor_types = Union[tfnp.ndarray]  # tensor Types with respect the backend
 
@@ -52,19 +52,19 @@ class BackendTensor:
             case (engine_backend.tensorflow):
                 if is_tensorflow_installed is False:
                     raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: tensorflow")
-                
-                import tensorflow as tf               
+
+                import tensorflow as tf
                 experimental_numpy_api = tf.experimental.numpy
                 cls._set_active_backend_pointers(engine_backend, experimental_numpy_api)  # * Here is where we set the tensorflow-numpy backend
                 cls.tensor_types = Union[tf.Tensor, tf.Variable]  # tensor Types with respect the backend:
 
-                from tensorflow.python.ops.numpy_ops import np_config 
-                np_config.enable_numpy_behavior( prefer_float32=True)
+                from tensorflow.python.ops.numpy_ops import np_config
+                np_config.enable_numpy_behavior(prefer_float32=True)
 
                 physical_devices_gpu = tf.config.list_physical_devices('GPU')
                 physical_devices_cpu = tf.config.list_physical_devices('CPU')
-                tf.config.experimental.set_memory_growth(physical_devices_gpu[0], True) # * This cannot be modified on run time
-               
+                tf.config.experimental.set_memory_growth(physical_devices_gpu[0], True)  # * This cannot be modified on run time
+
                 if DEBUG_MODE:
                     import logging
                     tf.get_logger().setLevel(logging.ERROR)
@@ -74,7 +74,7 @@ class BackendTensor:
                 match (pykeops_enabled, use_gpu):
                     # * device visibility can only be set once. In case of CPU and GPU visible, tf will use the GPU
                     # * The only thing I can do in here is to remove the GPU from the list of visible devices
-                    case (False, True):    
+                    case (False, True):
                         cls.use_gpu = True
                         cls.pykeops_enabled = False
                     case (False, False):
@@ -85,7 +85,7 @@ class BackendTensor:
             case (_):
                 raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library"
                                      f"is not installed:")
-        
+
         # cls._wrap_backend_functions()
 
     @classmethod
@@ -107,20 +107,28 @@ class BackendTensor:
 
     @classmethod
     def _wrap_pykeops_functions(cls):
-        def exp(tensor):
-            if type(tensor) == numpy.ndarray: return numpy.exp(tensor)
-            elif type(tensor) == pykeops.numpy.LazyTensor: return tensor.exp()
-        
-        cls.tfnp.sum = lambda tensor, axis, keepdims=False, dtype=None: tensor.sum(axis=axis)
+        def _exp(tensor):
+            if type(tensor) == numpy.ndarray:
+                return numpy.exp(tensor)
+            elif type(tensor) == pykeops.numpy.LazyTensor:
+                return tensor.exp()
+
+        def _sum(tensor, axis, keepdims=False, dtype=None):
+            if type(tensor) == numpy.ndarray:
+                return numpy.sum(tensor, axis=axis, keepdims=keepdims, dtype=dtype)
+            elif type(tensor) == pykeops.numpy.LazyTensor:
+                return tensor.sum(axis)
+
         cls.tfnp.sqrt = lambda tensor: tensor.sqrt()
-        cls.tfnp.exp = exp
+        cls.tfnp.sum = _sum
+        cls.tfnp.exp = _exp
 
     @classmethod
     def _wrap_numpy_functions(cls):
         cls.tfnp.cast = lambda tensor, dtype: tensor.astype(dtype)
         cls.tfnp.reduce_sum = cls.tfnp.sum
-        cls.tfnp.concat     = cls.tfnp.concatenate
-        cls.tfnp.constant   = cls.tfnp.array
+        cls.tfnp.concat = cls.tfnp.concatenate
+        cls.tfnp.constant = cls.tfnp.array
 
 
 BackendTensor.change_backend(DEFAULT_BACKEND)

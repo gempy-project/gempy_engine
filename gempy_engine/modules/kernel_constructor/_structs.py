@@ -14,8 +14,9 @@ def _upgrade_kernel_input_to_keops_tensor(struct_data_instance):
     from pykeops.numpy import LazyTensor
 
     for key, val in struct_data_instance.__dict__.items():
-        if key == "n_faults_i": continue    
+        if key == "n_faults_i": continue
         struct_data_instance.__dict__[key] = LazyTensor(val.astype('float32'))  # ! This as type is quite expensive
+        #struct_data_instance.__dict__[key] = LazyTensor(val)  # ! This as type is quite expensive
 
 
 @dataclass
