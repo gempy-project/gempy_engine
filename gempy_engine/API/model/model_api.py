@@ -4,6 +4,7 @@ import copy
 from typing import List
 
 from ..dual_contouring.multi_scalar_dual_contouring import dual_contouring_multi_scalar
+from ..interp_single._interp_scalar_field import WeightsBuffer
 from ..interp_single.interp_features import interpolate_n_octree_levels
 from ...core.data import InterpolationOptions
 from ...core.data.solutions import Solutions
@@ -14,6 +15,8 @@ from ...core.data.interpolation_input import InterpolationInput
 
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                   data_descriptor: InputDataDescriptor) -> Solutions:
+    
+    WeightsBuffer.clean()
     
     interpolation_input = copy.deepcopy(interpolation_input)  # TODO: Make sure if this works with TF
     solutions: Solutions = _interpolate(interpolation_input, options, data_descriptor)

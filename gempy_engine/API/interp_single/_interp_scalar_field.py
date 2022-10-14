@@ -12,7 +12,7 @@ from ...modules.kernel_constructor import kernel_constructor_interface as kernel
 from ...modules.solver import solver_interface
 
 
-class Buffer:
+class WeightsBuffer:
     weights: dict[hash, np.ndarray] = {}
     
     @classmethod
@@ -34,11 +34,11 @@ class Buffer:
 def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions) ->\
         Tuple[np.ndarray, ExportedFields]:
     # region Solver
-    if Buffer.get(solver_input, options.kernel_options) is None:
+    if WeightsBuffer.get(solver_input, options.kernel_options) is None:
         weights = _solve_interpolation(solver_input, options.kernel_options)
-        Buffer.add(weights, solver_input, options.kernel_options)
+        WeightsBuffer.add(weights, solver_input, options.kernel_options)
     else:
-        weights = Buffer.get(solver_input, options.kernel_options)
+        weights = WeightsBuffer.get(solver_input, options.kernel_options)
 
     # endregion
 

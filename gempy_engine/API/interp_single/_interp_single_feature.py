@@ -4,7 +4,7 @@ from typing import Optional, List, Callable
 import numpy as np
 
 import gempy_engine.config
-from ._interp_scalar_field import interpolate_scalar_field, Buffer
+from ._interp_scalar_field import interpolate_scalar_field, WeightsBuffer
 from ...core.data import SurfacePoints, SurfacePointsInternals, Orientations, OrientationsInternals
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.exported_structs import MaskMatrices

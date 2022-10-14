@@ -13,12 +13,12 @@ mprof plot
 
 ### List of optimizations
 
-- [x]  Caching weights
-- [ ]  Use new fancy triangulation
-- [ ]  fancy triangulation in gpu
+- [x]  Opt1: Caching weights 
+- [ ]  Opt2: Use new fancy triangulation
+- [ ]  Opt3:  fancy triangulation in gpu
   (after profiling)
-- [ ]  dtype
-- [ ] Gradients calculations (we only need it on the edges). More info on Notability->GemPy Engine Page 60
+- [ ] Opt4 dtype
+- [ ] Opt5 Gradients calculations (we only need it on the edges). More info on Notability->GemPy Engine Page 60
 
 
 ### Scalene Profiling
