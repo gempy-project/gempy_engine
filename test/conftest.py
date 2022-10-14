@@ -5,8 +5,6 @@ from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 # ! Do not delete the fixtures imports
 # Import fixtures
-from test.fixtures.simple_models import *
-
 from test.fixtures.simple_geometries import\
     horizontal_stratigraphic,\
     horizontal_stratigraphic_scaled, \
@@ -19,6 +17,9 @@ from test.fixtures.grids import \
     simple_grid_3d_octree
 
 from test.fixtures.complex_geometries import *
+from test.fixtures.simple_models import *
+from test.fixtures.heavy_models import *
+
 
 # * Eventually I want this to be random... Hopefully
 # backend = np.random.choice([AvailableBackends.numpy, AvailableBackends.tensorflow])

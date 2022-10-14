@@ -16,8 +16,8 @@ class DualContouringMaskingOptions(enum.Enum):
 
 @dataclass
 class KernelOptions:
-    range: int
-    c_o: float
+    range: int  # TODO: have constructor from RegularGrid
+    c_o: float  # TODO: This should be a property
     uni_degree: int = 1
     i_res: float = 4.
     gi_res: float = 2.
