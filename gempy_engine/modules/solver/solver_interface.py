@@ -1,3 +1,5 @@
+import warnings
+
 import gempy_engine.config
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
@@ -18,9 +20,12 @@ def kernel_reduction(cov, b, smooth=0.000001):
             import tensorflow as tf            
             w = tf.linalg.solve(cov, b)
         case (AvailableBackends.numpy, True):
+            # ! Only Positivie definite matrices are solved. Otherwise the kernel gets stuck
+            # * Very interesting: https://stats.stackexchange.com/questions/386813/use-the-rbf-kernel-to-construct-a-positive-definite-covariance-matrix
+            
             w = cov.solve(
                 np.asarray(b).astype(dtype),
-                alpha=10,
+                alpha=900000,
                 dtype_acc=dtype,
                 backend="CPU"
             )
@@ -30,6 +35,8 @@ def kernel_reduction(cov, b, smooth=0.000001):
                 svd = np.linalg.svd(cov)
                 is_positive_definite = np.all(np.linalg.eigvals(cov) > 0)
                 print(f'Condition number: {cond_number}. Is positive definite: {is_positive_definite}')
+                if is_positive_definite == False:  # ! Careful numpy False
+                    warnings.warn('The covariance matrix is not positive definite')
             
             w = bt.tfnp.linalg.solve(cov.astype(dtype), b[:, 0])
         case _:

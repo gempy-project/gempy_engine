@@ -9,6 +9,7 @@ from gempy_engine.modules.kernel_constructor._structs import KernelInput
 # ! Important for loading the pickle in test_distance_matrix
 from gempy_engine.modules.kernel_constructor._internalDistancesMatrices import InternalDistancesMatrices
 
+global_nugget = 1e-5
 
 def _get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, ki: KernelInput, options):
     cov_grad = _get_cov_grad(dm, k_a, k_p_ref)
@@ -44,7 +45,7 @@ def _get_cov_grad(dm, k_a, k_p_ref):
     cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
     if BackendTensor.pykeops_enabled is False:
         grad_nugget = 0.01
-        diag = grad_nugget * dm.perp_matrix
+        diag = (grad_nugget + global_nugget) * dm.perp_matrix
         cov_grad += diag
 
     return cov_grad
@@ -57,7 +58,7 @@ def _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, opti
         ref_nugget  = 0.01
         rest_nugget = 0.01
         nugget_rest_ref = ref_nugget + rest_nugget
-        diag = np.eye(cov_surface_points.shape[0], dtype=gempy_engine.config.TENSOR_DTYPE) * 0.001 # ! Add 0.001% nugget
+        diag = np.eye(cov_surface_points.shape[0], dtype=gempy_engine.config.TENSOR_DTYPE) * (global_nugget + 0.01) # ! Add 0.001% nugget
         multi_matrix = np.ones_like(diag) + diag    
         cov_surface_points += diag
 

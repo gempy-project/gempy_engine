@@ -72,7 +72,7 @@ def moureze_model() -> Tuple[InterpolationInput, InterpolationOptions, InputData
         c_o=10., 
         number_octree_levels=3,
         kernel_function=AvailableKernelFunctions.cubic,
-        uni_degree=1
+        uni_degree=0
     )
 
     # endregion
