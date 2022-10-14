@@ -1,4 +1,6 @@
 import sys
+print('Python %s on %s' % (sys.version, sys.platform))
+sys.path.extend(['/home/miguel/PycharmProjects/gempy_engine'])  # ! This has to be up here
 
 import numpy as np
 import pandas as pd
@@ -15,8 +17,6 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
 
-print('Python %s on %s' % (sys.version, sys.platform))
-sys.path.extend(['/home/miguel/PycharmProjects/gempy_engine'])
 
 
 def my_func():

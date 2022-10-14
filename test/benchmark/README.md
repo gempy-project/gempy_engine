@@ -18,3 +18,10 @@ mprof plot
 - [ ]  fancy triangulation in gpu
   (after profiling)
 - [ ]  dtype
+
+
+### Scalene Profiling
+The only thing I have been able to run consistenly is with the arg profile only
+
+` scalene --profile-all --profile-only profile_runner.py`  
+`
