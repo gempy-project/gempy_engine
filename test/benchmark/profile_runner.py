@@ -19,11 +19,11 @@ from test.conftest import plot_pyvista
 def profile_moureze_model():
     BackendTensor.change_backend(
         engine_backend=AvailableBackends.numpy,
-        use_gpu=False,
-        pykeops_enabled=False
+        use_gpu=True,
+        pykeops_enabled=True
     )
 
-    _run_model(moureze_model_factory(pick_every=8, octree_lvls=4))
+    _run_model(moureze_model_factory(pick_every=8, octree_lvls=6))
 
 
 def _run_model(model: Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]):
