@@ -11,8 +11,10 @@ from ...core.data.solutions import Solutions
 from ...core.data.octree_level import OctreeLevel
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
+from ...core.utils import gempy_profiler_decorator
 
 
+@gempy_profiler_decorator
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                   data_descriptor: InputDataDescriptor) -> Solutions:
     

@@ -4,6 +4,7 @@ from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.octree_level import OctreeLevel
 from ...core.data.interp_output import InterpOutput
+from ...core.utils import gempy_profiler_decorator
 from ...modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge, \
     triangulate_dual_contouring, generate_dual_contouring_vertices
 
@@ -22,6 +23,7 @@ def get_intersection_on_edges(octree_level: OctreeLevel, output_corners: InterpO
     return intersection_xyz, valid_edges
 
 
+@gempy_profiler_decorator
 def compute_dual_contouring(dc_data: DualContouringData, debug: bool = False) -> List[DualContouringMesh]:
 
     vertices = generate_dual_contouring_vertices(dc_data, debug)

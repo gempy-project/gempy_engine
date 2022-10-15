@@ -23,7 +23,7 @@ def profile_moureze_model():
         pykeops_enabled=False
     )
 
-    _run_model(moureze_model_factory(pick_every=16))
+    _run_model(moureze_model_factory(pick_every=8, octree_lvls=4))
 
 
 def _run_model(model: Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]):

@@ -17,6 +17,7 @@ from ...core.data.options import DualContouringMaskingOptions
 
 from ._dual_contouring import get_intersection_on_edges, compute_dual_contouring
 from ..interp_single.interp_features import interpolate_all_fields_no_octree
+from ...core.utils import gempy_profiler_decorator
 
 
 class MaskBuffer:
@@ -26,7 +27,7 @@ class MaskBuffer:
     def clean(cls):
         cls.previous_mask = None
 
-
+@gempy_profiler_decorator
 def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
                                  options: InterpolationOptions, solutions: Solutions) -> List[DualContouringMesh]:
     # Dual Contouring prep:
@@ -47,6 +48,7 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
     return all_meshes
 
 
+@gempy_profiler_decorator
 def _independent_dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
                                  n_scalar_field: int, octree_leaves: OctreeLevel, options: InterpolationOptions,
                                  ) -> DualContouringData:

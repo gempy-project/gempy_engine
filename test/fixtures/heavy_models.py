@@ -16,7 +16,7 @@ def moureze_model() -> Tuple[InterpolationInput, InterpolationOptions, InputData
     return moureze_model_factory(pick_every=8)
 
 
-def moureze_model_factory(pick_every=8) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
+def moureze_model_factory(pick_every=8, octree_lvls=3) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
     # region: Pull data from cloud
     Moureze_points = pd.read_csv(
         'https://raw.githubusercontent.com/Loop3D/ImplicitBenchmark/master/Moureze/Moureze_Points.csv', sep=';',
@@ -61,7 +61,7 @@ def moureze_model_factory(pick_every=8) -> Tuple[InterpolationInput, Interpolati
     interpolation_options: InterpolationOptions = InterpolationOptions(
         range=100.,
         c_o=10.,
-        number_octree_levels=3,
+        number_octree_levels=octree_lvls,
         kernel_function=AvailableKernelFunctions.cubic,
         uni_degree=0
     )
