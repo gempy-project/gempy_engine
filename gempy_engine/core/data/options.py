@@ -1,10 +1,9 @@
-import dataclasses
 import enum
 import warnings
 from dataclasses import dataclass
 
 import gempy_engine.config
-from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions, KernelFunction
+from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 
 
 class DualContouringMaskingOptions(enum.Enum):
@@ -39,23 +38,24 @@ class KernelOptions:
         return n
 
 
+@dataclass
 class InterpolationOptions:
     kernel_options: KernelOptions = None  # * This is the compression of the fields above and the way to go in the future
 
     number_octree_levels: int = 1
     current_octree_level: int = 0  # * Make this a read only property 
 
-    compute_scalar_gradient: bool
-    _compute_scalar_gradient: bool
+    compute_scalar_gradient: bool = False
+    #_compute_scalar_gradient: bool = False
 
     dual_contouring: bool = True
     dual_contouring_masking_options: DualContouringMaskingOptions = DualContouringMaskingOptions.DISJOINT
-
+    
     debug: bool = gempy_engine.config.DEBUG_MODE
     debug_water_tight: bool = False
 
     tensor_dtype = gempy_engine.config.TENSOR_DTYPE
-
+    
     def __init__(
             self,
             range: int | float, c_o: float,
@@ -75,11 +75,16 @@ class InterpolationOptions:
 
         self.tensor_dtype = tensor_dtype
 
-    @property
-    def compute_scalar_gradient(self):
-        gradient_for_dual_cont = self.dual_contouring and self.is_last_octree_level
-        compute_scalar_gradient = self._compute_scalar_gradient or gradient_for_dual_cont
-        return compute_scalar_gradient
+    # @property
+    # def compute_scalar_gradient(self):
+    #     gradient_for_dual_cont = self.dual_contouring and self.is_last_octree_level
+    #     compute_scalar_gradient = self._compute_scalar_gradient or gradient_for_dual_cont
+    #     return compute_scalar_gradient
+
+    # @compute_scalar_gradient.setter
+    # def compute_scalar_gradient(self, value):
+    #     self._compute_scalar_gradient = value
+
 
     @property
     def compute_corners(self):
@@ -89,10 +94,6 @@ class InterpolationOptions:
     @property
     def is_last_octree_level(self) -> bool:
         return self.current_octree_level == self.number_octree_levels - 1
-
-    @compute_scalar_gradient.setter
-    def compute_scalar_gradient(self, value):
-        self._compute_scalar_gradient = value
 
     @property
     def range(self):

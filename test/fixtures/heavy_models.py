@@ -13,7 +13,7 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 
 @pytest.fixture(scope="session")
 def moureze_model() -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]: 
-    return moureze_model_factory(pick_every=4)
+    return moureze_model_factory(pick_every=8)
 
 
 def moureze_model_factory(pick_every=8) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:

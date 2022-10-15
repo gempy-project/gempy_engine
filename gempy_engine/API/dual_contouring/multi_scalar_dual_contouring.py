@@ -1,3 +1,4 @@
+import copy
 from typing import List
 
 import numpy as np
@@ -25,16 +26,19 @@ class MaskBuffer:
     def clean(cls):
         cls.previous_mask = None
 
-#@profile
+
 def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
                                  options: InterpolationOptions, solutions: Solutions) -> List[DualContouringMesh]:
     # Dual Contouring prep:
     MaskBuffer.clean()
     octree_leaves = solutions.octrees_output[-1]
     all_meshes: List[DualContouringMesh] = []
+    
+    dual_contouring_options = copy.copy(options)
+    dual_contouring_options.compute_scalar_gradient = True
     if options.debug_water_tight is False:
         for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
-            dc_data = _independent_dual_contouring(data_descriptor, interpolation_input, n_scalar_field, octree_leaves, options)
+            dc_data = _independent_dual_contouring(data_descriptor, interpolation_input, n_scalar_field, octree_leaves, dual_contouring_options)
             meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, options.debug)
             all_meshes.append(*meshes)
     else:

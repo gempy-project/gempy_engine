@@ -56,8 +56,8 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
         fault_values_all = all_stack_values_block[fault_relation_on_this_stack]
         fv_on_all_sp = fault_values_all[:, interpolation_input_i.grid.len_all_grids:]
         fv_on_sp = fv_on_all_sp[:, interpolation_input_i.slice_feature]
-        # Grab Faults data given by the user
-        fault_data = interpolation_input_i.fault_values
+        
+        fault_data = interpolation_input_i.fault_values  # Grab Faults data given by the user
 
         if interpolation_input_i.not_fault_input:  # * Set default fault data
             fault_data = FaultsData(fault_values_everywhere=fault_values_all, fault_values_on_sp=fv_on_sp)
@@ -66,7 +66,6 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
             fault_data.fault_values_everywhere = fault_values_all
 
         interpolation_input_i.fault_values = fault_data
-
         # endregion
         
         output: ScalarFieldOutput = interpolate_feature(
@@ -79,8 +78,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
 
         all_scalar_fields_outputs[i] = output
 
-        # * This is also for faults!
-        if interpolation_input_i.stack_relation is StackRelationType.FAULT:
+        if interpolation_input_i.stack_relation is StackRelationType.FAULT:  # * This is also for faults!
             val_min = np.min(output.values_on_all_xyz, axis=1).reshape(-1, 1)  # ? Is this as good as it gets?
             shifted_vals = (output.values_on_all_xyz - val_min) * interpolation_input_i.fault_values.offset
             all_stack_values_block[i, :] = shifted_vals
