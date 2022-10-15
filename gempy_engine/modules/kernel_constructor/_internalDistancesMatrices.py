@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
 
@@ -20,9 +21,11 @@ class InternalDistancesMatrices:
     r_rest_rest: np.ndarray
     hu_ref: np.ndarray
     hu_rest: np.ndarray
-    hu_ref_grad: np.ndarray
-    hu_rest_grad: np.ndarray
-    
+    hu_ref_grad: Optional[np.ndarray]  # These are only used by grad eval
+    hu_rest_grad: Optional[np.ndarray]  # These are only used by grad eval
+    # hu_ref_sum: np.ndarray   # These are only used for caching
+    # hu_rest_sum: np.ndarray  # These are only used for caching
+    # 
     def __post_init__(self):
         # Check dtype is set to float32
         if DEBUG_MODE:
@@ -39,6 +42,4 @@ class InternalDistancesMatrices:
             assert self.r_rest_rest.dtype == TENSOR_DTYPE, f"Wrong dtype for r_rest_rest: {self.r_rest_rest.dtype}. should be {TENSOR_DTYPE}"
             assert self.hu_ref.dtype == TENSOR_DTYPE, f"Wrong dtype for hu_ref: {self.hu_ref.dtype}. should be {TENSOR_DTYPE}"
             assert self.hu_rest.dtype == TENSOR_DTYPE, f"Wrong dtype for hu_rest: {self.hu_rest.dtype}. should be {TENSOR_DTYPE}"
-            assert self.hu_ref_grad.dtype == TENSOR_DTYPE, f"Wrong dtype for hu_ref_grad: {self.hu_ref_grad.dtype}. should be {TENSOR_DTYPE}"
-            assert self.hu_rest_grad.dtype == TENSOR_DTYPE, f"Wrong dtype for hu_rest_grad: {self.hu_rest_grad.dtype}. should be {TENSOR_DTYPE}"
             
