@@ -15,7 +15,8 @@ params = {
     "FewInputOctLvl2": pytest.param((8, 2), marks=pytest.mark.skipif(True, reason="Manually skip")),
     "FewInputOctLvl3": pytest.param((8, 3), marks=pytest.mark.skipif(True, reason="Manually skip")),
     "FewInputOctLvl4": pytest.param((8, 4), marks=pytest.mark.skipif(True, reason="Manually skip")),
-    "FewInputOctLvl5": pytest.param((8, 5), marks=pytest.mark.skipif(False, reason="Manually skip")),
+    "FewInputOctLvl5": pytest.param((8, 5), marks=pytest.mark.skipif(True, reason="Manually skip")),
+    "FewInputOctLvl6": pytest.param((8, 5), marks=pytest.mark.skipif(False, reason="Manually skip")),
     "MidInputOctLvl3": pytest.param((4, 3), marks=pytest.mark.skipif(True, reason="Manually skip")),
 }
 
@@ -23,7 +24,9 @@ params = {
 @pytest.fixture(scope="session", params=params.values(), ids=list(params.keys()))
 def moureze_model(request) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]: 
     pick_every, octree_lvls = request.param
-    return moureze_model_factory(pick_every=pick_every, octree_lvls=octree_lvls)
+    model = moureze_model_factory(pick_every=pick_every, octree_lvls=octree_lvls)
+    model[1].dual_contouring_fancy = True # ! This is the Opt3
+    return model
 
 
 def moureze_model_factory(pick_every=8, octree_lvls=3) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:

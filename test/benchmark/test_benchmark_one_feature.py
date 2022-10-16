@@ -29,15 +29,12 @@ def test_one_feature_numpy(moureze_model, benchmark):
     
     
 def test_one_feature_numpy_pykeops_CPU(moureze_model, benchmark):
-    
-    moureze_model[1].dual_contouring_fancy = True
-    
     BackendTensor.change_backend(
         engine_backend=AvailableBackends.numpy,
         use_gpu=False,
         pykeops_enabled=True
     )
-    _run_model(benchmark, moureze_model, False)
+    _run_model(benchmark, moureze_model, True)
     
     
 def test_one_feature_numpy_pykeops_GPU(moureze_model, benchmark):
@@ -67,7 +64,7 @@ class TestTF:
         
         with tf.device('/GPU:0'):
             _run_model(benchmark, moureze_model)    
-        
+    
     
     def test_one_feature_tf_CPU(self, moureze_model, benchmark):
         BackendTensor.change_backend(
@@ -97,7 +94,7 @@ def _run_model(benchmark, moureze_model, benchmark_active=True):
     else:
         solutions: Solutions = compute_model(interpolation_input, options, structure)
         
-    if plot_pyvista and True:
+    if plot_pyvista and False:
         import pyvista as pv
         from test.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points
 
