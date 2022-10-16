@@ -12,7 +12,6 @@ from ...core.utils import gempy_profiler_decorator
 tensor_types = bt.tensor_types
 
 
-@gempy_profiler_decorator
 def create_cov_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     kernel_f: KernelFunction = options.kernel_function.value
     a = options.range
@@ -30,7 +29,6 @@ def create_cov_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
 
 
 # noinspection DuplicatedCode
-@gempy_profiler_decorator
 def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     kernel_f = options.kernel_function.value
     a = options.range
@@ -85,7 +83,6 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
     return c_o * (sigma_0_sp + sigma_0_grad_sp) + uni_drift + fault_drift
 
 
-@gempy_profiler_decorator
 # noinspection DuplicatedCode
 def create_grad_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     kernel_f = options.kernel_function.value
@@ -202,7 +199,6 @@ def _compute_distances_using_cache(cs, last_internal_distances_matrices: Interna
     return new_distance_matrices
 
 
-@gempy_profiler_decorator
 def _compute_distances_new(cs, ori_sp_matrices, square_distance) -> InternalDistancesMatrices:
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j  # Can be cached
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j  # Can be cached

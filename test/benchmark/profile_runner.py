@@ -23,7 +23,9 @@ def profile_moureze_model():
         pykeops_enabled=True
     )
 
-    _run_model(moureze_model_factory(pick_every=8, octree_lvls=6))
+    model = moureze_model_factory(pick_every=8, octree_lvls=6)
+    model[1].dual_contouring_fancy = True  # ! This is the Opt3
+    _run_model(model)
 
 
 def _run_model(model: Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]):
