@@ -46,9 +46,9 @@ def get_left_right_array(octree_list: list[OctreeLevel]) -> np.ndarray:
     bool_to_int_x = np.packbits(binary_x, axis=0, bitorder="little")
     bool_to_int_y = np.packbits(binary_y, axis=0, bitorder="little")
     bool_to_int_z = np.packbits(binary_z, axis=0, bitorder="little")
-    stacked = np.vstack((bool_to_int_x, bool_to_int_y, bool_to_int_z)).T
+    left_right_array = np.vstack((bool_to_int_x, bool_to_int_y, bool_to_int_z)).T
 
-    return stacked
+    return left_right_array
 
 
 class _StaticTriangulationData:

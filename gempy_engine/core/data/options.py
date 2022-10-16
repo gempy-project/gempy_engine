@@ -46,10 +46,10 @@ class InterpolationOptions:
     current_octree_level: int = 0  # * Make this a read only property 
 
     compute_scalar_gradient: bool = False
-    #_compute_scalar_gradient: bool = False
-
+    
     dual_contouring: bool = True
     dual_contouring_masking_options: DualContouringMaskingOptions = DualContouringMaskingOptions.DISJOINT
+    dual_contouring_fancy: bool = False
     
     debug: bool = gempy_engine.config.DEBUG_MODE
     debug_water_tight: bool = False
@@ -74,17 +74,6 @@ class InterpolationOptions:
         self.compute_scalar_gradient = compute_scalar_gradient
 
         self.tensor_dtype = tensor_dtype
-
-    # @property
-    # def compute_scalar_gradient(self):
-    #     gradient_for_dual_cont = self.dual_contouring and self.is_last_octree_level
-    #     compute_scalar_gradient = self._compute_scalar_gradient or gradient_for_dual_cont
-    #     return compute_scalar_gradient
-
-    # @compute_scalar_gradient.setter
-    # def compute_scalar_gradient(self, value):
-    #     self._compute_scalar_gradient = value
-
 
     @property
     def compute_corners(self):

@@ -11,10 +11,15 @@ from test.conftest import plot_pyvista, use_gpu
 
 import tensorflow as tf
 
-# ! Make sure profiler is disable!
+# ! Make sure profiler is disabled!
 pytestmark = pytest.mark.skipif(LINE_PROFILER_ENABLED and False, reason="Line profiler is enabled")
 
+
 def test_one_feature_numpy(moureze_model, benchmark):
+    options: InterpolationOptions = moureze_model[1]    
+    if options.number_octree_levels > 3:
+        pytest.skip("Too many octree levels, too slow")
+
     BackendTensor.change_backend(
         engine_backend=AvailableBackends.numpy,
         use_gpu=False,
@@ -24,12 +29,15 @@ def test_one_feature_numpy(moureze_model, benchmark):
     
     
 def test_one_feature_numpy_pykeops_CPU(moureze_model, benchmark):
+    
+    moureze_model[1].dual_contouring_fancy = True
+    
     BackendTensor.change_backend(
         engine_backend=AvailableBackends.numpy,
         use_gpu=False,
         pykeops_enabled=True
     )
-    _run_model(benchmark, moureze_model, True)
+    _run_model(benchmark, moureze_model, False)
     
     
 def test_one_feature_numpy_pykeops_GPU(moureze_model, benchmark):
@@ -47,6 +55,10 @@ class TestTF:
         if use_gpu is False:
             raise pytest.skip("conftest.py is set to not use GPU")
         
+        options: InterpolationOptions = moureze_model[1]
+        if options.number_octree_levels > 3:
+            pytest.skip("Too many octree levels, too slow")
+
         BackendTensor.change_backend(
             engine_backend=AvailableBackends.tensorflow,
             use_gpu=True,  
@@ -85,7 +97,7 @@ def _run_model(benchmark, moureze_model, benchmark_active=True):
     else:
         solutions: Solutions = compute_model(interpolation_input, options, structure)
         
-    if plot_pyvista and False:
+    if plot_pyvista and True:
         import pyvista as pv
         from test.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points
 
