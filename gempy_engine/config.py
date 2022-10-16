@@ -11,6 +11,7 @@ DEBUG_MODE = True
 OPTIMIZE_MEMORY = True
 DEFAULT_BACKEND = AvailableBackends.numpy
 TENSOR_DTYPE = 'float32'
+LINE_PROFILER_ENABLED = False
 
 is_numpy_installed = find_spec("numpy") is not None
 is_tensorflow_installed = find_spec("tensorflow") is not None

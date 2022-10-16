@@ -23,7 +23,7 @@ from test.fixtures.heavy_models import *
 
 pykeops_enabled = False
 backend = AvailableBackends.numpy
-use_gpu = False
+use_gpu = True
 plot_pyvista = True # ! Set here if you want to plot the results
 
 BackendTensor.change_backend(backend, use_gpu=use_gpu, pykeops_enabled=pykeops_enabled)

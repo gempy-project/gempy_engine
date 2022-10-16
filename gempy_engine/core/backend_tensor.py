@@ -63,7 +63,9 @@ class BackendTensor:
 
                 physical_devices_gpu = tf.config.list_physical_devices('GPU')
                 physical_devices_cpu = tf.config.list_physical_devices('CPU')
+                
                 tf.config.experimental.set_memory_growth(physical_devices_gpu[0], True)  # * This cannot be modified on run time
+                tf.config.set_soft_device_placement(True)  # * This seems to allow changing the device on run time
 
                 if DEBUG_MODE:
                     import logging

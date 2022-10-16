@@ -12,8 +12,11 @@ def cast_type_inplace(data_instance: Any):
 
 def gempy_profiler_decorator(func):
     """Decorator to profile a function"""
-    try:
-        from line_profiler_pycharm import profile
-        return profile(func)
-    except ImportError:
+    if gempy_engine.config.LINE_PROFILER_ENABLED:
+        try:
+            from line_profiler_pycharm import profile
+            return profile(func)
+        except ImportError:
+            return func
+    else:
         return func

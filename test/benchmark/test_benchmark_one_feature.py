@@ -1,7 +1,7 @@
 import pytest
 
 from gempy_engine.API.model.model_api import compute_model
-from gempy_engine.config import AvailableBackends
+from gempy_engine.config import AvailableBackends, LINE_PROFILER_ENABLED
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
@@ -11,6 +11,8 @@ from test.conftest import plot_pyvista, use_gpu
 
 import tensorflow as tf
 
+# ! Make sure profiler is disable!
+pytestmark = pytest.mark.skipif(LINE_PROFILER_ENABLED and False, reason="Line profiler is enabled")
 
 def test_one_feature_numpy(moureze_model, benchmark):
     BackendTensor.change_backend(

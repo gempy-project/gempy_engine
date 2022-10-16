@@ -10,10 +10,22 @@ from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor, Te
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 
+params = {
+    "VeryFewInputOctLvl3": pytest.param((16, 3), marks=pytest.mark.skipif(True, reason="Manually skip")),
+    "FewInputOctLvl3": pytest.param((8, 3), marks=pytest.mark.skipif(False, reason="Manually skip")),
+    "MidInputOctLvl3": pytest.param((4, 3), marks=pytest.mark.skipif(True, reason="Manually skip")),
+}
 
-@pytest.fixture(scope="session")
-def moureze_model() -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]: 
-    return moureze_model_factory(pick_every=8)
+
+@pytest.fixture(scope="session", params=params.values(), ids=list(params.keys()))
+def moureze_model(request) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]: 
+    pick_every, octree_lvls = request.param
+    return moureze_model_factory(pick_every=pick_every, octree_lvls=octree_lvls)
+
+# @pytest.fixture(scope="session")
+# def moureze_model(request) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]: 
+#     #pick_every, octree_lvls = request.param
+#     return moureze_model_factory(pick_every=8, octree_lvls=3)
 
 
 def moureze_model_factory(pick_every=8, octree_lvls=3) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
