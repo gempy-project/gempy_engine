@@ -13,9 +13,9 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 params = {
     "VeryFewInputOctLvl3": pytest.param((16, 3), marks=pytest.mark.skipif(True, reason="Manually skip")),
     "FewInputOctLvl2": pytest.param((8, 2), marks=pytest.mark.skipif(True, reason="Manually skip")),
-    "FewInputOctLvl3": pytest.param((8, 3), marks=pytest.mark.skipif(False, reason="Manually skip")),
+    "FewInputOctLvl3": pytest.param((8, 3), marks=pytest.mark.skipif(True, reason="Manually skip")),
     "FewInputOctLvl4": pytest.param((8, 4), marks=pytest.mark.skipif(True, reason="Manually skip")),
-    "FewInputOctLvl5": pytest.param((8, 5), marks=pytest.mark.skipif(True, reason="Manually skip")),
+    "FewInputOctLvl5": pytest.param((8, 5), marks=pytest.mark.skipif(False, reason="Manually skip")),
     "MidInputOctLvl3": pytest.param((4, 3), marks=pytest.mark.skipif(True, reason="Manually skip")),
 }
 
