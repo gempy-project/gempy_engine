@@ -80,7 +80,7 @@ def triangulate(left_right_array: np.ndarray, valid_edges: np.ndarray, tree_dept
 
     indices = []
 
-    all = [0, 3, 4, 7, 8, 11]
+    all = [1, 2, 4, 7, 8, 11]
     for n in all:
         left_right_array_active_edge = left_right_array[valid_edges[:, n]]
         _ = compute_triangles_for_edge(

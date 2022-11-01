@@ -15,6 +15,7 @@ from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.kernel_classes.server.input_parser import GemPyInput
+from ...core.data.options import DualContouringMaskingOptions
 from ...core.data.solutions import Solutions
 
 try:
@@ -56,7 +57,7 @@ orientations: Orientations = Orientations(
 regular_grid = RegularGrid(
     #extent=[0.25, .75, 0.25, .75, 0.25, .75],
     extent=[0, 20, 0, 20, 0, 20],
-    regular_grid_shape=[5, 5, 5]
+    regular_grid_shape=[2, 2, 2]
 )
 default_grid: Grid = Grid.from_regular_grid(regular_grid)
 
@@ -109,31 +110,70 @@ def compute_gempy_model(input_json: GemPyInput):
 
     interpolation_input: InterpolationInput = InterpolationInput.from_schema(input_json.interpolation_input)
     input_data_descriptor: InputDataDescriptor = InputDataDescriptor.from_schema(input_json.input_data_descriptor)
+    n_stack = len(input_data_descriptor.stack_structure.masking_descriptor)
 
     print(input_data_descriptor.stack_structure.masking_descriptor)
     print(input_data_descriptor.stack_structure)
+    
+    # region Set new fancy triangulation
+    FANCY_TRIANGULATION = True
+    if FANCY_TRIANGULATION:
+        default_interpolation_options.dual_contouring_fancy = True
+        default_interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW # * To Date only raw making is supported
 
+    # endregion
     solutions: Solutions = _compute_model(interpolation_input, default_interpolation_options, input_data_descriptor)
 
     meshes: list[DualContouringMesh] = solutions.dc_meshes
     n_meshes = len(meshes)
     print(f"Number of meshes: {n_meshes}")
-
+    
+    # print("Mesh1Vert" + str(meshes[0].vertices))
+    # print("Mesh2Vert" + str(meshes[1].vertices))
+    # 
+    # print("Mesh1Tri" + str(meshes[0].edges))
+    # print("Mesh2Tri" + str(meshes[1].edges))
+    
+    print("Mesh1TriShape" + str(meshes[0].edges.shape))
+    print("Mesh2TriShape" + str(meshes[1].edges.shape))
+    
     vertex_array = np.concatenate([meshes[i].vertices for i in range(n_meshes)])
     simplex_array = np.concatenate([meshes[i].edges for i in range(n_meshes)])
+    unc, count = np.unique(simplex_array, axis=0, return_counts=True)
+    
+
+    print(f"edges shape {simplex_array.shape}")
+
+    print(f"UNC COUNT {unc[count > 1][0]}")
+
+    if n_stack > 1:  # if unc[count > 1][0][0] == 0:
+        simplex_array = meshes[0].edges
+        for i in range(n_meshes):
+            adder = 0
+            meshes_are_contiguous = meshes[i].edges[0, 0] == meshes[0].edges[0, 0] # * this is how Jan was doing it for the old triangulation
+            meshes_are_contiguous = True  # *  For now I compute it always
+            if i == 0:
+                continue
+            elif meshes_are_contiguous:
+                adder = np.max(meshes[i - 1].edges) + 1
+                print("adder" + str(adder))
+                addmesh = meshes[i].edges + adder
+                simplex_array = np.append(simplex_array, addmesh, axis=0)
+
+    print(f"edges shape {simplex_array.shape}")
     ids_array = np.ones(simplex_array.shape[0])
     l0 = 0
     id = 1
 
     for mesh in meshes:
-        print(f"Number of points: {mesh.edges.shape[0]}")
         l1 = l0 + mesh.edges.shape[0]
+        print(f"l0 {l0} l1 {l1} id {id}")
         ids_array[l0:l1] = id
         l0 = l1
         id += 1
-
-    print("ids_array", ids_array)
-
+    
+    print("ids_array count" + str(np.unique(ids_array)))
+    
     unstructured_data = subsurface.UnstructuredData.from_array(
         vertex=vertex_array,
         cells=simplex_array,
@@ -176,8 +216,9 @@ def _compute_model(interpolation_input: InterpolationInput, options: Interpolati
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
-        for mesh in solutions.dc_meshes:
-            plot_dc_meshes(p, dc_mesh=mesh)
+        for e, mesh in enumerate(solutions.dc_meshes):
+            colors = ["red", "green", "blue", "yellow", "orange", "purple", "black", "white"]
+            plot_dc_meshes(p, dc_mesh=mesh, color=colors[e])
         p.show()
 
     return solutions

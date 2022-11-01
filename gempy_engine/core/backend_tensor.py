@@ -1,10 +1,13 @@
 from typing import Union, Any
 
 import numpy
-import pykeops.numpy
+
 
 from ..config import is_pykeops_installed, is_numpy_installed, is_tensorflow_installed, DEBUG_MODE, \
     DEFAULT_BACKEND, AvailableBackends
+
+if is_pykeops_installed:
+    import pykeops.numpy
 
 
 class BackendTensor:
