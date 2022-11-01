@@ -1,11 +1,14 @@
 import numpy as np
 
 from gempy_engine.API.model.model_api import compute_model
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data import InterpolationOptions, SurfacePoints, Orientations
 from gempy_engine.core.data.grid import Grid, RegularGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor, TensorsStructure, StacksStructure, StackRelationType
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
+from gempy_engine.core.data.solutions import Solutions
+from ...verify_helper import gempy_verify_array
 from ...conftest import plot_pyvista, TEST_SPEED
 
 try:
@@ -58,7 +61,8 @@ def test_public_interface_simplest_model():
         range=4.166666666667,  # TODO: have constructor from RegularGrid
         c_o=0.1428571429,  # TODO: This should be a property
         number_octree_levels=3,
-        kernel_function=AvailableKernelFunctions.cubic
+        kernel_function=AvailableKernelFunctions.cubic,
+        uni_degree=0
     )
 
     # endregion
@@ -91,10 +95,34 @@ def test_public_interface_simplest_model():
 # noinspection DuplicatedCode
 def _compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions, structure: InputDataDescriptor):
     n_oct_levels = options.number_octree_levels
-    solutions = compute_model(interpolation_input, options, structure)
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
+    
+    # TODO [x]: Move Comparer to a separate file
+    # TODO [ ]: Verify a bunch of the results to find discrepancies
+    
+    if options.debug:
+        weights = Solutions.debug_input_data["weights"]
+        A_matrix = Solutions.debug_input_data["A_matrix"]
+        b_vector = Solutions.debug_input_data["b_vector"]
+        cov_gradients = Solutions.debug_input_data["cov_grad"]
+        cov_sp = Solutions.debug_input_data["cov_sp"]
+        cov_grad_sp = Solutions.debug_input_data["cov_grad_sp"]
+        uni_drift = Solutions.debug_input_data["uni_drift"]
+        
+        # ! This is commented until I fix the nugget
+        if False:
+            gempy_verify_array(BackendTensor.tfnp.sum(cov_gradients, axis=1, keepdims=True), "cov_gradients", 1e-1)
+            gempy_verify_array(BackendTensor.tfnp.sum(cov_sp, axis=1, keepdims=True), "cov_sp", 1e-2)
+            gempy_verify_array(BackendTensor.tfnp.sum(cov_grad_sp, axis=1, keepdims=True), "cov_grad_sp", 1e-2)
+            gempy_verify_array(BackendTensor.tfnp.sum(uni_drift, axis=1, keepdims=True), "uni_drift", 1e-2)
+            gempy_verify_array(b_vector, "b_vector")
+            gempy_verify_array(BackendTensor.tfnp.sum(A_matrix, axis=1, keepdims=True), "A_matrix", 1e-2)
+            gempy_verify_array(weights.reshape(1, -1), "weights", rtol=.1)
+
     if plot_pyvista or True:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
         plot_dc_meshes(p, solutions.dc_meshes[0])
+        plot_points(p, interpolation_input.surface_points.sp_coords)
         p.show()

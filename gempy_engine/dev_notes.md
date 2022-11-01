@@ -43,8 +43,8 @@ Notes
           `- Intalling pykeops is a nightmare:
             - Bash looks like this
           ```      
-          export PATH="/usr/local/cuda-11.0/bin:$PATH"
-          export LD_LIBRARY_PATH="/usr/local/cuda-11.0/lib64:$LD_LIBRARY_PATH"
+          export PATH="/usr/local/cuda-11.2/bin:$PATH"
+          export LD_LIBRARY_PATH="/usr/local/cuda-11.2/lib64:$LD_LIBRARY_PATH"
           export CPLUS_INCLUDE_PATH="/usr/local/cuda/include"
           
           export CC=/usr/bin/gcc-9

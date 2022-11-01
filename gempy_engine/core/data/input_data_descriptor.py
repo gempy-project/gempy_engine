@@ -12,7 +12,7 @@ from gempy_engine.core.data.kernel_classes.faults import FaultsData
 from gempy_engine.core.data.kernel_classes.server.input_parser import InputDataDescriptorSchema
 
 
-def _cast_type_inplace(struct_data_instance):
+def _cast_type_inplace(struct_data_instance: "TensorStructure"):
     for key, val in struct_data_instance.__dict__.items():
         if type(val) != np.ndarray: continue
         struct_data_instance.__dict__[key] = val.astype(struct_data_instance.dtype)
@@ -166,7 +166,5 @@ class TensorsStructure:
         res = np.eye(self.total_number_sp, dtype='int32')[np.array(ref_positions).reshape(-1)]
         one_hot_ = res.reshape(list(ref_positions.shape) + [self.total_number_sp])
 
-        partitions = b.tfnp.reduce_sum(one_hot_, axis=0)
-        partitions_bool = partitions.astype(bool)
-
-        return partitions_bool
+        partitions = b.tfnp.sum(one_hot_, axis=0, dtype=bool)
+        return partitions

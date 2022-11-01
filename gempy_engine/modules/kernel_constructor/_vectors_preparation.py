@@ -27,8 +27,6 @@ def cov_vectors_preparation(interp_input: SolverInput, kernel_options: KernelOpt
         dim=options.number_dimensions,
         n_dips=ori_.n_orientations
     )
-    cov_size = matrices_sizes.cov_size
-
     orientations_sp_matrices: OrientationSurfacePointsCoords = _assembly_dips_points_tensors(matrices_sizes, ori_, sp_)
     dips_ref_ui, dips_rest_ui, dips_ug = _assembly_drift_tensors(options, ori_, sp_, matrices_sizes)
 
@@ -97,11 +95,6 @@ def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: K
         drift_start_post_x=matrices_sizes.ori_size + matrices_sizes.sp_size,
         drift_start_post_y=matrices_sizes.grid_size,
         n_drift_eq=matrices_sizes.uni_drift_size)
-
-    # drift_selection = DriftMatrixSelector.old_method(
-    #     x_size=matrices_sizes.cov_size,
-    #     y_size=matrices_sizes.grid_size,
-    #     n_drift_eq=matrices_sizes.uni_drift_size)
 
     return KernelInput(
         ori_sp_matrices=orientations_sp_matrices,

@@ -12,6 +12,7 @@ except ImportError:
 
 
 def test_interpolate_model(simple_model_interpolation_input, n_oct_levels=3):
+    """Kernel function Cubic"""
     interpolation_input, options, structure = simple_model_interpolation_input
     print(interpolation_input)
 

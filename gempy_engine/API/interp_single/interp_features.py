@@ -12,7 +12,7 @@ from ...core.data.interpolation_input import InterpolationInput
 from ...modules.octrees_topology import octrees_topology_interface as octrees
 
 from . import _multi_scalar_field_manager as ms
-from ._interp_scalar_field import Buffer, interpolate_scalar_field
+from ._interp_scalar_field import WeightsBuffer, interpolate_scalar_field
 from ._interp_single_feature import interpolate_feature, input_preprocess
 from ._octree_generation import interpolate_on_octree
 
@@ -32,7 +32,6 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
             interpolation_input.grid = grid_1_centers
         octree_list.append(next_octree)
 
-    Buffer.clean()
     return octree_list
 
 

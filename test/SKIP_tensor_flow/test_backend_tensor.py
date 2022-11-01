@@ -28,12 +28,12 @@ class TestBackEnds:
         tensors_structure = simple_model_2[3]
     
         # Run Default numpy-cpu
-        s = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
+        s = surface_points_preprocess(surface_points, tensors_structure.tensors_structure)
         print(s)
     
         # Run TF-Default
         BackendTensor.change_backend(AvailableBackends.tensorflow)
-        s = surface_points_preprocess(surface_points, tensors_structure.number_of_points_per_surface)
+        s = surface_points_preprocess(surface_points, tensors_structure.tensors_structure)
         print(s)
     
     
