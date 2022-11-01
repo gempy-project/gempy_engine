@@ -6,6 +6,7 @@ import subsurface.visualization
 from fastapi.openapi.models import Response
 from pydantic import BaseModel
 from starlette.responses import FileResponse, StreamingResponse
+from subsurface import UnstructuredData
 
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data import InterpolationOptions, SurfacePoints, Orientations
@@ -120,37 +121,72 @@ def compute_gempy_model(input_json: GemPyInput):
     if FANCY_TRIANGULATION:
         default_interpolation_options.dual_contouring_fancy = True
         default_interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW # * To Date only raw making is supported
-
     # endregion
+    
     solutions: Solutions = _compute_model(interpolation_input, default_interpolation_options, input_data_descriptor)
 
     meshes: list[DualContouringMesh] = solutions.dc_meshes
+    
+    MESHES_TO_UNSTRUT = False
+    if MESHES_TO_UNSTRUT:
+        unstructured_data: UnstructuredData = meshes_to_unstruct(meshes, n_stack)
+        PLOT_SUBSURFACE_OBJECT = False
+        if PLOT_SUBSURFACE_OBJECT:
+            plot_subsurface_object(unstructured_data)
+
+    # region encode octrees
+    grid_centers_xyz = solutions.octrees_output[0].grid_centers.values
+    grid_centers_val = solutions.octrees_output[0].last_output_center.ids_block
+
+    unstructured_data = subsurface.UnstructuredData.from_array(
+        vertex=grid_centers_xyz,
+        cells="points",
+        cells_attr=pd.DataFrame(grid_centers_val, columns=['id'])  # TODO: We have to create an array with the shape of simplex array with the id of each simplex
+    )
+    # endregion
+
+    # TODO: Add xarray_attrs to differentiate between the type of data
+    body, header = unstructured_data.to_binary()
+    
+    # encode json header and insert it into the binary body
+    header_json = json.dumps(header)
+    header_json_bytes = header_json.encode('utf-8')
+    header_json_length = len(header_json_bytes)
+    header_json_length_bytes = header_json_length.to_bytes(4, byteorder='little')
+    body = header_json_length_bytes + header_json_bytes + body
+    
+    response = fastapi.Response(content=body, media_type='application/octet-stream')
+    return response
+
+
+def plot_subsurface_object(unstructured_data):
+    print(unstructured_data)
+    obj = subsurface.TriSurf(unstructured_data)
+    pv_unstruct = subsurface.visualization.to_pyvista_mesh(obj)
+    print(pv_unstruct)
+    subsurface.visualization.pv_plot([pv_unstruct])
+
+
+def meshes_to_unstruct(meshes: list[DualContouringMesh], n_stack) -> UnstructuredData:
     n_meshes = len(meshes)
     print(f"Number of meshes: {n_meshes}")
-    
     # print("Mesh1Vert" + str(meshes[0].vertices))
     # print("Mesh2Vert" + str(meshes[1].vertices))
     # 
     # print("Mesh1Tri" + str(meshes[0].edges))
     # print("Mesh2Tri" + str(meshes[1].edges))
-    
     print("Mesh1TriShape" + str(meshes[0].edges.shape))
     print("Mesh2TriShape" + str(meshes[1].edges.shape))
-    
     vertex_array = np.concatenate([meshes[i].vertices for i in range(n_meshes)])
     simplex_array = np.concatenate([meshes[i].edges for i in range(n_meshes)])
     unc, count = np.unique(simplex_array, axis=0, return_counts=True)
-    
-
     print(f"edges shape {simplex_array.shape}")
-
     print(f"UNC COUNT {unc[count > 1][0]}")
-
     if n_stack > 1:  # if unc[count > 1][0][0] == 0:
         simplex_array = meshes[0].edges
         for i in range(n_meshes):
             adder = 0
-            meshes_are_contiguous = meshes[i].edges[0, 0] == meshes[0].edges[0, 0] # * this is how Jan was doing it for the old triangulation
+            meshes_are_contiguous = meshes[i].edges[0, 0] == meshes[0].edges[0, 0]  # * this is how Jan was doing it for the old triangulation
             meshes_are_contiguous = True  # *  For now I compute it always
             if i == 0:
                 continue
@@ -159,51 +195,23 @@ def compute_gempy_model(input_json: GemPyInput):
                 print("adder" + str(adder))
                 addmesh = meshes[i].edges + adder
                 simplex_array = np.append(simplex_array, addmesh, axis=0)
-
     print(f"edges shape {simplex_array.shape}")
     ids_array = np.ones(simplex_array.shape[0])
     l0 = 0
     id = 1
-
     for mesh in meshes:
         l1 = l0 + mesh.edges.shape[0]
         print(f"l0 {l0} l1 {l1} id {id}")
         ids_array[l0:l1] = id
         l0 = l1
         id += 1
-    
     print("ids_array count" + str(np.unique(ids_array)))
-    
     unstructured_data = subsurface.UnstructuredData.from_array(
         vertex=vertex_array,
         cells=simplex_array,
         cells_attr=pd.DataFrame(ids_array, columns=['id'])  # TODO: We have to create an array with the shape of simplex array with the id of each simplex
     )
-    print(unstructured_data)
-    obj = subsurface.TriSurf(unstructured_data)
-    pv_unstruct = subsurface.visualization.to_pyvista_mesh(obj)
-    print(pv_unstruct)
-    subsurface.visualization.pv_plot([pv_unstruct])
-
-    body, header = unstructured_data.to_binary()
-    # with open('test.json', 'w') as outfile:
-    #     json.dump(header, outfile)
-    #
-    # new_file = open("test.le", "wb")
-    # new_file.write(body)
-    # print("Wrote files.")
-
-    # encode json header and insert it into the binary body
-    header_json = json.dumps(header)
-    header_json_bytes = header_json.encode('utf-8')
-    header_json_length = len(header_json_bytes)
-    header_json_length_bytes = header_json_length.to_bytes(4, byteorder='little')
-    body = header_json_length_bytes + header_json_bytes + body
-    # apifile = open("apibinary.le", "wb")
-    # apifile.write(body)
-
-    response = fastapi.Response(content=body, media_type='application/octet-stream')
-    return response
+    return unstructured_data
 
 
 # noinspection DuplicatedCode
@@ -212,7 +220,7 @@ def _compute_model(interpolation_input: InterpolationInput, options: Interpolati
     n_oct_levels = options.number_octree_levels
     solutions = compute_model(interpolation_input, options, structure)
 
-    if plot_pyvista or True:
+    if plot_pyvista and False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
