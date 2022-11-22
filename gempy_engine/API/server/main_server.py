@@ -140,20 +140,6 @@ def compute_gempy_model(input_json: GemPyInput):
                 addmesh = meshes[i].edges + adder
                 simplex_array = np.append(simplex_array, addmesh, axis=0)
 
-    print(f"edges shape {simplex_array.shape}")
-    # for i in range(n_meshes):
-    #     adder = 0
-    #     if i == 0:
-    #         continue
-    #     elif (i > 0 and meshes[i].edges[0,0] == meshes[0].edges[0,0]):
-    #         print("HELLO HERE!")
-    #         adder = (np.max(meshes[i-1].edges) + 1)
-    #         addmesh = meshes[i].edges + adder
-    #         simplex_array = np.append(simplex_array_0, addmesh)
-    #     else:
-    #         simplex_array = np.concatenate(meshes[i].edges)
-    # print(f"simplex array: {simplex_array}")
-
     ids_array = np.ones(simplex_array.shape[0])
     l0 = 0
     id = 1
