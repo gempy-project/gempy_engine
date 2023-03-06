@@ -13,11 +13,13 @@ from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vec
     evaluation_vectors_preparations
 from test.conftest import TEST_SPEED
 from test.helper_functions import plot_2d_scalar_y_direction
-from test.test_common.test_geometries.test_geometries import plot
+from test.test_common.DEP_test_geometries.test_geometries import plot
 
-from test.test_common.test_geometries.solutions import recumbent_weights, recumbent_weights_d1
+from test.test_common.DEP_test_geometries.solutions import recumbent_weights, recumbent_weights_d1
 
 
+# Skip because deprecated
+@pytest.mark.skip(reason="Deprecated")
 class TestRecumbentFoldCovConstructionWithDrift:
 
     def test_recumbent_fold_scaled_grad(self, recumbent_fold_scaled):
@@ -55,7 +57,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         sp_internal = solver_input.sp_internal
         ori_internal = solver_input.ori_internal
         
-        from test.test_common.test_geometries.solutions import recumbent_ref, recumbent_rest, recumbent_dips
+        from test.test_common.DEP_test_geometries.solutions import recumbent_ref, recumbent_rest, recumbent_dips
         np.testing.assert_allclose(sp_internal.ref_surface_points, recumbent_ref, rtol=1e-7)
         np.testing.assert_allclose(sp_internal.rest_surface_points, recumbent_rest, rtol=1e-7)
         np.testing.assert_allclose(ori_internal.dip_positions_tiled, recumbent_dips, rtol=1e-7)
@@ -88,7 +90,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
 
         print(val[6:-9, :6])
 
-        from test.test_common.test_geometries.solutions import recumbent_cgi
+        from test.test_common.DEP_test_geometries.solutions import recumbent_cgi
         print(val[6:-9, :6] - recumbent_cgi)
 
         np.testing.assert_allclose(val[6:-9, :6], recumbent_cgi, atol=.000001)
@@ -172,7 +174,7 @@ class TestRecumbentFoldCovConstructionWithDrift:
         kernel_sp = _test_covariance_items(kernel_data, options.kernel_options, "drift_usp")
 
         print(kernel_sp[6:-9, -9:])
-        from test.test_common.test_geometries.solutions import recumbent_ui
+        from test.test_common.DEP_test_geometries.solutions import recumbent_ui
         np.testing.assert_allclose(kernel_sp[6:-9, -9:], recumbent_ui, atol=.02)
 
     @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Test speed to low")

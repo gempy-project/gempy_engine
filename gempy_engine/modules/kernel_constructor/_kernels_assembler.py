@@ -1,5 +1,3 @@
-
-
 from . import _structs
 from ._covariance_assembler import _get_covariance
 from ._internalDistancesMatrices import InternalDistancesMatrices
@@ -138,10 +136,11 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
                                    square_distance: bool, is_gradient: bool) -> InternalDistancesMatrices:
     # ! For the DistanceBuffer optimization we are assuming that we are always computing the scalar kernel first
     # ! and then the gradient kernel. This is because the gradient kernel needs the scalar kernel distances
-    # ! and we are assuming that the scalar kernel is always computed first. 
-    
+    # ! and we are assuming that the scalar kernel is always computed first.
+
     if is_gradient:
-        distance_matrices: InternalDistancesMatrices = _compute_distances_using_cache(cs, DistancesBuffer.last_internal_distances_matrices)
+        distance_matrices: InternalDistancesMatrices = _compute_distances_using_cache(
+            cs, DistancesBuffer.last_internal_distances_matrices)
     else:
         distance_matrices: InternalDistancesMatrices = _compute_distances_new(cs, ori_sp_matrices, square_distance)
 
@@ -160,18 +159,18 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
 def _compute_distances_using_cache(cs, last_internal_distances_matrices: InternalDistancesMatrices) -> InternalDistancesMatrices:
     dif_ref_ref = last_internal_distances_matrices.dif_ref_ref  # Can be cached
     dif_rest_rest = last_internal_distances_matrices.dif_rest_rest  # Can be cached
-    
+
     hu = last_internal_distances_matrices.hu  # Can be cached
     hv = -bt.t.sum(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j), axis=-1)  # Axis dependent
 
     hu_ref = last_internal_distances_matrices.hu_ref  # Can be cached
     hv_ref = bt.t.sum(dif_ref_ref * (cs.h_sel_ref_i * cs.hv_sel_j), axis=-1)  # Axis dependent
     huv_ref = hu_ref - hv_ref  # Axis dependent
-    
+
     hu_rest = last_internal_distances_matrices.hu_rest  # Can be cached
     hv_rest = bt.t.sum(dif_rest_rest * (cs.h_sel_rest_i * cs.hv_sel_j), axis=-1)  # Axis dependent
     huv_rest = hu_rest - hv_rest  # Axis dependent
-    
+
     perp_matrix = bt.t.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1, dtype="int8")  # Axis dependent
 
     # region: distance r
@@ -202,7 +201,7 @@ def _compute_distances_using_cache(cs, last_internal_distances_matrices: Interna
 def _compute_distances_new(cs, ori_sp_matrices, square_distance) -> InternalDistancesMatrices:
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j  # Can be cached
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j  # Can be cached
-    
+
     hu = bt.t.sum(dif_ref_ref * (cs.hu_sel_i * cs.hu_sel_j), axis=-1)  # Can be cached
     hv = -bt.t.sum(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j), axis=-1)  # Axis dependent
 
@@ -213,9 +212,9 @@ def _compute_distances_new(cs, ori_sp_matrices, square_distance) -> InternalDist
     hu_rest = bt.t.sum(dif_rest_rest * (cs.hu_sel_i * cs.h_sel_rest_j), axis=-1)  # Can be cached
     hv_rest = bt.t.sum(dif_rest_rest * (cs.h_sel_rest_i * cs.hv_sel_j), axis=-1)  # Axis dependent
     huv_rest = hu_rest - hv_rest  # Axis dependent
-    
+
     perp_matrix = bt.t.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1, dtype="int8")  # Axis dependent
-    
+
     # region: distance r
     r_ref_ref = bt.t.sum(dif_ref_ref ** 2, axis=-1)  # Can be cached
     r_rest_rest = bt.t.sum(dif_rest_rest ** 2, axis=-1)  # Can be cached
@@ -227,7 +226,7 @@ def _compute_distances_new(cs, ori_sp_matrices, square_distance) -> InternalDist
         r_ref_rest = bt.t.sqrt(r_ref_rest)
         r_rest_ref = bt.t.sqrt(r_rest_ref)
     # endregion
-    
+
     new_distance_matrices = InternalDistancesMatrices(
         dif_ref_ref=dif_ref_ref, dif_rest_rest=dif_rest_rest,
         hu=hu, hv=hv,
@@ -237,6 +236,6 @@ def _compute_distances_new(cs, ori_sp_matrices, square_distance) -> InternalDist
         r_rest_ref=r_rest_ref, r_rest_rest=r_rest_rest,
         hu_ref=hu_ref, hu_rest=hu_rest,
         hu_ref_grad=None, hu_rest_grad=None,
-    #    hu_ref_sum=hu_ref_sum, hu_rest_sum=hu_rest_sum,
+        #    hu_ref_sum=hu_ref_sum, hu_rest_sum=hu_rest_sum,
     )
     return new_distance_matrices
