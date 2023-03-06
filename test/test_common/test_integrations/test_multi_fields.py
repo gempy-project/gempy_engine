@@ -137,7 +137,7 @@ def test_plot_corners(unconformity_complex, n_oct_levels=2):
     output_corners: InterpOutput = solutions.octrees_output[-1].outputs_corners[-1]
 
     vertices = output_corners.grid.values
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         helper_functions_pyvista.plot_pyvista(solutions.octrees_output, v_just_points=vertices)
 
 

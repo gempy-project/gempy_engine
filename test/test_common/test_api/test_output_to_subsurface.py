@@ -20,20 +20,18 @@ def test_output_to_subsurface(simple_model_interpolation_input, n_oct_levels=3):
 
     options.number_octree_levels = n_oct_levels
     solutions = compute_model(interpolation_input, options, structure)
-    
+
     meshes: list[DualContouringMesh] = solutions.dc_meshes
     vertex_array = np.concatenate([meshes[i].vertices for i in range(len(meshes))])
     simplex_array = np.concatenate([meshes[i].edges for i in range(len(meshes))])
-    
+
     unstructured_data = subsurface.UnstructuredData.from_array(
-            vertex=vertex_array,
-            cells=simplex_array,
-    #       cells_attr=pd.DataFrame(ids_array, columns=['id']) # TODO: We have to create an array with the shape of simplex array with the id of each simplex
+        vertex=vertex_array,
+        cells=simplex_array,
+        #       cells_attr=pd.DataFrame(ids_array, columns=['id']) # TODO: We have to create an array with the shape of simplex array with the id of each simplex
     )
-    
-    if plot_pyvista or True: # Plot using subsurface
+
+    if plot_pyvista or False:  # Plot using subsurface
         trisurf = subsurface.TriSurf(unstructured_data)
         s = subsurface.visualization.to_pyvista_mesh(trisurf)
         subsurface.visualization.pv_plot([s], image_2d=False)
-
-        

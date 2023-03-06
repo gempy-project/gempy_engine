@@ -13,7 +13,7 @@ def test_dtype_propagates_float32(simple_grid_3d_octree, n_oct_levels=3):
     options.number_octree_levels = n_oct_levels
     solutions = compute_model(interpolation_input, options, structure)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         import pyvista as pv
         from test.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes
         pv.global_theme.show_edges = True

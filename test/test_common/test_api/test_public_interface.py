@@ -96,10 +96,10 @@ def test_public_interface_simplest_model():
 def _compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions, structure: InputDataDescriptor):
     n_oct_levels = options.number_octree_levels
     solutions: Solutions = compute_model(interpolation_input, options, structure)
-    
+
     # TODO [x]: Move Comparer to a separate file
     # TODO [ ]: Verify a bunch of the results to find discrepancies
-    
+
     if options.debug:
         weights = Solutions.debug_input_data["weights"]
         A_matrix = Solutions.debug_input_data["A_matrix"]
@@ -108,7 +108,7 @@ def _compute_model(interpolation_input: InterpolationInput, options: Interpolati
         cov_sp = Solutions.debug_input_data["cov_sp"]
         cov_grad_sp = Solutions.debug_input_data["cov_grad_sp"]
         uni_drift = Solutions.debug_input_data["uni_drift"]
-        
+
         # ! This is commented until I fix the nugget
         if False:
             gempy_verify_array(BackendTensor.tfnp.sum(cov_gradients, axis=1, keepdims=True), "cov_gradients", 1e-1)
@@ -119,7 +119,7 @@ def _compute_model(interpolation_input: InterpolationInput, options: Interpolati
             gempy_verify_array(BackendTensor.tfnp.sum(A_matrix, axis=1, keepdims=True), "A_matrix", 1e-2)
             gempy_verify_array(weights.reshape(1, -1), "weights", rtol=.1)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
