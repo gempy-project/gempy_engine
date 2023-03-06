@@ -16,7 +16,7 @@ pytestmark = pytest.mark.skipif(LINE_PROFILER_ENABLED and False, reason="Line pr
 
 
 def test_one_feature_numpy(moureze_model, benchmark):
-    options: InterpolationOptions = moureze_model[1]    
+    options: InterpolationOptions = moureze_model[1]
     if options.number_octree_levels > 3:
         pytest.skip("Too many octree levels, too slow")
 
@@ -25,18 +25,18 @@ def test_one_feature_numpy(moureze_model, benchmark):
         use_gpu=False,
         pykeops_enabled=False
     )
-    _run_model(benchmark, moureze_model, True)
-    
-    
+    _run_model(benchmark, moureze_model, benchmark_active = True)
+
+
 def test_one_feature_numpy_pykeops_CPU(moureze_model, benchmark):
     BackendTensor.change_backend(
         engine_backend=AvailableBackends.numpy,
         use_gpu=False,
         pykeops_enabled=True
     )
-    _run_model(benchmark, moureze_model, True)
-    
-    
+    _run_model(benchmark, moureze_model, benchmark_active = True)
+
+
 def test_one_feature_numpy_pykeops_GPU(moureze_model, benchmark):
     BackendTensor.change_backend(
         engine_backend=AvailableBackends.numpy,
@@ -44,48 +44,47 @@ def test_one_feature_numpy_pykeops_GPU(moureze_model, benchmark):
         pykeops_enabled=True
     )
     _run_model(benchmark, moureze_model, True)
-    
+
 
 class TestTF:
     # ! The order seems to matter!
     def test_one_feature_tf_GPU(self, moureze_model, benchmark):
         if use_gpu is False:
             raise pytest.skip("conftest.py is set to not use GPU")
-        
+
         options: InterpolationOptions = moureze_model[1]
         if options.number_octree_levels > 3:
             pytest.skip("Too many octree levels, too slow")
 
         BackendTensor.change_backend(
             engine_backend=AvailableBackends.tensorflow,
-            use_gpu=True,  
+            use_gpu=True,
             pykeops_enabled=False
         )
-        
+
         with tf.device('/GPU:0'):
-            _run_model(benchmark, moureze_model)    
-    
-    
+            _run_model(benchmark, moureze_model)
+
     def test_one_feature_tf_CPU(self, moureze_model, benchmark):
         BackendTensor.change_backend(
             engine_backend=AvailableBackends.tensorflow,
-            use_gpu=True, # ! This has to be true because once is set to False it will affect the whole run
+            use_gpu=True,  # ! This has to be true because once is set to False it will affect the whole run
             pykeops_enabled=False
         )
-        
+
         with tf.device('/CPU:0'):
             _run_model(benchmark, moureze_model)
-    
-    
+
+
 def _run_model(benchmark, moureze_model, benchmark_active=True):
     """Use benchmark_active=False to debug"""
-    
+
     interpolation_input: InterpolationInput
     options: InterpolationOptions
     structure: InputDataDescriptor
     interpolation_input, options, structure = moureze_model
     n_oct_levels = options.number_octree_levels
-    
+
     if benchmark_active:
         solutions: Solutions = benchmark.pedantic(
             target=compute_model,
@@ -93,7 +92,7 @@ def _run_model(benchmark, moureze_model, benchmark_active=True):
         )
     else:
         solutions: Solutions = compute_model(interpolation_input, options, structure)
-        
+
     if plot_pyvista and False:
         import pyvista as pv
         from test.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points

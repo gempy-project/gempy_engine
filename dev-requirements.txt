@@ -5,3 +5,6 @@ pytest
 # For better visualization of the test results:
 # pyvista
 # scikit image
+
+pytest-benchmark
+pytest-approvaltests

@@ -14,24 +14,24 @@ from ...modules.solver import solver_interface
 
 class WeightsBuffer:
     weights: dict[hash, np.ndarray] = {}
-    
+
     @classmethod
     def add(cls, value: np.ndarray, solver_input: SolverInput, kernel_options: KernelOptions):
-        input_hash = hash((solver_input, kernel_options)) # ! This seems more expensive that compute the weights!
+        input_hash = hash((solver_input, kernel_options))  # ! This seems more expensive that compute the weights!
         cls.weights[input_hash] = value
-    
+
     @classmethod
     def clean(cls):
         cls.weights = {}
-        
+
     @classmethod
-    def get(cls, solver_input: SolverInput, kernel_options: KernelOptions):        
+    def get(cls, solver_input: SolverInput, kernel_options: KernelOptions):
         input_hash = hash((solver_input, kernel_options))
         current_weights = cls.weights.get(input_hash, None)
         return current_weights
-        
 
-def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions) ->\
+
+def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions) -> \
         Tuple[np.ndarray, ExportedFields]:
     # region Solver
     if WeightsBuffer.get(solver_input, options.kernel_options) is None:
@@ -80,18 +80,19 @@ def _evaluate_sys_eq(solver_input: SolverInput, weights: np.ndarray, options: In
         from pykeops.numpy import LazyTensor
         # ! Seems not to make any difference but we need this if we want to change the backend
         # ! We need to benchmark GPU vs CPU with more input
-        scalar_field = (eval_kernel.T * LazyTensor(np.asfortranarray(weights), axis=1)).sum(axis=1, backend="GPU").reshape(-1)
+        backend_string = BackendTensor.get_backend_string()
+        scalar_field = (eval_kernel.T * LazyTensor(np.asfortranarray(weights), axis=1)).sum(axis=1, backend=backend_string).reshape(-1)
 
         if compute_gradient is True:
             eval_gx_kernel = kernel_constructor.yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=0)
             eval_gy_kernel = kernel_constructor.yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=1)
 
-            gx_field = (eval_gx_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend="GPU").reshape(-1)
-            gy_field = (eval_gy_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend="GPU").reshape(-1)
+            gx_field = (eval_gx_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend=backend_string).reshape(-1)
+            gy_field = (eval_gy_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend=backend_string).reshape(-1)
 
             if options.number_dimensions == 3:
                 eval_gz_kernel = kernel_constructor.yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=2)
-                gz_field = (eval_gz_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend="GPU").reshape(-1)
+                gz_field = (eval_gz_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend=backend_string).reshape(-1)
             elif options.number_dimensions == 2:
                 gz_field = None
             else:

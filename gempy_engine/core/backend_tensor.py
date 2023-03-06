@@ -22,6 +22,16 @@ class BackendTensor:
     t: numpy  # Alias for the tensor backend pointer
 
     @classmethod
+    def get_backend_string(cls) -> str:
+        match (cls.use_gpu, cls.pykeops_enabled):
+            case (True, True):
+                return "GPU"
+            case (False, True):
+                return "CPU"
+            case (False, _):
+                return "CPU"
+
+    @classmethod
     def change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled: bool = False, use_gpu: bool = True):
         match engine_backend:
             case (engine_backend.numpy):
@@ -128,7 +138,7 @@ class BackendTensor:
                 return numpy.divide(tensor, other, dtype=dtype)
             elif type(tensor) == pykeops.numpy.LazyTensor:
                 return tensor / other
-            
+
         cls.tfnp.sqrt = lambda tensor: tensor.sqrt()
         cls.tfnp.sum = _sum
         cls.tfnp.exp = _exp
