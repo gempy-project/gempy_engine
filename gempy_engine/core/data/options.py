@@ -46,26 +46,29 @@ class InterpolationOptions:
     current_octree_level: int = 0  # * Make this a read only property 
 
     compute_scalar_gradient: bool = False
-    
+
     dual_contouring: bool = True
     dual_contouring_masking_options: DualContouringMaskingOptions = DualContouringMaskingOptions.DISJOINT
     dual_contouring_fancy: bool = False
-    
+
     debug: bool = gempy_engine.config.DEBUG_MODE
     debug_water_tight: bool = False
 
     tensor_dtype = gempy_engine.config.TENSOR_DTYPE
-    
+
     def __init__(
             self,
-            range: int | float, c_o: float,
-            uni_degree: int = 1,
-            i_res: float = 4, gi_res: float = 2,  # ! This should be DEP
-            number_dimensions: int = 3,  # ? This probably too
-            number_octree_levels: int = 1,
-            kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.exponential,
-            dual_contouring: bool = True, compute_scalar_gradient: bool = False,
-            tensor_dtype=gempy_engine.config.TENSOR_DTYPE,
+            range                  : int | float,
+            c_o                    : float,
+            uni_degree             : int                               = 1,
+            i_res                  : float                             = 4,
+            gi_res                 : float                             = 2                                   , # ! This should be DEP
+            number_dimensions      : int                               = 3                                   , # ? This probably too
+            number_octree_levels   : int                               = 1,
+            kernel_function        : AvailableKernelFunctions          = AvailableKernelFunctions.exponential,
+            dual_contouring        : bool                              = True,
+            compute_scalar_gradient: bool                              = False,
+            tensor_dtype            = gempy_engine.config.TENSOR_DTYPE,
     ):
         self.number_octree_levels = number_octree_levels
         self.kernel_options = KernelOptions(range, c_o, uni_degree, i_res, gi_res, number_dimensions, kernel_function)

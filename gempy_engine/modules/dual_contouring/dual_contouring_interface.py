@@ -1,5 +1,6 @@
 from typing import Tuple
 
+from ...config import TENSOR_DTYPE
 from ...core.data.dual_contouring_data import DualContouringData
 import numpy as np
 
@@ -16,7 +17,7 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray
         xyz_8 = xyz_8[ma_8]
         scalar_8 = scalar_8[:, ma_8]
 
-    scalar_at_sp = scalar_at_sp.reshape((-1, 1, 1))
+    scalar_at_sp = scalar_at_sp.reshape((-1, 1, 1)).astype(TENSOR_DTYPE)
 
     n_isosurface = scalar_at_sp.shape[0]
     xyz_8 = np.tile(xyz_8, (n_isosurface, 1, 1))  # TODO: Generalize
@@ -84,7 +85,7 @@ def triangulate_dual_contouring(dc_data: DualContouringData):
 
         # region direction
         # ! This assumes a vertex per voxel
-        
+
         dx, dy, dz = dxdydz
         x_1 = centers_xyz[valid_voxels][:, None, :]
         x_2 = centers_xyz[valid_voxels][None, :, :]
@@ -134,9 +135,9 @@ def triangulate_dual_contouring(dc_data: DualContouringData):
         directions = np.dstack([nynz_direction, nyz_direction, ynz_direction, yz_direction,
                                 nxnz_direction, xnz_direction, nxz_direction, xz_direction,
                                 nxny_direction, nxy_direction, xny_direction, xy_direction])
-        
+
         # endregion
-        
+
         valid_edg = valid_edges[valid_voxels][:, :]
         direction_each_edge = (directions * valid_edg)
 

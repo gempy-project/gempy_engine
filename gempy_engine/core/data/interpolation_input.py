@@ -16,18 +16,19 @@ class InterpolationInput:
     surface_points: SurfacePoints
     orientations: Orientations
     grid: Grid
-    
+
     _unit_values: Optional[np.ndarray] = None
     segmentation_function: Optional[callable] = None  # * From scalar field to values
-    
+
     _all_surface_points: SurfacePoints = None
-    
+
     # region per model
-    
+
     _fault_values: FaultsData = None
     stack_relation: StackRelationType = StackRelationType.ERODE  # ? Should be here or in the descriptor
+
     # endregion
-    
+
     def __init__(self, surface_points: SurfacePoints, orientations: Orientations, grid: Grid,
                  unit_values: Optional[np.ndarray] = None, segmentation_function: Optional[callable] = None,
                  fault_values: Optional[FaultsData] = None, stack_relation: StackRelationType = StackRelationType.ERODE):
@@ -38,14 +39,14 @@ class InterpolationInput:
         self.segmentation_function = segmentation_function
         self.fault_values = fault_values
         self.stack_relation = stack_relation
-    
+
     @classmethod
     def from_interpolation_input_subset(cls, all_interpolation_input: "InterpolationInput",
                                         stack_structure: StacksStructure) -> "InterpolationInput":
         """
         This is the constructor used to extract subsets for each feature/series
         """
-        
+
         stack_number = stack_structure.stack_number
 
         sp = SurfacePoints.from_suraface_points_subset(all_interpolation_input.surface_points, stack_structure)
@@ -69,9 +70,9 @@ class InterpolationInput:
         # ! Setting this on the constructor does not work with data classes.
         ii_subset.fault_values = stack_structure.active_faults_input_data
         ii_subset.all_surface_points = all_interpolation_input.surface_points
-        
+
         return ii_subset
-    
+
     @classmethod
     def from_schema(cls, schema: InterpolationInputSchema) -> "InterpolationInput":
         return cls(
@@ -79,12 +80,11 @@ class InterpolationInput:
             orientations=Orientations.from_schema(schema.orientations),
             grid=schema.grid,
         )
-    
+
     @property
     def slice_feature(self):
         return self.surface_points.slice_feature
-    
-    
+
     @property
     def fault_values(self):
         if self._fault_values is None:
@@ -104,7 +104,7 @@ class InterpolationInput:
     @property
     def all_surface_points(self):
         if self._all_surface_points is None:
-            return self.surface_points # * This is for backwards compatibility with some tests
+            return self.surface_points  # * This is for backwards compatibility with some tests
         else:
             return self._all_surface_points
 
@@ -118,8 +118,7 @@ class InterpolationInput:
             return np.arange(1000, dtype=np.int16) + 1
         else:
             return self._unit_values.astype(np.int16)
-    
+
     @unit_values.setter
     def unit_values(self, value):
         self._unit_values = value
-        

@@ -4,6 +4,8 @@ from typing import Union, List, Dict
 import numpy as np
 from numpy import ndarray
 
+from gempy_engine.config import TENSOR_DTYPE
+
 
 def _check_and_convert_list_to_array(field):
     if type(field) == list:
@@ -13,10 +15,9 @@ def _check_and_convert_list_to_array(field):
 
 @dataclass
 class RegularGrid:
-
     extent: Union[np.ndarray, List]
     regular_grid_shape: Union[np.ndarray, List]  # Shape(3)
-    _active_cells: np.ndarray = None # Bool array
+    _active_cells: np.ndarray = None  # Bool array
     left_right: np.ndarray = None
 
     def __post_init__(self):
@@ -55,8 +56,8 @@ class RegularGrid:
 
     @property
     def d_diagonal(self):
-        dx, dy,dz = self.dxdydz
-        return np.sqrt(dx**2+dy**2+dz**2)
+        dx, dy, dz = self.dxdydz
+        return np.sqrt(dx ** 2 + dy ** 2 + dz ** 2)
 
     @property
     def regular_grid_dx(self):
@@ -75,9 +76,9 @@ class RegularGrid:
         extent = self.extent
         resolution = self.resolution + 1
 
-        x = np.linspace(extent[0] , extent[1] , resolution[0], dtype="float64")
-        y = np.linspace(extent[2] , extent[3] , resolution[1], dtype="float64")
-        z = np.linspace(extent[4] , extent[5] , resolution[2], dtype="float64")
+        x = np.linspace(extent[0], extent[1], resolution[0], dtype="float64")
+        y = np.linspace(extent[2], extent[3], resolution[1], dtype="float64")
+        z = np.linspace(extent[4], extent[5], resolution[2], dtype="float64")
         xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
         g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
 
@@ -141,22 +142,23 @@ class RegularGrid:
     def _create_regular_grid(cls, extent, resolution):
         dx, dy, dz = cls._compute_dxdydz(extent, resolution)
 
-        x = np.linspace(extent[0] + dx / 2, extent[1] - dx / 2, resolution[0], dtype="float64")
-        y = np.linspace(extent[2] + dy / 2, extent[3] - dy / 2, resolution[1], dtype="float64")
-        z = np.linspace(extent[4] + dz / 2, extent[5] - dz / 2, resolution[2], dtype="float64")
-        
+        x = np.linspace(extent[0] + dx / 2, extent[1] - dx / 2, resolution[0], dtype=TENSOR_DTYPE)
+        y = np.linspace(extent[2] + dy / 2, extent[3] - dy / 2, resolution[1], dtype=TENSOR_DTYPE)
+        z = np.linspace(extent[4] + dz / 2, extent[5] - dz / 2, resolution[2], dtype=TENSOR_DTYPE)
+
         # Create C contiguous arrays
         xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
         g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
-    
+
         return np.ascontiguousarray(g)
+
 
 # TODO: [ ] values is independent field to regular grid. Proabably we want to have an extra field for them
 # TODO: (custom_grid?) and then having a values as a property that brings both together?
 @dataclass
 class Grid:
     values: np.ndarray
-    len_grids: Union[np.ndarray, List] = None # TODO: This should be a bit more automatic?
+    len_grids: Union[np.ndarray, List] = None  # TODO: This should be a bit more automatic?
     regular_grid: RegularGrid = None
     custom_grid: Dict[str, np.ndarray] = None
 
@@ -193,4 +195,3 @@ class Grid:
     @property
     def dxdydz(self) -> tuple[float, float, float]:
         return self.regular_grid.dxdydz
-

@@ -412,7 +412,7 @@ def unconformity_complex_implicit():
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)
     ids = np.array([0, 1, 2, 3, 4, 5, 6])
-
+    
     interpolation_input = InterpolationInput(spi, ori, grid, ids)
 
     return interpolation_input, options, input_data_descriptor
