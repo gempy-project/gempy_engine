@@ -288,7 +288,9 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
     options = simple_model[2]
     data_shape = simple_model[3].tensors_structure
     grid = dataclasses.replace(simple_grid_3d_more_points_grid)
-
+    options.compute_scalar_gradient = True
+    
+    
     ids = np.array([1, 2])
     ii = InterpolationInput(surface_points, orientations, grid, ids)
     interp_input: SolverInput = input_preprocess(data_shape, ii)
