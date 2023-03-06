@@ -4,6 +4,7 @@ from typing import List, Iterable, Optional
 import numpy as np
 from numpy import ndarray
 
+from ...config import TENSOR_DTYPE
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.exported_structs import CombinedScalarFieldsOutput
 from ...core.data.interp_output import InterpOutput
@@ -41,7 +42,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
     all_scalar_fields_outputs: List[ScalarFieldOutput | None] = [None] * stack_structure.n_stacks
 
     xyz_to_interpolate_size: int = root_interpolation_input.grid.len_all_grids + root_interpolation_input.surface_points.n_points
-    all_stack_values_block: np.ndarray = np.zeros((stack_structure.n_stacks, xyz_to_interpolate_size))  # Used for faults
+    all_stack_values_block: np.ndarray = np.zeros((stack_structure.n_stacks, xyz_to_interpolate_size), dtype=TENSOR_DTYPE)  # Used for faults
 
     for i in range(stack_structure.n_stacks):
         stack_structure.stack_number = i
@@ -56,7 +57,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
         fault_values_all = all_stack_values_block[fault_relation_on_this_stack]
         fv_on_all_sp = fault_values_all[:, interpolation_input_i.grid.len_all_grids:]
         fv_on_sp = fv_on_all_sp[:, interpolation_input_i.slice_feature]
-        
+
         fault_data = interpolation_input_i.fault_values  # Grab Faults data given by the user
 
         if interpolation_input_i.not_fault_input:  # * Set default fault data
@@ -67,7 +68,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
 
         interpolation_input_i.fault_values = fault_data
         # endregion
-        
+
         output: ScalarFieldOutput = interpolate_feature(
             interpolation_input=interpolation_input_i,
             options=options,
@@ -89,7 +90,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
 def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relation: List[StackRelationType]) -> np.ndarray:
     n_scalar_fields = len(all_scalar_fields_outputs)
     grid_size = all_scalar_fields_outputs[0].grid_size
-    mask_matrix = np.zeros((n_scalar_fields, grid_size), dtype=np.bool)
+    mask_matrix = np.zeros((n_scalar_fields, grid_size), dtype=bool)
 
     # Setting the mask matrix
     for i in range(n_scalar_fields):

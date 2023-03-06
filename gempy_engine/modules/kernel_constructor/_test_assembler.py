@@ -16,10 +16,13 @@ def _test_covariance_items(ki: KernelInput, options: KernelOptions, item):
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
-
+    
     dm = _compute_all_distance_matrices(
         cs=ki.cartesian_selector,
-        ori_sp_matrices=ki.ori_sp_matrices
+        ori_sp_matrices=ki.ori_sp_matrices,
+        square_distance=True,
+        is_gradient=True,
+        is_testing=True
     )
 
     k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \

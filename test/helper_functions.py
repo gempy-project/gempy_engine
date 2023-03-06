@@ -5,7 +5,7 @@ from gempy_engine.core.data.interpolation_input import InterpolationInput
 import matplotlib.pyplot as plt
 
 
-def plot_2d_scalar_y_direction(interpolation_input: InterpolationInput, Z_x, grid: RegularGrid=None):
+def plot_2d_scalar_y_direction(interpolation_input: InterpolationInput, Z_x, grid: RegularGrid = None):
     if grid is None:
         resolution = interpolation_input.grid.regular_grid.resolution
         extent = interpolation_input.grid.regular_grid.extent
@@ -13,9 +13,12 @@ def plot_2d_scalar_y_direction(interpolation_input: InterpolationInput, Z_x, gri
         resolution = grid.resolution
         extent = grid.extent
 
-    plt.contourf(Z_x.reshape(resolution)[:, resolution[1] // 2, :].T, N=40, cmap="autumn",
-                 extent=extent[[0, 1, 4, 5]]
-                 )
+    plt.contourf(
+        Z_x.reshape(resolution)[:, resolution[1] // 2, :].T,
+        N=20,
+        cmap="autumn",
+        extent=extent[[0, 1, 4, 5]]
+    )
 
     plot_data(interpolation_input)
 
@@ -42,16 +45,15 @@ def calculate_gradient(dip, az, pol):
     return g_x, g_y, g_z
 
 
-def plot_block(block, grid: RegularGrid, interpolation_input = None, direction = "y"):
+def plot_block(block, grid: RegularGrid, interpolation_input=None, direction="y"):
     resolution = grid.resolution
     extent = grid.extent
     if direction == "y":
         plt.imshow(block.reshape(resolution)[:, resolution[1] // 2, :].T, extent=extent[[0, 1, 4, 5]], origin="lower")
     if direction == "x":
         plt.imshow(block.reshape(resolution)[resolution[0] // 2, :, :].T, extent=extent[[2, 3, 4, 5]], origin="lower")
-    
-    
+
     if interpolation_input is not None:
         plot_data(interpolation_input)
-        
+
     plt.show()

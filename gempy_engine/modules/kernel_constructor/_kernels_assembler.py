@@ -133,14 +133,17 @@ class DistancesBuffer:
 
 # noinspection DuplicatedCode
 def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: OrientationSurfacePointsCoords,
-                                   square_distance: bool, is_gradient: bool) -> InternalDistancesMatrices:
+                                   square_distance: bool, is_gradient: bool, is_testing: bool = False) -> InternalDistancesMatrices:
     # ! For the DistanceBuffer optimization we are assuming that we are always computing the scalar kernel first
     # ! and then the gradient kernel. This is because the gradient kernel needs the scalar kernel distances
     # ! and we are assuming that the scalar kernel is always computed first.
 
-    if is_gradient:
+    is_cached_matrices = DistancesBuffer.last_internal_distances_matrices is not None
+    if is_gradient and is_cached_matrices:
         distance_matrices: InternalDistancesMatrices = _compute_distances_using_cache(
-            cs, DistancesBuffer.last_internal_distances_matrices)
+            cs=cs,
+            last_internal_distances_matrices=DistancesBuffer.last_internal_distances_matrices
+        )
     else:
         distance_matrices: InternalDistancesMatrices = _compute_distances_new(cs, ori_sp_matrices, square_distance)
 
@@ -152,7 +155,8 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
             if not np.allclose(v, distance_matrices.__dict__[k]):
                 print("Not allclose", k)
 
-    DistancesBuffer.last_internal_distances_matrices = distance_matrices  # * Save common values for next call
+    if is_testing is False:
+        DistancesBuffer.last_internal_distances_matrices = distance_matrices  # * Save common values for next call
     return distance_matrices
 
 

@@ -25,21 +25,20 @@ def interpolate_feature(interpolation_input: InterpolationInput,
                         external_interp_funct: Optional[CustomInterpolationFunctions] = None,
                         external_segment_funct: Optional[Callable[[np.ndarray], float]] = None,
                         clean_buffer: bool = True) -> ScalarFieldOutput:
-
     grid = copy.deepcopy(interpolation_input.grid)
-    
+
     # region Interpolate scalar field
     solver_input = input_preprocess(data_shape, interpolation_input)
     xyz = solver_input.xyz_to_interpolate
-    
+
     if external_interp_funct is None:
         weights, exported_fields = interpolate_scalar_field(solver_input, options)
-        
+
         exported_fields.set_structure_values(
             reference_sp_position=data_shape.reference_sp_position,
             slice_feature=interpolation_input.slice_feature,
             grid_size=interpolation_input.grid.len_all_grids)
-        
+
         exported_fields.debug = solver_input.debug
     else:
         weights = None
@@ -51,18 +50,18 @@ def interpolate_feature(interpolation_input: InterpolationInput,
             grid_size=xyz.shape[0])
 
     # endregion
-    
+
     # region segmentation
     unit_values = interpolation_input.unit_values
     if external_segment_funct is not None:
         sigmoid_slope = external_segment_funct(xyz)
     else:
         sigmoid_slope = 50000
-    
+
     values_block: np.ndarray = activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=sigmoid_slope)
-    
+
     # endregion
-    
+
     mask_components = _compute_mask_components(
         exported_fields=exported_fields,
         stack_relation=interpolation_input.stack_relation,
@@ -84,7 +83,7 @@ def interpolate_feature(interpolation_input: InterpolationInput,
 
     return output
 
-    
+
 def input_preprocess(data_shape: TensorsStructure, interpolation_input: InterpolationInput) -> SolverInput:
     grid = interpolation_input.grid
     surface_points: SurfacePoints = interpolation_input.surface_points

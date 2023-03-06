@@ -196,10 +196,11 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
 
     array_to_cache = outputs[-1].outputs_centers[1].exported_fields.debug
 
-    if pykeops_enabled is False:
-        cache_array = np.save("cached_array", array_to_cache)
-    cached_array = np.load("cached_array.npy")
-
+    # if pykeops_enabled is False:
+    #     cache_array = np.save("cached_array", array_to_cache)
+    # cached_array = np.load("cached_array.npy", allow_pickle=True)
+    # TODO: Update to use the verify package
+    
     if False:  # * This is in case we need to compare the covariance matrices
 
         last_cov = outputs[-1].outputs_centers.exported_fields.debug
@@ -226,7 +227,7 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
         plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
 
-    if True:
+    if False:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes

@@ -2,7 +2,6 @@ from typing import Union, Any
 
 import numpy
 
-
 from ..config import is_pykeops_installed, is_numpy_installed, is_tensorflow_installed, DEBUG_MODE, \
     DEFAULT_BACKEND, AvailableBackends
 
@@ -66,7 +65,7 @@ class BackendTensor:
 
                 physical_devices_gpu = tf.config.list_physical_devices('GPU')
                 physical_devices_cpu = tf.config.list_physical_devices('CPU')
-                
+
                 tf.config.experimental.set_memory_growth(physical_devices_gpu[0], True)  # * This cannot be modified on run time
                 tf.config.set_soft_device_placement(True)  # * This seems to allow changing the device on run time
 
@@ -124,9 +123,16 @@ class BackendTensor:
             elif type(tensor) == pykeops.numpy.LazyTensor:
                 return tensor.sum(axis)
 
+        def _divide(tensor, other, dtype=None):
+            if type(tensor) == numpy.ndarray:
+                return numpy.divide(tensor, other, dtype=dtype)
+            elif type(tensor) == pykeops.numpy.LazyTensor:
+                return tensor / other
+            
         cls.tfnp.sqrt = lambda tensor: tensor.sqrt()
         cls.tfnp.sum = _sum
         cls.tfnp.exp = _exp
+        cls.tfnp.divide = _divide
 
     @classmethod
     def _wrap_numpy_functions(cls):

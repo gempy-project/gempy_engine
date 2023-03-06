@@ -5,6 +5,7 @@ import numpy as np
 from ._kernel_constructors import assembly_dips_points_tensor, assembly_dips_ug_coords, assembly_dips_points_coords
 from ._kernel_selectors import dips_sp_cartesian_selector, grid_cartesian_selector
 from ._structs import OrientationSurfacePointsCoords, FaultDrift, PointsDrift, DriftMatrixSelector, KernelInput, CartesianSelector, OrientationsDrift
+from ...config import TENSOR_DTYPE
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.internal_structs import SolverInput
 from ...core.data.kernel_classes.orientations import OrientationsInternals
@@ -216,9 +217,9 @@ def _assembly_fault_internals(faults_val, options, ori_size):
     def _assembler(matrix_val, ori_size_: int, uni_drift_size: int):  # TODO: This function (probably)needs to be extracted to _kernel_constructors
         n_uni_eq = uni_drift_size  # * Number of equations. This should be how many faults are active
         n_faults = matrix_val.shape[1]  # TODO [ ]: We are going to have to tweak this for multiple faults
-        z = np.zeros((ori_size_, n_faults))
-        z2 = np.zeros((n_uni_eq, n_faults))
-        z3 = np.eye(n_faults)
+        z = np.zeros((ori_size_, n_faults), dtype=TENSOR_DTYPE)
+        z2 = np.zeros((n_uni_eq, n_faults), dtype=TENSOR_DTYPE)
+        z3 = np.eye(n_faults, dtype=TENSOR_DTYPE)
         # Degree 1
         return np.vstack((z, matrix_val, z2, z3))
 
