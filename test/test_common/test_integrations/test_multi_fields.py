@@ -219,7 +219,8 @@ def test_dual_contouring_multiple_independent_fields_mask(unconformity_complex, 
     options.number_octree_levels = n_oct_levels
     options.debug = True
     options.debug_water_tight = True
-
+    options.compute_scalar_gradient = True
+    
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     if plot_pyvista or False:
@@ -246,6 +247,7 @@ def test_dual_contouring_multiple_dependent_fields(unconformity_complex, n_oct_l
     options.number_octree_levels = n_oct_levels
     options.debug = True
     options.dependent_dual_contouring = True
+    options.compute_scalar_gradient = True
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 

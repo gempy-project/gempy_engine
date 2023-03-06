@@ -43,6 +43,8 @@ except ImportError:
 def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
+    options.compute_scalar_gradient = True
+    
     ids = np.array([1, 2])
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
@@ -76,7 +78,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     temp_ids[valid_voxels] = 5
     octree_list[-1].last_output_center.ids_block = temp_ids  # paint valid voxels
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         output_corners: InterpOutput = last_octree_level.outputs_corners[-1]
         vertices = output_corners.grid.values
         intersection_points = intersection_xyz
@@ -86,7 +88,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
                                               a=center_mass, b=normals,
                                               xyz_on_edge=intersection_xyz,
                                               v_just_points=vertices, vertices=intersection_points)
-        # endregion
+    # endregion
 
 
 def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3d_octree):
@@ -104,6 +106,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     spi, ori_i, options, data_shape = simple_model
 
     options.number_octree_levels = 5
+    options.compute_scalar_gradient = True
 
     ids = np.array([1, 2])
     grid_0_centers = simple_grid_3d_octree_regular()
@@ -141,7 +144,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     validated_stacked = stacked[valid_voxels]
     validated_edges = valid_edges[valid_voxels]
     indices_array: np.ndarray = triangulate(validated_stacked, validated_edges, options.number_octree_levels)
-    
+
     # endregion
 
     # TODO: Plot the edges
@@ -160,14 +163,14 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
             vertices=intersection_points,
             plot=False
         )
-        
+
         for e, indices_array_ in enumerate(indices_array):
             # paint the triangles in different colors
             color = ["b", "r", "m", "y", "k", "w"][e % 6]
-            
+
             fancy_mesh_complete = pv.PolyData(dc_meshes[0].vertices, np.insert(indices_array_, 0, 3, axis=1).ravel())
             p.add_mesh(fancy_mesh_complete, silhouette=False, color=color, show_edges=True)
-        
+
         p.show()
         # endregion
 
@@ -202,6 +205,8 @@ def test_compute_dual_contouring_complex(unconformity_complex_one_layer, n_oct_l
 def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_grid_3d_octree):
     # region Test find_intersection_on_edge
     interpolation_input, options, data_shape = simple_model_3_layers
+    options.compute_scalar_gradient = True
+    
     ids = np.array([1, 2, 3, 4])
     grid_0_centers = simple_grid_3d_octree
 
