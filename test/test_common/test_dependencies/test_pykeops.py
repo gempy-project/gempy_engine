@@ -9,8 +9,7 @@ import numpy as np
 pykeops.config.verbose = True
 
 
-@pytest.mark.skip('Only trigger manually when there is something wrong with'
-                  'pykeops compilation', )
+#@pytest.mark.skip('Only trigger manually when there is something wrong with pykeops compilation', )
 def test_keops_run():
     import pykeops
     pykeops.verbose = True

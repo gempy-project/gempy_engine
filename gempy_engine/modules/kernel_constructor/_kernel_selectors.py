@@ -9,9 +9,9 @@ def dips_sp_cartesian_selector(matrices_sizes: MatricesSizes, axis: int = None):
     n_dips = matrices_sizes.n_dips
     n_points = matrices_sizes.sp_size
 
-    sel_hu = np.zeros((vector_size, n_dim))
-    sel_hv = np.zeros((vector_size, n_dim))
-    sel_huv = np.zeros((vector_size, n_dim))
+    sel_hu = np.zeros((vector_size, n_dim), dtype="int8")
+    sel_hv = np.zeros((vector_size, n_dim), dtype="int8")
+    sel_huv = np.zeros((vector_size, n_dim), dtype="int8")
     for i in range(n_dim): # ! sel_hu has to be the same also for all axis 
         sel_hu[n_dips * i:n_dips * (i + 1), i] = 1
 
@@ -29,13 +29,13 @@ def grid_cartesian_selector(matrices_sizes: MatricesSizes, axis: int = None):
     vector_size = matrices_sizes.grid_size
     n_dim = matrices_sizes.dim
     
-    sel_hu = np.ones((vector_size, n_dim))
-    sel_huv = np.ones((vector_size, n_dim))
+    sel_hu = np.ones((vector_size, n_dim), dtype="int8")
+    sel_huv = np.ones((vector_size, n_dim), dtype="int8")
 
     if axis is None:
-        sel_hv = np.ones((vector_size, n_dim))
+        sel_hv = np.ones((vector_size, n_dim), dtype="int8")
     else:
-        sel_hv = np.zeros((vector_size, n_dim))
+        sel_hv = np.zeros((vector_size, n_dim), dtype="int8")
         sel_hv[:, axis] = 1
 
     return sel_hu, sel_hv, sel_huv

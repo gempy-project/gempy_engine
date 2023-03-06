@@ -17,5 +17,13 @@
   - It needs cmake in the enviroment
   - Make sure this is in bashrc:
 
->>>  export PATH="/usr/local/cuda-11.0/bin:$PATH"
+
+### Adding environment variables:
+
+>>>  export PATH="/usr/local/cuda-11.2/bin:$PATH"
 >>>  export LD_LIBRARY_PATH="/usr/local/cuda-8.0/lib64:$LD_LIBRARY_PATH"
+
+Adding the path to bash is not enough for Pycharm. It has to be added to the enviroment variables. In ubuntu is on the file `/etc/environment`. Edit it with the following command `sudo -H gedit /etc/environment`.
+
+You can check that the variables are properly set in Pycharm looking in the Run Config
+

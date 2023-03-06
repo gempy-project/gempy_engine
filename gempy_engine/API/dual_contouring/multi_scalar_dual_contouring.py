@@ -1,3 +1,4 @@
+import copy
 from typing import List
 
 import numpy as np
@@ -16,6 +17,8 @@ from ...core.data.options import DualContouringMaskingOptions
 
 from ._dual_contouring import get_intersection_on_edges, compute_dual_contouring
 from ..interp_single.interp_features import interpolate_all_fields_no_octree
+from ...core.utils import gempy_profiler_decorator
+from ...modules.dual_contouring.fancy_triangulation import get_left_right_array
 
 
 class MaskBuffer:
@@ -25,17 +28,29 @@ class MaskBuffer:
     def clean(cls):
         cls.previous_mask = None
 
-#@profile
+@gempy_profiler_decorator
 def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
                                  options: InterpolationOptions, solutions: Solutions) -> List[DualContouringMesh]:
     # Dual Contouring prep:
     MaskBuffer.clean()
+    
+    # region new triangulations
+    if options.dual_contouring_fancy:
+        left_right_codes = get_left_right_array(solutions.octrees_output)
+    else:
+        left_right_codes = None
+    # endregion
+    
     octree_leaves = solutions.octrees_output[-1]
     all_meshes: List[DualContouringMesh] = []
+    
+    dual_contouring_options = copy.copy(options)
+    dual_contouring_options.compute_scalar_gradient = True
     if options.debug_water_tight is False:
         for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
-            dc_data = _independent_dual_contouring(data_descriptor, interpolation_input, n_scalar_field, octree_leaves, options)
-            meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, options.debug)
+            dc_data = _independent_dual_contouring(data_descriptor, interpolation_input, n_scalar_field, octree_leaves, dual_contouring_options)
+            dc_data.tree_depth = options.number_octree_levels # TODO: Once we have move to the fancy triangulation. Set this value in a better location
+            meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, left_right_codes=left_right_codes, debug=options.debug)
             all_meshes.append(*meshes)
     else:
         _experimental_water_tight(all_meshes, data_descriptor, interpolation_input, octree_leaves, options)
@@ -43,6 +58,7 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
     return all_meshes
 
 
+@gempy_profiler_decorator
 def _independent_dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
                                  n_scalar_field: int, octree_leaves: OctreeLevel, options: InterpolationOptions,
                                  ) -> DualContouringData:
@@ -96,7 +112,7 @@ def _experimental_water_tight(all_meshes, data_descriptor, interpolation_input, 
                                                options)
         all_dc.append(dc_data)
     merged_dc = _merge_dc_data([all_dc[0], all_dc[1]])
-    meshes: List[DualContouringMesh] = compute_dual_contouring(merged_dc, options.debug)
+    meshes: List[DualContouringMesh] = compute_dual_contouring(merged_dc, debug=options.debug)
     all_meshes.append(*meshes)
     MaskBuffer.clean()
 

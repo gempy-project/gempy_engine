@@ -8,6 +8,8 @@ from gempy_engine.modules.octrees_topology._octree_common import _generate_next_
 
 
 def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=False, debug=False) -> Grid:
+    list_ixd_select = []
+    
     def _mark_voxel(uv_8):
         shift_x = uv_8[:, :4] - uv_8[:, 4:]
         shift_y = uv_8[:, [0, 1, 4, 5]] - uv_8[:, [2, 3, 6, 7]]
@@ -17,7 +19,14 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
         shift_y_select = np.not_equal(shift_y, 0)
         shift_z_select = np.not_equal(shift_z, 0)
         shift_select_xyz = np.array([shift_x_select, shift_y_select, shift_z_select])
-
+        
+        idx_select_x = shift_x_select.sum(axis=1, dtype=bool)
+        idx_select_y = shift_y_select.sum(axis=1, dtype=bool)
+        idx_select_z = shift_z_select.sum(axis=1, dtype=bool)
+        list_ixd_select.append(idx_select_x)
+        list_ixd_select.append(idx_select_y)
+        list_ixd_select.append(idx_select_z)
+        
         voxel_select = (shift_x_select + shift_y_select + shift_z_select).sum(axis=1, dtype=bool)
         return shift_select_xyz, voxel_select
 
@@ -25,7 +34,9 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
     ids = prev_octree.last_output_corners.ids_block  # ! This already uses the final ids block (combining all fields)
 
     uv_8 = ids.reshape((-1, 8))
-
+   
+    #uv_8 = uv_8[idx].reshape((-1, 4))
+     
     # Old octree
     shift_select_xyz, voxel_select = _mark_voxel(uv_8)
     prev_octree.marked_edges = shift_select_xyz
@@ -35,19 +46,21 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
 
     # New Octree
     xyz_anchor = prev_octree.grid_centers.values[voxel_select]
-    xyz_coords = _generate_next_level_centers(xyz_anchor, dxdydz, level=1)
+    xyz_coords, bool_idx = _generate_next_level_centers(xyz_anchor, dxdydz, level=1)
 
     grid_next_centers = Grid(
         xyz_coords,
         regular_grid=RegularGrid(
-            prev_octree.grid_centers.regular_grid.extent,
-            prev_octree.grid_centers.regular_grid.resolution * 2,
-            voxel_select
+            extent=prev_octree.grid_centers.regular_grid.extent,
+            regular_grid_shape=prev_octree.grid_centers.regular_grid.resolution * 2,
+            _active_cells=voxel_select,
+            left_right=bool_idx
         ),
     )
 
-    if debug:
-        return (xyz_coords, xyz_anchor, shift_select_xyz, None, voxel_select, grid_next_centers)
+    if True:
+        grid_next_centers.debug_vals = (xyz_coords, xyz_anchor, shift_select_xyz, bool_idx, voxel_select, grid_next_centers)
+        return grid_next_centers # TODO: This is going to break the tests that were using this
     else:
         return grid_next_centers
 

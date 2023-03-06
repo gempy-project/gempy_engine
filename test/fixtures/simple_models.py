@@ -128,10 +128,8 @@ def simple_model() -> Tuple[SurfacePoints, Orientations, InterpolationOptions, I
     return spi, ori_i, kri, input_data_descriptor
 
 
-@pytest.fixture(scope="session")
-def simple_model_interpolation_input(simple_grid_3d_octree) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
+def simple_model_interpolation_input_factory(simple_grid_3d_octree):
     grid_0_centers = copy.deepcopy(simple_grid_3d_octree)
-
     dip_positions = np.array([
         [0.25010, 0.50010, 0.54177],
         [0.66677, 0.50010, 0.62510],
@@ -145,33 +143,30 @@ def simple_model_interpolation_input(simple_grid_3d_octree) -> Tuple[Interpolati
         [0.58343, 0.50010, 0.39177],
         [0.73343, 0.50010, 0.50010],
     ])
-
     nugget_effect_scalar = 0
     spi = SurfacePoints(sp, nugget_effect_scalar)
-
     dip_gradients = np.array([[0, 0, 1],
                               [-.6, 0, .8]])
     nugget_effect_grad = 0
-
     range_ = 4.166666666667
     co = 0.1428571429
-
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
-
     interpolation_options = InterpolationOptions(range_, co, 0, number_dimensions=3,
                                                  kernel_function=AvailableKernelFunctions.cubic)
-
     ids = np.array([1, 2])
-
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
-
     tensor_struct = TensorsStructure(np.array([7]))
     stack_structure = StacksStructure(number_of_points_per_stack=np.array([7]),
                                       number_of_orientations_per_stack=np.array([2]),
                                       number_of_surfaces_per_stack=np.array([1]),
                                       masking_descriptor=[StackRelationType.ERODE])
-
     input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
+    return interpolation_input, interpolation_options, input_data_descriptor
+
+
+@pytest.fixture(scope="session")
+def simple_model_interpolation_input(simple_grid_3d_octree) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
+    interpolation_input, interpolation_options, input_data_descriptor = simple_model_interpolation_input_factory(simple_grid_3d_octree)
 
     yield interpolation_input, interpolation_options, input_data_descriptor
 
@@ -307,7 +302,6 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
         slice_feature=ii.slice_feature,
         grid_size=ii.grid.len_all_grids)
 
-    
     # -----------------
     # Export and Masking operations can happen even in parallel
     # TODO: [~X] Export block
