@@ -79,9 +79,8 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     octree_lvl0 = OctreeLevel(grid_0_centers, grid_0_corners, [output_0_centers], [output_0_corners])
 
     # Generate grid_1_centers
-    debug_vals = get_next_octree_grid(octree_lvl0, compute_topology=False, debug=True)
-    xyz, anch, select = debug_vals[:3]
-    grid_1_centers = debug_vals[-1]
+    grid_1_centers = get_next_octree_grid(octree_lvl0, compute_topology=False, debug=True)
+    xyz, anch, select = grid_1_centers.debug_vals[:3]
 
     # Level 1
 
@@ -98,10 +97,10 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     # Create octree level 1
     octree_lvl1 = OctreeLevel(grid_1_centers, grid_1_corners, [output_1_centers], [output_1_corners])
 
-    debug_vals = get_next_octree_grid(octree_lvl1, compute_topology=False, debug=True)
-    xyz1, anch1, select1 = debug_vals[:3]
+    grid_2_centers = get_next_octree_grid(octree_lvl1, compute_topology=False, debug=True)
+    xyz1, anch1, select1 = grid_2_centers.debug_vals[:3]
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         # Compute actual mesh
         resolution = [20, 20, 20]
         mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution, output_1_centers.scalar_field_at_sp,
@@ -148,6 +147,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
         p.show()
 
 
+# ? Do we need to test this?
 def test_octree_root_idx(simple_model):
     """Test getting idx for posterior meshing """
 
@@ -179,15 +179,15 @@ def test_octree_root_idx(simple_model):
     octree_lvl0 = OctreeLevel(grid_0_centers, grid_0_corners, [output_0_centers], [output_0_corners])
 
     # Generate grid_1_centers
-    debug_vals = get_next_octree_grid(octree_lvl0, compute_topology=False, debug=True)
-    xyz, anch, select = debug_vals[:3]
+    grid_1_centers = get_next_octree_grid(octree_lvl0, compute_topology=False, debug=True)
+    xyz, anch, select = grid_1_centers.debug_vals[:3]
     centers_lvl1 = xyz
     active_centers_lvl1 = anch
 
-    idx_select = debug_vals[3]
-    voxel_select = debug_vals[4]
+    idx_select = grid_1_centers.debug_vals[3]
+    voxel_select = grid_1_centers.debug_vals[4]
 
-    grid_1_centers = debug_vals[-1]
+    grid_1_centers = grid_1_centers.debug_vals[-1]
 
     # Level 1
 
@@ -204,13 +204,13 @@ def test_octree_root_idx(simple_model):
     # Create octree level 1
     octree_lvl1 = OctreeLevel(grid_1_centers, grid_1_corners, [output_1_centers], [output_1_corners])
 
-    debug_vals = get_next_octree_grid(octree_lvl1, compute_topology=False, debug=True)
-    xyz1, anch1, select1 = debug_vals[:3]
+    grid_2_centers = get_next_octree_grid(octree_lvl1, compute_topology=False, debug=True)
+    xyz1, anch1, select1 = grid_2_centers.debug_vals[:3]
     centers_lvl2 = xyz1
     active_centers_lvl2 = anch1
 
-    idx_select2 = debug_vals[3]
-    voxel_select2 = debug_vals[4]
+    idx_select2 = grid_2_centers.debug_vals[3]
+    voxel_select2 = grid_2_centers.debug_vals[4]
     
     # * ---- New code Here ----
     # region x

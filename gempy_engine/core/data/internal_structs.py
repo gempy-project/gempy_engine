@@ -20,7 +20,8 @@ class SolverInput(object):
     def __init__(self, sp_internal, ori_internal, xyz_to_interpolate=None, fault_internal=None):
         self.sp_internal = sp_internal
         self.ori_internal = ori_internal
-        self.xyz_to_interpolate = xyz_to_interpolate.astype(TENSOR_DTYPE)
+        if xyz_to_interpolate is not None:
+            self.xyz_to_interpolate = xyz_to_interpolate.astype(TENSOR_DTYPE)
         self._fault_internal = fault_internal
     
     def __hash__(self):
