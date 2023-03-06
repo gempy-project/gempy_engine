@@ -139,7 +139,7 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
     # ! and we are assuming that the scalar kernel is always computed first.
 
     is_cached_matrices = DistancesBuffer.last_internal_distances_matrices is not None
-    if is_gradient and is_cached_matrices:
+    if is_gradient and is_cached_matrices and is_testing is False:
         distance_matrices: InternalDistancesMatrices = _compute_distances_using_cache(
             cs=cs,
             last_internal_distances_matrices=DistancesBuffer.last_internal_distances_matrices
@@ -155,8 +155,7 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
             if not np.allclose(v, distance_matrices.__dict__[k]):
                 print("Not allclose", k)
 
-    if is_testing is False:
-        DistancesBuffer.last_internal_distances_matrices = distance_matrices  # * Save common values for next call
+    DistancesBuffer.last_internal_distances_matrices = distance_matrices  # * Save common values for next call
     return distance_matrices
 
 
