@@ -47,7 +47,8 @@ def interpolate_feature(interpolation_input: InterpolationInput,
         exported_fields.set_structure_values(
             reference_sp_position=None,
             slice_feature=None,
-            grid_size=xyz.shape[0])
+            grid_size=xyz.shape[0]
+        )
 
     # endregion
 
@@ -129,7 +130,7 @@ def _compute_mask_components(exported_fields: ExportedFields, stack_relation: St
     # ! if len(is_erosion) != 0:
     # !     is_erosion[-1] = False
 
-    # * This are the default values
+    # * These are the default values
     mask_erode = np.ones_like(exported_fields.scalar_field)
     mask_onlap = None  # ! it is the mask of the previous stack (from gempy: mask_matrix[n_series - 1, shift:x_to_interpolate_shape + shift])
 
