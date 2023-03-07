@@ -26,7 +26,10 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
     final_mask_matrix: np.ndarray = _squeeze_mask(all_scalar_fields_outputs, data_descriptor.stack_relation)
 
     combined_scalar_output: List[CombinedScalarFieldsOutput] = _compute_final_block(
-        all_scalar_fields_outputs, final_mask_matrix, options.compute_scalar_gradient)
+        all_scalar_fields_outputs=all_scalar_fields_outputs,
+        squeezed_mask_arrays=final_mask_matrix,
+        compute_scalar_grad=options.compute_scalar_gradient
+    )
     all_outputs = []
     for e, _ in enumerate(all_scalar_fields_outputs):
         output: InterpOutput = InterpOutput(all_scalar_fields_outputs[e], combined_scalar_output[e])
@@ -61,7 +64,10 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
         fault_data = interpolation_input_i.fault_values  # Grab Faults data given by the user
 
         if interpolation_input_i.not_fault_input:  # * Set default fault data
-            fault_data = FaultsData(fault_values_everywhere=fault_values_all, fault_values_on_sp=fv_on_sp)
+            fault_data = FaultsData(
+                fault_values_everywhere=fault_values_all,
+                fault_values_on_sp=fv_on_sp
+            )
         else:  # * Use user given fault data
             fault_data.fault_values_on_sp = fv_on_sp
             fault_data.fault_values_everywhere = fault_values_all
