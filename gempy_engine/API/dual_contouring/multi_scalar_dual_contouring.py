@@ -37,6 +37,10 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
 
     # region new triangulations
     if options.dual_contouring_fancy:
+        is_pure_octree = np.all(solutions.octrees_output[0].grid_centers.regular_grid_shape == 2)
+        if not is_pure_octree:  # Check if regular grid is [2,2,2]
+            raise ValueError("Fancy triangulation only works with regular grid of resolution [2,2,2]")
+
         left_right_codes = get_left_right_array(solutions.octrees_output)
     else:
         left_right_codes = None
@@ -50,18 +54,22 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
     if options.debug_water_tight is False:
         for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
             dc_data = _independent_dual_contouring(
+                # @off
                 data_descriptor     = data_descriptor,
                 interpolation_input = interpolation_input,
                 n_scalar_field      = n_scalar_field,
                 octree_leaves       = octree_leaves,
                 options             = dual_contouring_options
+                # @on
             )
             dc_data.tree_depth = options.number_octree_levels  # TODO: Once we have move to the fancy triangulation. Set this value in a better location
-            
+
             meshes: List[DualContouringMesh] = compute_dual_contouring(
-                dc_data=dc_data,
-                left_right_codes=left_right_codes,
-                debug=options.debug
+                # @off
+                dc_data          = dc_data,
+                left_right_codes = left_right_codes,
+                debug            = options.debug
+                # @on
             )
 
             all_meshes.append(*meshes)
@@ -91,12 +99,12 @@ def _independent_dual_contouring(data_descriptor: InputDataDescriptor, interpola
 
     n_surfaces_to_export = output_corners.scalar_field_at_sp.shape[0]  # * We need this general way because for example for fault we extract two surfaces from one surface input
     dc_data = DualContouringData(
-        xyz_on_edge              = intersection_xyz,
-        valid_edges              = valid_edges,
-        xyz_on_centers           = octree_leaves.grid_centers.values if mask is None else octree_leaves.grid_centers.values[mask],
-        dxdydz                   = octree_leaves.grid_centers.dxdydz,
-        exported_fields_on_edges = output_on_edges[n_scalar_field].exported_fields,
-        n_surfaces               = n_surfaces_to_export
+        xyz_on_edge=intersection_xyz,
+        valid_edges=valid_edges,
+        xyz_on_centers=octree_leaves.grid_centers.values if mask is None else octree_leaves.grid_centers.values[mask],
+        dxdydz=octree_leaves.grid_centers.dxdydz,
+        exported_fields_on_edges=output_on_edges[n_scalar_field].exported_fields,
+        n_surfaces=n_surfaces_to_export
     )
     return dc_data
 

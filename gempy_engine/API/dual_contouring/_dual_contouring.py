@@ -32,7 +32,7 @@ def compute_dual_contouring(dc_data: DualContouringData, left_right_codes=None, 
         # * Legacy triangulation
         indices = triangulate_dual_contouring(dc_data)
     else:
-        # * Fancy triangulation
+        # * Fancy triangulation 👗
         from gempy_engine.modules.dual_contouring.fancy_triangulation import triangulate
         validated_stacked = left_right_codes[dc_data.valid_voxels]
         validated_edges = dc_data.valid_edges[dc_data.valid_voxels]
