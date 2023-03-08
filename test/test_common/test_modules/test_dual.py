@@ -62,7 +62,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
         xyz_on_centers=last_octree_level.grid_centers.values,
         dxdydz=last_octree_level.grid_centers.dxdydz,
         exported_fields_on_edges=output_on_edges[0].exported_fields,
-        n_surfaces=data_shape.tensors_structure.n_surfaces
+        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
     )
 
     gradients = dc_data.gradients
@@ -126,7 +126,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
         xyz_on_centers=last_octree_level.grid_centers.values,
         dxdydz=last_octree_level.grid_centers.dxdydz,
         exported_fields_on_edges=output_on_edges[0].exported_fields,
-        n_surfaces=data_shape.tensors_structure.n_surfaces
+        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
     )
 
     dc_meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data)
@@ -224,7 +224,7 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
         xyz_on_centers=last_octree_level.grid_centers.values,
         dxdydz=last_octree_level.grid_centers.dxdydz,
         exported_fields_on_edges=output_on_edges.exported_fields,
-        n_surfaces=data_shape.tensors_structure.n_surfaces
+        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
     )
 
     mesh = compute_dual_contouring(dc_data)
@@ -448,7 +448,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
         dxdydz=grid_centers.dxdydz,
         valid_edges=valid_edges,
         exported_fields_on_edges=None,
-        n_surfaces=data_shape.tensors_structure.n_surfaces
+        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
     )
 
     indices = triangulate_dual_contouring(dc_data)
@@ -553,7 +553,7 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
         dxdydz=grid_centers.dxdydz,
         valid_edges=valid_edges,
         exported_fields_on_edges=None,
-        n_surfaces=data_shape.tensors_structure.n_surfaces
+        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
     )
 
     indices = triangulate_dual_contouring(dc_data)

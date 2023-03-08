@@ -13,7 +13,7 @@ def _check_and_convert_list_to_array(field):
     return field
 
 
-@dataclass
+@dataclass(frozen=False)  # TODO: I want to do this class immutable
 class RegularGrid:
     extent: Union[np.ndarray, List]
     regular_grid_shape: Union[np.ndarray, List]  # Shape(3)

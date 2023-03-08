@@ -71,7 +71,7 @@ def triangulate_dual_contouring(dc_data: DualContouringData):
     dxdydz = dc_data.dxdydz
 
     # per surface
-    n_surfaces = dc_data.n_surfaces
+    n_surfaces = dc_data.n_surfaces_to_export
     centers_xyz = dc_data.xyz_on_centers
     all_valid_voxels = dc_data.valid_voxels.reshape((n_surfaces, -1))
     all_valid_edges = dc_data.valid_edges.reshape((n_surfaces, -1, 12))
