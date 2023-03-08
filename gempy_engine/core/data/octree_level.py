@@ -52,3 +52,7 @@ class OctreeLevel:
     @property
     def last_output_corners(self):
         return self.outputs_corners[-1]
+    
+    @property
+    def number_of_outputs(self):
+        return len(self.outputs_centers)
