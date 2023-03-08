@@ -28,29 +28,42 @@ class MaskBuffer:
     def clean(cls):
         cls.previous_mask = None
 
+
 @gempy_profiler_decorator
 def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
                                  options: InterpolationOptions, solutions: Solutions) -> List[DualContouringMesh]:
     # Dual Contouring prep:
     MaskBuffer.clean()
-    
+
     # region new triangulations
     if options.dual_contouring_fancy:
         left_right_codes = get_left_right_array(solutions.octrees_output)
     else:
         left_right_codes = None
     # endregion
-    
+
     octree_leaves = solutions.octrees_output[-1]
     all_meshes: List[DualContouringMesh] = []
-    
+
     dual_contouring_options = copy.copy(options)
     dual_contouring_options.compute_scalar_gradient = True
     if options.debug_water_tight is False:
         for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
-            dc_data = _independent_dual_contouring(data_descriptor, interpolation_input, n_scalar_field, octree_leaves, dual_contouring_options)
-            dc_data.tree_depth = options.number_octree_levels # TODO: Once we have move to the fancy triangulation. Set this value in a better location
-            meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data, left_right_codes=left_right_codes, debug=options.debug)
+            dc_data = _independent_dual_contouring(
+                data_descriptor     = data_descriptor,
+                interpolation_input = interpolation_input,
+                n_scalar_field      = n_scalar_field,
+                octree_leaves       = octree_leaves,
+                options             = dual_contouring_options
+            )
+            dc_data.tree_depth = options.number_octree_levels  # TODO: Once we have move to the fancy triangulation. Set this value in a better location
+            
+            meshes: List[DualContouringMesh] = compute_dual_contouring(
+                dc_data=dc_data,
+                left_right_codes=left_right_codes,
+                debug=options.debug
+            )
+
             all_meshes.append(*meshes)
     else:
         _experimental_water_tight(all_meshes, data_descriptor, interpolation_input, octree_leaves, options)
@@ -63,7 +76,7 @@ def _independent_dual_contouring(data_descriptor: InputDataDescriptor, interpola
                                  n_scalar_field: int, octree_leaves: OctreeLevel, options: InterpolationOptions,
                                  ) -> DualContouringData:
     # TODO: [ ]  _mask_generation is not working with fault StackRelationType
-    
+
     mask = _mask_generation(n_scalar_field, octree_leaves, options.dual_contouring_masking_options)
 
     # region define location where we need to interpolate the gradients for dual contouring
@@ -71,19 +84,19 @@ def _independent_dual_contouring(data_descriptor: InputDataDescriptor, interpola
     intersection_xyz, valid_edges = get_intersection_on_edges(octree_leaves, output_corners, mask)
     interpolation_input.grid = Grid(intersection_xyz)
     # endregion
-    
+
     # ! (@miguel 21 June) I think by definition in the function `interpolate_all_fields_no_octree`
     # ! we just need to interpolate up to the n_scalar_field, but I am not sure about this. I need to test it
     output_on_edges: List[InterpOutput] = interpolate_all_fields_no_octree(interpolation_input, options, data_descriptor)  # ! This has to be done with buffer weights otherwise is a waste
 
     n_surfaces_to_export = output_corners.scalar_field_at_sp.shape[0]  # * We need this general way because for example for fault we extract two surfaces from one surface input
     dc_data = DualContouringData(
-        xyz_on_edge=intersection_xyz,
-        valid_edges=valid_edges,
-        xyz_on_centers=octree_leaves.grid_centers.values if mask is None else octree_leaves.grid_centers.values[mask],
-        dxdydz=octree_leaves.grid_centers.dxdydz,
-        exported_fields_on_edges=output_on_edges[n_scalar_field].exported_fields,
-        n_surfaces=n_surfaces_to_export
+        xyz_on_edge              = intersection_xyz,
+        valid_edges              = valid_edges,
+        xyz_on_centers           = octree_leaves.grid_centers.values if mask is None else octree_leaves.grid_centers.values[mask],
+        dxdydz                   = octree_leaves.grid_centers.dxdydz,
+        exported_fields_on_edges = output_on_edges[n_scalar_field].exported_fields,
+        n_surfaces               = n_surfaces_to_export
     )
     return dc_data
 

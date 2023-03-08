@@ -27,7 +27,10 @@ def get_left_right_array(octree_list: list[OctreeLevel]) -> np.ndarray:
         binary_code = np.vstack(left_right_list)
         f = binary_code.T
         return binary_code
-
+    
+    if len(octree_list) == 1:
+        raise ValueError("Octree list must have more than one level")
+    
     voxel_select_all = [octree_iter.grid_centers.regular_grid.active_cells for octree_iter in octree_list[1:]]
     left_right_all = [octree_iter.grid_centers.regular_grid.left_right for octree_iter in octree_list[1:]]
     
