@@ -2,7 +2,6 @@ import copy
 from typing import List
 
 import pytest
-from matplotlib import pyplot as plt
 
 from gempy_engine.API.interp_single._multi_scalar_field_manager import _interpolate_stack, interpolate_all_fields
 from gempy_engine.API.model.model_api import _interpolate, compute_model
@@ -11,13 +10,11 @@ from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data.input_data_descriptor import TensorsStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
-from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 from test import helper_functions_pyvista
 from test.conftest import plot_pyvista, TEST_SPEED
 from test.helper_functions import plot_block
 
-plot_pyvista = False
 try:
     # noinspection PyUnresolvedReferences
     import pyvista as pv
@@ -142,130 +139,6 @@ def test_plot_corners(unconformity_complex, n_oct_levels=2):
 
 
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
-def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct_levels=2):
-    interpolation_input, options, structure = unconformity_complex
-    options.number_octree_levels = n_oct_levels
-    options.debug = True
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.DISJOINT
-
-    solutions: Solutions = compute_model(interpolation_input, options, structure)
-
-    if plot_pyvista or False:
-        dc_data = solutions.dc_meshes[0].dc_data  # * Scalar field where to show gradients
-        intersection_xyz = dc_data.xyz_on_edge
-        gradients = dc_data.gradients
-
-        center_mass = dc_data.bias_center_mass
-        normals = dc_data.bias_normals
-
-        helper_functions_pyvista.plot_pyvista(solutions.octrees_output,
-                                              dc_meshes=solutions.dc_meshes,
-                                              # xyz_on_edge=intersection_xyz, gradients=gradients, # * Uncomment for more detailed plots
-                                              # a=center_mass, b=normals
-                                              )
-
-
-@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
-def test_dual_contouring_multiple_independent_fields_intersect(unconformity_complex, n_oct_levels=2):
-    interpolation_input, options, structure = unconformity_complex
-    options.number_octree_levels = n_oct_levels
-    options.debug = True
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.INTERSECT
-
-    solutions: Solutions = compute_model(interpolation_input, options, structure)
-
-    if plot_pyvista or False:
-        dc_data = solutions.dc_meshes[1].dc_data  # * Scalar field where to show gradients
-        intersection_xyz = dc_data.xyz_on_edge
-        gradients = dc_data.gradients
-
-        center_mass = dc_data.bias_center_mass
-        normals = dc_data.bias_normals
-
-        helper_functions_pyvista.plot_pyvista(solutions.octrees_output,
-                                              dc_meshes=solutions.dc_meshes,
-                                              # xyz_on_edge=intersection_xyz, gradients=gradients, # * Uncomment for more detailed plots
-                                              # a=center_mass, b=normals
-                                              )
-
-
-@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
-def test_dual_contouring_multiple_independent_fields_intersect_raw(unconformity_complex, n_oct_levels=2):
-    interpolation_input, options, structure = unconformity_complex
-    options.number_octree_levels = n_oct_levels
-    options.debug = True
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
-
-    solutions: Solutions = compute_model(interpolation_input, options, structure)
-
-    if plot_pyvista or False:
-        dc_data = solutions.dc_meshes[1].dc_data  # * Scalar field where to show gradients
-        intersection_xyz = dc_data.xyz_on_edge
-        gradients = dc_data.gradients
-
-        center_mass = dc_data.bias_center_mass
-        normals = dc_data.bias_normals
-
-        helper_functions_pyvista.plot_pyvista(solutions.octrees_output,
-                                              dc_meshes=solutions.dc_meshes,
-                                              # xyz_on_edge=intersection_xyz, gradients=gradients, # * Uncomment for more detailed plots
-                                              # a=center_mass, b=normals
-                                              )
-
-
-@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
-def test_dual_contouring_multiple_independent_fields_mask(unconformity_complex, n_oct_levels=2):
-    interpolation_input, options, structure = unconformity_complex
-    options.number_octree_levels = n_oct_levels
-    options.debug = True
-    options.debug_water_tight = True
-    options.compute_scalar_gradient = True
-    
-    solutions: Solutions = compute_model(interpolation_input, options, structure)
-
-    if plot_pyvista or False:
-        dc_data = solutions.dc_meshes[0].dc_data  # * Scalar field where to show gradients
-        intersection_xyz = dc_data.xyz_on_edge
-        gradients = dc_data.gradients
-
-        center_mass = dc_data.bias_center_mass
-        normals = dc_data.bias_normals
-
-        helper_functions_pyvista.plot_pyvista(octree_list=solutions.octrees_output,
-                                              dc_meshes=solutions.dc_meshes,
-                                              # xyz_on_edge=intersection_xyz, gradients=gradients,
-                                              # a=center_mass, b=normals,
-                                              # vertices=solutions.dc_meshes[0].vertices, delaunay_3d=False
-                                              )
-
-
-@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
-def test_dual_contouring_multiple_dependent_fields(unconformity_complex, n_oct_levels=2):
-    # * Dependent_dual_contouring seems a bad idea
-
-    interpolation_input, options, structure = unconformity_complex
-    options.number_octree_levels = n_oct_levels
-    options.debug = True
-    options.dependent_dual_contouring = True
-    options.compute_scalar_gradient = True
-
-    solutions: Solutions = compute_model(interpolation_input, options, structure)
-
-    if plot_pyvista or False:
-        dc_data = solutions.dc_meshes[0].dc_data
-        intersection_xyz = dc_data.xyz_on_edge
-        gradients = dc_data.gradients
-
-        center_mass = dc_data.bias_center_mass
-        normals = dc_data.bias_normals
-
-        helper_functions_pyvista.plot_pyvista(solutions.octrees_output, dc_meshes=solutions.dc_meshes,
-                                              xyz_on_edge=intersection_xyz, gradients=gradients,
-                                              a=center_mass, b=normals
-                                              )
-
-
-@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
@@ -273,7 +146,7 @@ def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
     final_block = solution.octrees_output[0].output_centers.final_block
     final_block2 = get_regular_grid_value_for_level(solution.octrees_output, 1).astype("int8")
 
-    if plot_pyvista or False:
+    if plot_2d := False or False:
         grid = interpolation_input.grid.regular_grid
         plot_block(final_block, grid)
 
