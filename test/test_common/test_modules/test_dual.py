@@ -152,7 +152,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     edges_xyz = np.zeros((n_edges, 15, 3))
     edges_xyz[:, :12][valid_edges] = intersection_xyz
 
-    if plot_pyvista or False:
+    if plot_pyvista or True:
         intersection_points = intersection_xyz
         center_mass = dc_data.bias_center_mass
         p = helper_functions_pyvista.plot_pyvista(
