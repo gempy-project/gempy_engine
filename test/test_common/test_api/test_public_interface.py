@@ -64,6 +64,7 @@ def test_public_interface_simplest_model():
         kernel_function=AvailableKernelFunctions.cubic,
         uni_degree=0
     )
+    interpolation_options.dual_contouring_fancy = True
 
     # endregion
 
@@ -85,11 +86,19 @@ def test_public_interface_simplest_model():
     )
     # endregion
 
-    _compute_model(
+    solutions = _compute_model(
         interpolation_input=interpolation_input,
         options=interpolation_options,
         structure=input_data_descriptor
     )
+    
+    if plot_pyvista or True:
+        pv.global_theme.show_edges = True
+        p = pv.Plotter()
+        plot_octree_pyvista(p, solutions.octrees_output, interpolation_options.number_octree_levels - 1)
+        plot_dc_meshes(p, solutions.dc_meshes[0])
+        plot_points(p, interpolation_input.surface_points.sp_coords)
+        p.show()
 
 
 # noinspection DuplicatedCode
@@ -119,10 +128,4 @@ def _compute_model(interpolation_input: InterpolationInput, options: Interpolati
             gempy_verify_array(BackendTensor.tfnp.sum(A_matrix, axis=1, keepdims=True), "A_matrix", 1e-2)
             gempy_verify_array(weights.reshape(1, -1), "weights", rtol=.1)
 
-    if plot_pyvista or False:
-        pv.global_theme.show_edges = True
-        p = pv.Plotter()
-        plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
-        plot_dc_meshes(p, solutions.dc_meshes[0])
-        plot_points(p, interpolation_input.surface_points.sp_coords)
-        p.show()
+    return solutions

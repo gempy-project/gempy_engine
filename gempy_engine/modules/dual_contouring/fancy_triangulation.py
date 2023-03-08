@@ -29,6 +29,7 @@ def get_left_right_array(octree_list: list[OctreeLevel]) -> np.ndarray:
         return binary_code
     
     if len(octree_list) == 1:
+        # * Not only that, the current implementation only works with pure octree starting at [2,2,2]
         raise ValueError("Octree list must have more than one level")
     
     voxel_select_all = [octree_iter.grid_centers.regular_grid.active_cells for octree_iter in octree_list[1:]]
