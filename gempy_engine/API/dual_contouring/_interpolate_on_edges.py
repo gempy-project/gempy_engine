@@ -39,7 +39,8 @@ def _interpolate_on_edges_for_dual_contouring(data_descriptor: InputDataDescript
         xyz_on_centers=octree_leaves.grid_centers.values if mask is None else octree_leaves.grid_centers.values[mask],
         dxdydz=octree_leaves.grid_centers.dxdydz,
         exported_fields_on_edges=output_on_edges[n_scalar_field].exported_fields,
-        n_surfaces_to_export=output_corners.scalar_field_at_sp.shape[0]
+        n_surfaces_to_export=output_corners.scalar_field_at_sp.shape[0],
+        tree_depth=options.number_octree_levels,
     )
     return dc_data
 

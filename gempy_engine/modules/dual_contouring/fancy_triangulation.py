@@ -6,35 +6,35 @@ from gempy_engine.core.data.octree_level import OctreeLevel
 
 def get_left_right_array(octree_list: list[OctreeLevel]) -> np.ndarray:
     def _compute_voxel_binary_code(idx_from_root, dir_idx: int, left_right_all, voxel_select_all):
-        
+
         # Calculate the voxels from root
         for active_voxels_per_lvl in voxel_select_all:  # * The first level is all True
             idx_from_root = np.repeat(idx_from_root[active_voxels_per_lvl], 8)
-       
+
         left_right_list = []
         voxel_select_op = list(voxel_select_all[1:])
         voxel_select_op.append(np.ones(left_right_all[-1].shape[0], bool))
         left_right_all = left_right_all[::-1]
         voxel_select_op = voxel_select_op[::-1]
-        
+
         for e, left_right_per_lvl in enumerate(left_right_all):
             left_right_per_lvl_dir = left_right_per_lvl[:, dir_idx]
             for n_rep in range(e):
-                left_right_per_lvl_dir = np.repeat(left_right_per_lvl_dir[voxel_select_op[e-n_rep]], 8)  # ? Is it always e?
+                left_right_per_lvl_dir = np.repeat(left_right_per_lvl_dir[voxel_select_op[e - n_rep]], 8)  # ? Is it always e?
             left_right_list.append(left_right_per_lvl_dir)
-        
+
         left_right_list.append(idx_from_root)
         binary_code = np.vstack(left_right_list)
         f = binary_code.T
         return binary_code
-    
+
     if len(octree_list) == 1:
         # * Not only that, the current implementation only works with pure octree starting at [2,2,2]
         raise ValueError("Octree list must have more than one level")
-    
+
     voxel_select_all = [octree_iter.grid_centers.regular_grid.active_cells for octree_iter in octree_list[1:]]
     left_right_all = [octree_iter.grid_centers.regular_grid.left_right for octree_iter in octree_list[1:]]
-    
+
     idx_root_x = np.zeros(8, dtype=bool)
     idx_root_x[4:] = True
     binary_x = _compute_voxel_binary_code(idx_root_x, 0, left_right_all, voxel_select_all)
@@ -71,7 +71,7 @@ class _StaticTriangulationData:
 def triangulate(left_right_array: np.ndarray, valid_edges: np.ndarray, tree_depth: int):
     # * Variables
     # depending on depth
-    _StaticTriangulationData.depth = tree_depth  
+    _StaticTriangulationData.depth = tree_depth
 
     # depending on the edge
     edge_vector_a = np.array([0, 0, 0, 0, -1, -1, 1, 1, -1, -1, 1, 1])
@@ -106,6 +106,7 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c, left
     - valid_edges (n_voxels - active_voxels_for_given_edge, 1): bool
     - voxel_code (n_voxels, 1): All the compressed codes of the voxels at the leaves
     """
+
     # region: Removing edges that does not have voxel next to it. Depending on the evaluated edge, the voxels checked are different
     def check_voxels_exist_next_to_edge(coord_col, edge_vector, _left_right_array_active_edge):
         match edge_vector:
@@ -118,16 +119,16 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c, left
             case _:
                 raise ValueError("edge_vector_a must be -1, 0 or 1")
         return _valid_edges
-    
+
     valid_edges_x = check_voxels_exist_next_to_edge(0, edge_vector_a, left_right_array_active_edge)
     valid_edges_y = check_voxels_exist_next_to_edge(1, edge_vector_b, left_right_array_active_edge)
     valid_edges_z = check_voxels_exist_next_to_edge(2, edge_vector_c, left_right_array_active_edge)
 
     valid_edges_with_neighbour_voxels = valid_edges_x * valid_edges_y * valid_edges_z  # * In the sense of not being on the side of the model
     left_right_array_active_edge = left_right_array_active_edge[valid_edges_with_neighbour_voxels]
-    # * At this point left_right_array_active_edge contains the voxel code of those voxels that have the evaluated 
-    # * edge cut AND that have nearby voxels    
-    # endregion. 
+    # * At this point left_right_array_active_edge contains the voxel code of those voxels that have the evaluated
+    # * edge cut AND that have nearby voxels
+    # endregion
 
     # region: Compress remaining voxel codes per direction
     # * These are the codes that describe each vertex of the triangle
@@ -143,18 +144,18 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c, left
     compressed_binary_idx_1 = (binary_idx_1 * _StaticTriangulationData.get_pack_directions_into_bits()).sum(axis=1)  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 1)
     compressed_binary_idx_2 = (binary_idx_2 * _StaticTriangulationData.get_pack_directions_into_bits()).sum(axis=1)  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 1)
     # endregion
-    
-    # region: Map remaining compressed binary code to all the binary codes at leaves 
+
+    # region: Map remaining compressed binary code to all the binary codes at leaves
     mapped_voxel_0 = (voxel_code - compressed_binary_idx_0)  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges)
     mapped_voxel_1 = (voxel_code - compressed_binary_idx_1)  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges)
     mapped_voxel_2 = (voxel_code - compressed_binary_idx_2)  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges)
     # endregion
-    
-    # region: Find and remove edges at the border of the extent 
+
+    # region: Find and remove edges at the border of the extent
     code__a_prod_edge = ~mapped_voxel_0.all(axis=0)  # mapped_voxel_0.prod(axis=0) == 0  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 1)
     code__b_prod_edge = ~mapped_voxel_1.all(axis=0)  # mapped_voxel_1.prod(axis=0) == 0  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 1)
     code__c_prod_edge = ~mapped_voxel_2.all(axis=0)  # mapped_voxel_2.prod(axis=0) == 0  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 1)
-    
+
     valid_edges_within_extent = code__a_prod_edge * code__b_prod_edge * code__c_prod_edge  # * Valid in the sense that there are valid voxels around
 
     code__a_p = mapped_voxel_0[:, valid_edges_within_extent] == 0  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
@@ -165,7 +166,7 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c, left
         debug_code_p = code__a_p + code__b_p + code__c_p  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
         # 15 and 17 does not have y
     # endregion
-    
+
     # region Convert remaining compressed binary codes to ints
     indices_array = np.arange(code__a_p.shape[0]).reshape(-1, 1)
     x = (code__a_p * indices_array).T[code__a_p.T]

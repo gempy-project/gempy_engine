@@ -38,7 +38,7 @@ def test_dual_contouring_multiple_independent_fields_intersect_raw(unconformity_
     
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_dual_contouring_multiple_independent_fields_intersect_raw_fancy_triangulation(
-        unconformity_complex, n_oct_levels=2):
+        unconformity_complex, n_oct_levels=4):
     
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels

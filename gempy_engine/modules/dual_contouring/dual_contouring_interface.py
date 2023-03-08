@@ -7,7 +7,7 @@ import numpy as np
 
 def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray,
                               scalar_at_sp: np.ndarray, masking=None) -> Tuple[np.ndarray, np.ndarray]:
-    # I have to do the topology analysis anyway because is the last octree
+    """This function finds all the intersections for multiple layers per series"""
     scalar_8_ = scalar_field
     scalar_8 = scalar_8_.reshape((1, -1, 8))
     xyz_8 = _xyz_corners.reshape((-1, 8, 3))
@@ -27,11 +27,6 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray
     scalar_d_y = scalar_8[:, :, [0, 1, 4, 5]] - scalar_8[:, :, [2, 3, 6, 7]]
     scalar_d_z = scalar_8[:, :, ::2] - scalar_8[:, :, 1::2]
 
-    """
-    -4.31216,-1.87652,-4.19625,-2.57581
-    -1.87652,-13.91019,-2.57581,-30.15220
-    """
-
     # Compute the weights
     weight_x = ((scalar_at_sp - scalar_8[:, :, 4:]) / scalar_dx).reshape(-1, 4, 1)
     weight_y = ((scalar_at_sp - scalar_8[:, :, [2, 3, 6, 7]]) / scalar_d_y).reshape(-1, 4, 1)
@@ -48,7 +43,7 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray
     intersect_dz = d_z[:, :, :] * weight_z[:, :, :]
 
     # Mask invalid edges
-    # TODO: This still only works for the first layer of a sequence
+    # ? I think this to do is DEP TODO: This still only works for the first layer of a sequence
     valid_edge_x = np.logical_and(weight_x > 0, weight_x < 1)
     valid_edge_y = np.logical_and(weight_y > 0, weight_y < 1)
     valid_edge_z = np.logical_and(weight_z > 0, weight_z < 1)
@@ -63,7 +58,7 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray
     return intersection_xyz, valid_edges
 
 
-def triangulate_dual_contouring(dc_data: DualContouringData):
+def triangulate_dual_contouring(dc_data: DualContouringData, shift):
     """
     For each edge that exhibits a sign change, generate a quad
     connecting the minimizing vertices of the four cubes containing the edge.\
@@ -77,12 +72,15 @@ def triangulate_dual_contouring(dc_data: DualContouringData):
     all_valid_edges = dc_data.valid_edges.reshape((n_surfaces, -1, 12))
 
     indices_arrays = []
-    shift = 0
+  #  shift = 0
 
-    for i in range(n_surfaces):
-        valid_voxels = all_valid_voxels[i]
-        valid_edges = all_valid_edges[i]
-
+    for i in range(1):
+        # valid_voxels = all_valid_voxels[i]
+        # valid_edges = all_valid_edges[i]
+        valid_voxels = dc_data.valid_voxels
+        valid_edges = dc_data.valid_edges
+        
+        
         # region direction
         # ! This assumes a vertex per voxel
 
@@ -154,13 +152,16 @@ def triangulate_dual_contouring(dc_data: DualContouringData):
     return indices_arrays_f
 
 
-def generate_dual_contouring_vertices(dc_data: DualContouringData, debug: bool = False):
-    n_edges = dc_data.n_edges
-    valid_edges = dc_data.valid_edges
-    valid_voxels = dc_data.valid_voxels
-    xyz_on_edge = dc_data.xyz_on_edge
-    gradients = dc_data.gradients
-
+def generate_dual_contouring_vertices(dc_data_per_surface: DualContouringData, debug: bool = False):
+    
+    # @ off
+    n_edges      = dc_data_per_surface.n_edges
+    valid_edges  = dc_data_per_surface.valid_edges
+    valid_voxels = dc_data_per_surface.valid_voxels
+    xyz_on_edge  = dc_data_per_surface.xyz_on_edge
+    gradients    = dc_data_per_surface.gradients
+    # @ on
+    
     # * Coordinates for all posible edges (12) and 3 dummy edges_normals in the center
     edges_xyz = np.zeros((n_edges, 15, 3))
     edges_xyz[:, :12][valid_edges] = xyz_on_edge
@@ -196,8 +197,8 @@ def generate_dual_contouring_vertices(dc_data: DualContouringData, debug: bool =
     vertices = np.einsum("ijk, ij->ik", term2, term3)
 
     if debug:
-        dc_data.bias_center_mass = edges_xyz[:, 12:].reshape(-1, 3)
-        dc_data.bias_normals = edges_normals[:, 12:].reshape(-1, 3)
+        dc_data_per_surface.bias_center_mass = edges_xyz[:, 12:].reshape(-1, 3)
+        dc_data_per_surface.bias_normals = edges_normals[:, 12:].reshape(-1, 3)
 
     return vertices
 

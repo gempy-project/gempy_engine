@@ -52,14 +52,16 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
             octree_leaves       = octree_leaves,
             options             = dual_contouring_options
         )
-        dc_data.tree_depth = options.number_octree_levels  # TODO: Once we have move to the fancy triangulation. Set this value in a better location
+        # ? This has been moved to constructor. dc_data.tree_depth = options.number_octree_levels  # TODO: Once we have move to the fancy triangulation. Set this value in a better location
 
         meshes: List[DualContouringMesh] = compute_dual_contouring(
-            dc_data          = dc_data,
-            left_right_codes = left_right_codes,
-            debug            = options.debug
+            dc_data_per_stack = dc_data,
+            left_right_codes  = left_right_codes,
+            debug             = options.debug
         )
-        all_meshes.append(*meshes)
+        # append the meshes to the all_meshes. meshes can be a list too
+    
+        all_meshes.extend(meshes)
         # @on
 
     return all_meshes
