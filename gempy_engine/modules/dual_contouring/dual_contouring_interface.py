@@ -5,7 +5,7 @@ from ...core.data.dual_contouring_data import DualContouringData
 import numpy as np
 
 
-def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray,
+def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field_on_corners: np.ndarray,
                               scalar_at_sp: np.ndarray, masking=None) -> Tuple[np.ndarray, np.ndarray]:
     """This function finds all the intersections for multiple layers per series
     
@@ -14,7 +14,7 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray
     
     
     """
-    scalar_8_ = scalar_field
+    scalar_8_ = scalar_field_on_corners
     scalar_8 = scalar_8_.reshape((1, -1, 8))
     xyz_8 = _xyz_corners.reshape((-1, 8, 3))
 
@@ -47,12 +47,11 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray
     intersect_dx = d_x[:, :, :] * weight_x[:, :, :]
     intersect_dy = d_y[:, :, :] * weight_y[:, :, :]
     intersect_dz = d_z[:, :, :] * weight_z[:, :, :]
-
+    
     # Mask invalid edges
-    # ? I think this to do is DEP TODO: This still only works for the first layer of a sequence
-    valid_edge_x = np.logical_and(weight_x > 0, weight_x < 1)
-    valid_edge_y = np.logical_and(weight_y > 0, weight_y < 1)
-    valid_edge_z = np.logical_and(weight_z > 0, weight_z < 1)
+    valid_edge_x = np.logical_and(weight_x > -0.01, weight_x < 1.01)
+    valid_edge_y = np.logical_and(weight_y > -0.01, weight_y < 1.01)
+    valid_edge_z = np.logical_and(weight_z > -0.01, weight_z < 1.01)
 
     # * Note(miguel) From this point on the arrays become sparse
     xyz_8_edges = np.hstack([xyz_8[:, 4:], xyz_8[:, [2, 3, 6, 7]], xyz_8[:, 1::2]])

@@ -23,10 +23,11 @@ def test_graben_fault_model(graben_fault_model):
 
     options.compute_scalar_gradient = False
     options.dual_contouring = True
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.INTERSECT
-    options.dual_contouring_fancy = False
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
+    options.dual_conturing_fancy = True
+    options.debug=True
 
-    options.number_octree_levels = 4
+    options.number_octree_levels = 5
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     outputs: list[OctreeLevel] = solutions.octrees_output
@@ -35,10 +36,22 @@ def test_graben_fault_model(graben_fault_model):
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.ids)
 
     if plot_pyvista or False:
+        dc_data = solutions.dc_meshes[-1].dc_data
+        centers = dc_data.xyz_on_centers
+        valid_voxels = dc_data.valid_voxels.reshape(dc_data.n_surfaces_to_export, -1)
+      
+        #  selected_centers = centers[dc_data.valid_voxels]
+
         helper_functions_pyvista.plot_pyvista(
-            #solutions.octrees_output,
+            solutions.octrees_output,
             dc_meshes=solutions.dc_meshes,
-            show_edges=True
+            show_edges=True,
+        #  v_just_points =selected_centers,
+            a=dc_data.bias_center_mass,
+            b=dc_data.bias_normals,
+            
+            xyz_on_edge=dc_data.xyz_on_centers,
+            plot_label=False
         )
 
 
