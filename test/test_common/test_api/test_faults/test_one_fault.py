@@ -30,8 +30,8 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
 
     options.compute_scalar_gradient = False
     options.dual_contouring = True
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
-    options.dual_contouring_fancy = False
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.INTERSECT
+    options.dual_contouring_fancy = True
 
     options.number_octree_levels = n_oct_levels
 

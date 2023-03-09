@@ -74,7 +74,8 @@ def interpolate_feature(interpolation_input: InterpolationInput,
         grid=grid,
         exported_fields=exported_fields,
         values_block=values_block,
-        mask_components=mask_components
+        mask_components=mask_components,
+        stack_relation=interpolation_input.stack_relation
     )
 
     if gempy_engine.config.TENSOR_DTYPE:

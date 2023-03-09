@@ -7,7 +7,7 @@ from ..interp_single.interp_features import interpolate_all_fields_no_octree
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.grid import Grid
-from ...core.data.input_data_descriptor import InputDataDescriptor
+from ...core.data.input_data_descriptor import InputDataDescriptor, StackRelationType
 from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.octree_level import OctreeLevel
@@ -24,7 +24,7 @@ def interpolate_on_edges_for_dual_contouring(
         n_scalar_field: int,
         octree_leaves: OctreeLevel,
         mask: Optional[np.ndarray] = None
-        
+
 ) -> DualContouringData:
     # region define location where we need to interpolate the gradients for dual contouring
     output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
@@ -63,9 +63,16 @@ def _get_intersection_on_edges(octree_level: OctreeLevel, output_corners: Interp
 
 
 def _mask_generation(n_scalar_field, octree_leaves, masking_option: DualContouringMaskingOptions) -> np.ndarray | None:
-    match masking_option:
-        case DualContouringMaskingOptions.DISJOINT:
-            mask_scalar = octree_leaves.outputs_corners[n_scalar_field].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+    output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
+    stack_relation: StackRelationType = output_corners.scalar_fields.stack_relation
+
+    match (masking_option, stack_relation):
+        case DualContouringMaskingOptions.RAW:
+            return None
+        case (DualContouringMaskingOptions.DISJOINT | DualContouringMaskingOptions.INTERSECT, StackRelationType.FAULT):
+            return None
+        case DualContouringMaskingOptions.DISJOINT, _:
+            mask_scalar = output_corners.squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
             if MaskBuffer.previous_mask is None:
                 mask = mask_scalar
             else:
@@ -73,7 +80,5 @@ def _mask_generation(n_scalar_field, octree_leaves, masking_option: DualContouri
             MaskBuffer.previous_mask = mask
             return mask
         case DualContouringMaskingOptions.INTERSECT:
-            mask = octree_leaves.outputs_corners[n_scalar_field].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+            mask = output_corners.squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
             return mask
-        case DualContouringMaskingOptions.RAW:
-            return None

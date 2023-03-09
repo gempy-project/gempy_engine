@@ -7,6 +7,7 @@ import numpy as np
 from gempy_engine.core.data.exported_fields import ExportedFields
 from gempy_engine.core.data.exported_structs import MaskMatrices
 from gempy_engine.core.data.grid import Grid
+from gempy_engine.core.data.input_data_descriptor import StackRelationType
 
 
 @dataclass
@@ -16,6 +17,7 @@ class ScalarFieldOutput:
 
     exported_fields: ExportedFields
     mask_components: Optional[MaskMatrices]
+    stack_relation: StackRelationType
     
     values_block: Optional[np.ndarray]  # final values ignoring unconformities
     _values_block: Optional[np.ndarray] = dataclasses.field(init=False, repr=False)
