@@ -5,6 +5,7 @@ from gempy_engine.core.data.octree_level import OctreeLevel
 
 
 def get_left_right_array(octree_list: list[OctreeLevel]) -> np.ndarray:
+    # === Local function ===
     def _compute_voxel_binary_code(idx_from_root, dir_idx: int, left_right_all, voxel_select_all):
 
         # Calculate the voxels from root
@@ -27,7 +28,9 @@ def get_left_right_array(octree_list: list[OctreeLevel]) -> np.ndarray:
         binary_code = np.vstack(left_right_list)
         f = binary_code.T
         return binary_code
-
+    
+    # === Local function ===
+    
     if len(octree_list) == 1:
         # * Not only that, the current implementation only works with pure octree starting at [2,2,2]
         raise ValueError("Octree list must have more than one level")

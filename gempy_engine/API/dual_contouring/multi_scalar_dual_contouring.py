@@ -60,8 +60,9 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
             debug             = options.debug
         )
         # append the meshes to the all_meshes. meshes can be a list too
-    
-        all_meshes.extend(meshes)
+        
+        if meshes is not None:
+            all_meshes.extend(meshes)
         # @on
 
     return all_meshes

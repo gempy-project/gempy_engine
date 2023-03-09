@@ -32,7 +32,7 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
 
     stack_meshes: List[DualContouringMesh] = []
     last_index = 0
-    for i in range(dc_data_per_stack.n_surfaces_to_export):        
+    for i in range(dc_data_per_stack.n_surfaces_to_export):
         dc_data_per_surface = DualContouringData(
             # @ off
             xyz_on_edge              = dc_data_per_stack.xyz_on_edge,
