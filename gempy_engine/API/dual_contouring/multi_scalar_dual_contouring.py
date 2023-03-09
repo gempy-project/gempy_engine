@@ -4,7 +4,7 @@ from typing import List
 import numpy as np
 
 from ._experimental_water_tight_DC_1 import _experimental_water_tight
-from ._interpolate_on_edges import interpolate_on_edges_for_dual_contouring
+from ._interpolate_on_edges import interpolate_on_edges_for_dual_contouring, _mask_generation
 from ._mask_buffer import MaskBuffer
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_data import DualContouringData
@@ -45,19 +45,25 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
     # endregion
 
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
+        mask: np.ndarray = _mask_generation(n_scalar_field, octree_leaves, options.dual_contouring_masking_options)
+        if mask is not None and left_right_codes is not None:
+            left_right_codes_per_stack = left_right_codes[mask]
+        else:
+            left_right_codes_per_stack = left_right_codes
+        
         # @off
         dc_data: DualContouringData = interpolate_on_edges_for_dual_contouring(
             data_descriptor     = data_descriptor,
             interpolation_input = interpolation_input,
+            options             = dual_contouring_options,
             n_scalar_field      = n_scalar_field,
             octree_leaves       = octree_leaves,
-            options             = dual_contouring_options
+            mask                = mask
         )
-        # ? This has been moved to constructor. dc_data.tree_depth = options.number_octree_levels  # TODO: Once we have move to the fancy triangulation. Set this value in a better location
 
         meshes: List[DualContouringMesh] = compute_dual_contouring(
             dc_data_per_stack = dc_data,
-            left_right_codes  = left_right_codes,
+            left_right_codes  = left_right_codes_per_stack,
             debug             = options.debug
         )
         

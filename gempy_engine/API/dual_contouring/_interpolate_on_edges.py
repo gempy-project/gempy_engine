@@ -17,13 +17,15 @@ from ...modules.dual_contouring.dual_contouring_interface import find_intersecti
 
 
 @gempy_profiler_decorator
-def interpolate_on_edges_for_dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
-                                             n_scalar_field: int, octree_leaves: OctreeLevel, options: InterpolationOptions,
-                                             ) -> DualContouringData:
-    # TODO: [ ]  _mask_generation is not working with fault StackRelationType
-
-    mask = _mask_generation(n_scalar_field, octree_leaves, options.dual_contouring_masking_options)
-
+def interpolate_on_edges_for_dual_contouring(
+        data_descriptor: InputDataDescriptor,
+        interpolation_input: InterpolationInput,
+        options: InterpolationOptions,
+        n_scalar_field: int,
+        octree_leaves: OctreeLevel,
+        mask: Optional[np.ndarray] = None
+        
+) -> DualContouringData:
     # region define location where we need to interpolate the gradients for dual contouring
     output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
     intersection_xyz, valid_edges = _get_intersection_on_edges(octree_leaves, output_corners, mask)
@@ -60,7 +62,7 @@ def _get_intersection_on_edges(octree_level: OctreeLevel, output_corners: Interp
     return intersection_xyz, valid_edges
 
 
-def _mask_generation(n_scalar_field, octree_leaves, masking_option: DualContouringMaskingOptions):
+def _mask_generation(n_scalar_field, octree_leaves, masking_option: DualContouringMaskingOptions) -> np.ndarray | None:
     match masking_option:
         case DualContouringMaskingOptions.DISJOINT:
             mask_scalar = octree_leaves.outputs_corners[n_scalar_field].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
