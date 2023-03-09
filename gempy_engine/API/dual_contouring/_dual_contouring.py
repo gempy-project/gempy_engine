@@ -21,8 +21,8 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
     for i in range(dc_data_per_stack.n_surfaces_to_export):
         # @off
         valid_edges          : np.ndarray = valid_edges_per_surface[i]
-        next_surface_edge_idx: int        = valid_edges.sum()
-        slice_object         : slice      = slice(last_surface_edge_idx, next_surface_edge_idx + last_surface_edge_idx)
+        next_surface_edge_idx: int        = valid_edges.sum() + last_surface_edge_idx
+        slice_object         : slice      = slice(last_surface_edge_idx, next_surface_edge_idx)
         last_surface_edge_idx: int        = next_surface_edge_idx
 
         dc_data_per_surface = DualContouringData(

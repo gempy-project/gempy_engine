@@ -23,9 +23,10 @@ def test_graben_fault_model(graben_fault_model):
 
     options.compute_scalar_gradient = False
     options.dual_contouring = True
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.INTERSECT
+    options.dual_contouring_fancy = False
 
-    options.number_octree_levels = 3
+    options.number_octree_levels = 4
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     outputs: list[OctreeLevel] = solutions.octrees_output
@@ -35,8 +36,9 @@ def test_graben_fault_model(graben_fault_model):
 
     if plot_pyvista or False:
         helper_functions_pyvista.plot_pyvista(
-            solutions.octrees_output,
-            dc_meshes=solutions.dc_meshes
+            #solutions.octrees_output,
+            dc_meshes=solutions.dc_meshes,
+            show_edges=True
         )
 
 

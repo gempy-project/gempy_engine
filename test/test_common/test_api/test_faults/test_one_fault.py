@@ -22,7 +22,6 @@ from test.helper_functions import plot_block_and_input_2d, plot_scalar_and_input
 
 
 def test_one_fault_model(one_fault_model, n_oct_levels=3):
-
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -52,10 +51,9 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
         _plot_stack_values_block(interpolation_input, outputs, structure)
 
     if plot_pyvista:
-        meshes_: list[DualContouringMesh] = solutions.dc_meshes
         helper_functions_pyvista.plot_pyvista(
-            #solutions.octrees_output,
-            dc_meshes=[meshes_[0], meshes_[1], meshes_[-1]]
+            solutions.octrees_output,
+            dc_meshes=solutions.dc_meshes
         )
 
 
