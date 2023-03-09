@@ -1,7 +1,8 @@
-from typing import List
+from typing import List, Tuple
 
-from gempy_engine.API.dual_contouring._dual_contouring import get_intersection_on_edges
-from gempy_engine.API.dual_contouring.mask_buffer import MaskBuffer
+import numpy as np
+
+from gempy_engine.API.dual_contouring._mask_buffer import MaskBuffer
 from gempy_engine.API.interp_single.interp_features import interpolate_all_fields_no_octree
 from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.dual_contouring_data import DualContouringData
@@ -15,16 +16,16 @@ from gempy_engine.core.utils import gempy_profiler_decorator
 
 
 @gempy_profiler_decorator
-def _interpolate_on_edges_for_dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
-                                              n_scalar_field: int, octree_leaves: OctreeLevel, options: InterpolationOptions,
-                                              ) -> DualContouringData:
+def interpolate_on_edges_for_dual_contouring(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
+                                             n_scalar_field: int, octree_leaves: OctreeLevel, options: InterpolationOptions,
+                                             ) -> DualContouringData:
     # TODO: [ ]  _mask_generation is not working with fault StackRelationType
 
     mask = _mask_generation(n_scalar_field, octree_leaves, options.dual_contouring_masking_options)
 
     # region define location where we need to interpolate the gradients for dual contouring
     output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
-    intersection_xyz, valid_edges = get_intersection_on_edges(octree_leaves, output_corners, mask)
+    intersection_xyz, valid_edges = _get_intersection_on_edges(octree_leaves, output_corners, mask)
     interpolation_input.grid = Grid(intersection_xyz)
     # endregion
 
@@ -45,6 +46,18 @@ def _interpolate_on_edges_for_dual_contouring(data_descriptor: InputDataDescript
     return dc_data
 
 
+def _get_intersection_on_edges(octree_level: OctreeLevel, output_corners: InterpOutput, mask: Optional[np.ndarray] = None) \
+        -> Tuple[np.ndarray, np.ndarray]:
+    # First find xyz on edges:
+    xyz_corners = octree_level.grid_corners.values
+
+    scalar_field_corners = output_corners.exported_fields.scalar_field
+    scalar_field_at_all_sp = output_corners.scalar_field_at_sp
+
+    intersection_xyz, valid_edges = find_intersection_on_edge(xyz_corners, scalar_field_corners, scalar_field_at_all_sp, mask)
+    return intersection_xyz, valid_edges
+
+
 def _mask_generation(n_scalar_field, octree_leaves, masking_option: DualContouringMaskingOptions):
     match masking_option:
         case DualContouringMaskingOptions.DISJOINT:
@@ -60,4 +73,3 @@ def _mask_generation(n_scalar_field, octree_leaves, masking_option: DualContouri
             return mask
         case DualContouringMaskingOptions.RAW:
             return None
-

@@ -3,7 +3,7 @@ from typing import List
 import numpy as np
 
 from gempy_engine.API.dual_contouring._dual_contouring import compute_dual_contouring
-from gempy_engine.API.dual_contouring._interpolate_on_edges import _interpolate_on_edges_for_dual_contouring
+from gempy_engine.API.dual_contouring._interpolate_on_edges import interpolate_on_edges_for_dual_contouring
 from gempy_engine.core.data.dual_contouring_data import DualContouringData
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
 from gempy_engine.core.data.exported_fields import ExportedFields
@@ -12,8 +12,8 @@ from gempy_engine.core.data.exported_fields import ExportedFields
 def _experimental_water_tight(all_meshes, data_descriptor, interpolation_input, octree_leaves, options):
     all_dc: List[DualContouringData] = []
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
-        dc_data = _interpolate_on_edges_for_dual_contouring(data_descriptor, interpolation_input, n_scalar_field, octree_leaves,
-                                                            options)
+        dc_data = interpolate_on_edges_for_dual_contouring(data_descriptor, interpolation_input, n_scalar_field, octree_leaves,
+                                                           options)
         all_dc.append(dc_data)
     merged_dc = _merge_dc_data([all_dc[0], all_dc[1]])
     meshes: List[DualContouringMesh] = compute_dual_contouring(merged_dc, debug=options.debug)

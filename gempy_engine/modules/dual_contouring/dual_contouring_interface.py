@@ -152,7 +152,7 @@ def triangulate_dual_contouring(dc_data: DualContouringData, shift):
     return indices_arrays_f
 
 
-def generate_dual_contouring_vertices(dc_data_per_surface: DualContouringData, debug: bool = False):
+def generate_dual_contouring_vertices(dc_data_per_surface: DualContouringData, debug: bool = False) -> np.ndarray:
     
     # @ off
     n_edges      = dc_data_per_surface.n_edges
