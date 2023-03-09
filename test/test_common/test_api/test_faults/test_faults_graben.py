@@ -11,6 +11,7 @@ from gempy_engine.modules.octrees_topology.octrees_topology_interface import Val
 from test import helper_functions_pyvista
 from test.conftest import plot_pyvista
 from test.helper_functions import plot_scalar_and_input_2d, plot_block_and_input_2d
+from test.test_common.test_api.test_faults.test_one_fault import _plot_stack_raw
 
 
 def test_graben_fault_model(graben_fault_model):
@@ -28,10 +29,8 @@ def test_graben_fault_model(graben_fault_model):
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     outputs: list[OctreeLevel] = solutions.octrees_output
-    if False:
-        plot_scalar_and_input_2d(0, interpolation_input, outputs, structure.stack_structure)
-        plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
-        plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
+    if plot_2d := False:
+        _plot_stack_raw(interpolation_input, outputs, structure)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, value_type=ValueType.ids)
 
     if plot_pyvista or False:

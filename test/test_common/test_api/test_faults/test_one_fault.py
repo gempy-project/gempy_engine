@@ -6,6 +6,7 @@ from gempy_engine import compute_model
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.core.data import InterpolationOptions, TensorsStructure
 from gempy_engine.core.data.custom_segmentation_functions import ellipsoid_3d_factory
+from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
 from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
@@ -17,7 +18,45 @@ from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import ValueType
 from test import helper_functions_pyvista
 from test.conftest import pykeops_enabled, plot_pyvista
-from test.helper_functions import plot_block_and_input_2d
+from test.helper_functions import plot_block_and_input_2d, plot_scalar_and_input_2d
+
+
+def test_one_fault_model(one_fault_model, n_oct_levels=3):
+
+    interpolation_input: InterpolationInput
+    structure: InputDataDescriptor
+    options: InterpolationOptions
+
+    interpolation_input, structure, options = one_fault_model
+
+    options.compute_scalar_gradient = False
+    options.dual_contouring = True
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
+    options.dual_contouring_fancy = False
+
+    options.number_octree_levels = n_oct_levels
+
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
+
+    outputs: list[OctreeLevel] = solutions.octrees_output
+
+    if check_cov := False:  # * This is in case we need to compare the covariance matrices
+        last_cov = outputs[-1].outputs_centers.exported_fields.debug
+        gempy_v2_cov = _covariance_for_one_fault_model_from_gempy_v2()
+        diff = last_cov - gempy_v2_cov
+
+    if plot_2d := False:
+        _plot_stack_raw(interpolation_input, outputs, structure)
+        _plot_stack_squeezed_mask(interpolation_input, outputs, structure)
+        _plot_stack_mask_component(interpolation_input, outputs, structure)
+        _plot_stack_values_block(interpolation_input, outputs, structure)
+
+    if plot_pyvista:
+        meshes_: list[DualContouringMesh] = solutions.dc_meshes
+        helper_functions_pyvista.plot_pyvista(
+            #solutions.octrees_output,
+            dc_meshes=[meshes_[0], meshes_[1], meshes_[-1]]
+        )
 
 
 def test_one_fault_model_pykeops(one_fault_model):
@@ -45,67 +84,6 @@ def test_one_fault_model_pykeops(one_fault_model):
         cached_array = np.load("cached_array.npy")
         foo = A_matrix.sum(0).T - cached_array.sum(0)
         print(cached_array)
-
-
-def test_one_fault_model(one_fault_model, n_oct_levels=3):
-    """
-    300 MB 4 octree levels and no gradient
-
-    """
-
-    interpolation_input: InterpolationInput
-    structure: InputDataDescriptor
-    options: InterpolationOptions
-
-    interpolation_input, structure, options = one_fault_model
-
-    options.compute_scalar_gradient = False
-    options.dual_contouring = True
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
-
-    options.number_octree_levels = n_oct_levels
-
-    solutions: Solutions = compute_model(interpolation_input, options, structure)
-
-    outputs: list[OctreeLevel] = solutions.octrees_output
-
-    array_to_cache = outputs[-1].outputs_centers[1].exported_fields.debug
-
-    # if pykeops_enabled is False:
-    #     cache_array = np.save("cached_array", array_to_cache)
-    # cached_array = np.load("cached_array.npy", allow_pickle=True)
-    # TODO: Update to use the verify package
-
-    if False:  # * This is in case we need to compare the covariance matrices
-        last_cov = outputs[-1].outputs_centers.exported_fields.debug
-        gempy_v2_cov = covariance_for_one_fault_model_from_gempy_v2()
-        diff = last_cov - gempy_v2_cov
-
-    if False:
-        plot_scalar_and_input_2d(0, interpolation_input, outputs, structure.stack_structure)
-        plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
-        plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
-
-    if False:
-        plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
-        plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
-        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
-
-    if False:
-        plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
-        plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
-        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
-
-    if False:
-        plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
-        plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
-        plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
-
-    if False:
-        helper_functions_pyvista.plot_pyvista(
-            solutions.octrees_output,
-            dc_meshes=solutions.dc_meshes
-        )
 
 
 def test_one_fault_model_thickness(one_fault_model, n_oct_levels=2):
@@ -250,6 +228,30 @@ def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
         p.show()
 
 
-def covariance_for_one_fault_model_from_gempy_v2():
+def _covariance_for_one_fault_model_from_gempy_v2():
     one_fault_covariance = np.load("one_fault_test_data.npy")
     return one_fault_covariance
+
+
+def _plot_stack_values_block(interpolation_input, outputs, structure):
+    plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
+    plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
+    plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.values_block)
+
+
+def _plot_stack_mask_component(interpolation_input, outputs, structure):
+    plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
+    plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
+    plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.mask_component)
+
+
+def _plot_stack_squeezed_mask(interpolation_input, outputs, structure):
+    plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
+    plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
+    plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
+
+
+def _plot_stack_raw(interpolation_input, outputs, structure):
+    plot_scalar_and_input_2d(0, interpolation_input, outputs, structure.stack_structure)
+    plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
+    plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
