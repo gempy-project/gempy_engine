@@ -1,18 +1,19 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import numpy as np
 
-from gempy_engine.API.dual_contouring._mask_buffer import MaskBuffer
-from gempy_engine.API.interp_single.interp_features import interpolate_all_fields_no_octree
-from gempy_engine.core.data import InterpolationOptions
-from gempy_engine.core.data.dual_contouring_data import DualContouringData
-from gempy_engine.core.data.grid import Grid
-from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
-from gempy_engine.core.data.interp_output import InterpOutput
-from gempy_engine.core.data.interpolation_input import InterpolationInput
-from gempy_engine.core.data.octree_level import OctreeLevel
-from gempy_engine.core.data.options import DualContouringMaskingOptions
-from gempy_engine.core.utils import gempy_profiler_decorator
+from ._mask_buffer import MaskBuffer
+from ..interp_single.interp_features import interpolate_all_fields_no_octree
+from ...core.data import InterpolationOptions
+from ...core.data.dual_contouring_data import DualContouringData
+from ...core.data.grid import Grid
+from ...core.data.input_data_descriptor import InputDataDescriptor
+from ...core.data.interp_output import InterpOutput
+from ...core.data.interpolation_input import InterpolationInput
+from ...core.data.octree_level import OctreeLevel
+from ...core.data.options import DualContouringMaskingOptions
+from ...core.utils import gempy_profiler_decorator
+from ...modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge
 
 
 @gempy_profiler_decorator
@@ -46,6 +47,7 @@ def interpolate_on_edges_for_dual_contouring(data_descriptor: InputDataDescripto
     return dc_data
 
 
+# TODO: These two functions could be moved to the module
 def _get_intersection_on_edges(octree_level: OctreeLevel, output_corners: InterpOutput, mask: Optional[np.ndarray] = None) \
         -> Tuple[np.ndarray, np.ndarray]:
     # First find xyz on edges:
