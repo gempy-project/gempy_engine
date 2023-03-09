@@ -38,8 +38,7 @@ def test_dual_contouring_multiple_independent_fields_intersect_raw(unconformity_
     
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_dual_contouring_multiple_independent_fields_intersect_raw_fancy_triangulation(
-        unconformity_complex, n_oct_levels=4):
-    
+        unconformity_complex, n_oct_levels=5):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
     options.debug = True
@@ -52,10 +51,15 @@ def test_dual_contouring_multiple_independent_fields_intersect_raw_fancy_triangu
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
     if plot_pyvista or False:
-        dc_data = solutions.dc_meshes[0].dc_data  # * Scalar field where to show gradients
+        dc_data = solutions.dc_meshes[3].dc_data  # * Scalar field where to show gradients
+        valid_voxels_per_surface = dc_data.valid_voxels.reshape((dc_data.n_surfaces_to_export, -1))
+        
+        valid_voxels = dc_data.xyz_on_centers[valid_voxels_per_surface[1]]
+        
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes,
+            v_just_points= valid_voxels
             # xyz_on_edge=dc_data.xyz_on_edge,
             # gradients=dc_data.gradients,  # * Uncomment for more detailed plots
             # a=dc_data.bias_center_mass,

@@ -7,6 +7,7 @@ from ._experimental_water_tight_DC_1 import _experimental_water_tight
 from ._interpolate_on_edges import interpolate_on_edges_for_dual_contouring
 from ._mask_buffer import MaskBuffer
 from ...core.data import InterpolationOptions
+from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.solutions import Solutions
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.input_data_descriptor import InputDataDescriptor
@@ -45,7 +46,7 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
 
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
         # @off
-        dc_data = interpolate_on_edges_for_dual_contouring(
+        dc_data: DualContouringData = interpolate_on_edges_for_dual_contouring(
             data_descriptor     = data_descriptor,
             interpolation_input = interpolation_input,
             n_scalar_field      = n_scalar_field,

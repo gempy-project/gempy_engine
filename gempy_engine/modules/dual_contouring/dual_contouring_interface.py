@@ -7,7 +7,13 @@ import numpy as np
 
 def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray,
                               scalar_at_sp: np.ndarray, masking=None) -> Tuple[np.ndarray, np.ndarray]:
-    """This function finds all the intersections for multiple layers per series"""
+    """This function finds all the intersections for multiple layers per series
+    
+    - The shape of valid edges is n_surfaces * xyz_corners. Where xyz_corners is 8 * the octree leaf
+    - The shape of intersection_xyz really depends on the number of intersections per voxel
+    
+    
+    """
     scalar_8_ = scalar_field
     scalar_8 = scalar_8_.reshape((1, -1, 8))
     xyz_8 = _xyz_corners.reshape((-1, 8, 3))
@@ -58,7 +64,7 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field: np.ndarray
     return intersection_xyz, valid_edges
 
 
-def triangulate_dual_contouring(dc_data_per_surface: DualContouringData, shift):
+def triangulate_dual_contouring(dc_data_per_surface: DualContouringData):
     """
     For each edge that exhibits a sign change, generate a quad
     connecting the minimizing vertices of the four cubes containing the edge.\
@@ -66,10 +72,10 @@ def triangulate_dual_contouring(dc_data_per_surface: DualContouringData, shift):
     dxdydz = dc_data_per_surface.dxdydz
     centers_xyz = dc_data_per_surface.xyz_on_centers
     indices_arrays = []
-        
+
     valid_voxels = dc_data_per_surface.valid_voxels
     valid_edges = dc_data_per_surface.valid_edges
-        
+
     # ! This assumes a vertex per voxel
     dx, dy, dz = dxdydz
     x_1 = centers_xyz[valid_voxels][:, None, :]
@@ -131,23 +137,22 @@ def triangulate_dual_contouring(dc_data_per_surface: DualContouringData, shift):
     matrix_to_right_C_order = np.transpose((direction_each_edge * three_neighbours), (1, 2, 0))
     indices = np.where(matrix_to_right_C_order)[2].reshape(-1, 3)
 
-    indices_shift = indices + shift
+    indices_shift = indices
     indices_arrays.append(indices_shift)
     indices_arrays_f = np.vstack(indices_arrays)
-    
+
     return indices_arrays_f
 
 
-def generate_dual_contouring_vertices(dc_data_per_surface: DualContouringData, debug: bool = False) -> np.ndarray:
-    
-    # @ off
-    n_edges      = dc_data_per_surface.n_edges
-    valid_edges  = dc_data_per_surface.valid_edges
-    valid_voxels = dc_data_per_surface.valid_voxels
-    xyz_on_edge  = dc_data_per_surface.xyz_on_edge
-    gradients    = dc_data_per_surface.gradients
-    # @ on
-    
+def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, slice_surface: slice, debug: bool = False) -> np.ndarray:
+    # @off
+    n_edges      = dc_data_per_stack.n_edges
+    valid_edges  = dc_data_per_stack.valid_edges
+    valid_voxels = dc_data_per_stack.valid_voxels
+    xyz_on_edge  = dc_data_per_stack.xyz_on_edge[slice_surface]
+    gradients    = dc_data_per_stack.gradients[slice_surface]
+    # @on
+
     # * Coordinates for all posible edges (12) and 3 dummy edges_normals in the center
     edges_xyz = np.zeros((n_edges, 15, 3))
     edges_xyz[:, :12][valid_edges] = xyz_on_edge
@@ -183,8 +188,8 @@ def generate_dual_contouring_vertices(dc_data_per_surface: DualContouringData, d
     vertices = np.einsum("ijk, ij->ik", term2, term3)
 
     if debug:
-        dc_data_per_surface.bias_center_mass = edges_xyz[:, 12:].reshape(-1, 3)
-        dc_data_per_surface.bias_normals = edges_normals[:, 12:].reshape(-1, 3)
+        dc_data_per_stack.bias_center_mass = edges_xyz[:, 12:].reshape(-1, 3)
+        dc_data_per_stack.bias_normals = edges_normals[:, 12:].reshape(-1, 3)
 
     return vertices
 
