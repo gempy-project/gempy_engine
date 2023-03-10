@@ -26,7 +26,7 @@ def get_next_octree_grid(prev_octree: OctreeLevel, compute_topology=False, **kwa
 
 def get_regular_grid_value_for_level(octree_list: List[OctreeLevel], level: Optional[int] = None,
                                      value_type: ValueType = ValueType.ids, scalar_n=-1) -> np.ndarray:
-    # region Internal Functions
+    # region Internal Functions ==================================================
     def calculate_oct(shape, n_rep: int) -> np.ndarray:
 
         f1 = shape[2] * shape[1] * 2 ** (n_rep - 1) * 2 ** (n_rep - 1)
@@ -71,7 +71,8 @@ def get_regular_grid_value_for_level(octree_list: List[OctreeLevel], level: Opti
 
         return active_cells_eo.ravel()
 
-    # endregion
+    # endregion =================================================================================
+    
     if level is None:
         level = len(octree_list) - 1
 
