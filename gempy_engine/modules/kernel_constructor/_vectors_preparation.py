@@ -144,7 +144,8 @@ def _assembly_cartesian_selector_tensors(matrices_sizes: MatricesSizes):
         x_sel_hu=sel_hu_input, y_sel_hu=sel_hv_input,
         x_sel_hv=sel_hv_input, y_sel_hv=sel_hu_input,
         x_sel_h_ref=sel_hu_points_input, y_sel_h_ref=sel_hu_points_input,
-        x_sel_h_rest=sel_hu_points_input, y_sel_h_rest=sel_hu_points_input)
+        x_sel_h_rest=sel_hu_points_input, y_sel_h_rest=sel_hu_points_input
+    )
     return cartesian_selector
 
 

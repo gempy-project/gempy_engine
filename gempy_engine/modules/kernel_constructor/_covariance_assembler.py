@@ -45,29 +45,38 @@ def _get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_re
 
 def _get_cov_grad(dm, k_a, k_p_ref, nugget):
     cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
+    grad_nugget = nugget[0]
     if BackendTensor.pykeops_enabled is False:
-        grad_nugget = nugget[0]
         nugget_selector = np.eye(cov_grad.shape[0], dtype=gempy_engine.config.TENSOR_DTYPE) * dm.perp_matrix
         nugget_matrix = nugget_selector * grad_nugget
         cov_grad += nugget_matrix
-
+    else:
+        from pykeops.numpy import LazyTensor
+        matrix_shape = dm.hu.shape[0]
+        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype('float32')
+        diag_i = LazyTensor(diag_[:, None])
+        diag_j = LazyTensor(diag_[None, :])
+        nugget_matrix = (((0.5 - (diag_i - diag_j)**2).step()) * grad_nugget) * dm.perp_matrix
+        cov_grad += nugget_matrix
+        
     return cov_grad
 
 
 def _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options: KernelOptions, nugget_effect):
     cov_surface_points = options.i_res * (k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref)
-    if BackendTensor.pykeops_enabled is False:
-        # Add nugget effect for ref and rest point
-        ref_nugget = nugget_effect[0]
-        rest_nugget = nugget_effect[0]
-        nugget_rest_ref = ref_nugget + rest_nugget
-        diag = np.eye(cov_surface_points.shape[0], dtype=gempy_engine.config.TENSOR_DTYPE) * (global_nugget + 0.01)  # ! Add 0.001% nugget
-        multi_matrix = np.ones_like(diag) + diag
-
+    ref_nugget = nugget_effect[0]
+    
+    if BackendTensor.pykeops_enabled is False: # Add nugget effect for ref and rest point
         diag = np.eye(cov_surface_points.shape[0], dtype=gempy_engine.config.TENSOR_DTYPE) * ref_nugget  # * This is also applying it to the grad which is bad
         cov_surface_points += diag
-
-        # TODO [] Proper nugget implementation for numpy
+    else:
+        from pykeops.numpy import LazyTensor
+        matrix_shape = k_rest_ref.shape[0]
+        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype('float32')
+        diag_i = LazyTensor(diag_[:, None])
+        diag_j = LazyTensor(diag_[None, :])
+        nugget_matrix = (((0.5 - (diag_i - diag_j) ** 2).step()) * ref_nugget)
+        cov_surface_points += nugget_matrix
 
     return cov_surface_points
 

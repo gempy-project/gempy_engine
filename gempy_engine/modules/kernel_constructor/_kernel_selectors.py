@@ -12,6 +12,7 @@ def dips_sp_cartesian_selector(matrices_sizes: MatricesSizes, axis: int = None):
     sel_hu = np.zeros((vector_size, n_dim), dtype="int8")
     sel_hv = np.zeros((vector_size, n_dim), dtype="int8")
     sel_huv = np.zeros((vector_size, n_dim), dtype="int8")
+    
     for i in range(n_dim): # ! sel_hu has to be the same also for all axis 
         sel_hu[n_dips * i:n_dips * (i + 1), i] = 1
 
@@ -21,7 +22,7 @@ def dips_sp_cartesian_selector(matrices_sizes: MatricesSizes, axis: int = None):
         sel_huv[n_dips * n_dim: n_dips * n_dim + n_points, :] = 1
     else:
         sel_huv[n_dips * n_dim: n_dips * n_dim + n_points, axis] = 1
-
+    
     return sel_hu, sel_hv, sel_huv
 
 

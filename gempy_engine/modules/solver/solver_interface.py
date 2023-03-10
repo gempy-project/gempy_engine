@@ -22,25 +22,29 @@ def kernel_reduction(cov, b, smooth=0.000001):
         case (AvailableBackends.numpy, True):
             # ! Only Positivie definite matrices are solved. Otherwise the kernel gets stuck
             # * Very interesting: https://stats.stackexchange.com/questions/386813/use-the-rbf-kernel-to-construct-a-positive-definite-covariance-matrix
-
+            
             w = cov.solve(
                 np.asarray(b).astype(dtype),
-                alpha=900000,  # ! This is the smoothness parameter
+                alpha=0.1,  # ! This is the smoothness parameter
                 dtype_acc=dtype,
                 backend="CPU",
                 sum_scheme="kahan_scheme"
             )
         case (AvailableBackends.numpy, False):
             if compute_condition_number := True:
-                cond_number = np.linalg.cond(cov)
-                svd = np.linalg.svd(cov)
-                is_positive_definite = np.all(np.linalg.eigvals(cov) > 0)
-                print(f'Condition number: {cond_number}. Is positive definite: {is_positive_definite}')
-                if not is_positive_definite:  # ! Careful numpy False
-                    warnings.warn('The covariance matrix is not positive definite')
+                _compute_conditional_number(cov)
 
             w = bt.tfnp.linalg.solve(cov.astype(dtype), b[:, 0])
         case _:
             raise AttributeError('There is a weird combination of libraries?')
 
     return w
+
+
+def _compute_conditional_number(cov):
+    cond_number = np.linalg.cond(cov)
+    svd = np.linalg.svd(cov)
+    is_positive_definite = np.all(np.linalg.eigvals(cov) > 0)
+    print(f'Condition number: {cond_number}. Is positive definite: {is_positive_definite}')
+    if not is_positive_definite:  # ! Careful numpy False
+        warnings.warn('The covariance matrix is not positive definite')

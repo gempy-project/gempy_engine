@@ -12,16 +12,24 @@ tensor_types = bt.tensor_types
 
 def create_cov_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     kernel_f: KernelFunction = options.kernel_function.value
-    a = options.range
-    c_o = options.c_o
+    
+    distances_matrices = _compute_all_distance_matrices(
+        cs=ki.cartesian_selector,
+        ori_sp_matrices=ki.ori_sp_matrices,
+        square_distance=kernel_f.consume_sq_distance,
+        is_gradient=False
+    )
 
-    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices,
-                                        square_distance=kernel_f.consume_sq_distance, is_gradient=False)
+    kernels: tuple = _compute_all_kernel_terms(
+        range_=options.range,
+        kernel_functions=kernel_f,
+        r_ref_ref=distances_matrices.r_ref_ref,
+        r_ref_rest=distances_matrices.r_ref_rest,
+        r_rest_ref=distances_matrices.r_rest_ref,
+        r_rest_rest=distances_matrices.r_rest_rest
+    )
 
-    k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = _compute_all_kernel_terms(
-        a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
-
-    cov = _get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, ki, options)
+    cov = _get_covariance(options.c_o, distances_matrices, *kernels, ki, options)
 
     return cov
 
@@ -33,11 +41,21 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
     c_o = options.c_o
 
     # region distances
-    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices,
-                                        square_distance=kernel_f.consume_sq_distance, is_gradient=False)
+    dm = _compute_all_distance_matrices(
+        cs=ki.cartesian_selector,
+        ori_sp_matrices=ki.ori_sp_matrices,
+        square_distance=kernel_f.consume_sq_distance,
+        is_gradient=False
+    )
 
-    k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
-        _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
+    k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = _compute_all_kernel_terms(
+        range_=a,
+        kernel_functions=kernel_f,
+        r_ref_ref=dm.r_ref_ref,
+        r_ref_rest=dm.r_ref_rest,
+        r_rest_ref=dm.r_rest_ref,
+        r_rest_rest=dm.r_rest_rest
+    )
 
     # endregion
 
@@ -114,16 +132,16 @@ def create_grad_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     return grad_kernel
 
 
-def _compute_all_kernel_terms(a: int, kernel_f: KernelFunction, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest):
-    # ? This could also be cached as the DistancesBuffer but let's wait until it becomes a bottle neck 
+def _compute_all_kernel_terms(range_: int, kernel_functions: KernelFunction, r_ref_ref, r_ref_rest, r_rest_ref, r_rest_rest):
+    # ? This could also be cached as the DistancesBuffer but let's wait until it becomes a bottle neck
 
-    k_rest_rest = kernel_f.base_function(r_rest_rest, a)
-    k_ref_ref = kernel_f.base_function(r_ref_ref, a)
-    k_ref_rest = kernel_f.base_function(r_ref_rest, a)
-    k_rest_ref = kernel_f.base_function(r_rest_ref, a)
-    k_p_ref = kernel_f.derivative_div_r(r_ref_ref, a)  # First derivative DIVIDED BY r C'(r)/r
-    k_p_rest = kernel_f.derivative_div_r(r_rest_rest, a)  # First derivative DIVIDED BY r C'(r)/r
-    k_a = kernel_f.second_derivative(r_ref_ref, a)  # Second derivative of the kernel
+    k_rest_rest = kernel_functions.base_function(r_rest_rest, range_)
+    k_ref_ref = kernel_functions.base_function(r_ref_ref, range_)
+    k_ref_rest = kernel_functions.base_function(r_ref_rest, range_)
+    k_rest_ref = kernel_functions.base_function(r_rest_ref, range_)
+    k_p_ref = kernel_functions.derivative_div_r(r_ref_ref, range_)  # First derivative DIVIDED BY r C'(r)/r
+    k_p_rest = kernel_functions.derivative_div_r(r_rest_rest, range_)  # First derivative DIVIDED BY r C'(r)/r
+    k_a = kernel_functions.second_derivative(r_ref_ref, range_)  # Second derivative of the kernel
     return k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest
 
 
@@ -136,7 +154,6 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
                                    square_distance: bool, is_gradient: bool, is_testing: bool = False) -> InternalDistancesMatrices:
     # ! For the DistanceBuffer optimization we are assuming that we are always computing the scalar kernel first
     # ! and then the gradient kernel. This is because the gradient kernel needs the scalar kernel distances
-    # ! and we are assuming that the scalar kernel is always computed first.
 
     is_cached_matrices = DistancesBuffer.last_internal_distances_matrices is not None
     if is_gradient and is_cached_matrices and is_testing is False:
@@ -145,15 +162,14 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
             last_internal_distances_matrices=DistancesBuffer.last_internal_distances_matrices
         )
     else:
-        distance_matrices: InternalDistancesMatrices = _compute_distances_new(cs, ori_sp_matrices, square_distance)
+        distance_matrices: InternalDistancesMatrices = _compute_distances_new(
+            cs=cs,
+            ori_sp_matrices=ori_sp_matrices,
+            square_distance=square_distance
+        )
 
-    # Check which items are the same between calls to config the buffer.
-    if False and is_gradient:
-        import numpy as np
-        print(f"Checking distances matrices. Shape: {distance_matrices.dif_ref_ref.shape}")
-        for k, v in DistancesBuffer.last_internal_distances_matrices.__dict__.items():
-            if not np.allclose(v, distance_matrices.__dict__[k]):
-                print("Not allclose", k)
+    if develeping_distances_buffer := False and is_gradient:  # This is for developing
+        _check_which_items_are_the_same_between_calls(distance_matrices)
 
     DistancesBuffer.last_internal_distances_matrices = distance_matrices  # * Save common values for next call
     return distance_matrices
@@ -201,7 +217,7 @@ def _compute_distances_using_cache(cs, last_internal_distances_matrices: Interna
     return new_distance_matrices
 
 
-def _compute_distances_new(cs, ori_sp_matrices, square_distance) -> InternalDistancesMatrices:
+def _compute_distances_new(cs: CartesianSelector, ori_sp_matrices, square_distance) -> InternalDistancesMatrices:
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j  # Can be cached
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j  # Can be cached
 
@@ -224,21 +240,38 @@ def _compute_distances_new(cs, ori_sp_matrices, square_distance) -> InternalDist
     r_ref_rest = bt.t.sum((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2, axis=-1)  # Can be cached
     r_rest_ref = bt.t.sum((ori_sp_matrices.diprest_i - ori_sp_matrices.dip_ref_j) ** 2, axis=-1)  # Can be cached
     if square_distance is False:
-        r_ref_ref = bt.t.sqrt(r_ref_ref)
+        # @off
+        r_ref_ref   = bt.t.sqrt(r_ref_ref)
         r_rest_rest = bt.t.sqrt(r_rest_rest)
-        r_ref_rest = bt.t.sqrt(r_ref_rest)
-        r_rest_ref = bt.t.sqrt(r_rest_ref)
+        r_ref_rest  = bt.t.sqrt(r_ref_rest)
+        r_rest_ref  = bt.t.sqrt(r_rest_ref)
     # endregion
 
     new_distance_matrices = InternalDistancesMatrices(
-        dif_ref_ref=dif_ref_ref, dif_rest_rest=dif_rest_rest,
-        hu=hu, hv=hv,
-        huv_ref=huv_ref, huv_rest=huv_rest,
-        perp_matrix=perp_matrix,
-        r_ref_ref=r_ref_ref, r_ref_rest=r_ref_rest,
-        r_rest_ref=r_rest_ref, r_rest_rest=r_rest_rest,
-        hu_ref=hu_ref, hu_rest=hu_rest,
-        hu_ref_grad=None, hu_rest_grad=None,
-        #    hu_ref_sum=hu_ref_sum, hu_rest_sum=hu_rest_sum,
+        dif_ref_ref     = dif_ref_ref,
+        dif_rest_rest   = dif_rest_rest,
+        hu              = hu,
+        hv              = hv,
+        huv_ref         = huv_ref,
+        huv_rest        = huv_rest,
+        perp_matrix     = perp_matrix,
+        r_ref_ref       = r_ref_ref,
+        r_ref_rest      = r_ref_rest,
+        r_rest_ref      = r_rest_ref,
+        r_rest_rest     = r_rest_rest,
+        hu_ref          = hu_ref,
+        hu_rest         = hu_rest,
+        hu_ref_grad     = None,
+        hu_rest_grad    = None,
+        #    hu_ref_sum = hu_ref_sum   , hu_rest_sum = hu_rest_sum,
+        # @on
     )
     return new_distance_matrices
+
+
+def _check_which_items_are_the_same_between_calls(distance_matrices):
+    import numpy as np
+    print(f"Checking distances matrices. Shape: {distance_matrices.dif_ref_ref.shape}")
+    for k, v in DistancesBuffer.last_internal_distances_matrices.__dict__.items():
+        if not np.allclose(v, distance_matrices.__dict__[k]):
+            print("Not allclose", k)
