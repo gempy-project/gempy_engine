@@ -23,7 +23,7 @@ def test_graben_fault_model(graben_fault_model):
 
     options.compute_scalar_gradient = False
     options.dual_contouring = True
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.INTERSECT
     options.dual_conturing_fancy = True
     options.debug=True
 
