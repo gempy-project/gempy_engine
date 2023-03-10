@@ -25,17 +25,18 @@ def kernel_reduction(cov, b, smooth=0.000001):
 
             w = cov.solve(
                 np.asarray(b).astype(dtype),
-                alpha=900000,
+                alpha=900000,  # ! This is the smoothness parameter
                 dtype_acc=dtype,
-                backend="CPU"
+                backend="CPU",
+                sum_scheme="kahan_scheme"
             )
         case (AvailableBackends.numpy, False):
-            if True:
+            if compute_condition_number := True:
                 cond_number = np.linalg.cond(cov)
                 svd = np.linalg.svd(cov)
                 is_positive_definite = np.all(np.linalg.eigvals(cov) > 0)
                 print(f'Condition number: {cond_number}. Is positive definite: {is_positive_definite}')
-                if is_positive_definite == False:  # ! Careful numpy False
+                if not is_positive_definite:  # ! Careful numpy False
                     warnings.warn('The covariance matrix is not positive definite')
 
             w = bt.tfnp.linalg.solve(cov.astype(dtype), b[:, 0])

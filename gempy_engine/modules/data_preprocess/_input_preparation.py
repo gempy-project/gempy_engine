@@ -9,13 +9,18 @@ from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints, 
 def orientations_preprocess(orientations: Orientations):
     tiled_positions = b.tfnp.tile(orientations.dip_positions, (orientations.n_dimensions, 1))
     tiled_gradients = b.tfnp.tile(orientations.dip_gradients, (orientations.n_dimensions, 1))
-    return OrientationsInternals(orientations, tiled_positions, tiled_gradients)
+    tiled_nugget = b.tfnp.tile(orientations.nugget_effect_grad, orientations.n_dimensions)
+    return OrientationsInternals(
+        orientations=orientations,
+        dip_positions_tiled=tiled_positions,
+        gradients_tiled=tiled_gradients,
+        nugget_effect_grad=tiled_nugget
+    )
 
 
 def surface_points_preprocess(sp_input: SurfacePoints, tensors_structure: TensorsStructure) -> SurfacePointsInternals:
 
     partitions_bool = tensors_structure.partitions_bool
-
     
     ref_nugget, ref_points, rest_nugget, rest_points = _compute_rest_ref_in_numpy(partitions_bool, sp_input)
 

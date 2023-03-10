@@ -70,6 +70,7 @@ class OrientationsInternals:
     orientations: Orientations
     dip_positions_tiled: tensor_types
     gradients_tiled: tensor_types
+    nugget_effect_grad: tensor_types
 
     def __hash__(self):
         return hash(self.__repr__())

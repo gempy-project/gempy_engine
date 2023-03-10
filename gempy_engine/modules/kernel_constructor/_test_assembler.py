@@ -29,7 +29,7 @@ def _test_covariance_items(ki: KernelInput, options: KernelOptions, item):
         _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
 
     if item == "cov_grad":
-        cov_grad = _get_cov_grad(dm, k_a, k_p_ref)
+        cov_grad = _get_cov_grad(dm, k_a, k_p_ref, ki.nugget_grad)
         return cov_grad
 
     elif item == "cov_sp":
