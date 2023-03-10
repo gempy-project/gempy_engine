@@ -8,7 +8,7 @@ import numpy as np
 bt = BackendTensor
 
 
-def kernel_reduction(cov, b, smooth=0.000001):
+def kernel_reduction(cov, b, compute_condition_number=False) -> np.ndarray:
     # ? Maybe we should always compute the conditional_number no matter the branch
 
     dtype = gempy_engine.config.TENSOR_DTYPE
@@ -20,7 +20,7 @@ def kernel_reduction(cov, b, smooth=0.000001):
             import tensorflow as tf
             w = tf.linalg.solve(cov, b)
         case (AvailableBackends.numpy, True):
-            # ! Only Positivie definite matrices are solved. Otherwise the kernel gets stuck
+            # ! Only Positive definite matrices are solved. Otherwise, the kernel gets stuck
             # * Very interesting: https://stats.stackexchange.com/questions/386813/use-the-rbf-kernel-to-construct-a-positive-definite-covariance-matrix
             
             w = cov.solve(
@@ -31,7 +31,7 @@ def kernel_reduction(cov, b, smooth=0.000001):
                 sum_scheme="kahan_scheme"
             )
         case (AvailableBackends.numpy, False):
-            if compute_condition_number := True:
+            if compute_condition_number:
                 _compute_conditional_number(cov)
 
             w = bt.tfnp.linalg.solve(cov.astype(dtype), b[:, 0])
