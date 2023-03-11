@@ -45,6 +45,10 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
     # endregion
 
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
+        if data_descriptor.stack_relation[n_scalar_field - 1] == 'Onlap' and data_descriptor.stack_relation[n_scalar_field- 2] == 'Erosion':
+            raise NotImplementedError("Erosion and Onlap are not supported yet")
+            pass
+        
         mask: np.ndarray = _mask_generation(n_scalar_field, octree_leaves, options.dual_contouring_masking_options)
         if mask is not None and left_right_codes is not None:
             left_right_codes_per_stack = left_right_codes[mask]
