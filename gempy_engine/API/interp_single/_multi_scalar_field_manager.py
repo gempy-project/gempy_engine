@@ -110,50 +110,27 @@ def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_rela
     grid_size       = all_scalar_fields_outputs[0].grid_size
     mask_matrix     = np.zeros((n_scalar_fields, grid_size), dtype = bool)
     
-    number_series_since_last_erosion = 0
-    
+    onlap_chain_counter = 0
     # Setting the mask matrix
     for i in range(n_scalar_fields):
-        mask_lith = all_scalar_fields_outputs[i].mask_components.mask_lith
-        print("mask_matrix", mask_matrix)
-        
-        
-        
-        match stack_relation[i]:
-            case StackRelationType.ERODE:
-                mask_matrix[i, :] = mask_lith
-                number_series_since_last_erosion = 0
-            case StackRelationType.ONLAP:
-                # TODO: Implement onlap squeezing
-                # - We set the previous i -1 and i - number_seriies_since_last_erosion
-                # - i - 1 is set with mask_o
-                # - i - number_seriies_since_last_erosion is set with cumprod of the mask_matrix since the last erosion
-                
-                #mask_matrix[i-1, :] = mask_lith
-                
-                # cumulative_product = np.cumprod(mask_matrix[i - number_series_since_last_erosion, :][::-1], axis =0)[::-1]  # * This comes from quite a while ago when I was young and clever
-                # mask_matrix[i - number_series_since_last_erosion, :] = cumulative_product
+        # @off
+        onlap_chain_cont   : bool = stack_relation[i - 1] in [StackRelationType.ONLAP, StackRelationType.FAULT]
+        onlap_chain_began  : bool = stack_relation[i - 1 - onlap_chain_counter] is StackRelationType.ONLAP
+        onlap_chain_counter: int  = (onlap_chain_counter + 1) * onlap_chain_cont * onlap_chain_began
+        # @on
 
-                #number_series_since_last_erosion += 1
-                
-                mask_matrix[i+1, :] = mask_lith
-                pass
-            case StackRelationType.FAULT:
-                mask_matrix[i, :] = mask_lith
-                #number_series_since_last_erosion += 1
-            case False:
-                mask_matrix[i, :] = mask_lith
-            case _:
-                raise ValueError(f"Unknown stack relation type: {stack_relation[i]}")
+        if onlap_chain_counter:
+            mask_matrix[i - 1] = all_scalar_fields_outputs[i].mask_components_erode_components_onlap.mask_lith
+ 
+        if stack_relation[i] is StackRelationType.ERODE:
+            mask_lith = all_scalar_fields_outputs[i].mask_components_erode.mask_lith
+            mask_matrix[i, :] = mask_lith
+            onlap_chain_counter = 0
+        if stack_relation[i] is StackRelationType.FAULT:
+            mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_erode.mask_lith
+        if stack_relation[i] is False:
+            mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_erode.mask_lith
 
-        is_onlap_or_fault = stack_relation[i] in [StackRelationType.ONLAP, StackRelationType.FAULT]
-        cum_onlap = stack_relation[i - number_series_since_last_erosion] is StackRelationType.ONLAP
-        number_series_since_last_erosion += 1
-        
-        # match stack_relation[i - 1]:
-        #     case StackRelationType.ONLAP:
-        # 
-        
     # Doing the black magic
     final_mask_array     = np.zeros((n_scalar_fields, grid_size), dtype=bool)
     final_mask_array[0]  = mask_matrix[-1]

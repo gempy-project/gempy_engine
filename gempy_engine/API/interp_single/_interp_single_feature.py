@@ -63,19 +63,20 @@ def interpolate_feature(interpolation_input: InterpolationInput,
     values_block: np.ndarray = activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=sigmoid_slope)
 
     # endregion
-
-    mask_components = _compute_mask_components(
-        exported_fields=exported_fields,
-        stack_relation=interpolation_input.stack_relation,
-        fault_thickness=interpolation_input.fault_values.thickness
-    )
+    
+    # * Moved to ScalarFieldOutput properties
+    # mask_components = _compute_mask_components(
+    #     exported_fields=exported_fields,
+    #     stack_relation=interpolation_input.stack_relation,
+    #     fault_thickness=interpolation_input.fault_values.thickness
+    # )
 
     output = ScalarFieldOutput(
         weights=weights,
         grid=grid,
         exported_fields=exported_fields,
         values_block=values_block,
-        mask_components=mask_components,
+        mask_components=None,
         stack_relation=interpolation_input.stack_relation
     )
 
