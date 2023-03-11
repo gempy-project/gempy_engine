@@ -113,24 +113,24 @@ def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_rela
     onlap_chain_counter = 0
     # Setting the mask matrix
     for i in range(n_scalar_fields):
-        # @off
         onlap_chain_cont   : bool = stack_relation[i - 1] in [StackRelationType.ONLAP, StackRelationType.FAULT]
         onlap_chain_began  : bool = stack_relation[i - 1 - onlap_chain_counter] is StackRelationType.ONLAP
         onlap_chain_counter: int  = (onlap_chain_counter + 1) * onlap_chain_cont * onlap_chain_began
-        # @on
 
         if onlap_chain_counter:
             mask_matrix[i - 1] = all_scalar_fields_outputs[i].mask_components_erode_components_onlap.mask_lith
- 
+            
+            cumprod_mask = np.cumprod(mask_matrix[(i - onlap_chain_counter):i, :][::-1], axis=0)[::-1]
+            mask_matrix[i - onlap_chain_counter: i] = cumprod_mask
+            
         if stack_relation[i] is StackRelationType.ERODE:
             mask_lith = all_scalar_fields_outputs[i].mask_components_erode.mask_lith
             mask_matrix[i, :] = mask_lith
-            onlap_chain_counter = 0
         if stack_relation[i] is StackRelationType.FAULT:
             mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_erode.mask_lith
         if stack_relation[i] is False:
             mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_erode.mask_lith
-
+    
     # Doing the black magic
     final_mask_array     = np.zeros((n_scalar_fields, grid_size), dtype=bool)
     final_mask_array[0]  = mask_matrix[-1]
