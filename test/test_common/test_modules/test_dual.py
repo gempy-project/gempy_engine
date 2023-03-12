@@ -3,6 +3,7 @@ from typing import List
 
 import pytest
 
+from gempy_engine.API.dual_contouring._interpolate_on_edges import _get_intersection_on_edges
 from gempy_engine.API.interp_single._interp_scalar_field import _evaluate_sys_eq
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields
@@ -13,7 +14,7 @@ import os
 
 import gempy_engine.API.interp_single.interp_features as interp
 
-from gempy_engine.API.dual_contouring._dual_contouring import get_intersection_on_edges, compute_dual_contouring
+from gempy_engine.API.dual_contouring._dual_contouring import  compute_dual_contouring
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.core.data.internal_structs import SolverInput
@@ -52,7 +53,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    intersection_xyz, valid_edges = get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
+    intersection_xyz, valid_edges = _get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
     interpolation_input.grid = Grid(intersection_xyz)
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
 
@@ -116,7 +117,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    intersection_xyz, valid_edges = get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
+    intersection_xyz, valid_edges = _get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
     interpolation_input.grid = Grid(intersection_xyz)
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
 
@@ -214,7 +215,7 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    intersection_xyz, valid_edges = get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
+    intersection_xyz, valid_edges = _get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
     interpolation_input.grid = Grid(intersection_xyz)
     output_on_edges = interp.interpolate_single_field(interpolation_input, options, data_shape.tensors_structure)
 
