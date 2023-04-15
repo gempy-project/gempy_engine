@@ -1,5 +1,4 @@
 tensorflow
-jax
 pykeops
 
 # Server
