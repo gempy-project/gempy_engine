@@ -2,6 +2,7 @@ import json
 
 import fastapi
 import numpy as np
+import pandas as pd
 import subsurface.visualization
 from fastapi.openapi.models import Response
 from pydantic import BaseModel
@@ -56,7 +57,7 @@ orientations: Orientations = Orientations(
 )
 
 regular_grid = RegularGrid(
-    #extent=[0.25, .75, 0.25, .75, 0.25, .75],
+    # extent=[0.25, .75, 0.25, .75, 0.25, .75],
     extent=[0, 20, 0, 20, 0, 20],
     regular_grid_shape=[2, 2, 2]
 )
@@ -98,6 +99,8 @@ default_input_data_descriptor: InputDataDescriptor = InputDataDescriptor(
     tensors_structure=tensor_struct,
     stack_structure=stack_structure
 )
+
+
 # endregion
 
 
@@ -107,7 +110,7 @@ def compute_gempy_model(input_json: GemPyInput):
     import pandas as pd
     print("Running GemPy Engine")
 
-    input_json.interpolation_input.grid = default_grid # ! Hack inject default grid:
+    input_json.interpolation_input.grid = default_grid  # ! Hack inject default grid:
 
     interpolation_input: InterpolationInput = InterpolationInput.from_schema(input_json.interpolation_input)
     input_data_descriptor: InputDataDescriptor = InputDataDescriptor.from_schema(input_json.input_data_descriptor)
@@ -115,30 +118,30 @@ def compute_gempy_model(input_json: GemPyInput):
 
     print(input_data_descriptor.stack_structure.masking_descriptor)
     print(input_data_descriptor.stack_structure)
-    
+
     # region Set new fancy triangulation
     FANCY_TRIANGULATION = True
     if FANCY_TRIANGULATION:
         default_interpolation_options.dual_contouring_fancy = True
-        default_interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW # * To Date only raw making is supported
+        default_interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW  # * To Date only raw making is supported
     # endregion
-    
+
     solutions: Solutions = _compute_model(interpolation_input, default_interpolation_options, input_data_descriptor)
 
+    print(solutions.dc_meshes[0].vertices)
+
     meshes: list[DualContouringMesh] = solutions.dc_meshes
-    
-    MESHES_TO_UNSTRUT = False
-    if MESHES_TO_UNSTRUT:
-        unstructured_data: UnstructuredData = meshes_to_unstruct(meshes, n_stack)
-        PLOT_SUBSURFACE_OBJECT = False
-        if PLOT_SUBSURFACE_OBJECT:
+
+    if MESHES_TO_UNSTRUT := True:
+        unstructured_data_meshes: UnstructuredData = meshes_to_unstruct(meshes, n_stack)
+        if PLOT_SUBSURFACE_OBJECT := False:
             plot_subsurface_object(unstructured_data)
 
     # region encode octrees
     grid_centers_xyz = solutions.octrees_output[0].grid_centers.values
     grid_centers_val = solutions.octrees_output[0].last_output_center.ids_block
 
-    unstructured_data = subsurface.UnstructuredData.from_array(
+    unstructured_data_volume = subsurface.UnstructuredData.from_array(
         vertex=grid_centers_xyz,
         cells="points",
         cells_attr=pd.DataFrame(grid_centers_val, columns=['id'])  # TODO: We have to create an array with the shape of simplex array with the id of each simplex
@@ -146,14 +149,32 @@ def compute_gempy_model(input_json: GemPyInput):
     # endregion
 
     # TODO: Add xarray_attrs to differentiate between the type of data
-    body, header = unstructured_data.to_binary()
-    
+    body_meshes, header_meshes = unstructured_data_meshes.to_binary()
+
     # encode json header and insert it into the binary body
-    header_json = json.dumps(header)
+    header_json = json.dumps(header_meshes)
     header_json_bytes = header_json.encode('utf-8')
     header_json_length = len(header_json_bytes)
     header_json_length_bytes = header_json_length.to_bytes(4, byteorder='little')
-    body = header_json_length_bytes + header_json_bytes + body
+    body_meshes = header_json_length_bytes + header_json_bytes + body_meshes
+
+    # TODO: Serialize unstructured_data_volume and add Global Header for the size of each data
+    body_volume, header_volume = unstructured_data_volume.to_binary()
+    
+    # encode json header and insert it into the binary body
+    header_json = json.dumps(header_volume)
+    header_json_bytes = header_json.encode('utf-8')
+    header_json_length = len(header_json_bytes)
+    header_json_length_bytes = header_json_length.to_bytes(4, byteorder='little')
+    body_volume = header_json_length_bytes + header_json_bytes + body_volume
+    
+    body = body_meshes + body_volume
+    
+    global_header = json.dumps({"mesh_size": len(body_meshes), "octree_size": len(body_volume)})
+    global_header_bytes = global_header.encode('utf-8')
+    global_header_length = len(global_header_bytes)
+    global_header_length_bytes = global_header_length.to_bytes(4, byteorder='little')
+    body = global_header_length_bytes + global_header_bytes + body
     
     response = fastapi.Response(content=body, media_type='application/octet-stream')
     return response
