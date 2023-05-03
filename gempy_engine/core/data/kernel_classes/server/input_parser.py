@@ -1,4 +1,6 @@
 # Check if pydantic is installed and import it
+from typing import Optional
+
 try:
     from pydantic import BaseModel, Field
 except ImportError:
@@ -18,7 +20,7 @@ class OrientationsSchema(BaseModel):
 class InterpolationInputSchema(BaseModel):
     surface_points: SurfacePointsSchema
     orientations: OrientationsSchema
-    grid: None # !!TODO: This has to also come from the json
+    grid: Optional[dict] = None # !!TODO: This has to also come from the json
 
 
 class InputDataDescriptorSchema(BaseModel):
@@ -32,3 +34,4 @@ class InputDataDescriptorSchema(BaseModel):
 class GemPyInput(BaseModel):
     interpolation_input: InterpolationInputSchema
     input_data_descriptor: InputDataDescriptorSchema
+    interpolation_options: Optional[dict] = None

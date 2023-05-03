@@ -57,8 +57,9 @@ orientations: Orientations = Orientations(
 )
 
 regular_grid = RegularGrid(
+    extent=[0., .75, 0., .75, 0., .75],
     # extent=[0.25, .75, 0.25, .75, 0.25, .75],
-    extent=[0, 20, 0, 20, 0, 20],
+    # extent=[0, 20, 0, 20, 0, 20],
     regular_grid_shape=[2, 2, 2]
 )
 default_grid: Grid = Grid.from_regular_grid(regular_grid)
@@ -197,12 +198,12 @@ def meshes_to_unstruct(meshes: list[DualContouringMesh], n_stack) -> Unstructure
     # print("Mesh1Tri" + str(meshes[0].edges))
     # print("Mesh2Tri" + str(meshes[1].edges))
     print("Mesh1TriShape" + str(meshes[0].edges.shape))
-    print("Mesh2TriShape" + str(meshes[1].edges.shape))
+    # print("Mesh2TriShape" + str(meshes[1].edges.shape))
     vertex_array = np.concatenate([meshes[i].vertices for i in range(n_meshes)])
     simplex_array = np.concatenate([meshes[i].edges for i in range(n_meshes)])
     unc, count = np.unique(simplex_array, axis=0, return_counts=True)
     print(f"edges shape {simplex_array.shape}")
-    print(f"UNC COUNT {unc[count > 1][0]}")
+    # print(f"UNC COUNT {unc[count > 1][0]}")
     if n_stack > 1:  # if unc[count > 1][0][0] == 0:
         simplex_array = meshes[0].edges
         for i in range(n_meshes):
