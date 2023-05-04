@@ -17,10 +17,15 @@ class OrientationsSchema(BaseModel):
     dip_gradients: list
 
 
+class GridSchema(BaseModel):
+    extent: list
+    octree_levels: int 
+    
+    
 class InterpolationInputSchema(BaseModel):
     surface_points: SurfacePointsSchema
     orientations: OrientationsSchema
-    grid: Optional[dict] = None # !!TODO: This has to also come from the json
+    grid: GridSchema
 
 
 class InputDataDescriptorSchema(BaseModel):

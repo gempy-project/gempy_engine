@@ -5,6 +5,7 @@ import numpy as np
 from numpy import ndarray
 
 from gempy_engine.config import TENSOR_DTYPE
+from gempy_engine.core.data.kernel_classes.server.input_parser import GridSchema
 
 
 def _check_and_convert_list_to_array(field):
@@ -31,6 +32,14 @@ class RegularGrid:
         raise NotImplementedError
         regular_grid_shape = -1  # TODO: add logic here
         return cls(values, extent, regular_grid_shape)
+
+    @classmethod
+    def from_schema(cls, schema: GridSchema):
+        return cls(
+            extent=schema.extent,
+            regular_grid_shape=[2, 2, 2],  # ! This needs to be generalized. For now I hardcoded the octree initial shapes
+            left_right=None
+        )
 
     @property
     def active_cells(self) -> np.ndarray:

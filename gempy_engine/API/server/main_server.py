@@ -110,8 +110,12 @@ def compute_gempy_model(input_json: GemPyInput):
     import subsurface
     import pandas as pd
     print("Running GemPy Engine")
+    
+    print(input_json.interpolation_input.grid)
 
-    input_json.interpolation_input.grid = default_grid  # ! Hack inject default grid:
+    input_json.interpolation_input.grid = Grid.from_regular_grid(
+        regular_grid=RegularGrid.from_schema(input_json.interpolation_input.grid)
+    )
 
     interpolation_input: InterpolationInput = InterpolationInput.from_schema(input_json.interpolation_input)
     input_data_descriptor: InputDataDescriptor = InputDataDescriptor.from_schema(input_json.input_data_descriptor)
