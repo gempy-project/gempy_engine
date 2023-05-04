@@ -114,7 +114,7 @@ def compute_gempy_model(input_json: GemPyInput):
     print(input_json.interpolation_input.grid)
 
     input_json.interpolation_input.grid = Grid.from_regular_grid(
-        regular_grid=RegularGrid.from_schema(input_json.interpolation_input.grid)
+        regular_grid=RegularGrid.from_schema(input_json.interpolation_input.grid) 
     )
 
     interpolation_input: InterpolationInput = InterpolationInput.from_schema(input_json.interpolation_input)
