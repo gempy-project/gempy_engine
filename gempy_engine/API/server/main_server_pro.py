@@ -82,10 +82,10 @@ def _compute_model(interpolation_input: InterpolationInput, options: Interpolati
     n_oct_levels = options.number_octree_levels
     solutions = compute_model(interpolation_input, options, structure)
 
-    if plot_pyvista and False:
+    if plot_pyvista and True:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
-        plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
+        # plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
         for e, mesh in enumerate(solutions.dc_meshes):
             colors = ["red", "green", "blue", "yellow", "orange", "purple", "black", "white"]
             plot_dc_meshes(p, dc_mesh=mesh, color=colors[e])

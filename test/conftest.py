@@ -21,7 +21,7 @@ from test.fixtures.simple_models import *
 from test.fixtures.heavy_models import *
 
 
-pykeops_enabled = True
+pykeops_enabled = False
 backend = AvailableBackends.numpy
 use_gpu = True
 plot_pyvista = False # ! Set here if you want to plot the results
