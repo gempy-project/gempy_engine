@@ -11,15 +11,15 @@ from ...modules.dual_contouring.dual_contouring_interface import find_intersecti
 import numpy as np
 
 
-def get_intersection_on_edges(octree_level: OctreeLevel, output_corners: InterpOutput, mask: Optional[np.ndarray] = None,
-                              multiple_scalars: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+def get_intersection_on_edges(octree_level: OctreeLevel, output_corners: InterpOutput,
+                              mask: Optional[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
     # First find xyz on edges:
-    xyz_corners = octree_level.grid_corners.values
-    
-    scalar_field_corners = output_corners.exported_fields.scalar_field
-    scalar_field_at_all_sp = output_corners.scalar_field_at_sp
-    
-    intersection_xyz, valid_edges = find_intersection_on_edge(xyz_corners, scalar_field_corners, scalar_field_at_all_sp, mask)
+    intersection_xyz, valid_edges = find_intersection_on_edge(
+        _xyz_corners=octree_level.grid_corners.values,
+        scalar_field=output_corners.exported_fields.scalar_field,
+        scalar_at_sp=output_corners.scalar_field_at_sp,
+        masking=mask
+    )
     return intersection_xyz, valid_edges
 
 

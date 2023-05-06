@@ -53,7 +53,7 @@ def compute_gempy_model(gempy_input: GemPyInput):
     FANCY_TRIANGULATION = True
     if FANCY_TRIANGULATION:
         default_interpolation_options.dual_contouring_fancy = True
-        default_interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW  # * To Date only raw making is supported
+        # default_interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW  # * To Date only raw making is supported
     # endregion
 
     solutions: Solutions = _compute_model(
