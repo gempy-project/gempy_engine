@@ -21,7 +21,9 @@ def get_left_right_array(octree_list: list[OctreeLevel]) -> np.ndarray:
         for e, left_right_per_lvl in enumerate(left_right_all):
             left_right_per_lvl_dir = left_right_per_lvl[:, dir_idx]
             for n_rep in range(e):
-                left_right_per_lvl_dir = np.repeat(left_right_per_lvl_dir[voxel_select_op[e - n_rep]], 8)  # ? Is it always e?
+                inner = left_right_per_lvl_dir[voxel_select_op[e - n_rep]]
+                left_right_per_lvl_dir = np.repeat(inner, 8)  # ? Is it always e?
+                # ? Is this repeat wrong?
             left_right_list.append(left_right_per_lvl_dir)
 
         left_right_list.append(idx_from_root)
@@ -67,6 +69,11 @@ class _StaticTriangulationData:
         return np.array([1, base_number, base_number ** 2], dtype=np.int64)
 
     @staticmethod
+    def get_base_array(pack_directions_into_bits: np.ndarray) -> np.ndarray:
+        return np.array([pack_directions_into_bits, pack_directions_into_bits * 2, pack_directions_into_bits * 3],
+                        dtype=np.int64)
+
+    @staticmethod
     def get_base_number() -> int:
         return 2 ** _StaticTriangulationData.depth
 
@@ -87,8 +94,13 @@ def triangulate(left_right_array: np.ndarray, valid_edges: np.ndarray, tree_dept
 
     indices = []
 
-    all = [1, 2, 4, 7, 8, 11]
+    # all = [1, 2, 4, 7, 8, 11]
+
+    all = [ 1, 3, 8, 11]
+    all = [2,]
+    # all = [  9, 11]
     for n in all:
+        # TODO: Make sure that changing the edge_vector we do not change
         left_right_array_active_edge = left_right_array[valid_edges[:, n]]
         _ = compute_triangles_for_edge(
             edge_vector_a=edge_vector_a[n],
@@ -141,6 +153,8 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c, left
 
     binary_idx_0: np.ndarray = left_right_array_active_edge + edge_vector_0  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 3-directions)
     binary_idx_1: np.ndarray = left_right_array_active_edge + edge_vector_1  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 3-directions)
+    # if the second column values are larger than 7 subtract 2
+    binary_idx_1[:, 1] = np.where(binary_idx_1[:, 1] > 7, binary_idx_1[:, 1] - 2, binary_idx_1[:, 1])
     binary_idx_2: np.ndarray = left_right_array_active_edge + edge_vector_2  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 3-directions)
 
     compressed_binary_idx_0 = (binary_idx_0 * _StaticTriangulationData.get_pack_directions_into_bits()).sum(axis=1)  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 1)
@@ -165,9 +179,22 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c, left
     code__b_p = mapped_voxel_1[:, valid_edges_within_extent] == 0  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
     code__c_p = mapped_voxel_2[:, valid_edges_within_extent] == 0  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
 
-    if False:
+
+    if True:
         debug_code_p = code__a_p + code__b_p + code__c_p  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
         # 15 and 17 does not have y
+
+        bar = voxel_code[code__b_p.sum(1, dtype=bool)]
+        x_  = bar // 256
+        y_  = (bar % 256) // 16
+        z_  = (bar % 256) % 16
+        stacked = np.hstack((z_, y_, x_))
+
+        voxel_code_array_x = voxel_code // 256
+        voxel_code_array_y = (voxel_code % 256) // 16
+        voxel_code_array_z = (voxel_code % 256) % 16
+        voxel_code_array = np.hstack((voxel_code_array_z.reshape(-1, 1), voxel_code_array_y.reshape(-1, 1), voxel_code_array_x.reshape(-1, 1)))
+
     # endregion
 
     # region Convert remaining compressed binary codes to ints

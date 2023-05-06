@@ -1,3 +1,4 @@
+import warnings
 from typing import List
 
 from gempy_engine.core.data.octree_level import OctreeLevel
@@ -66,6 +67,7 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
 
 
 def compute_octree_root_on_faces(prev_octree: OctreeLevel, debug=False) -> Grid:
+    warnings.warn.DeprecationWarning("This function is deprecated. Use compute_next_octree_locations instead")
     def _mark_voxel(uv_6):
         shift_x = uv_6[0] - uv_6[1]
         shift_y = uv_6[2] - uv_6[3]
