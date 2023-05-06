@@ -64,14 +64,12 @@ def _meshes_to_unstruct(meshes: list[DualContouringMesh], n_stack: int, logger: 
     logger.debug(f"edges shape {simplex_array.shape}")
 
     # * Prepare the simplex array
-    if n_stack > 1:
-        simplex_array = meshes[0].edges
-        for i in range(n_meshes):
-            if i != 0:
-                adder = np.max(meshes[i - 1].edges) + 1
-                logger.debug("triangle counts adder:" + str(adder))
-                add_mesh = meshes[i].edges + adder
-                simplex_array = np.append(simplex_array, add_mesh, axis=0)
+    simplex_array = meshes[0].edges
+    for i in range(1,n_meshes):
+        adder = np.max(meshes[i - 1].edges) + 1
+        logger.debug("triangle counts adder:" + str(adder))
+        add_mesh = meshes[i].edges + adder
+        simplex_array = np.append(simplex_array, add_mesh, axis=0)
 
     logger.debug(f"edges shape {simplex_array.shape}")
 
