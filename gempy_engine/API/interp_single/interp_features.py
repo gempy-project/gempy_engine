@@ -52,7 +52,8 @@ def interpolate_single_field(interpolation_input: InterpolationInput, options: d
     exported_fields.set_structure_values(
         reference_sp_position=data_shape.reference_sp_position,
         slice_feature=interpolation_input.slice_feature,
-        grid_size=interpolation_input.grid.len_all_grids)
+        grid_size=interpolation_input.grid.len_all_grids
+    )
     
     scalar_output = ScalarFieldOutput(
         weights=weights,

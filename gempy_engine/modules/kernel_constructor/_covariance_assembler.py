@@ -2,6 +2,7 @@ import numpy as np
 
 import gempy_engine.config
 from gempy_engine.core.backend_tensor import BackendTensor
+from gempy_engine.core.data.options import KernelOptions
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.kernel_constructor import _structs
 from gempy_engine.modules.kernel_constructor._structs import KernelInput
@@ -11,9 +12,10 @@ from gempy_engine.modules.kernel_constructor._internalDistancesMatrices import I
 
 global_nugget = 1e-5
 
+
 def _get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, ki: KernelInput, options):
-    cov_grad = _get_cov_grad(dm, k_a, k_p_ref)
-    cov_sp = _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options)  # TODO: Add nugget effect properly (individual) # cov_sp += np.eye(cov_sp.shape[0]) * .00000001
+    cov_grad = _get_cov_grad(dm, k_a, k_p_ref, ki.nugget_grad)
+    cov_sp = _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options, ki.nugget_scalar)  # TODO: Add nugget effect properly (individual) # cov_sp += np.eye(cov_sp.shape[0]) * .00000001
     cov_grad_sp = _get_cross_cov_grad_sp(dm, k_p_ref, k_p_rest, options)  # C
 
     # Universal drift
@@ -36,38 +38,51 @@ def _get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_re
         Solutions.debug_input_data['usp'] = usp
         Solutions.debug_input_data['ug'] = ug
         Solutions.debug_input_data['uni_drift'] = uni_drift
-        Solutions.debug_input_data['faults_drift'] = faults_drift    
-    
+        Solutions.debug_input_data['faults_drift'] = faults_drift
+
     return cov
 
 
-def _get_cov_grad(dm, k_a, k_p_ref):
+def _get_cov_grad(dm, k_a, k_p_ref, nugget):
     cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
+    grad_nugget = nugget[0]
     if BackendTensor.pykeops_enabled is False:
-        grad_nugget = 0.01
-        diag = (grad_nugget + global_nugget) * dm.perp_matrix
-        cov_grad += diag
-
+        nugget_selector = np.eye(cov_grad.shape[0], dtype=gempy_engine.config.TENSOR_DTYPE) * dm.perp_matrix
+        nugget_matrix = nugget_selector * grad_nugget
+        cov_grad += nugget_matrix
+    else:
+        from pykeops.numpy import LazyTensor
+        matrix_shape = dm.hu.shape[0]
+        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype('float32')
+        diag_i = LazyTensor(diag_[:, None])
+        diag_j = LazyTensor(diag_[None, :])
+        nugget_matrix = (((0.5 - (diag_i - diag_j)**2).step()) * grad_nugget) * dm.perp_matrix
+        cov_grad += nugget_matrix
+        
     return cov_grad
 
 
-def _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options):
+def _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options: KernelOptions, nugget_effect):
     cov_surface_points = options.i_res * (k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref)
-    if BackendTensor.pykeops_enabled is False:
-        # Add nugget effect for ref and rest point
-        ref_nugget  = 0.01
-        rest_nugget = 0.01
-        nugget_rest_ref = ref_nugget + rest_nugget
-        diag = np.eye(cov_surface_points.shape[0], dtype=gempy_engine.config.TENSOR_DTYPE) * (global_nugget + 0.01) # ! Add 0.001% nugget
-        multi_matrix = np.ones_like(diag) + diag    
+    ref_nugget = nugget_effect[0]
+    
+    if BackendTensor.pykeops_enabled is False: # Add nugget effect for ref and rest point
+        diag = np.eye(cov_surface_points.shape[0], dtype=gempy_engine.config.TENSOR_DTYPE) * ref_nugget  # * This is also applying it to the grad which is bad
         cov_surface_points += diag
+    else:
+        from pykeops.numpy import LazyTensor
+        matrix_shape = k_rest_ref.shape[0]
+        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype('float32')
+        diag_i = LazyTensor(diag_[:, None])
+        diag_j = LazyTensor(diag_[None, :])
+        nugget_matrix = (((0.5 - (diag_i - diag_j) ** 2).step()) * ref_nugget)
+        cov_surface_points += nugget_matrix
 
     return cov_surface_points
 
 
 def _get_cross_cov_grad_sp(dm, k_p_ref, k_p_rest, options):
     cov_grad_sp = options.gi_res * (- dm.huv_rest * k_p_rest + dm.huv_ref * k_p_ref)
-    
     return cov_grad_sp
 
 
@@ -96,11 +111,11 @@ def _get_faults_terms(ki: KernelInput) -> np.ndarray:
         x_size=cov_size,
         y_size=cov_size,
         n_drift_eq=fault_n,
-        drift_start_post_x=cov_size-fault_n,
-        drift_start_post_y=cov_size-fault_n
-        )
+        drift_start_post_x=cov_size - fault_n,
+        drift_start_post_y=cov_size - fault_n
+    )
     selector = (selector_components.sel_ui * (selector_components.sel_vj + 1)).sum(axis=-1)
-    
+
     fault_matrix = selector * (fault_ref - fault_rest + 0.00000001) * 1
     return fault_matrix
 
@@ -122,5 +137,3 @@ def _get_universal_sp_terms(ki, options):
     selector = (ki.drift_matrix_selector.sel_ui * (ki.drift_matrix_selector.sel_vj + 1)).sum(-1)
     usp_d2 = -1 * selector * ((options.i_res * (usp_rest_d2 - usp_ref_d2)) + (options.gi_res * (usp_rest - usp_ref)))
     return usp_d2
-
-

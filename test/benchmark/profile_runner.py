@@ -16,6 +16,7 @@ from gempy_engine.core.data.solutions import Solutions
 from test.fixtures.heavy_models import moureze_model_factory
 from test.conftest import plot_pyvista
 
+
 def profile_moureze_model():
     BackendTensor.change_backend(
         engine_backend=AvailableBackends.numpy,

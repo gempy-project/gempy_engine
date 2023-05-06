@@ -16,7 +16,7 @@ class DualContouringData:
 
     exported_fields_on_edges: Optional[ExportedFields]
 
-    n_surfaces: int
+    n_surfaces_to_export: int
     _gradients: np.ndarray = None
 
     tree_depth: int = -1

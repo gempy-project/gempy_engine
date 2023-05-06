@@ -51,7 +51,11 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
     A_matrix = kernel_constructor.yield_covariance(interp_input, kernel_options)
     b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
     # TODO: Smooth should be taken from options
-    weights = solver_interface.kernel_reduction(A_matrix, b_vector, smooth=0.01)
+    weights = solver_interface.kernel_reduction(
+        cov=A_matrix,
+        b=b_vector,
+        compute_condition_number=kernel_options.compute_condition_number
+    )
 
     if gempy_engine.config.DEBUG_MODE:
         # Save debug data for later

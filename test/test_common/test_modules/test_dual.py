@@ -3,6 +3,7 @@ from typing import List
 
 import pytest
 
+from gempy_engine.API.dual_contouring._interpolate_on_edges import _get_intersection_on_edges
 from gempy_engine.API.interp_single._interp_scalar_field import _evaluate_sys_eq
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields
@@ -13,7 +14,7 @@ import os
 
 import gempy_engine.API.interp_single.interp_features as interp
 
-from gempy_engine.API.dual_contouring._dual_contouring import get_intersection_on_edges, compute_dual_contouring
+from gempy_engine.API.dual_contouring._dual_contouring import  compute_dual_contouring
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.core.data.internal_structs import SolverInput
@@ -28,11 +29,10 @@ from gempy_engine.API.interp_single.interp_features import interpolate_n_octree_
 from gempy_engine.modules.dual_contouring.dual_contouring_interface import QEF, find_intersection_on_edge, triangulate_dual_contouring
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 from test import helper_functions_pyvista
-from test.conftest import TEST_SPEED
+from test.conftest import TEST_SPEED, plot_pyvista
 
 dir_name = os.path.dirname(__file__)
 
-plot_pyvista = False
 try:
     # noinspection PyPackageRequirements
     import pyvista as pv
@@ -44,7 +44,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
     options.compute_scalar_gradient = True
-    
+
     ids = np.array([1, 2])
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
@@ -53,7 +53,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    intersection_xyz, valid_edges = get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
+    intersection_xyz, valid_edges = _get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
     interpolation_input.grid = Grid(intersection_xyz)
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
 
@@ -63,7 +63,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
         xyz_on_centers=last_octree_level.grid_centers.values,
         dxdydz=last_octree_level.grid_centers.dxdydz,
         exported_fields_on_edges=output_on_edges[0].exported_fields,
-        n_surfaces=data_shape.tensors_structure.n_surfaces
+        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
     )
 
     gradients = dc_data.gradients
@@ -93,7 +93,8 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
 
 def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3d_octree):
     from gempy_engine.modules.dual_contouring.fancy_triangulation import get_left_right_array, triangulate
-    def simple_grid_3d_octree_regular():
+
+    def _simple_grid_3d_octree_regular():
         import dataclasses
         resolution = [2, 2, 2]
         extent = [0.25, .75, 0.25, .75, 0.25, .75]
@@ -109,14 +110,14 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     options.compute_scalar_gradient = True
 
     ids = np.array([1, 2])
-    grid_0_centers = simple_grid_3d_octree_regular()
+    grid_0_centers = _simple_grid_3d_octree_regular()
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
     octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    intersection_xyz, valid_edges = get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
+    intersection_xyz, valid_edges = _get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
     interpolation_input.grid = Grid(intersection_xyz)
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
 
@@ -126,7 +127,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
         xyz_on_centers=last_octree_level.grid_centers.values,
         dxdydz=last_octree_level.grid_centers.dxdydz,
         exported_fields_on_edges=output_on_edges[0].exported_fields,
-        n_surfaces=data_shape.tensors_structure.n_surfaces
+        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
     )
 
     dc_meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data)
@@ -152,7 +153,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     edges_xyz = np.zeros((n_edges, 15, 3))
     edges_xyz[:, :12][valid_edges] = intersection_xyz
 
-    if plot_pyvista or False:
+    if plot_pyvista or True:
         intersection_points = intersection_xyz
         center_mass = dc_data.bias_center_mass
         p = helper_functions_pyvista.plot_pyvista(
@@ -206,7 +207,7 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
     # region Test find_intersection_on_edge
     interpolation_input, options, data_shape = simple_model_3_layers
     options.compute_scalar_gradient = True
-    
+
     ids = np.array([1, 2, 3, 4])
     grid_0_centers = simple_grid_3d_octree
 
@@ -214,7 +215,7 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    intersection_xyz, valid_edges = get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
+    intersection_xyz, valid_edges = _get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
     interpolation_input.grid = Grid(intersection_xyz)
     output_on_edges = interp.interpolate_single_field(interpolation_input, options, data_shape.tensors_structure)
 
@@ -224,20 +225,27 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
         xyz_on_centers=last_octree_level.grid_centers.values,
         dxdydz=last_octree_level.grid_centers.dxdydz,
         exported_fields_on_edges=output_on_edges.exported_fields,
-        n_surfaces=data_shape.tensors_structure.n_surfaces
+        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
     )
 
     meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data)
 
-    if plot_pyvista or True:
-
-        helper_functions_pyvista.plot_pyvista( # This function does not have the marching cubes option
+    if plot_pyvista or False:
+        _plot_pyvista(
+            last_octree_level=last_octree_level,
             octree_list=octree_list,
-            dc_meshes=meshes,
-            gradients=interpolation_input.orientations.dip_gradients,
-            gradient_pos=interpolation_input.orientations.dip_gradients,
-            v_just_points=interpolation_input.surface_points.sp_coords
+            simple_model=simple_model_3_layers,
+            ids=ids,
+            grid_0_centers=grid_0_centers,
+            xyz_on_edge=dc_data.xyz_on_edge,
+            gradients=dc_data.gradients,
+            v_pro=mesh[0].vertices,
+            indices=mesh[0].edges,
+            plot_label=False,
+            plot_marching_cubes=False,
+            n=0
         )
+
 
 def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octree):
     # region Test find_intersection_on_edge
@@ -441,7 +449,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
         dxdydz=grid_centers.dxdydz,
         valid_edges=valid_edges,
         exported_fields_on_edges=None,
-        n_surfaces=data_shape.tensors_structure.n_surfaces
+        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
     )
 
     indices = triangulate_dual_contouring(dc_data)
@@ -546,7 +554,7 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
         dxdydz=grid_centers.dxdydz,
         valid_edges=valid_edges,
         exported_fields_on_edges=None,
-        n_surfaces=data_shape.tensors_structure.n_surfaces
+        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
     )
 
     indices = triangulate_dual_contouring(dc_data)
@@ -563,14 +571,13 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
     return xyz_on_edge, gradients
 
 
-# =======================
+# * ======================= Private functions =======================
 
 
 def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers,
                   xyz_on_edge, gradients, a=None, b=None, v_mesh=None, v_pro=None, indices=None,
-                  plot_label=False, plot_marching_cubes=True
+                  plot_label=False, plot_marching_cubes=True, n=1
                   ):
-    n = 1
     p = pv.Plotter()
 
     # Plot Actual mesh (from marching cubes)

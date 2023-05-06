@@ -25,6 +25,7 @@ def interpolate_feature(interpolation_input: InterpolationInput,
                         external_interp_funct: Optional[CustomInterpolationFunctions] = None,
                         external_segment_funct: Optional[Callable[[np.ndarray], float]] = None,
                         clean_buffer: bool = True) -> ScalarFieldOutput:
+    
     grid = copy.deepcopy(interpolation_input.grid)
 
     # region Interpolate scalar field
@@ -35,9 +36,9 @@ def interpolate_feature(interpolation_input: InterpolationInput,
         weights, exported_fields = interpolate_scalar_field(solver_input, options)
 
         exported_fields.set_structure_values(
-            reference_sp_position=data_shape.reference_sp_position,
-            slice_feature=interpolation_input.slice_feature,
-            grid_size=interpolation_input.grid.len_all_grids)
+            reference_sp_position = data_shape.reference_sp_position,
+            slice_feature         = interpolation_input.slice_feature,
+            grid_size             = interpolation_input.grid.len_all_grids)
 
         exported_fields.debug = solver_input.debug
     else:
@@ -47,7 +48,8 @@ def interpolate_feature(interpolation_input: InterpolationInput,
         exported_fields.set_structure_values(
             reference_sp_position=None,
             slice_feature=None,
-            grid_size=xyz.shape[0])
+            grid_size=xyz.shape[0]
+        )
 
     # endregion
 
@@ -61,19 +63,21 @@ def interpolate_feature(interpolation_input: InterpolationInput,
     values_block: np.ndarray = activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=sigmoid_slope)
 
     # endregion
-
-    mask_components = _compute_mask_components(
-        exported_fields=exported_fields,
-        stack_relation=interpolation_input.stack_relation,
-        fault_thickness=interpolation_input.fault_values.thickness
-    )
+    
+    # * Moved to ScalarFieldOutput properties
+    # mask_components = _compute_mask_components(
+    #     exported_fields=exported_fields,
+    #     stack_relation=interpolation_input.stack_relation,
+    #     fault_thickness=interpolation_input.fault_values.thickness
+    # )
 
     output = ScalarFieldOutput(
         weights=weights,
         grid=grid,
         exported_fields=exported_fields,
         values_block=values_block,
-        mask_components=mask_components
+        mask_components=None,
+        stack_relation=interpolation_input.stack_relation
     )
 
     if gempy_engine.config.TENSOR_DTYPE:
@@ -129,7 +133,7 @@ def _compute_mask_components(exported_fields: ExportedFields, stack_relation: St
     # ! if len(is_erosion) != 0:
     # !     is_erosion[-1] = False
 
-    # * This are the default values
+    # * These are the default values
     mask_erode = np.ones_like(exported_fields.scalar_field)
     mask_onlap = None  # ! it is the mask of the previous stack (from gempy: mask_matrix[n_series - 1, shift:x_to_interpolate_shape + shift])
 
@@ -153,6 +157,10 @@ def _compute_mask_components(exported_fields: ExportedFields, stack_relation: St
                 exported_fields.scalar_field_at_fault_shell = np.array([thickness_1, thickness_2])
                 mask_lith = f1 * f2
             else:
+                # TODO:  This branch should be like
+                # erode_limit_value = exported_fields.scalar_field_at_surface_points.min()
+                # mask_lith = exported_fields.scalar_field > erode_limit_value
+                
                 mask_lith = np.zeros_like(exported_fields.scalar_field)
         case False:
             mask_lith = np.ones_like(exported_fields.scalar_field)

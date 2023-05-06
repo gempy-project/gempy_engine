@@ -48,10 +48,14 @@ def cov_vectors_preparation(interp_input: SolverInput, kernel_options: KernelOpt
     return KernelInput(
         ori_sp_matrices=orientations_sp_matrices,
         cartesian_selector=cartesian_selector,
+        nugget_scalar= interp_input.sp_internal.nugget_effect_ref_rest,
+        nugget_grad= interp_input.ori_internal.nugget_effect_grad,
+        # Drift
         ori_drift=dips_ug,
         ref_drift=dips_ref_ui,
         rest_drift=dips_rest_ui,
         drift_matrix_selector=drift_selection,
+        # Faults
         ref_fault=fault_vector_ref,
         rest_fault=fault_vector_rest
     )
@@ -100,10 +104,14 @@ def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: K
     return KernelInput(
         ori_sp_matrices=orientations_sp_matrices,
         cartesian_selector=cartesian_selector,
+        nugget_scalar=None,
+        nugget_grad=None,
+        # drift
         ori_drift=dips_ug,
         ref_drift=dips_ref_ui,
         rest_drift=dips_rest_ui,
         drift_matrix_selector=drift_selection,
+        # faults
         ref_fault=fault_drift,
         rest_fault=None
     )
@@ -136,7 +144,8 @@ def _assembly_cartesian_selector_tensors(matrices_sizes: MatricesSizes):
         x_sel_hu=sel_hu_input, y_sel_hu=sel_hv_input,
         x_sel_hv=sel_hv_input, y_sel_hv=sel_hu_input,
         x_sel_h_ref=sel_hu_points_input, y_sel_h_ref=sel_hu_points_input,
-        x_sel_h_rest=sel_hu_points_input, y_sel_h_rest=sel_hu_points_input)
+        x_sel_h_rest=sel_hu_points_input, y_sel_h_rest=sel_hu_points_input
+    )
     return cartesian_selector
 
 

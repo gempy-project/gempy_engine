@@ -13,33 +13,35 @@ from .kernel_classes.server.input_parser import InterpolationInputSchema
 
 @dataclass
 class InterpolationInput:
-    surface_points: SurfacePoints
-    orientations: Orientations
-    grid: Grid
+    # @ off
+    surface_points       : SurfacePoints
+    orientations         : Orientations
+    grid                 : Grid
 
-    _unit_values: Optional[np.ndarray] = None
-    segmentation_function: Optional[callable] = None  # * From scalar field to values
+    _unit_values         : Optional[np.ndarray] = None
+    segmentation_function: Optional[callable]   = None  # * From scalar field to values
 
-    _all_surface_points: SurfacePoints = None
+    _all_surface_points  : SurfacePoints        = None
 
-    # region per model
+    # region per model ? Not sure what I mean here
 
-    _fault_values: FaultsData = None
-    stack_relation: StackRelationType = StackRelationType.ERODE  # ? Should be here or in the descriptor
+    _fault_values        : FaultsData           = None
+    stack_relation       : StackRelationType    = StackRelationType.ERODE  # ? Should be here or in the descriptor
 
     # endregion
 
     def __init__(self, surface_points: SurfacePoints, orientations: Orientations, grid: Grid,
                  unit_values: Optional[np.ndarray] = None, segmentation_function: Optional[callable] = None,
                  fault_values: Optional[FaultsData] = None, stack_relation: StackRelationType = StackRelationType.ERODE):
-        self.surface_points = surface_points
-        self.orientations = orientations
-        self.grid = grid
-        self.unit_values = unit_values
+        self.surface_points        = surface_points
+        self.orientations          = orientations
+        self.grid                  = grid
+        self.unit_values           = unit_values
         self.segmentation_function = segmentation_function
-        self.fault_values = fault_values
-        self.stack_relation = stack_relation
-
+        self.fault_values          = fault_values
+        self.stack_relation        = stack_relation
+    # @ on
+    
     @classmethod
     def from_interpolation_input_subset(cls, all_interpolation_input: "InterpolationInput",
                                         stack_structure: StacksStructure) -> "InterpolationInput":

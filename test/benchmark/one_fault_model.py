@@ -1,4 +1,5 @@
 import sys
+
 print('Python %s on %s' % (sys.version, sys.platform))
 sys.path.extend(['/home/miguel/PycharmProjects/gempy_engine'])  # ! This has to be up here
 
@@ -16,7 +17,6 @@ from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
-
 
 
 def my_func():

@@ -17,5 +17,3 @@ class CombinedScalarFieldsOutput:
     squeezed_mask_array: np.ndarray
     final_block: np.ndarray  # Masked array containing only the active voxels
     final_exported_fields: ExportedFields  # Masked array containing only the active voxels
-
-

@@ -34,7 +34,7 @@ def one_fault_model():
     ori: Orientations = Orientations(dip_postions, dip_gradients)
     ids = np.array([1, 2, 3, 4, 5, 6])
 
-    resolution = [4,4,4]
+    resolution = [2, 2, 2]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid: RegularGrid = RegularGrid(extent, resolution)
     grid: Grid = Grid(regular_grid.values, regular_grid=regular_grid)
@@ -45,7 +45,7 @@ def one_fault_model():
         grid=grid,
         unit_values=ids
     )
-        
+
     # endregion
 
     # region Structure
@@ -71,8 +71,7 @@ def one_fault_model():
 
     # region InterpolationOptions
 
-
-    range_ = 7**2 # ? Since we are not getting the square root should we also square this? 
+    range_ = 7 ** 2  # ? Since we are not getting the square root should we also square this? 
     c_o = 1
 
     options = InterpolationOptions(
@@ -80,7 +79,7 @@ def one_fault_model():
         uni_degree=1,
         number_dimensions=3,
         kernel_function=AvailableKernelFunctions.exponential)
-    
+
     # endregion
 
     return interpolation_input, input_data_descriptor, options
@@ -160,7 +159,7 @@ def graben_fault_model():
 
     # region InterpolationInput
     orientations = pd.read_csv(data_path + "Tutorial_ch1-9b_Fault_relations_orientations.csv")
-    
+
     sp = pd.read_csv(data_path + "Tutorial_ch1-9b_Fault_relations_surface_points.csv")
 
     sp_coords = (sp[["X", "Y", "Z"]].values - centers) / rescaling_factor
@@ -172,7 +171,7 @@ def graben_fault_model():
     ori = Orientations(dip_postions, dip_gradients)
     ids = np.array([1, 2, 3, 4, 5, 6])
 
-    resolution = [4, 4, 4]
+    resolution = [2, 2, 2]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
     grid = Grid(regular_grid.values, regular_grid=regular_grid)
@@ -218,4 +217,3 @@ def graben_fault_model():
     # endregion
 
     return interpolation_input, input_data_descriptor, options
-

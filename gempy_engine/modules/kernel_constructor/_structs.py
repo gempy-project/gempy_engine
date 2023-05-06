@@ -202,6 +202,8 @@ class KernelInput:
     # Used for CG, CI and CGI
     ori_sp_matrices: OrientationSurfacePointsCoords
     cartesian_selector: CartesianSelector
+    nugget_scalar: Optional[float]  # TODO This has to be have the ref rest treatment to be able to activate one per point
+    nugget_grad: Optional[float]  # * They are optional because they are not used in evaluation
 
     # Used for Drift
     ori_drift: OrientationsDrift

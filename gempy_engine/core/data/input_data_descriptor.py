@@ -39,9 +39,9 @@ class InputDataDescriptor:
         tensor_structure = TensorsStructure(
             number_of_points_per_surface=np.array(schema.number_of_points_per_surface)
         )
-        
+
         # Convert list of ints into list of StackRelationType
-        list_relations: list[StackRelationType] =  [StackRelationType(x) for x in schema.masking_descriptor]
+        list_relations: list[StackRelationType] = [StackRelationType(x) for x in schema.masking_descriptor]
         stack_structure = StacksStructure(
             number_of_points_per_stack=np.array(schema.number_of_points_per_stack),
             number_of_orientations_per_stack=np.array(schema.number_of_orientations_per_stack),
@@ -53,29 +53,52 @@ class InputDataDescriptor:
 
 @dataclass(frozen=False)
 class StacksStructure:
-    number_of_points_per_stack: np.ndarray  # * These fields are the same in all copies of TensorStructure
+    # @off
+    number_of_points_per_stack      : np.ndarray  # * These fields are the same in all copies of TensorStructure
     number_of_orientations_per_stack: np.ndarray
-    number_of_surfaces_per_stack: np.ndarray
-    masking_descriptor: List[StackRelationType | False]
-    faults_input_data: List[FaultsData] = None
-    faults_relations: np.ndarray = None
-    interp_functions_per_stack: List[CustomInterpolationFunctions] = None
+    number_of_surfaces_per_stack    : np.ndarray
+    masking_descriptor              : List[StackRelationType | False]
+    faults_input_data               : List[FaultsData]                   = None
+    faults_relations                : np.ndarray                         = None
+    interp_functions_per_stack      : List[CustomInterpolationFunctions] = None
 
     segmentation_functions_per_stack: Optional[List[Callable[[np.ndarray], float]]] = None
 
-    number_of_points_per_stack_vector: np.ndarray = np.ones(1)
+    number_of_points_per_stack_vector      : np.ndarray = np.ones(1)
     number_of_orientations_per_stack_vector: np.ndarray = np.ones(1)
-    number_of_surfaces_per_stack_vector: np.ndarray = np.ones(1)
+    number_of_surfaces_per_stack_vector    : np.ndarray = np.ones(1)
 
     stack_number: int = -1
 
     def __post_init__(self):
-        per_stack_cumsum = self.number_of_points_per_stack.cumsum()
-        per_stack_orientation_cumsum = self.number_of_orientations_per_stack.cumsum()
-        per_stack_surface_cumsum = self.number_of_surfaces_per_stack.cumsum()
-        self.number_of_points_per_stack_vector = np.concatenate([np.array([0]), per_stack_cumsum])
-        self.number_of_orientations_per_stack_vector = np.concatenate([np.array([0]), per_stack_orientation_cumsum])
-        self.number_of_surfaces_per_stack_vector = np.concatenate([np.array([0]), per_stack_surface_cumsum])
+                
+        self.number_of_points_per_stack       = self.number_of_points_per_stack[self.number_of_points_per_stack != 0]
+        self.number_of_orientations_per_stack = self.number_of_orientations_per_stack[self.number_of_orientations_per_stack != 0]
+        self.number_of_surfaces_per_stack     = self.number_of_surfaces_per_stack[self.number_of_surfaces_per_stack != 0]
+        
+        consistent_shapes: bool =  len(self.number_of_points_per_stack) == \
+                                   len(self.number_of_orientations_per_stack) == \
+                                   len(self.number_of_surfaces_per_stack) == \
+                                   len(self.masking_descriptor)
+
+        if not consistent_shapes:
+            raise ValueError("Inconsistent shapes in StacksStructure")
+
+        # check fault relations
+        if self.faults_relations is not None:
+            consistent_shapes = consistent_shapes and self.faults_relations.shape[0] == self.faults_relations.shape[1] == len(self.number_of_points_per_stack)
+            if not consistent_shapes:
+                # Slice self.faults_relations to the correct shape
+                self.faults_relations = self.faults_relations[:len(self.number_of_points_per_stack), :len(self.number_of_points_per_stack)]
+        
+        per_stack_cumsum                             = self.number_of_points_per_stack.cumsum()
+        per_stack_orientation_cumsum                 = self.number_of_orientations_per_stack.cumsum()
+        per_stack_surface_cumsum                     = self.number_of_surfaces_per_stack.cumsum()
+        self.number_of_points_per_stack_vector       = np.concatenate([np.array([0])                 , per_stack_cumsum])
+        self.number_of_orientations_per_stack_vector = np.concatenate([np.array([0])                 , per_stack_orientation_cumsum])
+        self.number_of_surfaces_per_stack_vector     = np.concatenate([np.array([0])                 , per_stack_surface_cumsum])
+    
+    # @on
 
     @property
     def active_masking_descriptor(self) -> StackRelationType:
