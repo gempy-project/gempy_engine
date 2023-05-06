@@ -85,6 +85,6 @@ def test_dual_contouring_multiple_independent_fields(unconformity_complex_implic
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes,
-            xyz_on_edge=intersection_xyz, gradients=gradients,  # * Uncomment for more detailed plots
+            gradient_pos=intersection_xyz, gradients=gradients,  # * Uncomment for more detailed plots
             a=center_mass, b=normals
         )

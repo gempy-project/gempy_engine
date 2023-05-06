@@ -86,7 +86,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
         normals = dc_data.bias_normals
         helper_functions_pyvista.plot_pyvista(octree_list, dc_meshes=dc_meshes, gradients=gradients,
                                               a=center_mass, b=normals,
-                                              xyz_on_edge=intersection_xyz,
+                                              gradient_pos=intersection_xyz,
                                               v_just_points=vertices, vertices=intersection_points)
     # endregion
 
@@ -159,7 +159,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
             octree_list,
             # dc_meshes=dc_meshes, Uncomment to see the OG mesh
             a=center_mass,
-            xyz_on_edge=intersection_xyz,
+            gradient_pos=intersection_xyz,
             vertices=intersection_points,
             plot=False
         )
@@ -195,7 +195,7 @@ def test_compute_dual_contouring_complex(unconformity_complex_one_layer, n_oct_l
         normals = dc_data.bias_normals
         helper_functions_pyvista.plot_pyvista(solutions.octrees_output,
                                               dc_meshes=solutions.dc_meshes,
-                                              xyz_on_edge=intersection_xyz, gradients=gradients,
+                                              gradient_pos=intersection_xyz, gradients=gradients,
                                               a=center_mass, b=normals,
                                               # v_just_points=vertices
                                               )
@@ -227,17 +227,17 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
         n_surfaces=data_shape.tensors_structure.n_surfaces
     )
 
-    mesh = compute_dual_contouring(dc_data)
+    meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data)
 
-    if plot_pyvista or False:
-        _plot_pyvista(last_octree_level, octree_list, simple_model_3_layers,
-                      ids, grid_0_centers,
-                      dc_data.xyz_on_edge,
-                      dc_data.gradients,
-                      v_pro=mesh[0].vertices,
-                      indices=mesh[0].edges,
-                      plot_label=False, plot_marching_cubes=False)
+    if plot_pyvista or True:
 
+        helper_functions_pyvista.plot_pyvista( # This function does not have the marching cubes option
+            octree_list=octree_list,
+            dc_meshes=meshes,
+            gradients=interpolation_input.orientations.dip_gradients,
+            gradient_pos=interpolation_input.orientations.dip_gradients,
+            v_just_points=interpolation_input.surface_points.sp_coords
+        )
 
 def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octree):
     # region Test find_intersection_on_edge

@@ -55,14 +55,15 @@ def compute_gempy_model(gempy_input: GemPyInput):
         default_interpolation_options.dual_contouring_fancy = True
         default_interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW  # * To Date only raw making is supported
     # endregion
-   
+
     solutions: Solutions = _compute_model(
         interpolation_input=interpolation_input,
         options=default_interpolation_options,
         structure=input_data_descriptor
     )
 
-    logger.debug("first mesh vertices:", solutions.dc_meshes[0].vertices)
+    logger.info("Finished computing model")
+    # logger.debug("first mesh vertices:", solutions.dc_meshes[0].vertices)
 
     body = process_output(
         meshes=solutions.dc_meshes,
@@ -77,18 +78,30 @@ def compute_gempy_model(gempy_input: GemPyInput):
 
 
 # noinspection DuplicatedCode
-def _compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions, structure: InputDataDescriptor) \
+def _compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
+                   structure: InputDataDescriptor) \
         -> Solutions:
     n_oct_levels = options.number_octree_levels
     solutions = compute_model(interpolation_input, options, structure)
 
     if plot_pyvista and True:
-        pv.global_theme.show_edges = True
-        p = pv.Plotter()
-        # plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
-        for e, mesh in enumerate(solutions.dc_meshes):
-            colors = ["red", "green", "blue", "yellow", "orange", "purple", "black", "white"]
-            plot_dc_meshes(p, dc_mesh=mesh, color=colors[e])
-        p.show()
+        #pv.global_theme.show_edges = True
+
+        from test import helper_functions_pyvista
+        helper_functions_pyvista.plot_pyvista(
+            octree_list=None,
+            dc_meshes=solutions.dc_meshes,
+            gradients=interpolation_input.orientations.dip_gradients,
+            gradient_pos=interpolation_input.orientations.dip_gradients,
+            v_just_points=interpolation_input.surface_points.sp_coords
+        )
+        #
+        # p = pv.Plotter()
+        # # plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
+        # for e, mesh in enumerate(solutions.dc_meshes):
+        #     plot
+        #     colors = ["red", "green", "blue", "yellow", "orange", "purple", "black", "white"]
+        #     plot_dc_meshes(p, dc_mesh=mesh, color=colors[e])
+        # p.show()
 
     return solutions

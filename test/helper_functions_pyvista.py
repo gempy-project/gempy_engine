@@ -57,7 +57,7 @@ def plot_vector(p: pv.Plotter, xyz, gradients):
 
 
 def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, vertices=None, indices=None,
-                 xyz_on_edge=None, gradients=None, a=None, b=None, v_just_points=None,
+                 gradient_pos=None, gradients=None, a=None, b=None, v_just_points=None,
                  plot_label=False, delaunay_3d=False, scalar=None, plot=True):
     p = pv.Plotter()
 
@@ -81,14 +81,14 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
             p.add_mesh(regular_grid_mesh, show_edges=False, opacity=.2)
        
     # Plot gradients
-    if gradients is not None and xyz_on_edge is not None:
-        poly = pv.PolyData(xyz_on_edge)
+    if gradients is not None and gradient_pos is not None:
+        poly = pv.PolyData(gradient_pos)
         poly['vectors'] = gradients
         arrows = poly.glyph(orient='vectors', scale=False, factor=.3)
         p.add_mesh(arrows, color="k", point_size=10.0, render_points_as_spheres=False)
 
     if plot_label:
-        p.add_point_labels(xyz_on_edge, list(range(xyz_on_edge.shape[0])), point_size=20, font_size=36)
+        p.add_point_labels(gradient_pos, list(range(gradient_pos.shape[0])), point_size=20, font_size=36)
 
     if a is not None and b is not None:
         poly = pv.PolyData(a)

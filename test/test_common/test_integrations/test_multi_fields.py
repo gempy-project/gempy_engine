@@ -260,7 +260,7 @@ def test_dual_contouring_multiple_dependent_fields(unconformity_complex, n_oct_l
         normals = dc_data.bias_normals
 
         helper_functions_pyvista.plot_pyvista(solutions.octrees_output, dc_meshes=solutions.dc_meshes,
-                                              xyz_on_edge=intersection_xyz, gradients=gradients,
+                                              gradient_pos=intersection_xyz, gradients=gradients,
                                               a=center_mass, b=normals
                                               )
 
