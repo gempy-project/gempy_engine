@@ -94,10 +94,10 @@ def triangulate(left_right_array: np.ndarray, valid_edges: np.ndarray, tree_dept
 
     indices = []
 
-    # all = [1, 2, 4, 7, 8, 11]
+    all = [1, 2, 4, 7, 8, 11]
 
-    all = [ 1, 3, 8, 11]
-    all = [2,]
+    # all = [ 1, 3, 8, 11]
+    # all = [2,]
     # all = [  9, 11]
     for n in all:
         # TODO: Make sure that changing the edge_vector we do not change
@@ -153,8 +153,6 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c, left
 
     binary_idx_0: np.ndarray = left_right_array_active_edge + edge_vector_0  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 3-directions)
     binary_idx_1: np.ndarray = left_right_array_active_edge + edge_vector_1  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 3-directions)
-    # if the second column values are larger than 7 subtract 2
-    binary_idx_1[:, 1] = np.where(binary_idx_1[:, 1] > 7, binary_idx_1[:, 1] - 2, binary_idx_1[:, 1])
     binary_idx_2: np.ndarray = left_right_array_active_edge + edge_vector_2  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 3-directions)
 
     compressed_binary_idx_0 = (binary_idx_0 * _StaticTriangulationData.get_pack_directions_into_bits()).sum(axis=1)  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 1)
