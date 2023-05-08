@@ -31,7 +31,7 @@ app = FastAPI()
 default_interpolation_options: InterpolationOptions = InterpolationOptions(
     range=1.166666666667,  # TODO: have constructor from RegularGrid
     c_o=1.1428571429,  # TODO: This should be a property
-    number_octree_levels=2,
+    number_octree_levels=5,
     kernel_function=AvailableKernelFunctions.cubic,
     dual_contouring=True
 )

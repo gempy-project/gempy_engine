@@ -30,9 +30,9 @@ def get_left_right_array(octree_list: list[OctreeLevel]) -> np.ndarray:
         binary_code = np.vstack(left_right_list)
         f = binary_code.T
         return binary_code
-    
+
     # === Local function ===
-    
+
     if len(octree_list) == 1:
         # * Not only that, the current implementation only works with pure octree starting at [2,2,2]
         raise ValueError("Octree list must have more than one level")
@@ -57,6 +57,11 @@ def get_left_right_array(octree_list: list[OctreeLevel]) -> np.ndarray:
     bool_to_int_z = np.packbits(binary_z, axis=0, bitorder="little")
     left_right_array = np.vstack((bool_to_int_x, bool_to_int_y, bool_to_int_z)).T
 
+    _StaticTriangulationData.depth = 2
+    foo = (left_right_array * _StaticTriangulationData.get_pack_directions_into_bits()).sum(axis=1)
+
+    sorted_indices = np.argsort(foo)
+    # left_right_array = left_right_array[sorted_indices]
     return left_right_array
 
 
@@ -66,7 +71,8 @@ class _StaticTriangulationData:
     @staticmethod
     def get_pack_directions_into_bits() -> np.ndarray:
         base_number = 2 ** _StaticTriangulationData.depth
-        return np.array([1, base_number, base_number ** 2], dtype=np.int64)
+        # return np.array([1, base_number, base_number ** 2], dtype=np.int64)
+        return np.array([base_number ** 2, base_number, 1], dtype=np.int64)
 
     @staticmethod
     def get_base_array(pack_directions_into_bits: np.ndarray) -> np.ndarray:
@@ -78,27 +84,22 @@ class _StaticTriangulationData:
         return 2 ** _StaticTriangulationData.depth
 
 
-def triangulate(left_right_array: np.ndarray, valid_edges: np.ndarray, tree_depth: int):
+def triangulate(left_right_array: np.ndarray, valid_edges: np.ndarray, tree_depth: int, voxel_normals: np.ndarray):
     # * Variables
     # depending on depth
     _StaticTriangulationData.depth = tree_depth
 
-    # depending on the edge
-    edge_vector_a = np.array([0, 0, 0, 0, -1, -1, 1, 1, -1, -1, 1, 1])
-    edge_vector_b = np.array([-1, -1, 1, 1, 0, 0, 0, 0, -1, 1, -1, 1])
-    edge_vector_c = np.array([-1, 1, -1, 1, -1, 1, -1, 1, 0, 0, 0, 0])
+    edge_vector_a = np.array([0, np.nan, np.nan, 0, -1, np.nan, np.nan, 1, -1, np.nan, np.nan, 1])
+    edge_vector_b = np.array([-1, np.nan, np.nan, 1, 0, np.nan, np.nan, 0, -1, np.nan, np.nan, 1])
+    edge_vector_c = np.array([-1, np.nan, np.nan, 1, -1, np.nan, np.nan, 1, 0, np.nan, np.nan, 0])
 
     # * Consts
     voxel_code = (left_right_array * _StaticTriangulationData.get_pack_directions_into_bits()).sum(1).reshape(-1, 1)
     # ----------
 
     indices = []
+    all = [0, 3, 4, 7, 8, 11]
 
-    all = [1, 2, 4, 7, 8, 11]
-
-    # all = [ 1, 3, 8, 11]
-    # all = [2,]
-    # all = [  9, 11]
     for n in all:
         # TODO: Make sure that changing the edge_vector we do not change
         left_right_array_active_edge = left_right_array[valid_edges[:, n]]
@@ -107,13 +108,17 @@ def triangulate(left_right_array: np.ndarray, valid_edges: np.ndarray, tree_dept
             edge_vector_b=edge_vector_b[n],
             edge_vector_c=edge_vector_c[n],
             left_right_array_active_edge=left_right_array_active_edge,
-            voxel_code=voxel_code)
+            voxel_code=voxel_code,
+            voxel_normals=voxel_normals,
+            n=n
+        )
         indices.append(_)
 
     return indices
 
 
-def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c, left_right_array_active_edge, voxel_code):
+def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
+                               left_right_array_active_edge, voxel_code, voxel_normals, n):
     """
     Important concepts to understand this triangulation:
     - left_right_array (n_voxels, 3-directions) contains a unique number per direction describing if it is left (even) or right (odd) and the voxel level
@@ -150,7 +155,7 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c, left
     edge_vector_0 = np.array([edge_vector_a, 0, 0])
     edge_vector_1 = np.array([0, edge_vector_b, 0])
     edge_vector_2 = np.array([0, 0, edge_vector_c])
-
+    
     binary_idx_0: np.ndarray = left_right_array_active_edge + edge_vector_0  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 3-directions)
     binary_idx_1: np.ndarray = left_right_array_active_edge + edge_vector_1  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 3-directions)
     binary_idx_2: np.ndarray = left_right_array_active_edge + edge_vector_2  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 3-directions)
@@ -177,22 +182,10 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c, left
     code__b_p = mapped_voxel_1[:, valid_edges_within_extent] == 0  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
     code__c_p = mapped_voxel_2[:, valid_edges_within_extent] == 0  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
 
-
-    if True:
+    if False:
         debug_code_p = code__a_p + code__b_p + code__c_p  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
         # 15 and 17 does not have y
-
-        bar = voxel_code[code__b_p.sum(1, dtype=bool)]
-        x_  = bar // 256
-        y_  = (bar % 256) // 16
-        z_  = (bar % 256) % 16
-        stacked = np.hstack((z_, y_, x_))
-
-        voxel_code_array_x = voxel_code // 256
-        voxel_code_array_y = (voxel_code % 256) // 16
-        voxel_code_array_z = (voxel_code % 256) % 16
-        voxel_code_array = np.hstack((voxel_code_array_z.reshape(-1, 1), voxel_code_array_y.reshape(-1, 1), voxel_code_array_x.reshape(-1, 1)))
-
+        
     # endregion
 
     # region Convert remaining compressed binary codes to ints
@@ -201,5 +194,19 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c, left
     y = (code__b_p * indices_array).T[code__b_p.T]
     z = (code__c_p * indices_array).T[code__c_p.T]
     # endregion
-    indices = np.vstack((x, y, z)).T
+
+    if n < 4:
+        normal = (code__a_p * voxel_normals[:, [0]]).T[code__a_p.T]
+    elif n < 8:
+        normal = (code__b_p * voxel_normals[:, [1]]).T[code__b_p.T]
+    elif n < 12:
+        normal = (code__c_p * voxel_normals[:, [2]]).T[code__c_p.T]
+    else:
+        raise ValueError("n must be smaller than 12")
+
+    # flip triangle order if normal is negative
+    indices = np.vstack((x[normal >= 0], y[normal >= 0], z[normal >= 0])).T
+    flipped_indices = np.vstack((x[normal < 0], y[normal < 0], z[normal < 0])).T[:, [0, 2, 1]]
+    indices = np.vstack((indices, flipped_indices))
+
     return indices
