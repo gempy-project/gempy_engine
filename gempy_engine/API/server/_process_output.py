@@ -6,7 +6,6 @@ import pandas as pd
 import subsurface
 from subsurface import UnstructuredData
 
-from gempy_engine.API.server.main_server import plot_subsurface_object
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
 from gempy_engine.core.data.solutions import Solutions
 
@@ -18,7 +17,7 @@ def process_output(meshes: list[DualContouringMesh], n_stack: int, solutions: So
     # * serialize meshes
     unstructured_data_meshes: UnstructuredData = _meshes_to_unstruct(meshes, n_stack, logger)
     if PLOT_SUBSURFACE_OBJECT:
-        plot_subsurface_object(unstructured_data_meshes)
+        _plot_subsurface_object(unstructured_data_meshes)
     body_meshes, header_meshes = unstructured_data_meshes.to_binary()
     header_json = json.dumps(header_meshes)
     header_json_bytes = header_json.encode('utf-8')
