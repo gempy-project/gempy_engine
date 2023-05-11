@@ -28,10 +28,11 @@ app = FastAPI()
 
 # region InterpolationOptions
 
+range_ = 1
 default_interpolation_options: InterpolationOptions = InterpolationOptions(
-    range=1.166666666667,  # TODO: have constructor from RegularGrid
-    c_o=1.1428571429,  # TODO: This should be a property
-    number_octree_levels=5,
+    range= range_,  # TODO: have constructor from RegularGrid
+    c_o=range_ * 12 / 14 / 3,
+    number_octree_levels=4,
     kernel_function=AvailableKernelFunctions.cubic,
     dual_contouring=True
 )
@@ -39,9 +40,11 @@ default_interpolation_options: InterpolationOptions = InterpolationOptions(
 
 # endregion
 
+logger = setup_logger()
+
+
 @app.post("/")
 def compute_gempy_model(gempy_input: GemPyInput):
-    logger = setup_logger()
     logger.info("Running GemPy Engine")
 
     input_data_descriptor, interpolation_input, n_stack = process_input(
@@ -56,6 +59,8 @@ def compute_gempy_model(gempy_input: GemPyInput):
         # default_interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW  # * To Date only raw making is supported
     # endregion
 
+    default_interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW  # * To Date only raw making is supported
+    
     solutions: Solutions = _compute_model(
         interpolation_input=interpolation_input,
         options=default_interpolation_options,
