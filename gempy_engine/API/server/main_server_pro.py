@@ -8,6 +8,8 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 from ._process_output import process_output
 
 from ._server_functions import process_input, setup_logger
+from ...config import AvailableBackends
+from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.kernel_classes.server.input_parser import GemPyInput
 from ...core.data.options import DualContouringMaskingOptions
@@ -31,8 +33,8 @@ app = FastAPI()
 range_ = 1
 default_interpolation_options: InterpolationOptions = InterpolationOptions(
     range= range_,  # TODO: have constructor from RegularGrid
-    c_o=range_ * 12 / 14 / 3,
-    number_octree_levels=4,
+    c_o=( range_ ** 2 ) / 14 / 3,
+    number_octree_levels=5,
     kernel_function=AvailableKernelFunctions.cubic,
     dual_contouring=True
 )
@@ -42,6 +44,7 @@ default_interpolation_options: InterpolationOptions = InterpolationOptions(
 
 logger = setup_logger()
 
+# BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=True)
 
 @app.post("/")
 def compute_gempy_model(gempy_input: GemPyInput):
