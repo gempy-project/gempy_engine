@@ -34,7 +34,7 @@ range_ = 1
 default_interpolation_options: InterpolationOptions = InterpolationOptions(
     range= range_,  # TODO: have constructor from RegularGrid
     c_o=( range_ ** 2 ) / 14 / 3,
-    number_octree_levels=5,
+    number_octree_levels=4,
     kernel_function=AvailableKernelFunctions.cubic,
     dual_contouring=True
 )

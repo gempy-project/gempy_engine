@@ -73,7 +73,7 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
         regular_grid_mesh = pv.StructuredGrid(*grid_3d)
         if scalar is None:
             regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
-            foo = regular_grid_mesh.threshold([0, 10])
+            foo = regular_grid_mesh.threshold([0.5, 1])
             p.add_mesh(foo, show_edges=show_edges, opacity=.2, cmap="tab10")
         else:
             regular_grid_mesh["lith"] = scalar
@@ -114,7 +114,7 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
         dual_mesh = pv.PolyData(vertices, np.insert(indices, 0, 3, axis=1).ravel())
         p.add_mesh(dual_mesh, opacity=.6, silhouette=False, color="green", show_edges=False)
 
-    colors = ['green', 'blue', 'red', 'yellow', 'pink', 'brown', 'purple']
+    colors = ['green',  'red', 'yellow', 'pink', 'brown', 'purple']
     if dc_meshes is not None:
         for e, mesh in enumerate(dc_meshes):
             vertices = mesh.vertices
@@ -123,9 +123,10 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
             if vertices.shape[0] == 0: continue
 
             dual_mesh = pv.PolyData(vertices, np.insert(indices, 0, 3, axis=1).ravel())
-            p.add_mesh(dual_mesh, opacity=1, silhouette=False, color=colors[e], show_edges=True)
+            p.add_mesh(dual_mesh, opacity=1, silhouette=True, color=colors[e], show_edges=False)
 
-            p.add_mesh(pv.PolyData(vertices), color=colors[e], point_size=10.0, render_points_as_spheres=True)
+
+            p.add_mesh(pv.PolyData(vertices), color=colors[e], point_size=20.0, render_points_as_spheres=True)
 
     p.add_axes()
     if plot:

@@ -24,8 +24,8 @@ def interpolate_on_edges_for_dual_contouring(
         n_scalar_field: int,
         octree_leaves: OctreeLevel,
         mask: Optional[np.ndarray] = None
-
 ) -> DualContouringData:
+
     # region define location where we need to interpolate the gradients for dual contouring
     output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
     intersection_xyz, valid_edges = _get_intersection_on_edges(octree_leaves, output_corners, mask)

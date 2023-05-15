@@ -160,14 +160,19 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
     edges_normals = np.zeros((n_edges, 15, 3))
     edges_normals[:, :12][valid_edges] = gradients
 
-    bias_xyz = np.copy(edges_xyz[:, :12])
-    isclose = np.isclose(bias_xyz, 0)
-    bias_xyz[isclose] = np.nan  # np zero values to nans
-    mass_points = np.nanmean(bias_xyz, axis=1)  # Mean ignoring nans
+    # bias_xyz = np.copy(edges_xyz[:, :12])
+    # isclose = np.isclose(bias_xyz, 0)
+    # bias_xyz[isclose] = np.nan  # np zero values to nans
+    # mass_points = np.nanmean(bias_xyz, axis=1)  # Mean ignoring nans
 
-    edges_xyz[:, 12] = mass_points
-    edges_xyz[:, 13] = mass_points
-    edges_xyz[:, 14] = mass_points
+    bias_xyz = np.copy(edges_xyz[:, :12])
+    mask = bias_xyz == 0
+    masked_arr = np.ma.masked_array(bias_xyz, mask)
+    mass_points2 = masked_arr.mean(axis=1)
+
+    edges_xyz[:, 12] = mass_points2
+    edges_xyz[:, 13] = mass_points2
+    edges_xyz[:, 14] = mass_points2
 
     BIAS_STRENGTH = 1
     edges_normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])
