@@ -89,9 +89,9 @@ def triangulate(left_right_array: np.ndarray, valid_edges: np.ndarray, tree_dept
     # depending on depth
     _StaticTriangulationData.depth = tree_depth
 
-    edge_vector_a = np.array([0, np.nan, np.nan, 0, -1, np.nan, np.nan, 1, -1, np.nan, np.nan, 1])
-    edge_vector_b = np.array([-1, np.nan, np.nan, 1, 0, np.nan, np.nan, 0, -1, np.nan, np.nan, 1])
-    edge_vector_c = np.array([-1, np.nan, np.nan, 1, -1, np.nan, np.nan, 1, 0, np.nan, np.nan, 0])
+    edge_vector_a = np.array([0, 0, 0, 0,       -1, -1, 1, 1,       -1,  1, -1, 1])
+    edge_vector_b = np.array([-1, -1,-1, 1,      0, 0,0, 0,             -1,  1, -1, 1])
+    edge_vector_c = np.array([-1, -1, 1, 1,   -1, -1,1, 1,          0,  0,  0, 0])
 
     # * Consts
     voxel_code = (left_right_array * _StaticTriangulationData.get_pack_directions_into_bits()).sum(1).reshape(-1, 1)

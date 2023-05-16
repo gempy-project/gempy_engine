@@ -126,7 +126,7 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
             p.add_mesh(dual_mesh, opacity=1, silhouette=True, color=colors[e], show_edges=False)
 
 
-            p.add_mesh(pv.PolyData(vertices), color=colors[e], point_size=20.0, render_points_as_spheres=True)
+            p.add_mesh(pv.PolyData(vertices), color=colors[e], point_size=2.0, render_points_as_spheres=True)
 
     p.add_axes()
     if plot:
