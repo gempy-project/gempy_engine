@@ -5,7 +5,7 @@ from typing import Optional
 import numpy as np
 
 from . import SurfacePoints, Orientations
-from .grid import Grid
+from .grid import Grid, RegularGrid
 from .input_data_descriptor import StackRelationType, StacksStructure
 from .kernel_classes.faults import FaultsData
 from .kernel_classes.server.input_parser import InterpolationInputSchema
@@ -82,6 +82,36 @@ class InterpolationInput:
             orientations=Orientations.from_schema(schema.orientations),
             grid=schema.grid,
         )
+
+    @classmethod
+    def from_structural_frame(cls, structural_frame: "gempy.StructuralFrame", grid: "gempy.Grid") -> "InterpolationInput":
+        surface_points: SurfacePoints = SurfacePoints(
+            sp_coords=structural_frame.surface_points.xyz
+        )
+
+        orientations: Orientations = Orientations(
+            dip_positions=structural_frame.orientations.xyz,
+            dip_gradients=structural_frame.orientations.grads
+        )
+
+        regular_grid: RegularGrid = RegularGrid(
+            extent=grid.regular_grid.extent_r,
+            regular_grid_shape=grid.regular_grid.resolution,
+        )
+
+        grid: Grid = Grid(
+            values=regular_grid.values,
+            regular_grid=regular_grid
+        )
+
+        interpolation_input: InterpolationInput = cls(
+            surface_points=surface_points,
+            orientations=orientations,
+            grid=grid,
+            unit_values=structural_frame.elements_ids  # TODO: Here we will need to pass densities etc.
+        )
+
+        return interpolation_input
 
     @property
     def slice_feature(self):
