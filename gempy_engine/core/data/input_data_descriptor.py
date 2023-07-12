@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -50,16 +50,19 @@ class InputDataDescriptor:
         return cls(tensors_structure=tensor_structure, stack_structure=stack_structure)
 
     @classmethod
-    def from_structural_frame(cls, structural_frame: "gempy.StructuralFrame"):
+    def from_structural_frame(cls, structural_frame: "gempy.StructuralFrame",
+                              making_descriptor: list[StackRelationType | False],
+                              faults_relations: Optional[np.ndarray] = None):
         tensor_struct = TensorsStructure(
-            number_of_points_per_surface=np.array([7])
+            number_of_points_per_surface=structural_frame.number_of_points_per_element
         )
-        
+
         stack_structure = StacksStructure(
-            number_of_points_per_stack=np.array([7]),
-            number_of_orientations_per_stack=np.array([2]),
-            number_of_surfaces_per_stack=np.array([1]),
-            masking_descriptor=[StackRelationType.ERODE]
+            number_of_points_per_stack=structural_frame.number_of_points_per_group,
+            number_of_orientations_per_stack=structural_frame.number_of_orientations_per_group,
+            number_of_surfaces_per_stack=structural_frame.number_of_elements_per_group,
+            masking_descriptor=making_descriptor,
+            faults_relations=faults_relations
         )
 
         input_data_descriptor = cls(

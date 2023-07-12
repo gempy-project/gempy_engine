@@ -12,7 +12,7 @@ from gempy_engine.core.data.input_data_descriptor import _cast_type_inplace, Inp
 @dataclass
 class TensorsStructure:
     number_of_points_per_surface: np.ndarray
-    dtype: Type = np.int32
+    dtype: Type = np.int32  # ? Isn't this more for options?
 
     _reference_sp_position: np.ndarray = np.ones(1)
 
