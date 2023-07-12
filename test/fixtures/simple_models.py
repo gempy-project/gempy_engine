@@ -15,7 +15,9 @@ from test.helper_functions import calculate_gradient
 import pytest
 
 from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.core.data.input_data_descriptor import TensorsStructure, StacksStructure, StackRelationType, InputDataDescriptor
+from gempy_engine.core.data.input_data_descriptor import StackRelationType, InputDataDescriptor
+from gempy_engine.core.data import TensorsStructure
+from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 

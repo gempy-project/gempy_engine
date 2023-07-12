@@ -4,9 +4,10 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from gempy_engine.core.data import InterpolationOptions, SurfacePoints, Orientations, SurfacePointsInternals, OrientationsInternals
+from gempy_engine.core.data import InterpolationOptions, SurfacePoints, Orientations, SurfacePointsInternals, OrientationsInternals, TensorsStructure
 from gempy_engine.core.data.grid import Grid, RegularGrid
-from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor, TensorsStructure, StacksStructure, StackRelationType
+from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor, StackRelationType
+from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 

@@ -6,7 +6,7 @@ from test or anywhere else.
 """
 
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
-from gempy_engine.core.data.input_data_descriptor import TensorsStructure
+from gempy_engine.core.data import TensorsStructure
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
 from gempy_engine.core.data.options import InterpolationOptions

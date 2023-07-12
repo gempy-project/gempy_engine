@@ -4,7 +4,7 @@ from typing import Union
 from gempy_engine.core.backend_tensor import BackendTensor
 import numpy as np
 
-from gempy_engine.core.data.input_data_descriptor import StacksStructure
+from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.kernel_classes.server.input_parser import OrientationsSchema
 from gempy_engine.core.utils import cast_type_inplace
 

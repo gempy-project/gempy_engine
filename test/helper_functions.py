@@ -1,7 +1,7 @@
 import numpy as np
 
 from gempy_engine.core.data.grid import RegularGrid, Grid
-from gempy_engine.core.data.input_data_descriptor import StacksStructure
+from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 import matplotlib.pyplot as plt
 

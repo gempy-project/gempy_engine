@@ -1,6 +1,7 @@
 import copy
 from typing import List
 
+import gempy_engine.core.data.tensors_structure
 from ...core import data
 from ...core.data import InterpolationOptions
 from ...core.data.octree_level import OctreeLevel
@@ -43,7 +44,7 @@ def interpolate_all_fields_no_octree(interpolation_input: InterpolationInput, op
 
 # region testing
 def interpolate_single_field(interpolation_input: InterpolationInput, options: data.InterpolationOptions,
-                             data_shape: data.TensorsStructure) -> InterpOutput:  # * Only For testing
+                             data_shape: gempy_engine.core.data.tensors_structure.TensorsStructure) -> InterpOutput:  # * Only For testing
 
     grid = interpolation_input.grid
     solver_input = input_preprocess(data_shape, interpolation_input)
@@ -67,7 +68,7 @@ def interpolate_single_field(interpolation_input: InterpolationInput, options: d
 
 
 def interpolate_and_segment(interpolation_input: InterpolationInput, options: data.InterpolationOptions,  # * Just for testing
-                            data_shape: data.TensorsStructure, clean_buffer=True) -> InterpOutput:
+                            data_shape: gempy_engine.core.data.tensors_structure.TensorsStructure, clean_buffer=True) -> InterpOutput:
     output: ScalarFieldOutput = interpolate_feature(interpolation_input, options, data_shape)
     return InterpOutput(output)
 

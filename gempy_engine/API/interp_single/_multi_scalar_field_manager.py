@@ -10,7 +10,8 @@ from ...core.data.exported_structs import CombinedScalarFieldsOutput
 from ...core.data.interp_output import InterpOutput
 from ...core.data.scalar_field_output import ScalarFieldOutput
 from ...core.data.exported_fields import ExportedFields
-from ...core.data.input_data_descriptor import StackRelationType, InputDataDescriptor, TensorsStructure
+from ...core.data.input_data_descriptor import StackRelationType, InputDataDescriptor
+from ...core.data import TensorsStructure
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.options import InterpolationOptions
 

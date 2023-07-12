@@ -6,7 +6,8 @@ import numpy as np
 
 from . import SurfacePoints, Orientations
 from .grid import Grid, RegularGrid
-from .input_data_descriptor import StackRelationType, StacksStructure
+from .input_data_descriptor import StackRelationType
+from .stacks_structure import StacksStructure
 from .kernel_classes.faults import FaultsData
 from .kernel_classes.server.input_parser import InterpolationInputSchema
 

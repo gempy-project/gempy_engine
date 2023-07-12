@@ -3,7 +3,7 @@ from typing import Union, Optional
 
 import numpy as np
 
-from gempy_engine.core.data.input_data_descriptor import StacksStructure
+from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.kernel_classes.server.input_parser import SurfacePointsSchema
 from gempy_engine.core.utils import cast_type_inplace
 from gempy_engine.modules.kernel_constructor._structs import tensor_types
