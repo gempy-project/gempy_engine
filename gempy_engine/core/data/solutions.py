@@ -19,3 +19,5 @@ class Solutions:
     def __init__(self, octrees_output: List[OctreeLevel]):
         self.octrees_output = octrees_output
         
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.octrees_output})"

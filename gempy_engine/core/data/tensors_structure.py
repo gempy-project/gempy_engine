@@ -5,7 +5,7 @@ from typing import Type
 
 import numpy as np
 
-from gempy_engine.core.backend_tensor import BackendTensor as b
+from ..backend_tensor import BackendTensor as b
 
 
 def _cast_type_inplace(struct_data_instance: "TensorStructure"):
