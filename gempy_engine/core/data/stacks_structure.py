@@ -5,7 +5,7 @@ from typing import List, Optional, Callable, Iterable
 
 import numpy as np
 
-from gempy_engine.core.data.input_data_descriptor import StackRelationType
+from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.interpolation_functions import CustomInterpolationFunctions
 from gempy_engine.core.data.kernel_classes.faults import FaultsData
 

@@ -1,26 +1,14 @@
 from __future__ import annotations
 
-import enum
 from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
 
-from . import TensorsStructure
+from .stack_relation_type import StackRelationType
+from .tensors_structure import TensorsStructure
 from .kernel_classes.server.input_parser import InputDataDescriptorSchema
 from .stacks_structure import StacksStructure
-
-
-def _cast_type_inplace(struct_data_instance: "TensorStructure"):
-    for key, val in struct_data_instance.__dict__.items():
-        if type(val) != np.ndarray: continue
-        struct_data_instance.__dict__[key] = val.astype(struct_data_instance.dtype)
-
-
-class StackRelationType(enum.Enum):
-    ERODE = enum.auto()
-    ONLAP = enum.auto()
-    FAULT = enum.auto()
 
 
 # noinspection PyArgumentList

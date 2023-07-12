@@ -8,7 +8,7 @@ from ._interp_scalar_field import interpolate_scalar_field, WeightsBuffer
 from ...core.data import SurfacePoints, SurfacePointsInternals, Orientations, OrientationsInternals, TensorsStructure
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.exported_structs import MaskMatrices
-from ...core.data.input_data_descriptor import StackRelationType
+from ...core.data.stack_relation_type import StackRelationType
 from ...core.data.internal_structs import SolverInput
 from ...core.data.interpolation_functions import CustomInterpolationFunctions
 from ...core.data.interpolation_input import InterpolationInput

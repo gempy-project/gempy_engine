@@ -6,7 +6,8 @@ import pytest
 
 from gempy_engine.core.data import SurfacePoints, Orientations, InterpolationOptions, TensorsStructure
 from gempy_engine.core.data.grid import RegularGrid, Grid
-from gempy_engine.core.data.input_data_descriptor import StackRelationType, InputDataDescriptor
+from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions

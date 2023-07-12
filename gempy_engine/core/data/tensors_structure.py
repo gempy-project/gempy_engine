@@ -6,7 +6,12 @@ from typing import Type
 import numpy as np
 
 from gempy_engine.core.backend_tensor import BackendTensor as b
-from gempy_engine.core.data.input_data_descriptor import _cast_type_inplace, InputDataDescriptor
+
+
+def _cast_type_inplace(struct_data_instance: "TensorStructure"):
+    for key, val in struct_data_instance.__dict__.items():
+        if type(val) != np.ndarray: continue
+        struct_data_instance.__dict__[key] = val.astype(struct_data_instance.dtype)
 
 
 @dataclass
@@ -28,7 +33,7 @@ class TensorsStructure:
         return hash(656)  # TODO: Make a proper hash
 
     @classmethod
-    def from_tensor_structure_subset(cls, data_descriptor: InputDataDescriptor, stack_number: int) -> TensorsStructure:
+    def from_tensor_structure_subset(cls, data_descriptor: "InputDataDescriptor", stack_number: int) -> TensorsStructure:
         ts = data_descriptor.tensors_structure
         l0 = data_descriptor.stack_structure.number_of_surfaces_per_stack_vector[stack_number]
         l1 = data_descriptor.stack_structure.number_of_surfaces_per_stack_vector[stack_number + 1]

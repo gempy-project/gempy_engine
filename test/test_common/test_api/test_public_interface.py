@@ -4,7 +4,8 @@ from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data import InterpolationOptions, SurfacePoints, Orientations, TensorsStructure
 from gempy_engine.core.data.grid import Grid, RegularGrid
-from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor, StackRelationType
+from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions

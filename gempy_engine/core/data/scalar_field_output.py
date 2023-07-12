@@ -7,7 +7,7 @@ import numpy as np
 from gempy_engine.core.data.exported_fields import ExportedFields
 from gempy_engine.core.data.exported_structs import MaskMatrices
 from gempy_engine.core.data.grid import Grid
-from gempy_engine.core.data.input_data_descriptor import StackRelationType
+from gempy_engine.core.data.stack_relation_type import StackRelationType
 
 
 @dataclass
