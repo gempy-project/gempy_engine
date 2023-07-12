@@ -96,7 +96,7 @@ class InterpolationInput:
         )
 
         regular_grid: RegularGrid = RegularGrid(
-            extent=grid.regular_grid.extent_r,
+            extent=grid.regular_grid.extent,
             regular_grid_shape=grid.regular_grid.resolution,
         )
 

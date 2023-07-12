@@ -25,6 +25,7 @@ class TensorsStructure:
         _cast_type_inplace(self)
 
         # Set _number_of_points_per_surface_vector
+        self.number_of_points_per_surface = self.number_of_points_per_surface[self.number_of_points_per_surface != 0]  # remove 0s
         per_surface_cumsum = self.number_of_points_per_surface.cumsum()
 
         self._reference_sp_position = np.concatenate([np.array([0]), per_surface_cumsum])[:-1]
