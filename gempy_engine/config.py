@@ -6,6 +6,8 @@ class AvailableBackends(Enum):
     numpy = auto()
     tensorflow = auto()
     jax = auto()
+    aesara = auto()
+
 
 DEBUG_MODE = True
 OPTIMIZE_MEMORY = True
