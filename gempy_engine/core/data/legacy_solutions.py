@@ -20,13 +20,13 @@ class LegacySolution:
     # endregion
 
     # region Regular Grid
-    lith_block: np.ndarray
-    scalar_field_matrix: np.ndarray
-    block_matrix: np.ndarray
-    mask_matrix: np.ndarray
-    mask_matrix_pad: np.ndarray
-    values_matrix: np.ndarray
-    gradient: np.ndarray
+    lith_block: np.ndarray = np.empty(0)
+    scalar_field_matrix: np.ndarray = np.empty(0)
+    block_matrix: np.ndarray = np.empty(0)
+    mask_matrix: np.ndarray = np.empty(0)
+    mask_matrix_pad: np.ndarray = np.empty(0)
+    values_matrix: np.ndarray = np.empty(0)
+    gradient: np.ndarray = np.empty(0)
     # endregion
 
     # region other grids
