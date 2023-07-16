@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pprint
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -17,6 +18,9 @@ class InputDataDescriptor:
     tensors_structure: TensorsStructure
     stack_structure: StacksStructure = None
 
+    def __repr__(self):
+        return pprint.pformat(self.__dict__)
+    
     @property
     def stack_relation(self) -> StackRelationType | List[StackRelationType]:
         return self.stack_structure.masking_descriptor

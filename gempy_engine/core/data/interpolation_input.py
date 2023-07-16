@@ -36,8 +36,8 @@ class InterpolationInput:
                  unit_values: Optional[np.ndarray] = None, segmentation_function: Optional[callable] = None,
                  fault_values: Optional[FaultsData] = None, stack_relation: StackRelationType = StackRelationType.ERODE):
         self.surface_points = surface_points
-        self.orientations = orientations
         self.grid = grid
+        self.orientations = orientations
         self.unit_values = unit_values
         self.segmentation_function = segmentation_function
         self.fault_values = fault_values
@@ -107,7 +107,7 @@ class InterpolationInput:
         )
 
         regular_grid: RegularGrid = RegularGrid(
-            extent=transform.apply(grid.regular_grid.extent.reshape(-1,3)).reshape(-1),
+            extent=transform.apply(grid.regular_grid.extent.reshape(-1,3)).reshape(-1) + _legacy_factor,
             regular_grid_shape=grid.regular_grid.resolution,
         )
 
