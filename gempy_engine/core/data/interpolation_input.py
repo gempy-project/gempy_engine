@@ -16,37 +16,38 @@ from .kernel_classes.server.input_parser import InterpolationInputSchema
 @dataclass
 class InterpolationInput:
     # @ off
-    surface_points       : SurfacePoints
-    orientations         : Orientations
-    grid                 : Grid
+    surface_points: SurfacePoints
+    orientations: Orientations
+    grid: Grid
 
-    _unit_values         : Optional[np.ndarray] = None
-    segmentation_function: Optional[callable]   = None  # * From scalar field to values
+    _unit_values: Optional[np.ndarray] = None
+    segmentation_function: Optional[callable] = None  # * From scalar field to values
 
-    _all_surface_points  : SurfacePoints        = None
+    _all_surface_points: SurfacePoints = None
 
     # region per model ? Not sure what I mean here
 
-    _fault_values        : FaultsData           = None
-    stack_relation       : StackRelationType    = StackRelationType.ERODE  # ? Should be here or in the descriptor
+    _fault_values: FaultsData = None
+    stack_relation: StackRelationType = StackRelationType.ERODE  # ? Should be here or in the descriptor
 
     # endregion
 
     def __init__(self, surface_points: SurfacePoints, orientations: Orientations, grid: Grid,
                  unit_values: Optional[np.ndarray] = None, segmentation_function: Optional[callable] = None,
                  fault_values: Optional[FaultsData] = None, stack_relation: StackRelationType = StackRelationType.ERODE):
-        self.surface_points        = surface_points
-        self.orientations          = orientations
-        self.grid                  = grid
-        self.unit_values           = unit_values
+        self.surface_points = surface_points
+        self.orientations = orientations
+        self.grid = grid
+        self.unit_values = unit_values
         self.segmentation_function = segmentation_function
-        self.fault_values          = fault_values
-        self.stack_relation        = stack_relation
+        self.fault_values = fault_values
+        self.stack_relation = stack_relation
+
     # @ on
 
     def __repr__(self):
         return pprint.pformat(self.__dict__)
-    
+
     @classmethod
     def from_interpolation_input_subset(cls, all_interpolation_input: "InterpolationInput",
                                         stack_structure: StacksStructure) -> "InterpolationInput":
@@ -89,18 +90,24 @@ class InterpolationInput:
         )
 
     @classmethod
-    def from_structural_frame(cls, structural_frame: "gempy.StructuralFrame", grid: "gempy.Grid") -> "InterpolationInput":
+    def from_structural_frame(cls, structural_frame: "gempy.StructuralFrame", grid: "gempy.Grid",
+                              transform: "gempy.Transfrom") -> "InterpolationInput":
+        _legacy_factor = 0
+
+        if LEGACY_COORDS := True:
+            _legacy_factor = 0.5
+
         surface_points: SurfacePoints = SurfacePoints(
-            sp_coords=structural_frame.surface_points.xyz
+            sp_coords=transform.apply(structural_frame.surface_points.xyz) + _legacy_factor,
         )
 
         orientations: Orientations = Orientations(
-            dip_positions=structural_frame.orientations.xyz,
+            dip_positions=transform.apply(structural_frame.orientations.dip_positions) + _legacy_factor,
             dip_gradients=structural_frame.orientations.grads
         )
 
         regular_grid: RegularGrid = RegularGrid(
-            extent=grid.regular_grid.extent,
+            extent=transform.apply(grid.regular_grid.extent),
             regular_grid_shape=grid.regular_grid.resolution,
         )
 
