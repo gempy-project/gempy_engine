@@ -68,7 +68,7 @@ class InterpolationOptions:
             gi_res                    : float                            = 2                                   , # ! This should be DEP
             number_dimensions         : int                              = 3                                   , # ? This probably too
             number_octree_levels      : int                              = 1,
-            kernel_function           : AvailableKernelFunctions         = AvailableKernelFunctions.exponential,
+            kernel_function           : AvailableKernelFunctions         = AvailableKernelFunctions.cubic,
             dual_contouring           : bool                             = True,
             compute_scalar_gradient   : bool                             = False,
             compute_condition_number: bool                             = False,
