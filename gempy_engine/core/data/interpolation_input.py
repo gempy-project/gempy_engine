@@ -1,4 +1,5 @@
 import dataclasses
+import pprint
 from dataclasses import dataclass
 from typing import Optional
 
@@ -42,6 +43,9 @@ class InterpolationInput:
         self.fault_values          = fault_values
         self.stack_relation        = stack_relation
     # @ on
+
+    def __repr__(self):
+        return pprint.pformat(self.__dict__)
     
     @classmethod
     def from_interpolation_input_subset(cls, all_interpolation_input: "InterpolationInput",

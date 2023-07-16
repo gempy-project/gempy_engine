@@ -1,4 +1,5 @@
 import enum
+import pprint
 import warnings
 from dataclasses import dataclass
 
@@ -93,6 +94,9 @@ class InterpolationOptions:
         self.tensor_dtype = tensor_dtype
     # @on
     
+    def __repr__(self):
+        return pprint.pformat(self.__dict__)
+
     @property
     def compute_corners(self):
         corners_for_dual_cont = self.dual_contouring or (self.is_last_octree_level is False)
