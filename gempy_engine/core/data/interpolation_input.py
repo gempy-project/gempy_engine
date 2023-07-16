@@ -102,12 +102,12 @@ class InterpolationInput:
         )
 
         orientations: Orientations = Orientations(
-            dip_positions=transform.apply(structural_frame.orientations.dip_positions) + _legacy_factor,
+            dip_positions=transform.apply(structural_frame.orientations.xyz) + _legacy_factor,
             dip_gradients=structural_frame.orientations.grads
         )
 
         regular_grid: RegularGrid = RegularGrid(
-            extent=transform.apply(grid.regular_grid.extent),
+            extent=transform.apply(grid.regular_grid.extent.reshape(-1,3)).reshape(-1),
             regular_grid_shape=grid.regular_grid.resolution,
         )
 
