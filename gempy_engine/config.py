@@ -6,7 +6,9 @@ class AvailableBackends(Enum):
     numpy = auto()
     tensorflow = auto()
     jax = auto()
+    # Legacy
     aesara = auto()
+    legacy = auto()
 
 
 DEBUG_MODE = True

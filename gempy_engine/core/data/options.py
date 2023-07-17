@@ -72,7 +72,7 @@ class InterpolationOptions:
             dual_contouring           : bool                             = True,
             compute_scalar_gradient   : bool                             = False,
             compute_condition_number: bool                             = False,
-            tensor_dtype              : gempy_engine.config.TENSOR_DTYPE = gempy_engine.config.TENSOR_DTYPE,
+            tensor_dtype              : gempy_engine.config.TENSOR_DTYPE = gempy_engine.config.TENSOR_DTYPE,  # TODO: This is unused
             
     ):
         self.number_octree_levels = number_octree_levels
