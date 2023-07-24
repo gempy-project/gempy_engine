@@ -111,7 +111,7 @@ class ScalarFieldOutput:
                     # mask_lith = exported_fields.scalar_field > erode_limit_value
 
                     mask_lith = np.zeros_like(exported_fields.scalar_field)
-            case False:
+            case False | StackRelationType.BASEMENT:
                 mask_lith = np.ones_like(exported_fields.scalar_field)
             case _:
                 raise ValueError("Stack relation type is not supported")

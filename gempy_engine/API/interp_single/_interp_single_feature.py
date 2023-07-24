@@ -64,13 +64,6 @@ def interpolate_feature(interpolation_input: InterpolationInput,
 
     # endregion
     
-    # * Moved to ScalarFieldOutput properties
-    # mask_components = _compute_mask_components(
-    #     exported_fields=exported_fields,
-    #     stack_relation=interpolation_input.stack_relation,
-    #     fault_thickness=interpolation_input.fault_values.thickness
-    # )
-
     output = ScalarFieldOutput(
         weights=weights,
         grid=grid,
@@ -162,7 +155,7 @@ def _compute_mask_components(exported_fields: ExportedFields, stack_relation: St
                 # mask_lith = exported_fields.scalar_field > erode_limit_value
                 
                 mask_lith = np.zeros_like(exported_fields.scalar_field)
-        case False:
+        case False | StackRelationType.BASEMENT:
             mask_lith = np.ones_like(exported_fields.scalar_field)
         case _:
             raise ValueError("Stack relation type is not supported")
