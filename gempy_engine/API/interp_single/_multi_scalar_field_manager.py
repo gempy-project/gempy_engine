@@ -129,7 +129,7 @@ def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_rela
             mask_lith = all_scalar_fields_outputs[i].mask_components_erode.mask_lith
             mask_matrix[i, :] = mask_lith
         if stack_relation[i] is StackRelationType.FAULT:
-            mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_erode.mask_lith
+            mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_fault.mask_lith
         if stack_relation[i] is False or stack_relation[i] is StackRelationType.BASEMENT:
             mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_basement
     

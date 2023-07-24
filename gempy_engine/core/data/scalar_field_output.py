@@ -111,6 +111,7 @@ class ScalarFieldOutput:
                     mask_lith = f1 * f2
                 else:
                     # TODO:  This branch should be like
+                    # ? Is the commented out for finite faults?
                     # erode_limit_value = exported_fields.scalar_field_at_surface_points.min()
                     # mask_lith = exported_fields.scalar_field > erode_limit_value
 
