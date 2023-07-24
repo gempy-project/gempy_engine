@@ -16,7 +16,7 @@ class ScalarFieldOutput:
     grid: Grid
 
     exported_fields: ExportedFields
-    mask_components: Optional[MaskMatrices]
+    mask_components: Optional[MaskMatrices]  # ? DEP
     stack_relation: StackRelationType
     
     values_block: Optional[np.ndarray]  # final values ignoring unconformities

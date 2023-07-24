@@ -136,7 +136,7 @@ def get_block_from_value_type(root, scalar_n, value_type):
         case ValueType.squeeze_mask:
             block = root.outputs_centers[scalar_n].squeezed_mask_array
         case ValueType.mask_component:
-            block = root.outputs_centers[scalar_n].mask_components.mask_lith
+            block = root.outputs_centers[scalar_n].mask_components
         case _:
             raise ValueError("ValueType not supported.")
     return block

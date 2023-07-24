@@ -35,7 +35,7 @@ class InterpOutput:
     @property
     def values_block(self): return self.scalar_fields.values_block
     @property
-    def mask_components(self): return self.scalar_fields.mask_components
+    def mask_components(self): return self.scalar_fields.mask_components_erode.mask_lith
     @property
     def final_exported_fields(self): return self.combined_scalar_field.final_exported_fields
     @property
