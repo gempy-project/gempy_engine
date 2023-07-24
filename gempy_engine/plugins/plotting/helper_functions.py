@@ -73,13 +73,22 @@ def plot_scalar_and_input_2d(foo, interpolation_input, outputs: list[OctreeLevel
     plot_2d_scalar_y_direction(interpolation_input_i, regular_grid_scalar, grid.regular_grid)
 
 
-def plot_block_and_input_2d(stack_number, interpolation_input, outputs: list[OctreeLevel], structure: StacksStructure,
-                            value_type=ValueType.ids):
+def plot_block_and_input_2d(stack_number, interpolation_input, outputs: list[OctreeLevel],
+                            structure: StacksStructure, value_type=ValueType.ids):
+    
     from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 
-    regular_grid_scalar = get_regular_grid_value_for_level(outputs, value_type=value_type, scalar_n=stack_number)
+    regular_grid_scalar = get_regular_grid_value_for_level(
+        octree_list=outputs,
+        value_type=value_type,
+        scalar_n=stack_number
+    )
     grid: Grid = outputs[-1].grid_centers
 
     structure.stack_number = stack_number
-    interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(interpolation_input, structure)
+    interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
+        all_interpolation_input=interpolation_input,
+        stack_structure=structure
+    )
+
     plot_block(regular_grid_scalar, grid.regular_grid, interpolation_input_i)
