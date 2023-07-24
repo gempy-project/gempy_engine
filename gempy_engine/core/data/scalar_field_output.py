@@ -68,6 +68,10 @@ class ScalarFieldOutput:
         return self._compute_mask_components(self.exported_fields, StackRelationType.ONLAP)
     
     @property
+    def mask_components_basement(self) -> MaskMatrices:
+        return self._compute_mask_components(self.exported_fields, StackRelationType.BASEMENT)
+    
+    @property
     def mask_components_fault(self) -> MaskMatrices:
         return self._compute_mask_components(self.exported_fields, StackRelationType.FAULT)
     
