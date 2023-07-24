@@ -101,6 +101,6 @@ class LegacySolution:
         self.scalar_field_at_surface_points = temp_list
 
     def _set_lith_block(self, octree_output: OctreeLevel):
-        block = octree_output.last_output_center.values_block  # BUG (July 2023): This should be id block instead value block but Faults are broken for now
+        block = octree_output.last_output_center.ids_block  # BUG (July 2023): This should be id block instead value block but Faults are broken for now
         block[block == 0] = block.max() + 1
         self.lith_block = block
