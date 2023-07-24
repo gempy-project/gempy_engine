@@ -18,7 +18,7 @@ class StacksStructure:
     number_of_surfaces_per_stack    : np.ndarray
     masking_descriptor              : List[StackRelationType | False]
     faults_relations                : Optional[np.ndarray]               = None
-    faults_input_data               : List[FaultsData]                   = None
+    faults_input_data               : List[FaultsData]                   = None  # ? Shouldn't be private?
     interp_functions_per_stack      : List[CustomInterpolationFunctions] = None
 
     segmentation_functions_per_stack: Optional[List[Callable[[np.ndarray], float]]] = None
