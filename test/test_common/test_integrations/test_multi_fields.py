@@ -11,14 +11,14 @@ from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data import TensorsStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
-from test import helper_functions_pyvista
+from gempy_engine.plugins.plotting import helper_functions_pyvista
 from test.conftest import plot_pyvista, TEST_SPEED
-from test.helper_functions import plot_block
+from gempy_engine.plugins.plotting.helper_functions import plot_block
 
 try:
     # noinspection PyUnresolvedReferences
     import pyvista as pv
-    from test.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
+    from gempy_engine.plugins.plotting.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
 except ImportError:
     plot_pyvista = False
 

@@ -8,9 +8,9 @@ from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import ValueType
 
-from test import helper_functions_pyvista
+from gempy_engine.plugins.plotting import helper_functions_pyvista
 from test.conftest import plot_pyvista
-from test.helper_functions import plot_scalar_and_input_2d, plot_block_and_input_2d
+from gempy_engine.plugins.plotting.helper_functions import plot_scalar_and_input_2d, plot_block_and_input_2d
 from test.test_common.test_api.test_faults.test_one_fault import _plot_stack_raw
 
 

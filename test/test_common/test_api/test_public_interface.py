@@ -11,12 +11,12 @@ from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.core.data.solutions import Solutions
 from ...verify_helper import gempy_verify_array
-from ...conftest import plot_pyvista, TEST_SPEED
+from ...conftest import plot_pyvista
 
 try:
     # noinspection PyUnresolvedReferences
     import pyvista as pv
-    from ...helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
+    from gempy_engine.plugins.plotting.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
 except ImportError:
     plot_pyvista = False
 

@@ -13,7 +13,7 @@ from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
-from test.helper_functions import calculate_gradient
+from gempy_engine.plugins.plotting.helper_functions import calculate_gradient
 
 dir_name = os.path.dirname(__file__)
 data_path = dir_name + "/simple_geometries/"

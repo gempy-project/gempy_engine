@@ -11,7 +11,7 @@ from gempy_engine.API.interp_single._multi_scalar_field_manager import interpola
 from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.API.interp_single.interp_features import interpolate_single_field
 from test.conftest import TEST_SPEED
-from test.helper_functions import plot_block
+from gempy_engine.plugins.plotting.helper_functions import plot_block
 
 dir_name = os.path.dirname(__file__)
 

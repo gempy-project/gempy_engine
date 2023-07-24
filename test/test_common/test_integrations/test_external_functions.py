@@ -12,9 +12,9 @@ from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data.exported_fields import ExportedFields
 from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
-from test import helper_functions_pyvista
+from gempy_engine.plugins.plotting import helper_functions_pyvista
 from test.conftest import TEST_SPEED
-from test.helper_functions import plot_block
+from gempy_engine.plugins.plotting.helper_functions import plot_block
 
 PLOT = False
 

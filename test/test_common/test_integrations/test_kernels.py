@@ -20,7 +20,7 @@ def test_interpolate_model_cubic(simple_grid_3d_octree, n_oct_levels=3):
 
     if plot_pyvista or False:
         import pyvista as pv
-        from test.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes
+        from gempy_engine.plugins.plotting.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
@@ -44,7 +44,7 @@ def test_interpolate_model_exponential(simple_grid_3d_octree, n_oct_levels=3):
 
     if plot_pyvista or False:
         import pyvista as pv
-        from test.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points
+        from gempy_engine.plugins.plotting.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)

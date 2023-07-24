@@ -12,7 +12,7 @@ from gempy_engine.modules.kernel_constructor._test_assembler import _test_covari
 from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation, \
     evaluation_vectors_preparations
 from test.conftest import TEST_SPEED
-from test.helper_functions import plot_2d_scalar_y_direction
+from gempy_engine.plugins.plotting.helper_functions import plot_2d_scalar_y_direction
 from test.test_common.DEP_test_geometries.test_geometries import plot
 
 from test.test_common.DEP_test_geometries.solutions import recumbent_weights, recumbent_weights_d1

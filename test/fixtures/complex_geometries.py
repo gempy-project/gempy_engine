@@ -11,7 +11,7 @@ from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
-from test.helper_functions import calculate_gradient
+from gempy_engine.plugins.plotting.helper_functions import calculate_gradient
 
 np.set_printoptions(precision=3, linewidth=200)
 dir_name = os.path.dirname(__file__)

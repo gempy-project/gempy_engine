@@ -42,7 +42,7 @@ def _run_model(model: Tuple[InterpolationInput, InterpolationOptions, InputDataD
 
     if plot_pyvista and False:
         import pyvista as pv
-        from test.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points
+        from gempy_engine.plugins.plotting.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points
 
         pv.global_theme.show_edges = True
         p = pv.Plotter()

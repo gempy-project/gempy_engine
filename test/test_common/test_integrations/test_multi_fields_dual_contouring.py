@@ -4,8 +4,8 @@ from gempy_engine import compute_model
 from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
-from test import helper_functions_pyvista
-from test.conftest import TEST_SPEED, plot_pyvista
+from gempy_engine.plugins.plotting import helper_functions_pyvista
+from test.conftest import TEST_SPEED
 from test.test_common.test_integrations.test_multi_fields import plot_pyvista
 
 

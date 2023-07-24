@@ -1,15 +1,14 @@
 import numpy as np
-import pandas as pd
 import subsurface
 
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
-from ...conftest import plot_pyvista, TEST_SPEED
+from ...conftest import plot_pyvista
 
 try:
     # noinspection PyUnresolvedReferences
     import pyvista as pv
-    from ...helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
+    from gempy_engine.plugins.plotting.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
 except ImportError:
     plot_pyvista = False
 

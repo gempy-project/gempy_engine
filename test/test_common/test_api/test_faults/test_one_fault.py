@@ -6,7 +6,6 @@ from gempy_engine import compute_model
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.core.data import InterpolationOptions, TensorsStructure
 from gempy_engine.core.data.custom_segmentation_functions import ellipsoid_3d_factory
-from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
 from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
@@ -16,9 +15,9 @@ from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import ValueType
-from test import helper_functions_pyvista
+from gempy_engine.plugins.plotting import helper_functions_pyvista
 from test.conftest import pykeops_enabled, plot_pyvista
-from test.helper_functions import plot_block_and_input_2d, plot_scalar_and_input_2d
+from gempy_engine.plugins.plotting.helper_functions import plot_block_and_input_2d, plot_scalar_and_input_2d
 
 
 def test_one_fault_model(one_fault_model, n_oct_levels=3):

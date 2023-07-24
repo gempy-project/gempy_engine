@@ -6,7 +6,7 @@ from ...conftest import plot_pyvista, TEST_SPEED
 try:
     # noinspection PyUnresolvedReferences
     import pyvista as pv
-    from ...helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
+    from gempy_engine.plugins.plotting.helper_functions_pyvista import plot_octree_pyvista, plot_dc_meshes, plot_points, plot_vector
 except ImportError:
     plot_pyvista = False
 

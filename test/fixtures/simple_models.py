@@ -10,7 +10,7 @@ from gempy_engine.API.interp_single._interp_scalar_field import _solve_interpola
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.core.data.interpolation_functions import InterpolationFunctions, CustomInterpolationFunctions
-from test.helper_functions import calculate_gradient
+from gempy_engine.plugins.plotting.helper_functions import calculate_gradient
 
 import pytest
 
