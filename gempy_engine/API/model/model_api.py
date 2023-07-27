@@ -31,6 +31,13 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
     # TODO: [ ] Gravity
 
     # TODO: [ ] Magnetics
+    # TODO: Add solutions here
+    solutions = Solutions(
+        octrees_output=solutions.octrees_output,
+        dc_meshes=solutions.dc_meshes,
+    )
+    
+    
     return solutions
 
 

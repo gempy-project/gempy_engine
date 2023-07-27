@@ -8,14 +8,15 @@ from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 
 
-@dataclass(init=False)
+@dataclass(init=True)
 class LegacySolution:
     # region Input data results
-    weights_vector: np.ndarray
-    scalar_field_at_surface_points: np.ndarray
-    block_at_surface_points: np.ndarray
-    mask_at_surface_points: np.ndarray
-    values_at_surface_points: np.ndarray
+    # ? Do I need these fields?
+    # weights_vector: np.ndarray
+    # scalar_field_at_surface_points: np.ndarray
+    # block_at_surface_points: np.ndarray
+    # mask_at_surface_points: np.ndarray
+    # values_at_surface_points: np.ndarray
 
     # endregion
 
@@ -51,8 +52,9 @@ class LegacySolution:
 
     # endregion
 
+    # ? TODO: This could be just the init
     @classmethod
-    def from_gempy_engine_solutions(cls, gempy_engine_solutions: "Solutions") -> "LegacySolution":
+    def from_gempy_engine_solutions(cls, gempy_engine_solutions: "gempy_engine.core.data.Solutions") -> "LegacySolution":
         legacy_solution = cls()
 
         octree_lvl = -1
@@ -74,7 +76,7 @@ class LegacySolution:
             legacy_solution.vertices = [mesh.vertices for mesh in meshes]
             legacy_solution.edges = [mesh.edges for mesh in meshes]
             # TODO: I will have to apply the transform to this one
-        
+
         return legacy_solution
 
     def _set_block_matrix(self, octree_output: OctreeLevel):
