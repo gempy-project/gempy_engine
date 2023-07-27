@@ -94,7 +94,7 @@ class InterpolationInput:
                               transform: "gempy.Transfrom", octrees: bool) -> "InterpolationInput":
         _legacy_factor = 0
 
-        if LEGACY_COORDS := True:
+        if LEGACY_COORDS := False:
             _legacy_factor = 0.5
 
         surface_points: SurfacePoints = SurfacePoints(
