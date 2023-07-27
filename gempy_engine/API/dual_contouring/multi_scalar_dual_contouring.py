@@ -3,6 +3,7 @@ from typing import List
 
 import numpy as np
 
+from core.data.octree_level import OctreeLevel
 from ._experimental_water_tight_DC_1 import _experimental_water_tight
 from ._interpolate_on_edges import interpolate_on_edges_for_dual_contouring, _mask_generation
 from ._mask_buffer import MaskBuffer
@@ -20,11 +21,11 @@ from ...modules.dual_contouring.fancy_triangulation import get_left_right_array
 
 @gempy_profiler_decorator
 def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpolation_input: InterpolationInput,
-                                 options: InterpolationOptions, solutions: Solutions) -> List[DualContouringMesh]:
+                                 options: InterpolationOptions, octree_list: list[OctreeLevel]) -> List[DualContouringMesh]:
     # Dual Contouring prep:
     MaskBuffer.clean()
 
-    octree_leaves = solutions.octrees_output[-1]
+    octree_leaves = octree_list[-1]
     all_meshes: List[DualContouringMesh] = []
 
     dual_contouring_options = copy.copy(options)
@@ -36,16 +37,18 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
 
     # region new triangulations
     if options.dual_contouring_fancy:
-        is_pure_octree = np.all(solutions.octrees_output[0].grid_centers.regular_grid_shape == 2)
+        is_pure_octree = np.all(octree_list[0].grid_centers.regular_grid_shape == 2)
         if not is_pure_octree:  # Check if regular grid is [2,2,2]
             raise ValueError("Fancy triangulation only works with regular grid of resolution [2,2,2]")
-        left_right_codes = get_left_right_array(solutions.octrees_output)
+        left_right_codes = get_left_right_array(octree_list)
     else:
         left_right_codes = None
     # endregion
 
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
-        if data_descriptor.stack_relation[n_scalar_field - 1] == 'Onlap' and data_descriptor.stack_relation[n_scalar_field- 2] == 'Erosion':
+        previous_stack_is_onlap = data_descriptor.stack_relation[n_scalar_field - 1] == 'Onlap'
+        was_erosion_before = data_descriptor.stack_relation[n_scalar_field - 1] == 'Erosion'
+        if previous_stack_is_onlap and was_erosion_before:  # ? (July, 2023) Is this still valid? I thought we have all the combinations
             raise NotImplementedError("Erosion and Onlap are not supported yet")
             pass
 

@@ -10,19 +10,24 @@ from .octree_level import OctreeLevel
 
 class Solutions:
     octrees_output: List[OctreeLevel]
-    dc_meshes: List[DualContouringMesh] = None
-    raw_arrays: LegacySolution = None 
+    dc_meshes: List[DualContouringMesh]
+    _raw_arrays: LegacySolution = field(init=False)
     # ------
     gravity: np.ndarray = None
     magnetics: np.ndarray = None
 
     debug_input_data: dict = {}
     
-    def __init__(self, octrees_output: List[OctreeLevel]):
+    def __init__(self, octrees_output: List[OctreeLevel], dc_meshes: List[DualContouringMesh] = None):
         self.octrees_output = octrees_output
+        self.dc_meshes = dc_meshes
         
         # TODO: Probably here is the place to fill the LegacySolution
-        self.raw_arrays = LegacySolution.from_gempy_engine_solutions(self)
+        self._raw_arrays = LegacySolution.from_gempy_engine_solutions(self)
         
     def __repr__(self):
         return f"{self.__class__.__name__}({self.octrees_output})"
+    
+    @property
+    def raw_arrays(self):
+        return self._raw_arrays
