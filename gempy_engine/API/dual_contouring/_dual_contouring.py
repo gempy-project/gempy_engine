@@ -65,5 +65,4 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
             
         # @on
         stack_meshes.append(DualContouringMesh(vertices, indices, dc_data_per_stack))
-    stack_meshes.reverse()  # * this is to make it compatible with gempy2. (which is a bit silly)
     return stack_meshes

@@ -52,7 +52,12 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
             raise NotImplementedError("Erosion and Onlap are not supported yet")
             pass
 
-        mask: np.ndarray = _mask_generation(n_scalar_field, octree_leaves, options.dual_contouring_masking_options)
+        mask: np.ndarray = _mask_generation(
+            n_scalar_field=n_scalar_field,
+            octree_leaves=octree_leaves,
+            masking_option=options.dual_contouring_masking_options
+        )
+        
         if mask is not None and left_right_codes is not None:
             left_right_codes_per_stack = left_right_codes[mask]
         else:
@@ -63,7 +68,7 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
             data_descriptor     = data_descriptor,
             interpolation_input = interpolation_input,
             options             = dual_contouring_options,
-            n_scalar_field      = n_scalar_field,
+            n_scalar_field      = n_scalar_field,  
             octree_leaves       = octree_leaves,
             mask                = mask
         )
@@ -73,6 +78,8 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
             left_right_codes  = left_right_codes_per_stack,
             debug             = options.debug
         )
+        
+        # ! If the order of the meshes does not match the order of scalar_field_at_surface points we need to reorder them HERE
 
         if meshes is not None:
             all_meshes.extend(meshes)
