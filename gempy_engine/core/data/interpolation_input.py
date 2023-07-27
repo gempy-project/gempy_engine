@@ -91,7 +91,7 @@ class InterpolationInput:
 
     @classmethod
     def from_structural_frame(cls, structural_frame: "gempy.StructuralFrame", grid: "gempy.Grid",
-                              transform: "gempy.Transfrom") -> "InterpolationInput":
+                              transform: "gempy.Transfrom", octrees: bool) -> "InterpolationInput":
         _legacy_factor = 0
 
         if LEGACY_COORDS := True:
@@ -106,9 +106,14 @@ class InterpolationInput:
             dip_gradients=structural_frame.orientations.grads
         )
 
+        # TODO: if octrees we should deactivate the regular grid resolution?
+        if octrees:
+            interpolation_resolution = np.array([2,2,2])
+        else:
+            interpolation_resolution = grid.regular_grid.resolution
         regular_grid: RegularGrid = RegularGrid(
             extent=transform.apply(grid.regular_grid.extent.reshape(-1,3)).reshape(-1) + _legacy_factor,
-            regular_grid_shape=grid.regular_grid.resolution,
+            regular_grid_shape=interpolation_resolution,
         )
 
         grid: Grid = Grid(
