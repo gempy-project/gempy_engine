@@ -125,13 +125,19 @@ def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_rela
             cumprod_mask = np.cumprod(mask_matrix[(i - onlap_chain_counter):i, :][::-1], axis=0)[::-1]
             mask_matrix[i - onlap_chain_counter: i] = cumprod_mask
             
-        if stack_relation[i] is StackRelationType.ERODE:
-            mask_lith = all_scalar_fields_outputs[i].mask_components_erode.mask_lith
-            mask_matrix[i, :] = mask_lith
-        if stack_relation[i] is StackRelationType.FAULT:
-            mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_fault.mask_lith
-        if stack_relation[i] is False or stack_relation[i] is StackRelationType.BASEMENT:
-            mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_basement
+        # convert to match
+        match stack_relation[i]:
+            case StackRelationType.ONLAP:
+                pass
+            case StackRelationType.ERODE:
+                mask_lith = all_scalar_fields_outputs[i].mask_components_erode.mask_lith
+                mask_matrix[i, :] = mask_lith
+            case StackRelationType.FAULT:
+                mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_fault.mask_lith
+            case False | StackRelationType.BASEMENT:
+                mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_basement
+            case _:
+                raise ValueError(f"Stack relation {stack_relation[i]} not recognized")
     
     # Doing the black magic
     final_mask_array     = np.zeros((n_scalar_fields, grid_size), dtype=bool)
