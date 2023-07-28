@@ -1,4 +1,5 @@
 import copy
+import warnings
 from typing import List
 
 import numpy as np
@@ -35,13 +36,15 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
         return all_meshes
 
     # region new triangulations
-    if options.dual_contouring_fancy:
-        is_pure_octree = np.all(octree_list[0].grid_centers.regular_grid_shape == 2)
-        if not is_pure_octree:  # Check if regular grid is [2,2,2]
-            raise ValueError("Fancy triangulation only works with regular grid of resolution [2,2,2]")
-        left_right_codes = get_left_right_array(octree_list)
-    else:
-        left_right_codes = None
+    is_pure_octree = bool(np.all(octree_list[0].grid_centers.regular_grid_shape == 2))
+    match (options.dual_contouring_fancy, is_pure_octree):
+        case (True, True):
+            left_right_codes = get_left_right_array(octree_list)
+        case (True, False):
+            left_right_codes = None
+            warnings.warn("Fancy triangulation only works with regular grid of resolution [2,2,2]. Defaulting to regular triangulation")
+        case (False, _):
+            left_right_codes = None
     # endregion
 
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
