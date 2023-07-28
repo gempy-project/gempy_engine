@@ -1,3 +1,4 @@
+import warnings
 from typing import Union, Any
 
 import numpy
@@ -23,12 +24,12 @@ class BackendTensor:
 
     @classmethod
     def get_backend_string(cls) -> str:
-        match (cls.use_gpu, cls.pykeops_enabled):
-            case (True, True):
+        match(cls.use_gpu, cls.pykeops_enabled):
+            case(True, True):
                 return "GPU"
-            case (False, True):
+            case(False, True):
                 return "CPU"
-            case (False, _):
+            case(False, _):
                 return "CPU"
 
     @classmethod
@@ -49,16 +50,18 @@ class BackendTensor:
 
                 cls._wrap_numpy_functions()
 
-                match (pykeops_enabled, use_gpu):
-                    case (True, True):
-                        cls.pykeops_enabled = is_pykeops_installed
+                match (pykeops_enabled, is_pykeops_installed, use_gpu):
+                    case (True, True, True):
+                        cls.pykeops_enabled = True
                         cls.use_gpu = True
                         cls._wrap_pykeops_functions()
-                    case (True, False):
-                        cls.pykeops_enabled = is_pykeops_installed
+                    case (True, True, False):
+                        cls.pykeops_enabled = True
                         cls.use_gpu = False
                         cls._wrap_pykeops_functions()
-                    case (False, _):
+                    case (True, False, _):
+                        raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: pykeops")
+                    case (False, _, _):
                         cls.pykeops_enabled = False
                         cls.use_gpu = False
             case (engine_backend.tensorflow):
@@ -139,7 +142,10 @@ class BackendTensor:
             elif type(tensor) == pykeops.numpy.LazyTensor:
                 return tensor / other
 
-        cls.tfnp.sqrt = lambda tensor: tensor.sqrt()
+        def _sqrt_fn(tensor):
+            return tensor.sqrt()
+        
+        cls.tfnp.sqrt = _sqrt_fn
         cls.tfnp.sum = _sum
         cls.tfnp.exp = _exp
         cls.tfnp.divide = _divide
