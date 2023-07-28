@@ -5,6 +5,7 @@ from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 import numpy as np
 from scipy.sparse.linalg import aslinearoperator, cg
+
 bt = BackendTensor
 
 
@@ -23,7 +24,7 @@ def kernel_reduction(cov, b, compute_condition_number=False) -> np.ndarray:
             # ! Only Positive definite matrices are solved. Otherwise, the kernel gets stuck
             # * Very interesting: https://stats.stackexchange.com/questions/386813/use-the-rbf-kernel-to-construct-a-positive-definite-covariance-matrix
 
-            if scipy_solver := True:
+            if scipy_solver := False:
                 A = aslinearoperator(cov)
                 w, info = cg(A, b[:, 0], tol=0)
             else:
