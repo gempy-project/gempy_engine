@@ -71,7 +71,7 @@ class InterpolationOptions:
             kernel_function           : AvailableKernelFunctions         = AvailableKernelFunctions.cubic,
             dual_contouring           : bool                             = True,
             compute_scalar_gradient   : bool                             = False,
-            compute_condition_number: bool                             = False,
+            compute_condition_number  : bool                             = False,
             tensor_dtype              : gempy_engine.config.TENSOR_DTYPE = gempy_engine.config.TENSOR_DTYPE,  # TODO: This is unused
             
     ):
