@@ -3,13 +3,12 @@ from typing import List
 
 import numpy as np
 
-from core.data.octree_level import OctreeLevel
+from ...core.data.octree_level import OctreeLevel
 from ._experimental_water_tight_DC_1 import _experimental_water_tight
 from ._interpolate_on_edges import interpolate_on_edges_for_dual_contouring, _mask_generation
 from ._mask_buffer import MaskBuffer
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_data import DualContouringData
-from ...core.data.solutions import Solutions
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput

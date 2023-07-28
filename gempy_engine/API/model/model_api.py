@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 from typing import List, Optional
 
-from core.data.dual_contouring_mesh import DualContouringMesh
+from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ..dual_contouring.multi_scalar_dual_contouring import dual_contouring_multi_scalar
 from ..interp_single._interp_scalar_field import WeightsBuffer
 from ..interp_single.interp_features import interpolate_n_octree_levels
