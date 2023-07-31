@@ -4,7 +4,8 @@ from typing import List
 from gempy_engine.core.data.octree_level import OctreeLevel
 import numpy as np
 
-from gempy_engine.core.data.grid import RegularGrid, Grid
+from gempy_engine.core.data.grid import Grid
+from core.data.regular_grid import RegularGrid
 from gempy_engine.modules.octrees_topology._octree_common import _generate_next_level_centers
 
 

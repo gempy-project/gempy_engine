@@ -1,7 +1,8 @@
 ﻿import sys
 import logging
 
-from gempy_engine.core.data.grid import Grid, RegularGrid
+from gempy_engine.core.data.grid import Grid
+from core.data.regular_grid import RegularGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.server.input_parser import GemPyInput

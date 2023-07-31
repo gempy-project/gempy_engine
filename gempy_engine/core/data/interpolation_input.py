@@ -6,7 +6,8 @@ from typing import Optional
 import numpy as np
 
 from . import SurfacePoints, Orientations
-from .grid import Grid, RegularGrid
+from .grid import Grid
+from .regular_grid import RegularGrid
 from .stack_relation_type import StackRelationType
 from .stacks_structure import StacksStructure
 from .kernel_classes.faults import FaultsData
