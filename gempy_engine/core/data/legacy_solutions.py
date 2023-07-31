@@ -3,7 +3,6 @@ from typing import Optional
 
 import numpy as np
 
-from gempy_engine.core.data import Solutions
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
 from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level, ValueType
@@ -55,11 +54,11 @@ class LegacySolution:
 
     # ? TODO: This could be just the init
     @classmethod
-    def from_gempy_engine_solutions(cls, gempy_engine_solutions: Solutions) -> "LegacySolution":
+    def from_gempy_engine_solutions(cls, octrees_output: list[OctreeLevel], meshes: list[DualContouringMesh]) \
+            -> "LegacySolution":
         legacy_solution = cls()
 
         # region Blocks
-        octrees_output: list[OctreeLevel] = gempy_engine_solutions.octrees_output
         last_octree_level: OctreeLevel = octrees_output[(-1)]
 
         legacy_solution._set_block_matrix(octrees_output)
@@ -71,7 +70,6 @@ class LegacySolution:
     
         # endregion
         # region Meshes
-        meshes: list[DualContouringMesh] = gempy_engine_solutions.dc_meshes
         if meshes:
             legacy_solution.vertices = [mesh.vertices for mesh in meshes]
             legacy_solution.edges = [mesh.edges for mesh in meshes]
@@ -122,7 +120,7 @@ class LegacySolution:
             octree_list=octree_output,
             level=None,
             value_type=ValueType.ids
-        ).astype("int8")
+        ).astype("int8").ravel()
         
         block[block == 0] = block.max() + 1 # Move basement from first to last
         self.lith_block = block

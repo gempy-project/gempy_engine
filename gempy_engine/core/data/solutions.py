@@ -23,7 +23,10 @@ class Solutions:
         self.dc_meshes = dc_meshes
         
         # TODO: Probably here is the place to fill the LegacySolution
-        self._raw_arrays = LegacySolution.from_gempy_engine_solutions(self)
+        self._raw_arrays = LegacySolution.from_gempy_engine_solutions(
+            octrees_output=octrees_output,
+            meshes=dc_meshes
+        )
         
     def __repr__(self):
         return f"{self.__class__.__name__}({self.octrees_output})"
