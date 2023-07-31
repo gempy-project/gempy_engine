@@ -1,16 +1,12 @@
 from dataclasses import dataclass
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Optional
 
 import numpy as np
 from numpy import ndarray
 
+from .generic_grid import GenericGrid
 from .regular_grid import RegularGrid
-
-
-def _check_and_convert_list_to_array(field):
-    if type(field) == list:
-        field = np.array(field)
-    return field
+from ..utils import _check_and_convert_list_to_array
 
 
 # TODO: [ ] values is independent field to regular grid. Proabably we want to have an extra field for them
@@ -20,6 +16,9 @@ class Grid:
     values: np.ndarray
     len_grids: Union[np.ndarray, List] = None  # TODO: This should be a bit more automatic?
     regular_grid: RegularGrid = None
+    topography: Optional[GenericGrid] = None
+    sections: Optional[list[GenericGrid]] = None
+    centered_grid = None  # TODO: Not implemented this probably will need something different that the generic grid?
     custom_grid: Dict[str, np.ndarray] = None
 
     debug_vals = None

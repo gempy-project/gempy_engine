@@ -20,3 +20,9 @@ def gempy_profiler_decorator(func):
             return func
     else:
         return func
+
+
+def _check_and_convert_list_to_array(field):
+    if type(field) == list:
+        field = np.array(field)
+    return field
