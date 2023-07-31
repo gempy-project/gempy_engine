@@ -3,9 +3,10 @@ from typing import Optional
 
 import numpy as np
 
+from gempy_engine.core.data import Solutions
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
 from gempy_engine.core.data.octree_level import OctreeLevel
-from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
+from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level, ValueType
 
 
 @dataclass(init=True)
@@ -54,43 +55,56 @@ class LegacySolution:
 
     # ? TODO: This could be just the init
     @classmethod
-    def from_gempy_engine_solutions(cls, gempy_engine_solutions: "gempy_engine.core.data.Solutions") -> "LegacySolution":
+    def from_gempy_engine_solutions(cls, gempy_engine_solutions: Solutions) -> "LegacySolution":
         legacy_solution = cls()
 
-        octree_lvl = -1
-        octree_output: OctreeLevel = gempy_engine_solutions.octrees_output[octree_lvl]
+        # region Blocks
+        octrees_output: list[OctreeLevel] = gempy_engine_solutions.octrees_output
+        last_octree_level: OctreeLevel = octrees_output[(-1)]
 
-        # ! I will have to use this as soon as I am using octrees
-        regular_grid_scalar: np.ndarray = get_regular_grid_value_for_level(
-            octree_list=gempy_engine_solutions.octrees_output
-        ).astype("int8")
+        legacy_solution._set_block_matrix(octrees_output)
+        legacy_solution._set_lith_block(octrees_output)
+        legacy_solution._set_scalar_field(octrees_output)
 
-        legacy_solution._set_block_matrix(octree_output)
-        legacy_solution._set_lith_block(octree_output)
-        legacy_solution._set_scalar_field(octree_output)
+        legacy_solution._set_scalar_field_at_surface_points(last_octree_level)
 
-        legacy_solution._set_scalar_field_at_surface_points(octree_output)
-
+    
+        # endregion
+        # region Meshes
         meshes: list[DualContouringMesh] = gempy_engine_solutions.dc_meshes
         if meshes:
             legacy_solution.vertices = [mesh.vertices for mesh in meshes]
             legacy_solution.edges = [mesh.edges for mesh in meshes]
             # TODO: I will have to apply the transform to this one
-
+            
+        # endregion
         return legacy_solution
 
-    def _set_block_matrix(self, octree_output: OctreeLevel):
+    def _set_block_matrix(self, octree_output: list[OctreeLevel]):
         temp_list = []
-        for i in range(octree_output.number_of_outputs):
-            temp_list.append(octree_output.outputs_centers[i].values_block)
-
+        for i in range(octree_output[0].number_of_outputs):
+            temp_list.append(
+                get_regular_grid_value_for_level(
+                    octree_list=octree_output,
+                    level=None,
+                    value_type=ValueType.scalar,
+                    scalar_n=i
+                ).ravel()
+            )
         block_matrix_stacked = np.vstack(temp_list)
         self.block_matrix = block_matrix_stacked
 
-    def _set_scalar_field(self, octree_output: OctreeLevel):
+    def _set_scalar_field(self, octree_output:list[OctreeLevel]):
         temp_list = []
-        for i in range(octree_output.number_of_outputs):
-            temp_list.append(octree_output.outputs_centers[i].scalar_fields.exported_fields.scalar_field)
+        for i in range(octree_output[0].number_of_outputs):
+            temp_list.append(
+                get_regular_grid_value_for_level(
+                    octree_list=octree_output,
+                    level=None,
+                    value_type=ValueType.scalar,
+                    scalar_n=i
+                ).ravel()
+            )
 
         scalar_field_stacked = np.vstack(temp_list)
         self.scalar_field_matrix = scalar_field_stacked
@@ -102,7 +116,13 @@ class LegacySolution:
 
         self.scalar_field_at_surface_points = temp_list
 
-    def _set_lith_block(self, octree_output: OctreeLevel):
-        block = octree_output.last_output_center.ids_block  # BUG (July 2023): This should be id block instead value block but Faults are broken for now
-        block[block == 0] = block.max() + 1
+    def _set_lith_block(self, octree_output: list[OctreeLevel]):
+
+        block = get_regular_grid_value_for_level(
+            octree_list=octree_output,
+            level=None,
+            value_type=ValueType.ids
+        ).astype("int8")
+        
+        block[block == 0] = block.max() + 1 # Move basement from first to last
         self.lith_block = block
