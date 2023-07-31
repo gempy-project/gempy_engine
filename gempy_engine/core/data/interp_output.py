@@ -62,3 +62,5 @@ class InterpOutput:
             return self.values_block
         else:
             return self.combined_scalar_field.final_block  # * (miguel March 2023) For now faults does not have final block. We will have to add a mask logic for fault blocks first
+    
+  

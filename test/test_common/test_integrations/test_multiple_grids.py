@@ -1,6 +1,8 @@
-﻿import pytest
+﻿import numpy as np
+import pytest
 
 from gempy_engine.API.model.model_api import compute_model
+from gempy_engine.core.data.generic_grid import GenericGrid
 from ...conftest import plot_pyvista, TEST_SPEED
 
 try:
@@ -19,6 +21,8 @@ def test_interpolate_model_on_multiple_grids(simple_model_interpolation_input, n
     options.number_octree_levels = n_oct_levels
     
     # * Add the second grid 
+    interpolation_input.grid.topography = GenericGrid(values=np.array([[1,2,3], [4,5,6]]))
+    interpolation_input.grid.custom_grid = GenericGrid(values=np.array([[7,8,9], [10,11,12]]))
     
     
     solutions = compute_model(interpolation_input, options, structure)

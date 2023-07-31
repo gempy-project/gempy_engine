@@ -1,12 +1,11 @@
 from dataclasses import dataclass
-from typing import Union, List, Dict, Optional
+from typing import Optional
 
 import numpy as np
 from numpy import ndarray
 
 from .generic_grid import GenericGrid
 from .regular_grid import RegularGrid
-from ..utils import _check_and_convert_list_to_array
 
 
 # TODO: [ ] values is independent field to regular grid. Proabably we want to have an extra field for them

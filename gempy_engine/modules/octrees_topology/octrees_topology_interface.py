@@ -3,6 +3,7 @@ from typing import List, Tuple, Optional
 
 import numpy as np
 
+from ...core.data.interp_output import InterpOutput
 from ._octree_internals import compute_next_octree_locations
 from ...core.data.octree_level import OctreeLevel
 from ...core.data.grid import Grid
@@ -84,9 +85,12 @@ def get_regular_grid_value_for_level(octree_list: List[OctreeLevel], level: Opti
 
     regular_grid_shape = root.grid_centers.regular_grid_shape
 
-    block = get_block_from_value_type(root, scalar_n, value_type)
+    block = _get_block_from_value_type(root, scalar_n, value_type)
 
-    regular_grid: np.ndarray = _expand_regular_grid(block.reshape(regular_grid_shape), level)
+    regular_grid: np.ndarray = _expand_regular_grid(
+        active_cells_erg=block.reshape(regular_grid_shape),
+        n_rep=level
+    )
     shape = regular_grid_shape
 
     active_cells_index: List["np.ndarray[np.int]"] = []
@@ -101,7 +105,7 @@ def get_regular_grid_value_for_level(octree_list: List[OctreeLevel], level: Opti
         shape: np.ndarray = octree.grid_centers.regular_grid_shape
         oct: np.ndarray = calculate_oct(shape, n_rep)
 
-        block = get_block_from_value_type(octree, scalar_n, value_type)
+        block = _get_block_from_value_type(octree, scalar_n, value_type)
 
         ids: np.ndarray = _expand_octree(block.reshape((-1, 2, 2, 2)), n_rep - 1)
 
@@ -125,18 +129,19 @@ def get_regular_grid_value_for_level(octree_list: List[OctreeLevel], level: Opti
     return regular_grid.reshape(shape)
 
 
-def get_block_from_value_type(root, scalar_n, value_type):
+def _get_block_from_value_type(root: OctreeLevel, scalar_n: int, value_type: ValueType):
+    element_output: InterpOutput = root.outputs_centers[scalar_n]
     match value_type:
         case ValueType.ids:
-            block = root.outputs_centers[scalar_n].ids_block
+            block = element_output.final_block
         case ValueType.values_block:
-            block = root.outputs_centers[scalar_n].values_block[0]
+            block = element_output.values_block[0]
         case ValueType.scalar:
-            block = root.outputs_centers[scalar_n].exported_fields.scalar_field
+            block = element_output.exported_fields.scalar_field
         case ValueType.squeeze_mask:
-            block = root.outputs_centers[scalar_n].squeezed_mask_array
+            block = element_output.squeezed_mask_array
         case ValueType.mask_component:
-            block = root.outputs_centers[scalar_n].mask_components
+            block = element_output.mask_components
         case _:
             raise ValueError("ValueType not supported.")
-    return block
+    return block[element_output.grid.regular_grid_slice]  # * We need to slice the regular grid to get the correct shape
