@@ -36,22 +36,25 @@ class InterpOutput:
     def values_block(self): return self.scalar_fields.values_block
     @property
     def mask_components(self): return self.scalar_fields.mask_components_erode.mask_lith
-    @property
-    def final_exported_fields(self): return self.combined_scalar_field.final_exported_fields
-    @property
-    def final_block(self): return self.combined_scalar_field.final_block
     
     @property
     def ids_block_regular_grid(self):
-        return np.rint(self.block[:self.grid.len_grids[0]].reshape(self.grid.regular_grid_shape))
+        return np.rint(self.block[self.grid.regular_grid_slice].reshape(self.grid.regular_grid_shape))
+    
+    @property
+    def ids_custom_grid(self):
+        return np.rint(self.block[self.grid.custom_grid_slice])
 
     @property
     def ids_block(self) -> np.ndarray:
-        return np.rint(self.block[:self.grid.len_grids[0]])
+        return np.rint(self.block[self.grid.regular_grid_slice])
 
-    @ids_block.setter
-    def ids_block(self, value):
-        self.block[:self.grid.len_grids[0]] = value
+    # ? Not sure if this is used
+    # @ids_block.setter
+    # def ids_block(self, value):
+    #     self.block[self.grid.regular_grid_slice] = value
+    # 
+    # ? Don't I need the ids_block setter for custom grid?
     
     @property
     def block(self):

@@ -1,4 +1,4 @@
-﻿from dataclasses import dataclass
+﻿from dataclasses import dataclass, field
 from typing import Union, List
 
 import numpy as np
@@ -12,14 +12,32 @@ from gempy_engine.core.data.kernel_classes.server.input_parser import GridSchema
 class RegularGrid:
     extent: Union[np.ndarray, List]
     regular_grid_shape: Union[np.ndarray, List]  # Shape(3)
-    _active_cells: np.ndarray = None  # Bool array
-    left_right: np.ndarray = None
+    _active_cells: np.ndarray = field(default=None, repr=False, init=False)
+    left_right: np.ndarray = field(default=None, repr=False, init=False)
+
+    def __len__(self):
+        return self.regular_grid_shape.prod()
 
     def __post_init__(self):
         self.regular_grid_shape = _check_and_convert_list_to_array(self.regular_grid_shape)
         self.extent = _check_and_convert_list_to_array(self.extent) + 1e-6  # * This to avoid some errors evaluating in 0 (e.g. bias in dual contouring)
 
         self.values = self._create_regular_grid(self.extent, self.regular_grid_shape)
+
+    @classmethod
+    def from_octree_level(cls, xyz_coords_octree: np.ndarray, previous_regular_grid: "RegularGrid",
+                          active_cells: np.ndarray, left_right: np.ndarray) -> "RegularGrid":
+       
+        regular_grid_for_octree_level = cls(
+            extent=previous_regular_grid.extent,
+            regular_grid_shape=previous_regular_grid.regular_grid_shape * 2,
+        )
+
+        regular_grid_for_octree_level.values = xyz_coords_octree  # ! Overwrite the common values
+        regular_grid_for_octree_level._active_cells = active_cells
+        regular_grid_for_octree_level.left_right = left_right
+
+        return regular_grid_for_octree_level
 
     @classmethod
     def from_dxdydz(cls, values, extent, dxdydz):

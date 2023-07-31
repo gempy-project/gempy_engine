@@ -13,39 +13,101 @@ from ..utils import _check_and_convert_list_to_array
 # TODO: (custom_grid?) and then having a values as a property that brings both together?
 @dataclass
 class Grid:
-    values: np.ndarray
-    len_grids: Union[np.ndarray, List] = None  # TODO: This should be a bit more automatic?
     regular_grid: RegularGrid = None
+    custom_grid: Optional[GenericGrid] = None
     topography: Optional[GenericGrid] = None
     sections: Optional[list[GenericGrid]] = None
     centered_grid = None  # TODO: Not implemented this probably will need something different that the generic grid?
-    custom_grid: Dict[str, np.ndarray] = None
 
     debug_vals = None
 
-    def __post_init__(self):
-        if self.len_grids is None:
-            self.len_grids = [self.values.shape[0]]
+    @property
+    def values(self) -> np.ndarray:
+        """Collect values from all associated grids."""
+        # * The order is the same as in gempy v2 but hopefully this new way of doing things will be more flexible so order does not matter
+        values = []
+        if self.regular_grid is not None:
+            values.append(self.regular_grid.values)
+        if self.custom_grid is not None:
+            values.append(self.custom_grid.values)
+        if self.topography is not None:
+            values.append(self.topography.values)
+        if self.sections is not None:
+            for section in self.sections:
+                values.append(section.values)
+        if self.centered_grid is not None:
+            values.append(self.centered_grid.values)
 
-        self.len_grids = _check_and_convert_list_to_array(self.len_grids)
+        return np.concatenate(values)
+
+
+    @property
+    def regular_grid_slice(self) -> slice:
+        return slice(
+            0,
+            len(self.regular_grid) if self.regular_grid is not None else 0
+        )
+
+    @property
+    def custom_grid_slice(self) -> slice:
+        start = len(self.regular_grid) if self.regular_grid is not None else 0
+        return slice(
+            start,
+            start + len(self.custom_grid) if self.custom_grid is not None else start
+        )
+
+    @property
+    def topography_slice(self) -> slice:
+        start = self.custom_grid_slice.stop
+        return slice(
+            start,
+            start + len(self.topography) if self.topography is not None else start
+        )
+
+    @property
+    def sections_slice(self) -> slice:
+        start = self.topography_slice.stop
+        return slice(
+            start,
+            start + len(self.sections) if self.sections is not None else start
+        )
+
+    @property
+    def centered_grid_slice(self) -> slice:
+        start = self.sections_slice.stop
+        return slice(
+            start,
+            start + len(self.centered_grid) if self.centered_grid is not None else start
+        )
+
 
     @classmethod
     def from_regular_grid(cls, regular_grid: RegularGrid) -> "Grid":
-        return cls(regular_grid.values, regular_grid=regular_grid)
+        return cls(regular_grid=regular_grid)
 
     @property
     def len_all_grids(self) -> int:
-        return self.len_grids.sum(axis=0)
+        return self.values.shape[0]
 
     @property
     def regular_grid_values(self) -> np.ndarray:  # shape(nx, ny, nz, 3)
-        if self.len_grids[0] != self.regular_grid_shape.prod():
-            raise ValueError("The values and the regular grid do not match.")
-        return self.values[:self.len_grids[0]].reshape(*self.regular_grid_shape, 3)
+        return self.regular_grid.values.reshape(*self.regular_grid_shape, 3)
 
     @property
     def custom_grid_values(self) -> np.ndarray:
-        return self.values[self.len_grids[0]:self.len_grids[1]]
+        return self.custom_grid.values
+
+    @property
+    def topography_values(self) -> np.ndarray:
+        return self.topography.values
+
+    @property
+    def sections_values(self) -> np.ndarray:
+        return np.concatenate([section.values for section in self.sections])
+
+    @property
+    def centered_grid_values(self) -> np.ndarray:
+        return self.centered_grid.values
 
     @property
     def regular_grid_shape(self) -> ndarray | list:

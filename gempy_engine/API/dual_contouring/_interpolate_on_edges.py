@@ -13,6 +13,7 @@ from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.octree_level import OctreeLevel
 from ...core.data.options import DualContouringMaskingOptions
+from ...core.data.generic_grid import GenericGrid
 from ...core.utils import gempy_profiler_decorator
 from ...modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge
 
@@ -30,7 +31,9 @@ def interpolate_on_edges_for_dual_contouring(
     # region define location where we need to interpolate the gradients for dual contouring
     output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
     intersection_xyz, valid_edges = _get_intersection_on_edges(octree_leaves, output_corners, mask)
-    interpolation_input.grid = Grid(intersection_xyz)
+    interpolation_input.grid = Grid(
+        custom_grid=GenericGrid(values=intersection_xyz)
+    )
     # endregion
 
     # ! (@miguel 21 June) I think by definition in the function `interpolate_all_fields_no_octree`

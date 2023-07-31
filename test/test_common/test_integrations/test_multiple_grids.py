@@ -11,12 +11,16 @@ except ImportError:
     plot_pyvista = False
 
 
-def test_interpolate_model(simple_model_interpolation_input, n_oct_levels=3):
+def test_interpolate_model_on_multiple_grids(simple_model_interpolation_input, n_oct_levels=3):
     """Kernel function Cubic"""
     interpolation_input, options, structure = simple_model_interpolation_input
     print(interpolation_input)
 
     options.number_octree_levels = n_oct_levels
+    
+    # * Add the second grid 
+    
+    
     solutions = compute_model(interpolation_input, options, structure)
 
     if plot_pyvista or True:

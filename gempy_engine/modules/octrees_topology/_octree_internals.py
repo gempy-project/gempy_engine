@@ -33,7 +33,7 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
         return shift_select_xyz, voxel_select
 
     dxdydz = prev_octree.dxdydz
-    ids = prev_octree.last_output_corners.ids_block  # ! This already uses the final ids block (combining all fields)
+    ids = prev_octree.last_output_corners.ids_custom_grid
 
     uv_8 = ids.reshape((-1, 8))
 
@@ -51,11 +51,10 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
     xyz_coords, bool_idx = _generate_next_level_centers(xyz_anchor, dxdydz, level=1)
 
     grid_next_centers = Grid(
-        xyz_coords,
-        regular_grid=RegularGrid(
-            extent=prev_octree.grid_centers.regular_grid.extent,
-            regular_grid_shape=prev_octree.grid_centers.regular_grid.resolution * 2,
-            _active_cells=voxel_select,
+        regular_grid=RegularGrid.from_octree_level(
+            xyz_coords_octree=xyz_coords,
+            previous_regular_grid=prev_octree.grid_centers.regular_grid,
+            active_cells=voxel_select,
             left_right=bool_idx
         ),
     )
