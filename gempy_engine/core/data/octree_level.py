@@ -1,5 +1,5 @@
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import List
 
 import numpy as np
@@ -20,6 +20,12 @@ class OctreeLevel:
     edges_id: np.ndarray = None
     count_edges: np.ndarray = None
     marked_edges: List[np.ndarray] = None  # 3 arrays in x, y, z
+
+    def __repr__(self):
+        return f"OctreeLevel({len(self.outputs_centers)} outputs_centers, {len(self.outputs_corners)} outputs_corners)"
+
+    def _repr_html_(self):
+        return f"<b>OctreeLevel:</b> {len(self.outputs_centers)} outputs_centers, {len(self.outputs_corners)} outputs_corners"
 
     def set_interpolation_values(self, grid_centers: Grid, grid_faces: Grid,
                                  outputs_centers: List[InterpOutput], outputs_faces: List[InterpOutput]):

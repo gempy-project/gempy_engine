@@ -1,7 +1,7 @@
 import enum
 import pprint
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 import gempy_engine.config
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
@@ -38,6 +38,18 @@ class KernelOptions:
             raise AttributeError('uni_degree must be 0,1 or 2')
 
         return n
+
+    def __repr__(self):
+        return f"KernelOptions({', '.join(f'{k}={v}' for k, v in asdict(self).items())})"
+
+    def _repr_html_(self):
+        html = f"""
+            <table>
+                <tr><td colspan='2' style='text-align:center'><b>KernelOptions</b></td></tr>
+                {''.join(f'<tr><td>{k}</td><td>{v}</td></tr>' for k, v in asdict(self).items())}
+            </table>
+            """
+        return html
 
 
 @dataclass
@@ -93,9 +105,18 @@ class InterpolationOptions:
 
         self.tensor_dtype = tensor_dtype
     # @on
-    
+
     def __repr__(self):
-        return pprint.pformat(self.__dict__)
+        return f"InterpolationOptions({', '.join(f'{k}={v}' for k, v in asdict(self).items())})"
+
+    def _repr_html_(self):
+        html = f"""
+                <table>
+                    <tr><td colspan='2' style='text-align:center'><b>InterpolationOptions</b></td></tr>
+                    {''.join(f'<tr><td>{k}</td><td>{v._repr_html_() if isinstance(v, KernelOptions) else v}</td></tr>' for k, v in asdict(self).items())}
+                </table>
+                """
+        return html
 
     @property
     def compute_corners(self):
