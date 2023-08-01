@@ -109,18 +109,19 @@ class InterpolationInput:
 
         # TODO: if octrees we should deactivate the regular grid resolution?
         if octrees:
-            interpolation_resolution = np.array([2,2,2])
+            interpolation_resolution = np.array([2, 2, 2])
         else:
             interpolation_resolution = grid.regular_grid.resolution
-            
+
         regular_grid: RegularGrid = RegularGrid(
-            extent=transform.apply(grid.regular_grid.extent.reshape(-1,3)).reshape(-1) + _legacy_factor,
+            extent=transform.apply(grid.regular_grid.extent.reshape(-1, 3)).reshape(-1) + _legacy_factor,
             regular_grid_shape=interpolation_resolution,
         )
-        topography_values: GenericGrid = GenericGrid(values=grid.topography.values)
-        
+        topography_values: GenericGrid = GenericGrid(
+            values=transform.apply(grid.topography.values)
+        )
+
         grid: Grid = Grid(
-            # values=regular_grid.values,
             regular_grid=regular_grid,
             topography=topography_values
         )
