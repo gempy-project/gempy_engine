@@ -1,6 +1,7 @@
 import copy
 from typing import List
 
+from ...core.data.regular_grid import RegularGrid
 from ...core.data.generic_grid import GenericGrid
 from ...core.data.options import KernelOptions, InterpolationOptions
 from ...core.data.octree_level import OctreeLevel
@@ -18,28 +19,37 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
                           data_shape: InputDataDescriptor) -> OctreeLevel:
     interpolation_input = copy.deepcopy(interpolation_input)
     
-    grid_0_centers = interpolation_input.grid
+    grid_0_centers: Grid = interpolation_input.grid
     output_0_centers: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # interpolate - centers
 
     # Interpolate - corners
     if options.compute_corners:
         grid_0_corners = Grid(
             custom_grid=GenericGrid(
-                values=(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
+                values=_generate_corners(
+                    regular_grid=grid_0_centers.regular_grid
+                )
             )
         )
-        interpolation_input.grid = grid_0_corners
+        interpolation_input.grid = grid_0_corners  # * Prepare grid for next interpolation
         output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # * This is unnecessary for the last level except for Dual contouring
     else:
         output_0_corners = []
         grid_0_corners = None
     
-    # Set values to octree
-    next_octree_level = OctreeLevel(grid_0_centers, grid_0_corners, output_0_centers, output_0_corners)
+    next_octree_level = OctreeLevel(
+        grid_centers=grid_0_centers,
+        grid_corners=grid_0_corners,
+        outputs_centers=output_0_centers, 
+        outputs_corners=output_0_corners
+    )
     return next_octree_level
 
 
-def _generate_corners(xyz_coord, dxdydz, level=1) -> np.ndarray:
+def _generate_corners(regular_grid: RegularGrid, level=1) -> np.ndarray:
+    xyz_coord = regular_grid.values
+    dxdydz = regular_grid.dxdydz
+    
     x_coord, y_coord, z_coord = xyz_coord[:, 0], xyz_coord[:, 1], xyz_coord[:, 2]
     dx, dy, dz = dxdydz
 

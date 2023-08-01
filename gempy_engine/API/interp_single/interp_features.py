@@ -29,7 +29,11 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
         next_octree: OctreeLevel = interpolate_on_octree(interpolation_input, options, data_descriptor)
         
         if options.is_last_octree_level is False:
-            grid_1_centers = octrees.get_next_octree_grid(next_octree, compute_topology=False, debug=False)
+            grid_1_centers = octrees.get_next_octree_grid(
+                prev_octree=next_octree,
+                compute_topology=False,
+                debug=False
+            )
             interpolation_input.grid = grid_1_centers
         octree_list.append(next_octree)
 

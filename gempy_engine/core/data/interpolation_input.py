@@ -1,4 +1,3 @@
-import dataclasses
 import pprint
 from dataclasses import dataclass
 from typing import Optional
@@ -6,6 +5,7 @@ from typing import Optional
 import numpy as np
 
 from . import SurfacePoints, Orientations
+from gempy_engine.core.data.generic_grid import GenericGrid
 from .grid import Grid
 from .regular_grid import RegularGrid
 from .stack_relation_type import StackRelationType
@@ -112,14 +112,17 @@ class InterpolationInput:
             interpolation_resolution = np.array([2,2,2])
         else:
             interpolation_resolution = grid.regular_grid.resolution
+            
         regular_grid: RegularGrid = RegularGrid(
             extent=transform.apply(grid.regular_grid.extent.reshape(-1,3)).reshape(-1) + _legacy_factor,
             regular_grid_shape=interpolation_resolution,
         )
-
+        topography_values: GenericGrid = GenericGrid(values=grid.topography.values)
+        
         grid: Grid = Grid(
-            values=regular_grid.values,
-            regular_grid=regular_grid
+            # values=regular_grid.values,
+            regular_grid=regular_grid,
+            topography=topography_values
         )
 
         interpolation_input: InterpolationInput = cls(

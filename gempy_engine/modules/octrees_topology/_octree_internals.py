@@ -47,7 +47,7 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
         prev_octree.edges_id, prev_octree.count_edges = _calculate_topology(shift_select_xyz, prev_octree.id_block)
 
     # New Octree
-    xyz_anchor = prev_octree.grid_centers.values[voxel_select]
+    xyz_anchor = prev_octree.grid_centers.regular_grid.values[voxel_select]
     xyz_coords, bool_idx = _generate_next_level_centers(xyz_anchor, dxdydz, level=1)
 
     grid_next_centers = Grid(

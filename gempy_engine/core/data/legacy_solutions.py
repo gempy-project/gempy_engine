@@ -3,6 +3,7 @@ from typing import Optional
 
 import numpy as np
 
+from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
 from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level, ValueType
@@ -66,9 +67,15 @@ class LegacySolution:
         legacy_solution._set_scalar_field(octrees_output)
 
         legacy_solution._set_scalar_field_at_surface_points(last_octree_level)
-
-    
         # endregion
+        
+        # region Grids
+        first_level_octree: OctreeLevel = octrees_output[0]
+        output: InterpOutput = first_level_octree.outputs_centers[0]
+        
+        legacy_solution.geological_map = output.geological_map
+        # endregion
+        
         # region Meshes
         if meshes:
             legacy_solution.vertices = [mesh.vertices for mesh in meshes]
