@@ -15,7 +15,7 @@ class Grid:
     regular_grid: RegularGrid = None
     custom_grid: Optional[GenericGrid] = None
     topography: Optional[GenericGrid] = None
-    sections: Optional[list[GenericGrid]] = None
+    sections: Optional[GenericGrid] = None
     centered_grid = None  # TODO: Not implemented this probably will need something different that the generic grid?
 
     debug_vals = None
@@ -32,8 +32,7 @@ class Grid:
         if self.topography is not None:
             values.append(self.topography.values)
         if self.sections is not None:
-            for section in self.sections:
-                values.append(section.values)
+            values.append(self.sections.values)
         if self.centered_grid is not None:
             values.append(self.centered_grid.values)
 
@@ -102,7 +101,7 @@ class Grid:
 
     @property
     def sections_values(self) -> np.ndarray:
-        return np.concatenate([section.values for section in self.sections])
+        return self.sections.values
 
     @property
     def centered_grid_values(self) -> np.ndarray:

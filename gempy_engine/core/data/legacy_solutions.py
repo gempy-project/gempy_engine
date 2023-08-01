@@ -74,6 +74,7 @@ class LegacySolution:
         output: InterpOutput = first_level_octree.outputs_centers[0]
         
         legacy_solution.geological_map = output.geological_map
+        legacy_solution.sections = output.sections
         # endregion
         
         # region Meshes

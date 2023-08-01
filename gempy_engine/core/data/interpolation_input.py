@@ -120,10 +120,15 @@ class InterpolationInput:
         topography_values: GenericGrid = GenericGrid(
             values=transform.apply(grid.topography.values)
         )
+        
+        section_values: GenericGrid = GenericGrid(
+            values=transform.apply(grid.sections.values)
+        )
 
         grid: Grid = Grid(
             regular_grid=regular_grid,
-            topography=topography_values
+            topography=topography_values,
+            sections=section_values,
         )
 
         interpolation_input: InterpolationInput = cls(

@@ -41,6 +41,9 @@ class InterpOutput:
     def geological_map(self): return self.block[self.grid.topography_slice]
     
     @property
+    def sections(self): return self.block[self.grid.sections_slice]
+    
+    @property
     def ids_block_regular_grid(self):
         return np.rint(self.block[self.grid.regular_grid_slice].reshape(self.grid.regular_grid_shape))
     
