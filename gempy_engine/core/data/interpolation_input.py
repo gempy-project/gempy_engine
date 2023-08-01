@@ -117,13 +117,8 @@ class InterpolationInput:
             extent=transform.apply(grid.regular_grid.extent.reshape(-1, 3)).reshape(-1) + _legacy_factor,
             regular_grid_shape=interpolation_resolution,
         )
-        topography_values: GenericGrid = GenericGrid(
-            values=transform.apply(grid.topography.values)
-        )
-        
-        section_values: GenericGrid = GenericGrid(
-            values=transform.apply(grid.sections.values)
-        )
+        topography_values: GenericGrid = GenericGrid(values=transform.apply(grid.topography.values)) if grid.topography is not None else None
+        section_values: GenericGrid = GenericGrid(values=transform.apply(grid.sections.values)) if grid.sections is not None else None
 
         grid: Grid = Grid(
             regular_grid=regular_grid,
