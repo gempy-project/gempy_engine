@@ -3,10 +3,10 @@ from typing import List, Tuple, Optional
 
 import numpy as np
 
-from ...core.data.interp_output import InterpOutput
+from gempy_engine.core.data.interp_output import InterpOutput
 from ._octree_internals import compute_next_octree_locations
-from ...core.data.octree_level import OctreeLevel
-from ...core.data.grid import Grid
+from gempy_engine.core.data.octree_level import OctreeLevel
+from gempy_engine.core.data.grid import Grid
 
 
 # TODO: [ ] Check if fortran order speeds up this function
