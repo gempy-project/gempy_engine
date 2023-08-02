@@ -4,14 +4,14 @@ from typing import List
 import numpy as np
 
 from .dual_contouring_mesh import DualContouringMesh
-from .legacy_solutions import LegacySolution
+from .raw_arrays_solution import RawArraysSolution
 from .octree_level import OctreeLevel
 
 
 class Solutions:
     octrees_output: List[OctreeLevel]
     dc_meshes: List[DualContouringMesh]
-    _raw_arrays: LegacySolution = field(init=False)
+    _raw_arrays: RawArraysSolution = field(init=False)
     # ------
     gravity: np.ndarray = None
     magnetics: np.ndarray = None
@@ -23,7 +23,7 @@ class Solutions:
         self.dc_meshes = dc_meshes
         
         # TODO: Probably here is the place to fill the LegacySolution
-        self._raw_arrays = LegacySolution.from_gempy_engine_solutions(
+        self._raw_arrays = RawArraysSolution.from_gempy_engine_solutions(
             octrees_output=octrees_output,
             meshes=dc_meshes
         )

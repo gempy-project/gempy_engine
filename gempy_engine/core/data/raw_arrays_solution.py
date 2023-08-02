@@ -10,7 +10,7 @@ from gempy_engine.modules.octrees_topology.octrees_topology_interface import get
 
 
 @dataclass(init=True)
-class LegacySolution:
+class RawArraysSolution:
     # region Input data results
     # ? Do I need these fields?
     # weights_vector: np.ndarray
@@ -56,7 +56,7 @@ class LegacySolution:
     # ? TODO: This could be just the init
     @classmethod
     def from_gempy_engine_solutions(cls, octrees_output: list[OctreeLevel], meshes: list[DualContouringMesh]) \
-            -> "LegacySolution":
+            -> "RawArraysSolution":
         legacy_solution = cls()
 
         # region Blocks
