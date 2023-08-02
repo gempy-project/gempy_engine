@@ -15,6 +15,23 @@ from .stacks_structure import StacksStructure
 # noinspection PyArgumentList
 @dataclass(frozen=True)
 class InputDataDescriptor:
+    """
+    Class representing a descriptor for input data in a geological model.
+
+    This class provides a structure for the input data, including tensors and stack structure.
+
+    Attributes:
+        tensors_structure (TensorsStructure): The structure of tensors used in the model.
+        stack_structure (StacksStructure, optional): The structure of stacks used in the model.
+
+    Methods:
+        stack_relation (property): Retrieves the masking descriptor from the stack_structure.
+        from_schema (classmethod): Constructs an InputDataDescriptor from a given InputDataDescriptorSchema.
+
+    Note:
+        This class is immutable, i.e., once an instance is created, it cannot be changed.
+    """
+    
     tensors_structure: TensorsStructure
     stack_structure: StacksStructure = None
 
