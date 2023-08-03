@@ -113,10 +113,17 @@ class InterpolationInput:
         else:
             interpolation_resolution = grid.regular_grid.resolution
 
+        # region Transforming the grid
+        transformed = transform.apply(grid.regular_grid.bounding_box)
+        new_extents = np.array([transformed[:, 0].min(), transformed[:, 0].max(),
+                                transformed[:, 1].min(), transformed[:, 1].max(),
+                                transformed[:, 2].min(), transformed[:, 2].max()])
+        
         regular_grid: RegularGrid = RegularGrid(
-            extent=transform.apply(grid.regular_grid.extent.reshape(-1, 3)).reshape(-1) + _legacy_factor,
+            extent=new_extents,
             regular_grid_shape=interpolation_resolution,
         )
+        
         topography_values: GenericGrid = GenericGrid(values=transform.apply(grid.topography.values)) if grid.topography is not None else None
         section_values: GenericGrid = GenericGrid(values=transform.apply(grid.sections.values)) if grid.sections is not None else None
 
@@ -126,6 +133,8 @@ class InterpolationInput:
             sections=section_values,
         )
 
+        # endregion
+        
         interpolation_input: InterpolationInput = cls(
             surface_points=surface_points,
             orientations=orientations,
