@@ -71,7 +71,9 @@ class RawArraysSolution:
         
         # region Grids
         first_level_octree: OctreeLevel = octrees_output[0]
-        output: InterpOutput = first_level_octree.outputs_centers[0]
+        
+        # TODO: Make this more clever to account for the fact that we can have more than one scalar field
+        output: InterpOutput = first_level_octree.outputs_centers[-1]  # ! This is the scalar field. Usually we want the last one but not necessarily
         
         legacy_solution.geological_map = output.geological_map
         legacy_solution.sections = output.sections
