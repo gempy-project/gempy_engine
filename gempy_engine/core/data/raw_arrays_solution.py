@@ -75,6 +75,7 @@ class RawArraysSolution:
         
         legacy_solution.geological_map = output.geological_map
         legacy_solution.sections = output.sections
+        legacy_solution.custom = output.custom_grid
         # endregion
         
         # region Meshes

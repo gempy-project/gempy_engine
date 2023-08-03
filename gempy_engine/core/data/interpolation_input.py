@@ -126,11 +126,13 @@ class InterpolationInput:
         
         topography_values: GenericGrid = GenericGrid(values=transform.apply(grid.topography.values)) if grid.topography is not None else None
         section_values: GenericGrid = GenericGrid(values=transform.apply(grid.sections.values)) if grid.sections is not None else None
+        custom_values: GenericGrid = GenericGrid(values=transform.apply(grid.custom_grid.values)) if grid.custom_grid is not None else None
 
         grid: Grid = Grid(
             regular_grid=regular_grid,
             topography=topography_values,
             sections=section_values,
+            custom_grid=custom_values
         )
 
         # endregion

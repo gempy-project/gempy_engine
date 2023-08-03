@@ -44,6 +44,9 @@ class InterpOutput:
     def sections(self): return self.block[self.grid.sections_slice]
     
     @property
+    def custom_grid(self): return self.block[self.grid.custom_grid_slice]
+    
+    @property
     def ids_block_regular_grid(self):
         return np.rint(self.block[self.grid.regular_grid_slice].reshape(self.grid.regular_grid_shape))
     
