@@ -14,7 +14,7 @@ class DualContouringMaskingOptions(enum.Enum):
     RAW = enum.auto()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class KernelOptions:
     range: int  # TODO: have constructor from RegularGrid
     c_o: float  # TODO: This should be a property
@@ -39,6 +39,19 @@ class KernelOptions:
 
         return n
 
+    def __hash__(self):
+        # Using a tuple to hash all the values together
+        return hash((
+            self.range,
+            self.c_o,
+            self.uni_degree,
+            self.i_res,
+            self.gi_res,
+            self.number_dimensions,
+            self.kernel_function,
+            self.compute_condition_number,
+        ))
+    
     def __repr__(self):
         return f"KernelOptions({', '.join(f'{k}={v}' for k, v in asdict(self).items())})"
 

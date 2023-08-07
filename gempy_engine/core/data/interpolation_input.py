@@ -100,12 +100,13 @@ class InterpolationInput:
 
         surface_points: SurfacePoints = SurfacePoints(
             sp_coords=transform.apply(structural_frame.surface_points.xyz) + _legacy_factor,
-            nugget_effect_scalar=100,
+            nugget_effect_scalar=structural_frame.surface_points.nugget
         )
 
         orientations: Orientations = Orientations(
             dip_positions=transform.apply(structural_frame.orientations.xyz) + _legacy_factor,
-            dip_gradients=structural_frame.orientations.grads
+            dip_gradients=structural_frame.orientations.grads,
+            nugget_effect_grad=structural_frame.orientations.nugget
         )
 
         # TODO: if octrees we should deactivate the regular grid resolution?

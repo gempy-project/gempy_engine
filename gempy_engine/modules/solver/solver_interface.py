@@ -24,7 +24,7 @@ def kernel_reduction(cov, b, compute_condition_number=False) -> np.ndarray:
             # ! Only Positive definite matrices are solved. Otherwise, the kernel gets stuck
             # * Very interesting: https://stats.stackexchange.com/questions/386813/use-the-rbf-kernel-to-construct-a-positive-definite-covariance-matrix
 
-            if scipy_solver := True:
+            if scipy_solver := False:
                 A = aslinearoperator(cov)
                 w, info = cgs(A, b[:, 0], maxiter=400, tol=1e-5)
                 w = np.atleast_2d(w).T
