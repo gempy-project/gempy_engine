@@ -26,7 +26,7 @@ def kernel_reduction(cov, b, compute_condition_number=False) -> np.ndarray:
 
             if scipy_solver := True:
                 A = aslinearoperator(cov)
-                w, info = cgs(A, b[:, 0], maxiter=1000, tol=1e-5)
+                w, info = cgs(A, b[:, 0], maxiter=400, tol=1e-5)
                 w = np.atleast_2d(w).T
             else:
                 w = cov.solve(
