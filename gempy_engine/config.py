@@ -13,7 +13,7 @@ class AvailableBackends(Flag):
 DEBUG_MODE = True
 OPTIMIZE_MEMORY = True
 DEFAULT_BACKEND = AvailableBackends.numpy
-TENSOR_DTYPE = 'float32'
+TENSOR_DTYPE = 'float64'
 LINE_PROFILER_ENABLED = False
 
 is_numpy_installed = find_spec("numpy") is not None

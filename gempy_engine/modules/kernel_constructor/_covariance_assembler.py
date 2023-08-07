@@ -53,7 +53,7 @@ def _get_cov_grad(dm, k_a, k_p_ref, nugget):
     else:
         from pykeops.numpy import LazyTensor
         matrix_shape = dm.hu.shape[0]
-        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype('float32')
+        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype(gempy_engine.config.TENSOR_DTYPE)
         diag_i = LazyTensor(diag_[:, None])
         diag_j = LazyTensor(diag_[None, :])
         nugget_matrix = (((0.5 - (diag_i - diag_j)**2).step()) * grad_nugget) * dm.perp_matrix
@@ -72,7 +72,7 @@ def _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, opti
     else:
         from pykeops.numpy import LazyTensor
         matrix_shape = k_rest_ref.shape[0]
-        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype('float32')
+        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype(gempy_engine.config.TENSOR_DTYPE)
         diag_i = LazyTensor(diag_[:, None])
         diag_j = LazyTensor(diag_[None, :])
         nugget_matrix = (((0.5 - (diag_i - diag_j) ** 2).step()) * ref_nugget)

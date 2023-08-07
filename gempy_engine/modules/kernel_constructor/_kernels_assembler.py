@@ -232,7 +232,7 @@ def _compute_distances_new(cs: CartesianSelector, ori_sp_matrices, square_distan
     hv_rest = bt.t.sum(dif_rest_rest * (cs.h_sel_rest_i * cs.hv_sel_j), axis=-1)  # Axis dependent
     huv_rest = hu_rest - hv_rest  # Axis dependent
 
-    perp_matrix = bt.t.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1, dtype="int8")  # Axis dependent
+    perp_matrix = bt.t.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1)  # Axis dependent # ? change of dtype seems to not work
 
     # region: distance r
     r_ref_ref = bt.t.sum(dif_ref_ref ** 2, axis=-1)  # Can be cached
