@@ -30,7 +30,11 @@ class Orientations:
         cum_o_l1 = data_structure.nov_stack[stack_n + 1]
 
         # TODO: Add nugget selection
-        o = Orientations(orientations.dip_positions[cum_o_l0:cum_o_l1], orientations.dip_gradients[cum_o_l0:cum_o_l1])
+        o = Orientations(
+            dip_positions=orientations.dip_positions[cum_o_l0:cum_o_l1], 
+            dip_gradients=orientations.dip_gradients[cum_o_l0:cum_o_l1],
+            nugget_effect_grad=orientations.nugget_effect_grad[cum_o_l0:cum_o_l1]
+        )
         return o
 
     @classmethod

@@ -100,7 +100,7 @@ class InterpolationInput:
 
         surface_points: SurfacePoints = SurfacePoints(
             sp_coords=transform.apply(structural_frame.surface_points.xyz) + _legacy_factor,
-            nugget_effect_scalar=1000,
+            nugget_effect_scalar=100,
         )
 
         orientations: Orientations = Orientations(

@@ -35,6 +35,7 @@ class SurfacePoints:
 
         sp = SurfacePoints(
             sp_coords=surface_points.sp_coords[cum_sp_l0:cum_sp_l1],
+            nugget_effect_scalar=surface_points.nugget_effect_scalar[cum_sp_l0:cum_sp_l1],
             slice_feature=slice(cum_sp_l0, cum_sp_l1)
         )
 
