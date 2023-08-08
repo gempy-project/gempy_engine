@@ -45,6 +45,8 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
             warnings.warn("Fancy triangulation only works with regular grid of resolution [2,2,2]. Defaulting to regular triangulation")
         case (False, _):
             left_right_codes = None
+        case _:
+            raise ValueError("Invalid combination of options")
     # endregion
 
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
