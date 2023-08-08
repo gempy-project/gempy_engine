@@ -4,7 +4,7 @@ import gempy_engine.config
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 import numpy as np
-from scipy.sparse.linalg import aslinearoperator, cg, cgs
+from scipy.sparse.linalg import aslinearoperator, cg, cgs, LinearOperator
 
 bt = BackendTensor
 
@@ -24,9 +24,14 @@ def kernel_reduction(cov, b, compute_condition_number=False) -> np.ndarray:
             # ! Only Positive definite matrices are solved. Otherwise, the kernel gets stuck
             # * Very interesting: https://stats.stackexchange.com/questions/386813/use-the-rbf-kernel-to-construct-a-positive-definite-covariance-matrix
 
-            if scipy_solver := False:
+            if scipy_solver := True:
                 A = aslinearoperator(cov)
-                w, info = cgs(A, b[:, 0], maxiter=400, tol=1e-5)
+                w, info = cg(
+                    A=A, 
+                    b=b[:, 0],
+                    maxiter=400,
+                    tol=1e-5
+                )
                 w = np.atleast_2d(w).T
             else:
                 w = cov.solve(
@@ -36,10 +41,11 @@ def kernel_reduction(cov, b, compute_condition_number=False) -> np.ndarray:
                     backend="CPU"
                 )
         case (AvailableBackends.numpy, False):
+            w = bt.tfnp.linalg.solve(cov.astype(dtype), b[:, 0])
+                
             if compute_condition_number:
                 _compute_conditional_number(cov)
 
-            w = bt.tfnp.linalg.solve(cov.astype(dtype), b[:, 0])
         case _:
             raise AttributeError('There is a weird combination of libraries?')
 
