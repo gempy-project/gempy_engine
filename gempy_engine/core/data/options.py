@@ -4,6 +4,7 @@ import warnings
 from dataclasses import dataclass, asdict
 
 import gempy_engine.config
+from gempy_engine.core.data.kernel_classes.solvers import Solvers
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 
 
@@ -25,6 +26,7 @@ class KernelOptions:
 
     kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.exponential
     compute_condition_number: bool = False
+    kernel_solver: Solvers = Solvers.DEFAULT
 
     @property
     def n_uni_eq(self):
@@ -38,6 +40,33 @@ class KernelOptions:
             raise AttributeError('uni_degree must be 0,1 or 2')
 
         return n
+
+    def update_options(self, **kwargs):
+        """
+        Updates the options of the KernelOptions class based on the provided keyword arguments.
+
+        Kwargs:
+            range (int): Defines the range for the kernel. Must be provided. 
+            c_o (float): A floating point value. Must be provided.
+            uni_degree (int, optional): Degree for unification. Defaults to 1.
+            i_res (float, optional): Resolution for `i`. Defaults to 4.0.
+            gi_res (float, optional): Resolution for `gi`. Defaults to 2.0.
+            number_dimensions (int, optional): Number of dimensions. Defaults to 3.
+            kernel_function (AvailableKernelFunctions, optional): The function used for the kernel. Defaults to AvailableKernelFunctions.exponential.
+            compute_condition_number (bool, optional): Whether to compute the condition number. Defaults to False.
+            kernel_solver (Solvers, optional): Solver for the kernel. Defaults to Solvers.DEFAULT.
+
+        Returns:
+            None
+
+        Raises:
+            Warning: If a provided keyword is not a recognized attribute.
+        """
+        for key, value in kwargs.items():
+            if hasattr(self, key):  # checks if the attribute exists
+                setattr(self, key, value)  # sets the attribute to the provided value
+            else:
+                warnings.warn(f"{key} is not a recognized attribute and will be ignored.")
 
     def __hash__(self):
         # Using a tuple to hash all the values together
@@ -130,6 +159,34 @@ class InterpolationOptions:
                 </table>
                 """
         return html
+
+    def update_options(self, **kwargs):
+        """
+        Updates the options of the class based on the provided keyword arguments.
+
+        Kwargs:
+            kernel_options (KernelOptions, optional): Options for the kernel. Default is None.
+            number_octree_levels (int, optional): Number of octree levels. Default is 1.
+            current_octree_level (int, optional): Current octree level. Default is 0.
+            compute_scalar_gradient (bool, optional): Whether to compute the scalar gradient. Default is False.
+            dual_contouring (bool, optional): Whether to use dual contouring. Default is True.
+            dual_contouring_masking_options (DualContouringMaskingOptions, optional): Options for dual contouring masking.
+            dual_contouring_fancy (bool, optional): Fancy version of dual contouring. Default is True.
+            debug (bool, optional): Debug mode status. Default is derived from config.
+            debug_water_tight (bool, optional): Debug mode for water-tight conditions. Default is False.
+            tensor_dtype (str, optional): Data type for tensors. Default is derived from config.
+
+        Returns:
+            None
+
+        Raises:
+            Warning: If a provided keyword is not a recognized attribute.
+        """
+        for key, value in kwargs.items():
+            if hasattr(self, key):  # checks if the attribute exists
+                setattr(self, key, value)  # sets the attribute to the provided value
+            else:
+                warnings.warn(f"{key} is not a recognized attribute and will be ignored.")
 
     @property
     def compute_corners(self):

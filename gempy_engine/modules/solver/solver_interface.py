@@ -1,6 +1,7 @@
 import warnings
 
 import gempy_engine.config
+from gempy_engine.core.data.kernel_classes.solvers import Solvers
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 import numpy as np
@@ -9,45 +10,44 @@ from scipy.sparse.linalg import aslinearoperator, cg, cgs, LinearOperator
 bt = BackendTensor
 
 
-def kernel_reduction(cov, b, compute_condition_number=False) -> np.ndarray:
+def kernel_reduction(cov, b, solver: Solvers, compute_condition_number=False, ) -> np.ndarray:
     # ? Maybe we should always compute the conditional_number no matter the branch
 
     dtype = gempy_engine.config.TENSOR_DTYPE
-    match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled):
-        case (AvailableBackends.tensorflow, True):
+    match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled, solver):
+        case (AvailableBackends.tensorflow, True, _):
             raise NotImplementedError('Pykeops is not implemented for tensorflow yet')
             # w = cov.solve(b.numpy().astype('float32'), alpha=smooth, dtype_acc='float32')
-        case (AvailableBackends.tensorflow, False):
+        case (AvailableBackends.tensorflow, False, _):
             import tensorflow as tf
             w = tf.linalg.solve(cov, b)
-        case (AvailableBackends.numpy, True):
+        case (AvailableBackends.numpy, True, Solvers.DEFAULT | Solvers.PYKEOPS_CG):
             # ! Only Positive definite matrices are solved. Otherwise, the kernel gets stuck
             # * Very interesting: https://stats.stackexchange.com/questions/386813/use-the-rbf-kernel-to-construct-a-positive-definite-covariance-matrix
-
-            if scipy_solver := True:
-                A = aslinearoperator(cov)
-                w, info = cg(
-                    A=A, 
-                    b=b[:, 0],
-                    maxiter=400,
-                    tol=1e-5
-                )
-                w = np.atleast_2d(w).T
-            else:
-                w = cov.solve(
-                    np.asarray(b).astype(dtype),
-                    alpha=.00000,
-                    dtype_acc=dtype,
-                    backend="CPU"
-                )
-        case (AvailableBackends.numpy, False):
+            w = cov.solve(
+                np.asarray(b).astype(dtype),
+                alpha=.00000,
+                dtype_acc=dtype,
+                backend="CPU"
+            )
+        case (AvailableBackends.numpy, _, Solvers.SCIPY_CG):
+            A = aslinearoperator(cov)
+            w, info = cg(
+                A=A,
+                b=b[:, 0],
+                maxiter=400,
+                tol=1e-5
+            )
+            w = np.atleast_2d(w).T
+        case (AvailableBackends.numpy, False, Solvers.DEFAULT):
             w = bt.tfnp.linalg.solve(cov.astype(dtype), b[:, 0])
-                
+
             if compute_condition_number:
                 _compute_conditional_number(cov)
 
         case _:
-            raise AttributeError('There is a weird combination of libraries?')
+            raise AttributeError(f'There is a weird combination of libraries? '
+                                 f'{BackendTensor.engine_backend}, {BackendTensor.pykeops_enabled}, {solver}')
 
     return w
 
