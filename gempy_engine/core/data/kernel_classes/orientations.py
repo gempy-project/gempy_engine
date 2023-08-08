@@ -14,7 +14,7 @@ tensor_types = BackendTensor.tensor_types
 @dataclass
 class Orientations:
     dip_positions: np.ndarray
-    dip_gradients: np.ndarray
+    dip_gradients: np.ndarray  #: Initialize this re-normalizes implicitly
 
     nugget_effect_grad: Union[np.ndarray, float] = 0.01
 
@@ -22,6 +22,13 @@ class Orientations:
         if type(self.nugget_effect_grad) is float:
             self.nugget_effect_grad = np.ones(self.n_items) * self.nugget_effect_grad
         cast_type_inplace(self)
+        
+        
+    def renormalize_gradients(self):
+        # * In principle we do this in the Transform class in the main gempy repo
+        magnitudes = np.linalg.norm(self.dip_gradients, axis=1, keepdims=True)
+        magnitudes[magnitudes == 0] = 1
+        self.dip_gradients = self.dip_gradients / magnitudes
     
     @classmethod
     def from_orientations_subset(cls, orientations: "Orientations", data_structure: StacksStructure):
