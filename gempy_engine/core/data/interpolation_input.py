@@ -105,6 +105,7 @@ class InterpolationInput:
 
         orientations: Orientations = Orientations(
             dip_positions=transform.apply(structural_frame.orientations.xyz) + _legacy_factor,
+            # dip_gradients=transform.apply(structural_frame.orientations.grads),
             dip_gradients=structural_frame.orientations.grads,
             nugget_effect_grad=structural_frame.orientations.nugget
         )
