@@ -35,7 +35,7 @@ def kernel_reduction(cov, b, solver: Solvers, compute_condition_number=False, ) 
             w, info = cg(
                 A=A,
                 b=b[:, 0],
-                maxiter=5,
+                maxiter=1,
                 tol=1e-5
             )
             w = np.atleast_2d(w).T

@@ -43,7 +43,7 @@ class RawArraysSolution:
     # endregion
 
     # region Mesh
-    vertices: list[np.ndarray] = None
+    vertices: list[np.ndarray] = np.empty(( 0, 3 ))
     edges: list[np.ndarray] = None
     # endregion
 
