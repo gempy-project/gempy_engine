@@ -5,7 +5,7 @@ from gempy_engine.core.data.kernel_classes.solvers import Solvers
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 import numpy as np
-from scipy.sparse.linalg import aslinearoperator, cg, cgs, LinearOperator
+from scipy.sparse.linalg import aslinearoperator, cg, cgs, LinearOperator, gmres
 
 bt = BackendTensor
 
@@ -35,10 +35,21 @@ def kernel_reduction(cov, b, solver: Solvers, compute_condition_number=False, ) 
             w, info = cg(
                 A=A,
                 b=b[:, 0],
-                maxiter=400,
+                maxiter=5,
                 tol=1e-5
             )
             w = np.atleast_2d(w).T
+        
+        case (AvailableBackends.numpy, _, Solvers.GMRES):
+            A = aslinearoperator(cov)
+            w, info = gmres(
+                A=A,
+                b=b[:, 0],
+                maxiter=5,
+                tol=1e-5
+            )
+            w = np.atleast_2d(w).T
+
         case (AvailableBackends.numpy, False, Solvers.DEFAULT):
             w = bt.tfnp.linalg.solve(cov.astype(dtype), b[:, 0])
 
