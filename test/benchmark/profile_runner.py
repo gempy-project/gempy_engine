@@ -1,8 +1,10 @@
 """
 Most of the profiles required to trigger it directly from the command line. This module helps to run benchmark
-models together with a profiler. 
+models together with a profiler.  
 """
-# ! Open settings in pycharm -> Terminal and add as Environment variable: PYTHONPATH=/WorkSSD/PythonProjects/gempy_engine
+# ! This script is NOT meant to be used for benchmarking. This is for attomic profiling of a single model.
+# * Open settings in pycharm -> Terminal and add as Environment variable: PYTHONPATH=/WorkSSD/PythonProjects/gempy_engine
+
 from typing import Tuple
 
 from gempy_engine.API.model.model_api import compute_model

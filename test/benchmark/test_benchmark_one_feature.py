@@ -1,3 +1,8 @@
+"""
+This is the script used for benchmarking
+
+
+"""
 import pytest
 
 from gempy_engine.API.model.model_api import compute_model
