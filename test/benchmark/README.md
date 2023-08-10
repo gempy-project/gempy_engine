@@ -8,6 +8,10 @@ mprof plot
 
 ## Pytest-Benchmark
 
+### Run benchmark
+
+`pytest-benchmark --benchmark-autosave --benchmark-compare `
+
 ### Compare previous runs
 
 `pytest-benchmark compare 0001 0002`
