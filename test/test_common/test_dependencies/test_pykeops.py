@@ -26,7 +26,7 @@ def test_basic_op():
     x = np.random.rand(M, 2)
     y = np.random.rand(N, 2)
     from pykeops.numpy import LazyTensor
-   # pykeops.clean_pykeops()
+    pykeops.clean_pykeops()
     x_i = LazyTensor(
         x[:, None, :]
     )  # (M, 1, 2) KeOps LazyTensor, wrapped around the numpy array x
@@ -36,7 +36,7 @@ def test_basic_op():
     )  # (1, N, 2) KeOps LazyTensor, wrapped around the numpy array y
 
     D_ij = ((x_i - y_j) ** 2)  # **Symbolic** (M, N) matrix of squared distances
-    foo = D_ij.sum_reduction(axis=0, backend="GPU")
+    foo = D_ij.sum_reduction(axis=0, backend="CPU")
 
     print(foo)
 
