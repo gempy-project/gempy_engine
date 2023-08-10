@@ -95,6 +95,9 @@ def _run_model(benchmark, moureze_model, benchmark_active=True):
             target=compute_model,
             args=(interpolation_input, options, structure)
         )
+        benchmark.extra_info['n_oct_levels'] = n_oct_levels
+        benchmark.extra_info['n_points'] = interpolation_input.surface_points.n_points
+        benchmark.extra_info['n_orientations'] = interpolation_input.orientations.n_items
     else:
         solutions: Solutions = compute_model(interpolation_input, options, structure)
 

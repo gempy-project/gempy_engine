@@ -19,7 +19,7 @@ class Orientations:
     nugget_effect_grad: Union[np.ndarray, float] = 0.01
 
     def __post_init__(self):
-        if type(self.nugget_effect_grad) is float:
+        if type(self.nugget_effect_grad) is float or type(self.nugget_effect_grad) is int:
             self.nugget_effect_grad = np.ones(self.n_items) * self.nugget_effect_grad
         cast_type_inplace(self)
         

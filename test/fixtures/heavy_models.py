@@ -7,31 +7,38 @@ import pandas as pd
 from gempy_engine.core.data import InterpolationOptions, SurfacePoints, Orientations, SurfacePointsInternals, OrientationsInternals, TensorsStructure
 from gempy_engine.core.data.grid import Grid, RegularGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+from gempy_engine.core.data.kernel_classes.solvers import Solvers
 from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 
 params = {
-    "VeryFewInputOctLvl3": pytest.param((16, 3), marks=pytest.mark.skipif(False, reason="Manually skip")),
-    "FewInputOctLvl2": pytest.param((8, 2), marks=pytest.mark.skipif(True, reason="Manually skip")),
-    "FewInputOctLvl3": pytest.param((8, 3), marks=pytest.mark.skipif(True, reason="Manually skip")),
-    "FewInputOctLvl4": pytest.param((8, 4), marks=pytest.mark.skipif(True, reason="Manually skip")),
-    "FewInputOctLvl5": pytest.param((8, 5), marks=pytest.mark.skipif(True, reason="Manually skip")),
-    "FewInputOctLvl6": pytest.param((8, 5), marks=pytest.mark.skipif(False, reason="Manually skip")),
-    "MidInputOctLvl3": pytest.param((4, 3), marks=pytest.mark.skipif(True, reason="Manually skip")),
+    "VeryFewInputOctLvl3":  pytest.param((16, 3, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(False, reason="Manually skip")),
+    "VeryFewInputOctLvl3_SCIPY_GC":  pytest.param((16, 3, Solvers.SCIPY_CG, 100), marks=pytest.mark.skipif(False, reason="Manually skip")),
+    "FewInputOctLvl2":      pytest.param((8, 2, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(True, reason="Manually skip")),
+    "FewInputOctLvl3":      pytest.param((8, 3, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(True, reason="Manually skip")),
+    "FewInputOctLvl4":      pytest.param((8, 4, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(True, reason="Manually skip")),
+    "FewInputOctLvl5":      pytest.param((8, 5, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(True, reason="Manually skip")),
+    "FewInputOctLvl6":      pytest.param((8, 5, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(True, reason="Manually skip")),
+    "MidInputOctLvl3":      pytest.param((4, 3, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(True, reason="Manually skip")),
 }
 
 
 @pytest.fixture(scope="session", params=params.values(), ids=list(params.keys()))
 def moureze_model(request) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]: 
-    pick_every, octree_lvls = request.param
-    model = moureze_model_factory(pick_every=pick_every, octree_lvls=octree_lvls)
+    model = moureze_model_factory(
+        pick_every=request.param[0],
+        octree_lvls=request.param[1],
+        solver=request.param[2],
+        nugget=request.param[3]
+    )
     model[1].dual_contouring_fancy = True # ! This is the Opt3
     return model
 
 
-def moureze_model_factory(pick_every=8, octree_lvls=3) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
+def moureze_model_factory(pick_every=8, octree_lvls=3, solver: Solvers = Solvers.DEFAULT, nugget=0.1) \
+        -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
     # region: Pull data from cloud
     Moureze_points = pd.read_csv(
         'https://raw.githubusercontent.com/Loop3D/ImplicitBenchmark/master/Moureze/Moureze_Points.csv', sep=';',
@@ -50,10 +57,14 @@ def moureze_model_factory(pick_every=8, octree_lvls=3) -> Tuple[InterpolationInp
     # endregion
     # region: Set up GemPy Data
     # * LowInput pick_every=8 | MidInput pick_every=4 | HighInput pick_every=1
-    surface_points: SurfacePoints = SurfacePoints(sp_coords=sp[['X', 'Y', 'Z']].values[::pick_every])
+    surface_points: SurfacePoints = SurfacePoints(
+        sp_coords=sp[['X', 'Y', 'Z']].values[::pick_every],
+        nugget_effect_scalar=nugget
+    )
     orientations: Orientations = Orientations(
         dip_positions=orientations_raw[['X', 'Y', 'Z']].values[::pick_every],
-        dip_gradients=orientations_raw[['G_x', 'G_y', 'G_z']].values[::pick_every]
+        dip_gradients=orientations_raw[['G_x', 'G_y', 'G_z']].values[::pick_every],
+        nugget_effect_grad=nugget
     )
     # Get extent from sp[['X', 'Y', 'Z']].values
     extent = np.array([
@@ -72,6 +83,7 @@ def moureze_model_factory(pick_every=8, octree_lvls=3) -> Tuple[InterpolationInp
         grid=grid
     )
     # endregion
+    
     # region InterpolationOptions
     interpolation_options: InterpolationOptions = InterpolationOptions(
         range=100.,
@@ -80,6 +92,10 @@ def moureze_model_factory(pick_every=8, octree_lvls=3) -> Tuple[InterpolationInp
         kernel_function=AvailableKernelFunctions.cubic,
         uni_degree=0,
     )
+    
+    # TODO: Add solver parameter
+    interpolation_options.kernel_options.kernel_solver = solver
+    
     from gempy_engine.core.data.options import DualContouringMaskingOptions
     interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
     
@@ -99,6 +115,7 @@ def moureze_model_factory(pick_every=8, octree_lvls=3) -> Tuple[InterpolationInp
         stack_structure=stack_structure
     )
     # endregion
+    
     # endregion
     return interpolation_input, interpolation_options, input_data_descriptor
 

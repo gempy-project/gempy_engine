@@ -8,11 +8,12 @@ import numpy as np
 from scipy.sparse.linalg import aslinearoperator, cg, cgs, LinearOperator, gmres
 
 bt = BackendTensor
+global n_iters
+n_iters = 0
 
 
 def kernel_reduction(cov, b, solver: Solvers, compute_condition_number=False, ) -> np.ndarray:
     # ? Maybe we should always compute the conditional_number no matter the branch
-
     dtype = gempy_engine.config.TENSOR_DTYPE
     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled, solver):
         case (AvailableBackends.tensorflow, True, _):
@@ -36,9 +37,11 @@ def kernel_reduction(cov, b, solver: Solvers, compute_condition_number=False, ) 
                 A=A,
                 b=b[:, 0],
                 maxiter=100,
-                tol=.05  # * With this tolerance we do 8 iterations
+                tol=.05,  # * With this tolerance we do 8 iterations
+                callback=callback
             )
             w = np.atleast_2d(w).T
+            print(f'CG iterations: {n_iters}')
         
         case (AvailableBackends.numpy, _, Solvers.GMRES):
             A = aslinearoperator(cov)
@@ -71,3 +74,11 @@ def _compute_conditional_number(cov):
     print(f'Condition number: {cond_number}. Is positive definite: {is_positive_definite}')
     if not is_positive_definite:  # ! Careful numpy False
         warnings.warn('The covariance matrix is not positive definite')
+
+
+
+
+def callback(xk):
+    global n_iters
+    n_iters += 1
+
