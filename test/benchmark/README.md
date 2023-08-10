@@ -59,12 +59,20 @@ Analyzing how the computation scales with depth of octrees.
     - func compute_model: 20% interpolate 80% dual contouring
     - func dual_contouring_multi_scalar: 2.5% interpolate_all_fields_no_octree **97.5%** compute_dual_contouring
     - func compute_dual_contouring: 0.4% vertices  **98.1**% triangulate
-  **NEW** 
   - LowInput Opt3 Octtree 6:
       - func compute_model: *40%* interpolate 60% dual contouring
       - func dual_contouring_multi_scalar: 7.7% interpolate_all_fields_no_octree **92.2%** compute_dual_contouring
       - func compute_dual_contouring: 1.6% vertices  **98.4**% triangulate
-
+- Pykeops CPU
+  - AllInput Opt3 Octtree 3:
+      - 1 Iteration with SCIPY_CG takes 4.39 
+      - Convergence rate ( tolerancy of .05 and nugget of 100 ):
+        - **float64**: 80X iterations 
+        - **float32**: >200 (this was the cap) iterations
+    - Convergence rate ( tolerancy of .05 and nugget of 10000 ):
+      - **float64**: ?
+      - **float32**: 3X  iterations
+       
 
 Conclusions:
   - **Numpy** after 5 octrees levels becomes very slow on the **kernel side**

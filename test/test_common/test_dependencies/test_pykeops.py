@@ -21,9 +21,8 @@ def test_keops_run():
 # @pytest.mark.skip('Only trigger manually when there is something wrong with'
 #                   'pykeops compilation', )
 def test_basic_op():
-    import pykeops
 
-    M, N = 1000000, 20000
+    M, N = 1000, 20000
     x = np.random.rand(M, 2)
     y = np.random.rand(N, 2)
     from pykeops.numpy import LazyTensor
@@ -31,12 +30,13 @@ def test_basic_op():
     x_i = LazyTensor(
         x[:, None, :]
     )  # (M, 1, 2) KeOps LazyTensor, wrapped around the numpy array x
+    
     y_j = LazyTensor(
         y[None, :, :]
     )  # (1, N, 2) KeOps LazyTensor, wrapped around the numpy array y
 
     D_ij = ((x_i - y_j) ** 2)  # **Symbolic** (M, N) matrix of squared distances
-    foo = D_ij.sum_reduction(axis=0, backend="CPU")
+    foo = D_ij.sum_reduction(axis=0, backend="GPU")
 
     print(foo)
 

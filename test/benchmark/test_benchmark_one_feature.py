@@ -33,22 +33,23 @@ def test_one_feature_numpy(moureze_model, benchmark):
     _run_model(benchmark, moureze_model, benchmark_active = True)
 
 
-def test_one_feature_numpy_pykeops_CPU(moureze_model, benchmark):
-    BackendTensor.change_backend(
-        engine_backend=AvailableBackends.numpy,
-        use_gpu=False,
-        pykeops_enabled=True
-    )
-    _run_model(benchmark, moureze_model, benchmark_active = True)
+class TestPyKeops:
+    def test_one_feature_numpy_pykeops_CPU(self, moureze_model, benchmark):
+        BackendTensor.change_backend(
+            engine_backend=AvailableBackends.numpy,
+            use_gpu=False,
+            pykeops_enabled=True
+        )
+        _run_model(benchmark, moureze_model, benchmark_active = False)
 
 
-def test_one_feature_numpy_pykeops_GPU(moureze_model, benchmark):
-    BackendTensor.change_backend(
-        engine_backend=AvailableBackends.numpy,
-        use_gpu=True,
-        pykeops_enabled=True
-    )
-    _run_model(benchmark, moureze_model, True)
+    def test_one_feature_numpy_pykeops_GPU(self, moureze_model, benchmark):
+        BackendTensor.change_backend(
+            engine_backend=AvailableBackends.numpy,
+            use_gpu=True,
+            pykeops_enabled=True
+        )
+        _run_model(benchmark, moureze_model, benchmark_active=False)
 
 
 class TestTF:

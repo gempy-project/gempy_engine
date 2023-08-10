@@ -19,9 +19,14 @@ from ...core.utils import gempy_profiler_decorator
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                   data_descriptor: InputDataDescriptor) -> Solutions:
     WeightsBuffer.clean()
-
+    
+    # TODO: Make sure if this works with TF
+    # ! If we inline this it seems the deepcopy does not work
+    interpolation_input = copy.deepcopy(interpolation_input) 
+    
+    
     output: list[OctreeLevel] = interpolate_n_octree_levels(
-        interpolation_input=copy.deepcopy(interpolation_input),  # TODO: Make sure if this works with TF
+        interpolation_input=interpolation_input,
         options=options,
         data_descriptor=data_descriptor
     )
