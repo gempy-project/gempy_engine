@@ -9,11 +9,12 @@ class AvailableBackends(Flag):
     aesara = auto()
     legacy = auto()
 
-
+# ! Careful what we commit here!
 DEBUG_MODE = True
 OPTIMIZE_MEMORY = True
 DEFAULT_BACKEND = AvailableBackends.numpy
-TENSOR_DTYPE = 'float32'
+DEFAULT_PYKEOPS = True
+TENSOR_DTYPE = 'float64'
 LINE_PROFILER_ENABLED = False
 
 is_numpy_installed = find_spec("numpy") is not None

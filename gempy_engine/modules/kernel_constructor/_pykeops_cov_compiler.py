@@ -39,7 +39,7 @@ def simple_model_2():
     nugget_effect_grad = 0.0000001
     ori_i = Orientations(dip_positions, nugget_effect_grad)
 
-    range = 5**2
+    range = 5 ** 2
     kri = InterpolationOptions(range, 1, 0, i_res=1, gi_res=1,
                                number_dimensions=2)
 
@@ -49,8 +49,11 @@ def simple_model_2():
     return spi, ori_i, kri, tensor_structure
 
 
-BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=True,
-                             pykeops_enabled=True)
+BackendTensor.change_backend(
+    engine_backend=AvailableBackends.numpy,
+    use_gpu=True,
+    pykeops_enabled=True
+)
 
 surface_points, orientations, options, tensors_structure = simple_model_2()
 
@@ -62,12 +65,9 @@ cov = yield_covariance(sp_internals, ori_internals, options)
 
 cov_grad = _test_covariance_items(kernel_data, options, "cov_grad")
 
-#cov_grad = _test_covariance_items(kernel_data, options, "cov_grad")
+# cov_grad = _test_covariance_items(kernel_data, options, "cov_grad")
 
 # Compile and run cov sum axis 0
-#print(cov.sum(axis=0))
+# print(cov.sum(axis=0))
 
 # TODO: Compile and run solver
-
-
-

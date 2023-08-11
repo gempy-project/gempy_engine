@@ -1,10 +1,9 @@
-import warnings
 from typing import Union, Any
 
 import numpy
 
 from gempy_engine.config import is_pykeops_installed, is_numpy_installed, is_tensorflow_installed, DEBUG_MODE, \
-    DEFAULT_BACKEND, AvailableBackends
+    DEFAULT_BACKEND, AvailableBackends, DEFAULT_PYKEOPS
 
 if is_pykeops_installed:
     import pykeops.numpy
@@ -32,6 +31,10 @@ class BackendTensor:
             case(False, _):
                 return "CPU"
 
+    @classmethod
+    def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = True):
+        cls.change_backend(engine_backend, pykeops_enabled=DEFAULT_PYKEOPS, use_gpu=use_gpu)
+    
     @classmethod
     def change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled: bool = False, use_gpu: bool = True):
         match engine_backend:
@@ -102,8 +105,6 @@ class BackendTensor:
             case (_):
                 raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library"
                                      f"is not installed:")
-
-        # cls._wrap_backend_functions()
 
     @classmethod
     def _set_active_backend_pointers(cls, engine_backend, tfnp):
