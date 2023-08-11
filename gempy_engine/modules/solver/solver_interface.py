@@ -7,12 +7,20 @@ from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 import numpy as np
 from scipy.sparse.linalg import aslinearoperator, cg, cgs, LinearOperator, gmres
 
+from gempy_engine.core.data.options import KernelOptions
+
 bt = BackendTensor
+global n_iters
 
 
-def kernel_reduction(cov, b, solver: Solvers, compute_condition_number=False, ) -> np.ndarray:
+def kernel_reduction(cov, b, kernel_options: KernelOptions) -> np.ndarray:
+    global n_iters
+    n_iters = 0
+    
+    solver = kernel_options.kernel_solver
+    compute_condition_number = kernel_options.compute_condition_number
+    
     # ? Maybe we should always compute the conditional_number no matter the branch
-
     dtype = gempy_engine.config.TENSOR_DTYPE
     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled, solver):
         case (AvailableBackends.tensorflow, True, _):
@@ -31,14 +39,20 @@ def kernel_reduction(cov, b, solver: Solvers, compute_condition_number=False, ) 
                 backend="CPU"
             )
         case (AvailableBackends.numpy, _, Solvers.SCIPY_CG):
+            if bt.use_gpu is False: 
+                cov.backend = 'CPU'
+                
             A = aslinearoperator(cov)
+            print(f'A size: {A.shape}')
             w, info = cg(
                 A=A,
                 b=b[:, 0],
-                maxiter=100,
-                tol=.05  # * With this tolerance we do 8 iterations
+                maxiter=1,
+                tol=.05,  # * With this tolerance we do 8 iterations
+                callback=callback
             )
             w = np.atleast_2d(w).T
+            print(f'CG iterations: {n_iters}')
         
         case (AvailableBackends.numpy, _, Solvers.GMRES):
             A = aslinearoperator(cov)
@@ -71,3 +85,10 @@ def _compute_conditional_number(cov):
     print(f'Condition number: {cond_number}. Is positive definite: {is_positive_definite}')
     if not is_positive_definite:  # ! Careful numpy False
         warnings.warn('The covariance matrix is not positive definite')
+
+
+
+def callback(xk):
+    global n_iters
+    n_iters += 1
+

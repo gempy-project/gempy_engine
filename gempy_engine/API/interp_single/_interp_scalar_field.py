@@ -54,8 +54,7 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
     weights = solver_interface.kernel_reduction(
         cov=A_matrix,
         b=b_vector,
-        solver=kernel_options.kernel_solver,
-        compute_condition_number=kernel_options.compute_condition_number
+        kernel_options=kernel_options
     )
 
     if gempy_engine.config.DEBUG_MODE:

@@ -3,9 +3,9 @@ from typing import Union, List
 
 import numpy as np
 
-from config import TENSOR_DTYPE
+from ...config import TENSOR_DTYPE
 from ..utils import _check_and_convert_list_to_array
-from gempy_engine.core.data.kernel_classes.server.input_parser import GridSchema
+from .kernel_classes.server.input_parser import GridSchema
 
 
 @dataclass(frozen=False)  # TODO: I want to do this class immutable
