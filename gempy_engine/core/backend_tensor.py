@@ -1,4 +1,5 @@
 from typing import Union, Any
+import warnings
 
 import numpy
 
@@ -44,9 +45,13 @@ class BackendTensor:
 
                 # * Import a copy of numpy as tfnp
                 from importlib.util import find_spec, module_from_spec
-                spec = find_spec('numpy')
-                tfnp = module_from_spec(spec)
-                spec.loader.exec_module(tfnp)
+
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    
+                    spec = find_spec('numpy')
+                    tfnp = module_from_spec(spec)
+                    spec.loader.exec_module(tfnp)
 
                 cls._set_active_backend_pointers(engine_backend, tfnp)
                 cls.tensor_types = Union[tfnp.ndarray]  # tensor Types with respect the backend
