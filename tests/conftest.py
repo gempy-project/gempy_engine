@@ -57,3 +57,9 @@ def set_up_approval_tests():
         reporter = DiffReporter()
 
     set_default_reporter(reporter)
+    
+    
+@pytest.fixture(scope="session")
+def tests_root():
+    # Return the root 'tests/' directory
+    return os.path.dirname(os.path.abspath(__file__))

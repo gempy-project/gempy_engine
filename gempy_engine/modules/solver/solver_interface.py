@@ -47,7 +47,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions) -> np.ndarray:
             w, info = cg(
                 A=A,
                 b=b[:, 0],
-                maxiter=1,
+                maxiter=100,
                 tol=.05,  # * With this tolerance we do 8 iterations
                 callback=callback
             )
