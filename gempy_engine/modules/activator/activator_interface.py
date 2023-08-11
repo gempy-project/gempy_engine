@@ -1,4 +1,6 @@
-from gempy_engine.config import TENSOR_DTYPE
+import warnings
+
+from gempy_engine.config import TENSOR_DTYPE, DEBUG_MODE
 from gempy_engine.core.backend_tensor import BackendTensor as bt
 import numpy as np
 
@@ -35,9 +37,14 @@ def activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slo
 
 def _compute_sigmoid(Z_x, scale_0, scale_1, drift_0, drift_1, drift_id, sigmoid_slope):
     # TODO: Test to remove reshape once multiple values are implemented
-    active_sig = -scale_0.reshape((-1, 1)) / (1 + bt.tfnp.exp(-np.array(sigmoid_slope,dtype="float32") * (Z_x - drift_0)))
-    deactive_sig = -scale_1.reshape((-1, 1)) / (1 + bt.tfnp.exp(np.array(sigmoid_slope,dtype="float32") * (Z_x - drift_1)))
-    activation_sig = active_sig + deactive_sig
+    
+    with warnings.catch_warnings():
+        if DEBUG_MODE:
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+        
+        active_sig = -scale_0.reshape((-1, 1)) / (1 + bt.tfnp.exp(-np.array(sigmoid_slope, dtype="float32") * (Z_x - drift_0)))
+        deactive_sig = -scale_1.reshape((-1, 1)) / (1 + bt.tfnp.exp(np.array(sigmoid_slope, dtype="float32") * (Z_x - drift_1)))
+        activation_sig = active_sig + deactive_sig
 
     sigm = activation_sig + drift_id.reshape((-1, 1))
     return sigm

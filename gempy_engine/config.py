@@ -9,6 +9,7 @@ class AvailableBackends(Flag):
     aesara = auto()
     legacy = auto()
 
+
 # ! Careful what we commit here!
 DEBUG_MODE = True
 OPTIMIZE_MEMORY = True

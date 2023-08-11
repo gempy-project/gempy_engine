@@ -160,16 +160,18 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
     edges_normals = np.zeros((n_edges, 15, 3))
     edges_normals[:, :12][valid_edges] = gradients
 
-    if OLD_METHOD:=True:  # ! Moureze model does not seems to work with the new method
+    if OLD_METHOD:=False:
+        # ! Moureze model does not seems to work with the new method
+        # ! This branch is all nans at least with ch1_1 model
         bias_xyz = np.copy(edges_xyz[:, :12])
         isclose = np.isclose(bias_xyz, 0)
         bias_xyz[isclose] = np.nan  # np zero values to nans
         mass_points = np.nanmean(bias_xyz, axis=1)  # Mean ignoring nans
-    else:  # ? I need to find a model that does not work with the old method
+    else:  # ? This is actually doing something
         bias_xyz = np.copy(edges_xyz[:, :12])
         mask = bias_xyz == 0
         masked_arr = np.ma.masked_array(bias_xyz, mask)
-        mass_points2 = masked_arr.mean(axis=1)
+        mass_points = masked_arr.mean(axis=1)
 
     edges_xyz[:, 12] = mass_points
     edges_xyz[:, 13] = mass_points

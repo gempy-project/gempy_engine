@@ -1,3 +1,4 @@
+import warnings
 from typing import List
 
 import numpy as np
@@ -51,8 +52,11 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
             edges_normals = np.zeros((valid_edges.shape[0], 12, 3))
             edges_normals[:] = np.nan
             edges_normals[valid_edges] = dc_data_per_stack.gradients[slice_object]
-            voxel_normal  = np.nanmean(edges_normals, axis=1)
-            voxel_normal  = voxel_normal[~np.isnan(voxel_normal).any(axis=1)]  # drop nans
+                
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                voxel_normal  = np.nanmean(edges_normals, axis=1)
+                voxel_normal  = voxel_normal[(~np.isnan(voxel_normal).any(axis=1))]  # drop nans
 
             valid_voxels = dc_data_per_surface.valid_voxels
             indices = triangulate(
