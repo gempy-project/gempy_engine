@@ -1,8 +1,8 @@
 from gempy_engine.API.model.model_api import compute_model
 import gempy_engine.config 
 from gempy_engine.core.data import InterpolationOptions
-from test.conftest import plot_pyvista
-from test.fixtures.simple_models import simple_model_interpolation_input_factory
+from tests.conftest import plot_pyvista
+from tests.fixtures.simple_models import simple_model_interpolation_input_factory
 
 
 def test_dtype_propagates_float32(simple_grid_3d_octree, n_oct_levels=3):

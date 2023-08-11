@@ -4,20 +4,20 @@ from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 # ! Do not delete the fixtures imports
 # Import fixtures
-from test.fixtures.simple_geometries import \
+from tests.fixtures.simple_geometries import \
     horizontal_stratigraphic, \
     horizontal_stratigraphic_scaled, \
     recumbent_fold_scaled, \
     unconformity
 
-from test.fixtures.grids import \
+from tests.fixtures.grids import \
     simple_grid_2d, \
     simple_grid_3d_more_points_grid, \
     simple_grid_3d_octree
 
-from test.fixtures.complex_geometries import *
-from test.fixtures.simple_models import *
-from test.fixtures.heavy_models import *
+from tests.fixtures.complex_geometries import *
+from tests.fixtures.simple_models import *
+from tests.fixtures.heavy_models import *
 
 pykeops_enabled = False
 backend = AvailableBackends.numpy

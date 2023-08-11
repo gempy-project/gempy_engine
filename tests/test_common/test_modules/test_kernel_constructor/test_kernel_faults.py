@@ -3,7 +3,7 @@ import numpy as np
 
 from gempy_engine.core.data.custom_segmentation_functions import _implicit_3d_ellipsoid_to_slope
 from gempy_engine.core.data.grid import RegularGrid
-from test.conftest import plot_pyvista
+from tests.conftest import plot_pyvista
 
 PLOT = False
 

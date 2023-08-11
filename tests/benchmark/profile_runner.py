@@ -15,8 +15,8 @@ from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.solutions import Solutions
 
-from test.fixtures.heavy_models import moureze_model_factory
-from test.conftest import plot_pyvista
+from tests.fixtures.heavy_models import moureze_model_factory
+from tests.conftest import plot_pyvista
 
 
 def profile_moureze_model():

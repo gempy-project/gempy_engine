@@ -1,8 +1,8 @@
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
-from test.conftest import plot_pyvista
-from test.fixtures.simple_models import simple_model_interpolation_input_factory
+from tests.conftest import plot_pyvista
+from tests.fixtures.simple_models import simple_model_interpolation_input_factory
 
 
 def test_interpolate_model_cubic(simple_grid_3d_octree, n_oct_levels=3):

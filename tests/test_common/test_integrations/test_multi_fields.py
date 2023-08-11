@@ -12,7 +12,7 @@ from gempy_engine.core.data import TensorsStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 from gempy_engine.plugins.plotting import helper_functions_pyvista
-from test.conftest import plot_pyvista, TEST_SPEED
+from tests.conftest import plot_pyvista, TEST_SPEED
 from gempy_engine.plugins.plotting.helper_functions import plot_block
 
 try:

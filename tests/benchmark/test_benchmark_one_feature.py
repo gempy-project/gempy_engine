@@ -12,9 +12,9 @@ from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.solutions import Solutions
-from test.conftest import plot_pyvista, use_gpu
+from gempy_engine.optional_dependencies import require_tensorflow
+from tests.conftest import plot_pyvista, use_gpu
 
-import tensorflow as tf
 
 # ! Make sure profiler is disabled!
 pytestmark = pytest.mark.skipif(LINE_PROFILER_ENABLED and False, reason="Line profiler is enabled")
@@ -54,6 +54,7 @@ class TestPyKeops:
 
 class TestTF:
     # ! The order seems to matter!
+
     def test_one_feature_tf_GPU(self, moureze_model, benchmark):
         if use_gpu is False:
             raise pytest.skip("conftest.py is set to not use GPU")
@@ -68,6 +69,7 @@ class TestTF:
             pykeops_enabled=False
         )
 
+        tf = require_tensorflow()
         with tf.device('/GPU:0'):
             _run_model(benchmark, moureze_model)
 
@@ -78,6 +80,7 @@ class TestTF:
             pykeops_enabled=False
         )
 
+        tf = require_tensorflow()
         with tf.device('/CPU:0'):
             _run_model(benchmark, moureze_model)
 

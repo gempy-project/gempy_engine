@@ -5,8 +5,8 @@ from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.plugins.plotting import helper_functions_pyvista
-from test.conftest import TEST_SPEED
-from test.test_common.test_integrations.test_multi_fields import plot_pyvista
+from tests.conftest import TEST_SPEED
+from tests.test_common.test_integrations.test_multi_fields import plot_pyvista
 
 
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")

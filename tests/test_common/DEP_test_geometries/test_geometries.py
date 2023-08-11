@@ -6,7 +6,7 @@ from gempy_engine.API.interp_single.interp_features import interpolate_single_fi
 from gempy_engine.modules.kernel_constructor._test_assembler import _test_covariance_items
 from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation, \
     evaluation_vectors_preparations
-from test.conftest import TEST_SPEED
+from tests.conftest import TEST_SPEED
 from gempy_engine.plugins.plotting.helper_functions import plot_2d_scalar_y_direction
 
 import numpy as np

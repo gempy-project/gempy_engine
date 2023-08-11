@@ -23,7 +23,7 @@ from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import
 import pickle
 import os
 
-from test.verify_helper import ArrayComparator
+from tests.verify_helper import ArrayComparator
 
 dir_name = os.path.dirname(__file__)
 
