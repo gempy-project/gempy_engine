@@ -6,11 +6,7 @@ from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from ._process_output import process_output
-
 from ._server_functions import process_input, setup_logger
-from ...config import AvailableBackends
-from ...core.backend_tensor import BackendTensor
-from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.kernel_classes.server.input_parser import GemPyInput
 from ...core.data.options import DualContouringMaskingOptions
 from ...core.data.solutions import Solutions
@@ -22,7 +18,16 @@ try:
 except ImportError:
     plot_pyvista = False
 
-from fastapi import FastAPI
+try:
+    from fastapi import FastAPI
+except ImportError:
+    print("FastAPI is not installed. No server capabilities will be available.")
+    
+try:
+    from pydantic import BaseModel, Field
+except ImportError:
+    print("Pydantic is not installed. No server capabilities will be available.")
+    BaseModel = object
 
 app = FastAPI()
 # Start the server: uvicorn gempy_engine.API.server.main_server:app
