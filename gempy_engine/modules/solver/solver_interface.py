@@ -29,7 +29,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions) -> np.ndarray:
         case (AvailableBackends.tensorflow, False, _):
             import tensorflow as tf
             w = tf.linalg.solve(cov, b)
-        case (AvailableBackends.numpy, True, Solvers.DEFAULT | Solvers.PYKEOPS_CG):
+        case (AvailableBackends.numpy, True, Solvers.PYKEOPS_CG):
             # ! Only Positive definite matrices are solved. Otherwise, the kernel gets stuck
             # * Very interesting: https://stats.stackexchange.com/questions/386813/use-the-rbf-kernel-to-construct-a-positive-definite-covariance-matrix
             w = cov.solve(
@@ -38,7 +38,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions) -> np.ndarray:
                 dtype_acc=dtype,
                 backend="CPU"
             )
-        case (AvailableBackends.numpy, _, Solvers.SCIPY_CG):
+        case (AvailableBackends.numpy, _, Solvers.DEFAULT |Solvers.SCIPY_CG):
             if bt.use_gpu is False: 
                 cov.backend = 'CPU'
                 
