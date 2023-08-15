@@ -44,7 +44,7 @@ def interpolate_on_edges_for_dual_contouring(
     dc_data = DualContouringData(
         xyz_on_edge=intersection_xyz,
         valid_edges=valid_edges,
-        xyz_on_centers=octree_leaves.grid_centers.values if mask is None else octree_leaves.grid_centers.values[mask],
+        xyz_on_centers=octree_leaves.grid_centers.regular_grid.values if mask is None else octree_leaves.grid_centers.regular_grid.values[mask],
         dxdydz=octree_leaves.grid_centers.dxdydz,
         exported_fields_on_edges=output_on_edges[n_scalar_field].exported_fields,
         n_surfaces_to_export=output_corners.scalar_field_at_sp.shape[0],

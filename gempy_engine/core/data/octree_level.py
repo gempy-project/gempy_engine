@@ -27,16 +27,6 @@ class OctreeLevel:
     def _repr_html_(self):
         return f"<b>OctreeLevel:</b> {len(self.outputs_centers)} outputs_centers, {len(self.outputs_corners)} outputs_corners"
 
-    def set_interpolation_values(self, grid_centers: Grid, grid_faces: Grid,
-                                 outputs_centers: List[InterpOutput], outputs_faces: List[InterpOutput]):
-        warnings.warn("Deprecated. Use constructor.", DeprecationWarning)
-        self.grid_centers: Grid = grid_centers
-        self.grid_corners: Grid = grid_faces
-        self.outputs_centers: List[InterpOutput] = outputs_centers
-        self.outputs_corners: List[InterpOutput] = outputs_faces
-
-        return self
-
     @property
     def dxdydz(self):
         return self.grid_centers.dxdydz
