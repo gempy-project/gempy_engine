@@ -24,7 +24,6 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
     # ! If we inline this it seems the deepcopy does not work
     interpolation_input = copy.deepcopy(interpolation_input) 
     
-    
     output: list[OctreeLevel] = interpolate_n_octree_levels(
         interpolation_input=interpolation_input,
         options=options,

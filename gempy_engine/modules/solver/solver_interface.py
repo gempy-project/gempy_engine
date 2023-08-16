@@ -17,7 +17,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions) -> np.ndarray:
     global n_iters
     n_iters = 0
     
-    solver = kernel_options.kernel_solver
+    solver: Solvers = kernel_options.kernel_solver
     compute_condition_number = kernel_options.compute_condition_number
     
     # ? Maybe we should always compute the conditional_number no matter the branch
@@ -38,8 +38,14 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions) -> np.ndarray:
                 dtype_acc=dtype,
                 backend="CPU"
             )
+        case (AvailableBackends.numpy, False, Solvers.DEFAULT):
+            w = bt.tfnp.linalg.solve(cov.astype(dtype), b[:, 0])
+
+            if compute_condition_number:
+                _compute_conditional_number(cov)
+
         case (AvailableBackends.numpy, _, Solvers.DEFAULT |Solvers.SCIPY_CG):
-            if bt.use_gpu is False: 
+            if bt.use_gpu is False and BackendTensor.pykeops_enabled is True: 
                 cov.backend = 'CPU'
                 
             A = aslinearoperator(cov)
@@ -47,8 +53,8 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions) -> np.ndarray:
             w, info = cg(
                 A=A,
                 b=b[:, 0],
-                maxiter=100,
-                tol=.05,  # * With this tolerance we do 8 iterations
+                maxiter=1000,
+                tol=.000005,  # * With this tolerance we do 8 iterations
                 callback=callback
             )
             w = np.atleast_2d(w).T
@@ -63,12 +69,6 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions) -> np.ndarray:
                 tol=1e-5
             )
             w = np.atleast_2d(w).T
-
-        case (AvailableBackends.numpy, False, Solvers.DEFAULT):
-            w = bt.tfnp.linalg.solve(cov.astype(dtype), b[:, 0])
-
-            if compute_condition_number:
-                _compute_conditional_number(cov)
 
         case _:
             raise AttributeError(f'There is a weird combination of libraries? '

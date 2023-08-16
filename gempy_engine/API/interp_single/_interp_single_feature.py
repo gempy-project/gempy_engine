@@ -32,13 +32,14 @@ def interpolate_feature(interpolation_input: InterpolationInput,
     solver_input = input_preprocess(data_shape, interpolation_input)
     xyz = solver_input.xyz_to_interpolate
 
-    if external_interp_funct is None:
+    if external_interp_funct is None:  # * EXTERNAL INTERPOLATION FUNCTION branching
         weights, exported_fields = interpolate_scalar_field(solver_input, options)
 
         exported_fields.set_structure_values(
             reference_sp_position = data_shape.reference_sp_position,
             slice_feature         = interpolation_input.slice_feature,
-            grid_size             = interpolation_input.grid.len_all_grids)
+            grid_size             = interpolation_input.grid.len_all_grids
+        )
 
         exported_fields.debug = solver_input.debug
     else:

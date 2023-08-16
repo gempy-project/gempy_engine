@@ -45,16 +45,16 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
 def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpolation_input: InterpolationInput,
                        options: InterpolationOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
     # region === Local functions ===
-    def _set_fault_input(all_stack_values_block, interpolation_input_i, stack_structure) -> FaultsData:
+    def _set_fault_input(_all_stack_values_block, _interpolation_input_i, _stack_structure) -> FaultsData:
         
-        fault_relation_on_this_stack: Iterable[bool] = stack_structure.active_faults_relations
-        fault_values_all            : ndarray        = all_stack_values_block[fault_relation_on_this_stack]
+        fault_relation_on_this_stack: Iterable[bool] = _stack_structure.active_faults_relations
+        fault_values_all            : ndarray        = _all_stack_values_block[fault_relation_on_this_stack]
 
-        fv_on_all_sp = fault_values_all[:, interpolation_input_i.grid.len_all_grids:]
-        fv_on_sp = fv_on_all_sp[:, interpolation_input_i.slice_feature]
-        fault_data = interpolation_input_i.fault_values  # Grab Faults data given by the user
+        fv_on_all_sp = fault_values_all[:, _interpolation_input_i.grid.len_all_grids:]
+        fv_on_sp = fv_on_all_sp[:, _interpolation_input_i.slice_feature]
+        fault_data = _interpolation_input_i.fault_values  # Grab Faults data given by the user
 
-        if interpolation_input_i.not_fault_input:  # * Set default fault data
+        if _interpolation_input_i.not_fault_input:  # * Set default fault data
             fault_data = FaultsData(
                 fault_values_everywhere = fault_values_all,
                 fault_values_on_sp      = fv_on_sp
@@ -82,10 +82,10 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
             stack_structure         = stack_structure
         )
 
-        interpolation_input_i.fault_values = _set_fault_input(
-            all_stack_values_block = all_stack_values_block,
-            interpolation_input_i  = interpolation_input_i,
-            stack_structure        = stack_structure
+        interpolation_input_i.fault_values = _set_fault_input(  # * FAULTS
+            _all_stack_values_block = all_stack_values_block,
+            _interpolation_input_i  = interpolation_input_i,
+            _stack_structure        = stack_structure
         )
 
         output: ScalarFieldOutput = interpolate_feature(
@@ -100,7 +100,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
 
         if interpolation_input_i.stack_relation is StackRelationType.FAULT:  # * This is also for faults!
             val_min = np.min(output.values_on_all_xyz, axis=1).reshape(-1, 1)  # ? Is this as good as it gets?
-            shifted_vals = (output.values_on_all_xyz - val_min) * interpolation_input_i.fault_values.offset
+            shifted_vals = (output.values_on_all_xyz - val_min) * interpolation_input_i.fault_values.offset # TODO!: This do not apply to the 
             all_stack_values_block[i, :] = shifted_vals
 
     return all_scalar_fields_outputs

@@ -1,5 +1,5 @@
 from . import _structs
-from ._covariance_assembler import _get_covariance
+from ._covariance_assembler import get_covariance
 from ._internalDistancesMatrices import InternalDistancesMatrices
 from ._structs import KernelInput, CartesianSelector, OrientationSurfacePointsCoords
 from ...core.backend_tensor import BackendTensor as bt
@@ -29,7 +29,7 @@ def create_cov_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
         r_rest_rest=distances_matrices.r_rest_rest
     )
 
-    cov = _get_covariance(options.c_o, distances_matrices, *kernels, ki, options)
+    cov = get_covariance(options.c_o, distances_matrices, *kernels, ki, options)
 
     return cov
 

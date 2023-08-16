@@ -14,7 +14,7 @@ class FaultsData:
     
     # User given data:
     thickness: Optional[float] = None
-    offset: Optional[float] = 1.
+    offset: Optional[float] = 1
     # TODO: Add finite fault scalar field
 
     def __hash__(self):

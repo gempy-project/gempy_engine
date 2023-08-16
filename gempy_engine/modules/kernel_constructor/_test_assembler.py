@@ -1,8 +1,7 @@
 import warnings
 
-from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.options import KernelOptions
-from gempy_engine.modules.kernel_constructor._covariance_assembler import _get_cov_grad, _get_cov_surface_points, _get_cross_cov_grad_sp, _get_universal_gradient_terms, _get_universal_sp_terms, _get_covariance
+from gempy_engine.modules.kernel_constructor._covariance_assembler import _get_cov_grad, _get_cov_surface_points, _get_cross_cov_grad_sp, _get_universal_gradient_terms, _get_universal_sp_terms, get_covariance
 from gempy_engine.modules.kernel_constructor._kernels_assembler import _compute_all_distance_matrices, _compute_all_kernel_terms
 from gempy_engine.modules.kernel_constructor._structs import KernelInput
 
@@ -64,7 +63,7 @@ def _test_covariance_items(ki: KernelInput, options: KernelOptions, item):
 
     elif item == "cov":
 
-        cov = _get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, ki, options)
+        cov = get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, ki, options)
         return cov
 
     elif item == "sigma_0_sp":
