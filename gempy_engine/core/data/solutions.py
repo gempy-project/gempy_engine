@@ -23,7 +23,7 @@ class Solutions:
         self.octrees_output = octrees_output
         self.dc_meshes = dc_meshes
         
-        if SET_RAW_ARRAYS_IN_SOLUTION:
+        if SET_RAW_ARRAYS_IN_SOLUTION:  # * This can add an unnecessary overhead
             self._raw_arrays = RawArraysSolution.from_gempy_engine_solutions(
                 octrees_output=octrees_output,
                 meshes=dc_meshes
