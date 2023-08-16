@@ -1,11 +1,12 @@
-from dataclasses import dataclass, field
+from dataclasses import field
 from typing import List
 
 import numpy as np
 
+from config import SET_RAW_ARRAYS_IN_SOLUTION
 from .dual_contouring_mesh import DualContouringMesh
-from .raw_arrays_solution import RawArraysSolution
 from .octree_level import OctreeLevel
+from .raw_arrays_solution import RawArraysSolution
 
 
 class Solutions:
@@ -22,11 +23,11 @@ class Solutions:
         self.octrees_output = octrees_output
         self.dc_meshes = dc_meshes
         
-        # TODO: Probably here is the place to fill the LegacySolution
-        self._raw_arrays = RawArraysSolution.from_gempy_engine_solutions(
-            octrees_output=octrees_output,
-            meshes=dc_meshes
-        )
+        if SET_RAW_ARRAYS_IN_SOLUTION:
+            self._raw_arrays = RawArraysSolution.from_gempy_engine_solutions(
+                octrees_output=octrees_output,
+                meshes=dc_meshes
+            )
 
     def __repr__(self):
         return f"Solutions({len(self.octrees_output)} Octree Levels, {len(self.dc_meshes)} DualContouringMeshes)"
