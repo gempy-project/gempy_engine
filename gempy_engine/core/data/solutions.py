@@ -3,7 +3,7 @@ from typing import List
 
 import numpy as np
 
-from config import SET_RAW_ARRAYS_IN_SOLUTION
+from gempy_engine.config import SET_RAW_ARRAYS_IN_SOLUTION
 from .dual_contouring_mesh import DualContouringMesh
 from .octree_level import OctreeLevel
 from .raw_arrays_solution import RawArraysSolution
