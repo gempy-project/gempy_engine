@@ -73,11 +73,10 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
         regular_grid_mesh = pv.StructuredGrid(*grid_3d)
         if scalar is None:
             regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
-            foo = regular_grid_mesh.threshold([0.5, 1])
-            p.add_mesh(foo, show_edges=show_edges, opacity=.2, cmap="tab10")
+            p.add_mesh(regular_grid_mesh, show_edges=show_edges, opacity=.2, cmap="tab10")
         else:
             regular_grid_mesh["lith"] = scalar
-            regular_grid_mesh = regular_grid_mesh.threshold([50, 1000000])
+            # regular_grid_mesh = regular_grid_mesh.threshold([50, 1000000])
             p.add_mesh(regular_grid_mesh, show_edges=False, opacity=.2)
        
     # Plot gradients

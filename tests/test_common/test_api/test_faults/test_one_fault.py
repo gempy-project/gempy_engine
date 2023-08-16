@@ -5,7 +5,7 @@ import numpy as np
 from gempy_engine import compute_model
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.core.data import InterpolationOptions, TensorsStructure
-from gempy_engine.core.data.custom_segmentation_functions import ellipsoid_3d_factory
+from gempy_engine.core.data.custom_segmentation_functions import ellipsoid_3d_factory, _implicit_3d_ellipsoid_to_slope
 from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
@@ -113,7 +113,7 @@ def test_one_fault_model_thickness(one_fault_model, n_oct_levels=2):
         )
 
 
-def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=4):
+def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=1):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -121,10 +121,10 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=4):
     interpolation_input, structure, options = one_fault_model
 
     rescaling_factor = 240
-    resolution = [4, 4, 4]
+    resolution = np.array([20, 20, 20])
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
-    grid = Grid(regular_grid.values, regular_grid=regular_grid)
+    grid = Grid(regular_grid=regular_grid)
     interpolation_input.grid = grid
     options.number_octree_levels = n_oct_levels
 
@@ -152,7 +152,13 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=4):
          ]
     )
     structure.stack_structure.faults_relations = faults_relations
-    f1_finite_fault: Callable = ellipsoid_3d_factory(np.array([0, 0, 0]), np.array([3, 1, 1]), 1000, 0.001)
+    f1_finite_fault: Callable = ellipsoid_3d_factory(
+        center=np.array([0, 0, 0]),
+        radius=np.array([2,1,2]),
+        max_slope=10,
+        min_slope=0.001
+    )
+
     structure.stack_structure.segmentation_functions_per_stack = [f1_finite_fault, None, None]
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
@@ -172,7 +178,7 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=4):
         plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
         plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
 
-    if plot_pyvista or False:
+    if plot_pyvista or True:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=meshes,
@@ -190,13 +196,14 @@ def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
     structure.stack_structure.faults_input_data = None
 
     options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
+    options.number_octree_levels = 1
 
-    # rescaling_factor = 240
-    # resolution = np.array([20, 4, 20])
-    # extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
-    # regular_grid = RegularGrid(extent, resolution)
-    # grid = Grid(regular_grid.values, regular_grid=regular_grid)
-    # interpolation_input.grid = grid
+    rescaling_factor = 240
+    resolution = np.array([20, 4, 20])
+    extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
+    regular_grid = RegularGrid(extent, resolution)
+    grid = Grid(regular_grid=regular_grid)
+    interpolation_input.grid = grid
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
@@ -205,8 +212,17 @@ def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
     regular_grid = solutions.octrees_output[-1].outputs_centers[0].grid.regular_grid
     resolution = regular_grid.resolution
 
-    scalar = _implicit_3d_ellipsoid_to_slope(regular_grid.values, np.array([0, 0, 0]), np.array([1, 1, 2]))
-    scalar_fault = _implicit_3d_ellipsoid_to_slope(fault_mesh.vertices, np.array([0, 0, 0]), np.array([1, 1, 2]))
+    radius = np.array([1, 1, 2])
+    scalar = _implicit_3d_ellipsoid_to_slope(  # * This paints the 3d regular grid
+        xyz=regular_grid.values,
+        center=np.array([0, 0, 0]),
+        radius=radius
+    )
+    scalar_fault = _implicit_3d_ellipsoid_to_slope(  # * This paints the 2d fault mesh
+        xyz=fault_mesh.vertices, 
+        center=np.array([0, 0, 0]),
+        radius=radius
+    )
 
     if plot_pyvista or False:
         import pyvista as pv

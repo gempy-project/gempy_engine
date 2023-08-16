@@ -39,7 +39,7 @@ def one_fault_model():
     resolution = [2, 2, 2]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid: RegularGrid = RegularGrid(extent, resolution)
-    grid: Grid = Grid(regular_grid.values, regular_grid=regular_grid)
+    grid: Grid = Grid(regular_grid=regular_grid)
 
     interpolation_input: InterpolationInput = InterpolationInput(
         surface_points=spi,
@@ -63,7 +63,7 @@ def one_fault_model():
         number_of_points_per_stack=np.array([9, 24, 37]),
         number_of_orientations_per_stack=np.array([1, 4, 6]),
         number_of_surfaces_per_stack=np.array([1, 2, 3]),
-        masking_descriptor=[StackRelationType.FAULT, StackRelationType.ERODE, StackRelationType.ERODE, False],
+        masking_descriptor=[StackRelationType.FAULT, StackRelationType.ERODE, StackRelationType.ERODE],
         faults_relations=faults_relations
     )
 
