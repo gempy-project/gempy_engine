@@ -28,20 +28,19 @@ class InterpolationInput:
 
     # region per model ? Not sure what I mean here
 
-    _fault_values: FaultsData = None
+    _fault_values: FaultsData = None  # ! This field is internal. If you want to pass fault data use StacksStructure
     stack_relation: StackRelationType = StackRelationType.ERODE  # ? Should be here or in the descriptor
 
     # endregion
 
     def __init__(self, surface_points: SurfacePoints, orientations: Orientations, grid: Grid,
                  unit_values: Optional[np.ndarray] = None, segmentation_function: Optional[callable] = None,
-                 fault_values: Optional[FaultsData] = None, stack_relation: StackRelationType = StackRelationType.ERODE):
+                 stack_relation: StackRelationType = StackRelationType.ERODE):
         self.surface_points = surface_points
         self.grid = grid
         self.orientations = orientations
         self.unit_values = unit_values
         self.segmentation_function = segmentation_function
-        self.fault_values = fault_values
         self.stack_relation = stack_relation
 
     # @ on

@@ -17,15 +17,15 @@ class StacksStructure:
     number_of_orientations_per_stack: np.ndarray
     number_of_surfaces_per_stack    : np.ndarray
     masking_descriptor              : List[StackRelationType | False]
-    faults_relations                : Optional[np.ndarray]               = None
-    faults_input_data               : List[FaultsData]                   = None  # ? Shouldn't be private?
-    interp_functions_per_stack      : List[CustomInterpolationFunctions] = None
+    faults_relations                : Optional[np.ndarray]                = None
+    faults_input_data               : Optional[List[FaultsData]]          = None  # ? Shouldn't be private?
+    
+    _interp_functions_per_stack      : List[CustomInterpolationFunctions] = None
+    _segmentation_functions_per_stack: Optional[List[Callable[[np.ndarray], float]]] = None
 
-    segmentation_functions_per_stack: Optional[List[Callable[[np.ndarray], float]]] = None
-
-    number_of_points_per_stack_vector      : np.ndarray = np.ones(1)
-    number_of_orientations_per_stack_vector: np.ndarray = np.ones(1)
-    number_of_surfaces_per_stack_vector    : np.ndarray = np.ones(1)
+    _number_of_points_per_stack_vector      : np.ndarray = np.ones(1)
+    _number_of_orientations_per_stack_vector: np.ndarray = np.ones(1)
+    _number_of_surfaces_per_stack_vector    : np.ndarray = np.ones(1)
 
     stack_number: int = -1
 
@@ -53,12 +53,16 @@ class StacksStructure:
         per_stack_cumsum                             = self.number_of_points_per_stack.cumsum()
         per_stack_orientation_cumsum                 = self.number_of_orientations_per_stack.cumsum()
         per_stack_surface_cumsum                     = self.number_of_surfaces_per_stack.cumsum()
-        self.number_of_points_per_stack_vector       = np.concatenate([np.array([0])                 , per_stack_cumsum])
-        self.number_of_orientations_per_stack_vector = np.concatenate([np.array([0])                 , per_stack_orientation_cumsum])
-        self.number_of_surfaces_per_stack_vector     = np.concatenate([np.array([0])                 , per_stack_surface_cumsum])
+        self._number_of_points_per_stack_vector       = np.concatenate([np.array([0])                 , per_stack_cumsum])
+        self._number_of_orientations_per_stack_vector = np.concatenate([np.array([0])                 , per_stack_orientation_cumsum])
+        self._number_of_surfaces_per_stack_vector     = np.concatenate([np.array([0])                 , per_stack_surface_cumsum])
     
     # @on
 
+    @property
+    def number_of_surfaces_per_stack_vector(self):
+        return self._number_of_surfaces_per_stack_vector
+    
     @property
     def active_masking_descriptor(self) -> StackRelationType:
         return self.masking_descriptor[self.stack_number]
@@ -77,11 +81,11 @@ class StacksStructure:
 
     @property
     def nspv_stack(self):
-        return self.number_of_points_per_stack_vector
+        return self._number_of_points_per_stack_vector
 
     @property
     def nov_stack(self):
-        return self.number_of_orientations_per_stack_vector
+        return self._number_of_orientations_per_stack_vector
 
     @property
     def n_stacks(self):
@@ -89,12 +93,12 @@ class StacksStructure:
 
     @property
     def interp_function(self):
-        if self.interp_functions_per_stack is None:
+        if self._interp_functions_per_stack is None:
             return None
-        return self.interp_functions_per_stack[self.stack_number]
+        return self._interp_functions_per_stack[self.stack_number]
 
     @property
     def segmentation_function(self):
-        if self.segmentation_functions_per_stack is None:
+        if self._segmentation_functions_per_stack is None:
             return None
-        return self.segmentation_functions_per_stack[self.stack_number]
+        return self._segmentation_functions_per_stack[self.stack_number]

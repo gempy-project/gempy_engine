@@ -6,6 +6,7 @@ from typing import List, Optional
 
 import numpy as np
 
+from .kernel_classes.faults import FaultsData
 from .stack_relation_type import StackRelationType
 from .tensors_structure import TensorsStructure
 from .kernel_classes.server.input_parser import InputDataDescriptorSchema
@@ -61,7 +62,9 @@ class InputDataDescriptor:
     @classmethod
     def from_structural_frame(cls, structural_frame: "gempy.StructuralFrame",
                               making_descriptor: list[StackRelationType | False],
-                              faults_relations: Optional[np.ndarray] = None):
+                              faults_relations: Optional[np.ndarray] = None,
+                              faults_input_data: Optional[List[FaultsData]] = None
+                              ):
         tensor_struct = TensorsStructure(
             number_of_points_per_surface=structural_frame.number_of_points_per_element
         )
@@ -71,7 +74,8 @@ class InputDataDescriptor:
             number_of_orientations_per_stack=structural_frame.number_of_orientations_per_group,
             number_of_surfaces_per_stack=structural_frame.number_of_elements_per_group,
             masking_descriptor=making_descriptor,
-            faults_relations=faults_relations
+            faults_relations=faults_relations,
+            faults_input_data=faults_input_data
         )
 
         input_data_descriptor = cls(

@@ -62,14 +62,14 @@ def interpolate_feature(interpolation_input: InterpolationInput,
         sigmoid_slope = 50000
 
     values_block: np.ndarray = activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=sigmoid_slope)
-
+    
     # endregion
     
     output = ScalarFieldOutput(
         weights=weights,
         grid=grid,
         exported_fields=exported_fields,
-        values_block=values_block,
+        values_block=values_block, # TODO: Check value
         mask_components=None,
         stack_relation=interpolation_input.stack_relation
     )

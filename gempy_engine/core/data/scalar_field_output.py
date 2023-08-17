@@ -19,7 +19,7 @@ class ScalarFieldOutput:
     mask_components: Optional[MaskMatrices]  # ? DEP
     stack_relation: StackRelationType
     
-    values_block: Optional[np.ndarray]  # final values ignoring unconformities
+    values_block: Optional[np.ndarray]  #: Final values ignoring unconformities
     _values_block: Optional[np.ndarray] = dataclasses.field(init=False, repr=False)
 
     @property

@@ -98,9 +98,14 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
 
         all_scalar_fields_outputs[i] = output
 
+        # * Modify the values for Fault stacks
         if interpolation_input_i.stack_relation is StackRelationType.FAULT:  # * This is also for faults!
             val_min = np.min(output.values_on_all_xyz, axis=1).reshape(-1, 1)  # ? Is this as good as it gets?
-            shifted_vals = (output.values_on_all_xyz - val_min) * interpolation_input_i.fault_values.offset # TODO!: This do not apply to the 
+            shifted_vals = (output.values_on_all_xyz - val_min) * interpolation_input_i.fault_values.offset  #  * Shift values between 0 and 1... hopefully
+            # TODO: Apply finite fault field
+            
+            
+            
             all_stack_values_block[i, :] = shifted_vals
 
     return all_scalar_fields_outputs

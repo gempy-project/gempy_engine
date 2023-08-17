@@ -1,6 +1,6 @@
 import warnings
 from dataclasses import dataclass, asdict
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -12,7 +12,7 @@ from gempy_engine.core.data.interp_output import InterpOutput
 class OctreeLevel:
     # Input
     grid_centers: Grid
-    grid_corners: Grid
+    grid_corners: Optional[Grid]
     outputs_centers: List[InterpOutput]
     outputs_corners: List[InterpOutput]
 

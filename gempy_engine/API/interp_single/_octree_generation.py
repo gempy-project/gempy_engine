@@ -19,21 +19,20 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
                           data_shape: InputDataDescriptor) -> OctreeLevel:
     interpolation_input = copy.deepcopy(interpolation_input)
     
-    grid_0_centers: Grid = interpolation_input.grid
+    # * Interpolate - centers
     output_0_centers: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # interpolate - centers
 
-    # Interpolate - corners
+    # * Interpolate - corners
+    grid_0_centers: Grid = interpolation_input.grid  # ? This could be move to the next section
     if options.compute_corners:
-        xyz_at_corners = _generate_corners(regular_grid=grid_0_centers.regular_grid)
-        grid_0_corners = Grid(
-            custom_grid=GenericGrid(values=xyz_at_corners)
-        )
+        grid_0_corners = _get_grid_for_corners(grid_0_centers)
         interpolation_input.grid = grid_0_corners  # * Prepare grid for next interpolation
         output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # * This is unnecessary for the last level except for Dual contouring
     else:
         output_0_corners = []
         grid_0_corners = None
     
+    # * Create next octree level
     next_octree_level = OctreeLevel(
         grid_centers=grid_0_centers,
         grid_corners=grid_0_corners,
@@ -41,6 +40,13 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
         outputs_corners=output_0_corners
     )
     return next_octree_level
+
+
+def _get_grid_for_corners(grid_0_centers):
+    xyz_at_corners = _generate_corners(regular_grid=grid_0_centers.regular_grid)
+    generic_grid = GenericGrid(values=xyz_at_corners)
+    grid_0_corners = Grid(custom_grid=generic_grid)
+    return grid_0_corners
 
 
 def _generate_corners(regular_grid: RegularGrid, level=1) -> np.ndarray:
