@@ -16,7 +16,7 @@ from ...core.data import TensorsStructure
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.options import InterpolationOptions
 
-from ._interp_single_feature import interpolate_feature
+from ._interp_single_feature import interpolate_feature, input_preprocess
 
 
 # @off
@@ -45,23 +45,13 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
 def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpolation_input: InterpolationInput,
                        options: InterpolationOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
     # region === Local functions ===
-    def _set_fault_input(_all_stack_values_block, _interpolation_input_i, _stack_structure) -> FaultsData:
+    def _grab_stack_fault_data(_all_stack_values_block, _interpolation_input_i, _stack_structure) -> FaultsData:
+        fault_data = _interpolation_input_i.fault_values or FaultsData()
         
-        fault_relation_on_this_stack: Iterable[bool] = _stack_structure.active_faults_relations
-        fault_values_all            : ndarray        = _all_stack_values_block[fault_relation_on_this_stack]
-
-        fv_on_all_sp = fault_values_all[:, _interpolation_input_i.grid.len_all_grids:]
-        fv_on_sp = fv_on_all_sp[:, _interpolation_input_i.slice_feature]
-        fault_data = _interpolation_input_i.fault_values  # Grab Faults data given by the user
-
-        if _interpolation_input_i.not_fault_input:  # * Set default fault data
-            fault_data = FaultsData(
-                fault_values_everywhere = fault_values_all,
-                fault_values_on_sp      = fv_on_sp
-            )
-        else:  # * Use user given fault data
-            fault_data.fault_values_on_sp      = fv_on_sp
-            fault_data.fault_values_everywhere = fault_values_all
+        fault_data.fault_values_everywhere = _all_stack_values_block[_stack_structure.active_faults_relations]
+        
+        fv_on_all_sp = fault_data.fault_values_everywhere[:, _interpolation_input_i.grid.len_all_grids:]
+        fault_data.fault_values_on_sp      = fv_on_all_sp[:, _interpolation_input_i.slice_feature]
         return fault_data
 
     # endregion
@@ -71,7 +61,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
     all_scalar_fields_outputs: List[ScalarFieldOutput | None] = [None] * stack_structure.n_stacks
 
     xyz_to_interpolate_size: int = root_interpolation_input.grid.len_all_grids + root_interpolation_input.surface_points.n_points
-    all_stack_values_block: np.ndarray = np.zeros((stack_structure.n_stacks, xyz_to_interpolate_size), dtype=TENSOR_DTYPE)  # Used for faults
+    all_stack_values_block: np.ndarray = np.zeros((stack_structure.n_stacks, xyz_to_interpolate_size), dtype=TENSOR_DTYPE)  # * Used for faults
 
     for i in range(stack_structure.n_stacks):
         stack_structure.stack_number = i
@@ -82,37 +72,54 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
             stack_structure         = stack_structure
         )
 
-        interpolation_input_i.fault_values = _set_fault_input(  # * FAULTS
+        fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
             _all_stack_values_block = all_stack_values_block,
             _interpolation_input_i  = interpolation_input_i,
             _stack_structure        = stack_structure
         )
+        interpolation_input_i.fault_values = fault_input
 
+        solver_input = input_preprocess(tensor_struct_i, interpolation_input_i)
         output: ScalarFieldOutput = interpolate_feature(
             interpolation_input    = interpolation_input_i,
             options                = options,
             data_shape             = tensor_struct_i,
+            solver_input           = solver_input,
             external_interp_funct  = stack_structure.interp_function,
             external_segment_funct = stack_structure.segmentation_function
         )
 
+# @on
         all_scalar_fields_outputs[i] = output
 
-        # * Modify the values for Fault stacks
+        # # * Modify the values for Fault stacks
         if interpolation_input_i.stack_relation is StackRelationType.FAULT:  # * This is also for faults!
-            val_min = np.min(output.values_on_all_xyz, axis=1).reshape(-1, 1)  # ? Is this as good as it gets?
-            shifted_vals = (output.values_on_all_xyz - val_min) * interpolation_input_i.fault_values.offset  #  * Shift values between 0 and 1... hopefully
-            # TODO: Apply finite fault field
-            
-            
-            
-            all_stack_values_block[i, :] = shifted_vals
+            all_stack_values_block[i, :] = _modify_faults_values_output(  # ! This is all_STACK_values_block (not all_scalar_fields_outputs)
+                fault_input=fault_input,
+                values_on_all_xyz=output.values_on_all_xyz,
+                xyz_to_interpolate=solver_input.xyz_to_interpolate
+            )
 
     return all_scalar_fields_outputs
 
 
+def _modify_faults_values_output(fault_input: FaultsData, values_on_all_xyz: np.ndarray,
+                                 xyz_to_interpolate: np.ndarray) -> np.ndarray:
+    val_min = np.min(values_on_all_xyz, axis=1).reshape(-1, 1)  # ? Is this as good as it gets?
+    shifted_vals = (values_on_all_xyz - val_min)  # * Shift values between 0 and 1... hopefully
+    if fault_input.finite_faults_defined:
+        # TODO: Rescale scalar field parameters
+        finite_fault_scalar: np.ndarray = fault_input.finite_fault_data.apply(
+            points=xyz_to_interpolate
+        )
+        fault_scalar_field = shifted_vals * finite_fault_scalar
+    else:
+        fault_scalar_field = shifted_vals
+    return fault_scalar_field
+
+
+# @off
 def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relation: List[StackRelationType]) -> np.ndarray:
-    
     n_scalar_fields = len(all_scalar_fields_outputs)
     grid_size       = all_scalar_fields_outputs[0].grid_size
     mask_matrix     = np.zeros((n_scalar_fields, grid_size), dtype = bool)
@@ -126,10 +133,10 @@ def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_rela
 
         if onlap_chain_counter:
             mask_matrix[i - 1] = all_scalar_fields_outputs[i].mask_components_erode_components_onlap.mask_lith
-            
+
             cumprod_mask = np.cumprod(mask_matrix[(i - onlap_chain_counter):i, :][::-1], axis=0)[::-1]
             mask_matrix[i - onlap_chain_counter: i] = cumprod_mask
-            
+
         # convert to match
         match stack_relation[i]:
             case StackRelationType.ONLAP:

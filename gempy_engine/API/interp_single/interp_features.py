@@ -73,7 +73,12 @@ def interpolate_single_field(interpolation_input: InterpolationInput, options: d
 
 def interpolate_and_segment(interpolation_input: InterpolationInput, options: data.InterpolationOptions,  # * Just for testing
                             data_shape: gempy_engine.core.data.tensors_structure.TensorsStructure, clean_buffer=True) -> InterpOutput:
-    output: ScalarFieldOutput = interpolate_feature(interpolation_input, options, data_shape)
+    output: ScalarFieldOutput = interpolate_feature(
+        interpolation_input=interpolation_input,
+        options=options,
+        data_shape=data_shape,
+        solver_input=input_preprocess(data_shape, interpolation_input)
+    )
     return InterpOutput(output)
 
 # endregion

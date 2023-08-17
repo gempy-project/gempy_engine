@@ -22,6 +22,7 @@ from ...modules.data_preprocess import data_preprocess_interface
 def interpolate_feature(interpolation_input: InterpolationInput,
                         options: InterpolationOptions,
                         data_shape: TensorsStructure,
+                        solver_input: SolverInput,
                         external_interp_funct: Optional[CustomInterpolationFunctions] = None,
                         external_segment_funct: Optional[Callable[[np.ndarray], float]] = None,
                         clean_buffer: bool = True) -> ScalarFieldOutput:
@@ -29,7 +30,6 @@ def interpolate_feature(interpolation_input: InterpolationInput,
     grid = copy.deepcopy(interpolation_input.grid)
 
     # region Interpolate scalar field
-    solver_input = input_preprocess(data_shape, interpolation_input)
     xyz = solver_input.xyz_to_interpolate
 
     if external_interp_funct is None:  # * EXTERNAL INTERPOLATION FUNCTION branching

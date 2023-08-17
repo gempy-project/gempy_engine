@@ -7,35 +7,49 @@ from gempy_engine.core.data.transforms import Transform
 
 
 @dataclasses.dataclass
+class FiniteFaultData:
+    implicit_function: callable
+    implicit_function_transform: Transform
+    pivot: np.ndarray
+    
+    def apply(self, points: np.ndarray) -> np.ndarray:
+        transformed_points = self.implicit_function_transform.apply_inverse_with_pivot(
+            points=points,
+            pivot=self.pivot
+        )
+        return self.implicit_function(transformed_points)
+        
+
+
+@dataclasses.dataclass
 class FaultsData:
-    fault_values_everywhere: np.ndarray
-    fault_values_on_sp: np.ndarray
+    fault_values_everywhere: np.ndarray = None
+    fault_values_on_sp: np.ndarray = None
     
     fault_values_ref: np.ndarray = None
     fault_values_rest: np.ndarray = None
     
     # User given data:
     thickness: Optional[float] = None
-    offset: Optional[float] = 1
-    # TODO: Add finite fault scalar field
-    
-    finite_faults_implicit_function: Optional[callable] = None
-    finite_faults_implicit_function_transform: Optional[Transform] = None # TODO: Move Transform class to gempy_engine
+    finite_fault_data: Optional[FiniteFaultData] = None  
     
     def __hash__(self):
         i = hash(self.__repr__())
         return i
 
     @classmethod
-    def from_user_input(cls, thickness: Optional[float], offset: Optional[float]=1) -> "FaultsData":
+    def from_user_input(cls, thickness: Optional[float]) -> "FaultsData":
         return cls(
             fault_values_everywhere=np.zeros(0),
             fault_values_on_sp=np.zeros(0),
             thickness=thickness,
-            offset=offset,
             fault_values_ref=np.zeros(0),
             fault_values_rest=np.zeros(0)
         )
+    
+    @property
+    def finite_faults_defined(self) -> bool:
+        return self.finite_fault_data is not None
     
     @property
     def n_faults(self):
