@@ -17,7 +17,8 @@ class FiniteFaultData:
             points=points,
             pivot=self.pivot
         )
-        return self.implicit_function(transformed_points)
+        scalar_block = self.implicit_function(transformed_points)
+        return scalar_block 
         
 
 
