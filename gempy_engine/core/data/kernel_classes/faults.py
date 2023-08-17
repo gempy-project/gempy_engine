@@ -18,7 +18,7 @@ class FaultsData:
     # TODO: Add finite fault scalar field
     
     finite_faults_implicit_function: Optional[callable] = None
-    finite_faults_implicit_function_transform: Optional[Transform] = None
+    finite_faults_implicit_function_transform: Optional[Transform] = None # TODO: Move Transform class to gempy_engine
     
     def __hash__(self):
         i = hash(self.__repr__())
