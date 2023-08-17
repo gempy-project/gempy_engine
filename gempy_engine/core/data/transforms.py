@@ -6,9 +6,6 @@ from typing import Optional
 import numpy as np
 from dataclasses import dataclass
 
-from gempy.core.data.orientations import OrientationsTable
-from gempy.core.data.surface_points import SurfacePointsTable
-
 
 class TransformOpsOrder(Enum):
     TRS = auto()  # * The order of the transformations is: scale, rotation, translation
@@ -53,25 +50,9 @@ class Transform:
         ])
         return cls(position, rotation, scale)
 
-    @classmethod
-    def from_input_points_(cls, surface_points: SurfacePointsTable, orientations: OrientationsTable) -> 'Transform':
-
-        # ? Should we have instead a pointer to the structural frame and treat it more as a getter than a setter?
-
-        input_points_xyz = np.concatenate([surface_points.xyz, orientations.xyz], axis=0)
-        max_coord = np.max(input_points_xyz, axis=0)
-        min_coord = np.min(input_points_xyz, axis=0)
-        scaling_factor = 2 * np.max(max_coord - min_coord)
-        center = (max_coord + min_coord) / 2
-        factor_ = 1 / np.array([scaling_factor, scaling_factor, scaling_factor / 100])
-        return cls(
-            position=-center,
-            rotation=np.zeros(3),
-            scale=factor_
-        )
 
     @classmethod
-    def from_input_points(cls, surface_points: SurfacePointsTable, orientations: OrientationsTable) -> 'Transform':
+    def from_input_points(cls, surface_points: 'gempy.data.SurfacePointsTable', orientations: 'gempy.data.OrientationsTable') -> 'Transform':
         input_points_xyz = np.concatenate([surface_points.xyz, orientations.xyz], axis=0)
         if input_points_xyz.shape[0] == 0:
             transform = cls(position=np.zeros(3), rotation=np.zeros(3), scale=np.ones(3))

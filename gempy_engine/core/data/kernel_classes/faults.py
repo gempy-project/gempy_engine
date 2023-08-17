@@ -3,6 +3,8 @@ from typing import Optional
 
 import numpy as np
 
+from gempy_engine.core.data.transforms import Transform
+
 
 @dataclasses.dataclass
 class FaultsData:
