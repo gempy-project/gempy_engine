@@ -14,7 +14,7 @@ class AvailableBackends(Flag):
 DEBUG_MODE = True
 OPTIMIZE_MEMORY = True
 DEFAULT_BACKEND = AvailableBackends.numpy
-DEFAULT_PYKEOPS = True
+DEFAULT_PYKEOPS = False
 TENSOR_DTYPE = 'float32'
 LINE_PROFILER_ENABLED = False
 SET_RAW_ARRAYS_IN_SOLUTION = True
