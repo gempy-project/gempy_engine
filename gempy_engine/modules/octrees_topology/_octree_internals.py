@@ -34,6 +34,7 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
 
     dxdydz = prev_octree.dxdydz
     ids = prev_octree.last_output_corners.ids_custom_grid
+    ids_ = prev_octree.last_output_corners.litho_faults_ids
 
     uv_8 = ids.reshape((-1, 8))
 

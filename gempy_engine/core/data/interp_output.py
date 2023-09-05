@@ -11,7 +11,6 @@ from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 class InterpOutput:
     scalar_fields: ScalarFieldOutput
     combined_scalar_field: Optional[CombinedScalarFieldsOutput] = None
-    
     @property
     def squeezed_mask_array(self): return self.combined_scalar_field.squeezed_mask_array
     @property
@@ -19,6 +18,7 @@ class InterpOutput:
     
     @property
     def faults_block(self): return self.combined_scalar_field.faults_block
+    
     @property
     def final_exported_fields(self): return self.combined_scalar_field.final_exported_fields
     @property
@@ -61,12 +61,6 @@ class InterpOutput:
     def ids_block(self) -> np.ndarray:
         return np.rint(self.block[self.grid.regular_grid_slice])
 
-    # ? Not sure if this is used
-    # @ids_block.setter
-    # def ids_block(self, value):
-    #     self.block[self.grid.regular_grid_slice] = value
-    # 
-    # ? Don't I need the ids_block setter for custom grid?
     
     @property
     def block(self):
@@ -76,3 +70,16 @@ class InterpOutput:
             return self.combined_scalar_field.final_block  # * (miguel March 2023) For now faults does not have final block. We will have to add a mask logic for fault blocks first
     
   
+    @property
+    def litho_faults_ids(self):
+        litho_ids = self.block
+        faults_ids = self.faults_block
+
+        # Get the number of unique lithology IDs
+        multiplier = len(np.unique(litho_ids))
+
+        # Generate the unique IDs
+        unique_ids = litho_ids + faults_ids * multiplier
+        return unique_ids
+        
+    

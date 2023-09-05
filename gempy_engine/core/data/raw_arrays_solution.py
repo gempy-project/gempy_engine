@@ -27,6 +27,8 @@ class RawArraysSolution:
     # region Regular Grid
     lith_block: np.ndarray = np.empty(0)
     fault_block: np.ndarray = np.empty(0)
+    litho_faults_block: np.ndarray = np.empty(0)
+    
     scalar_field_matrix: np.ndarray = np.empty(0)
     block_matrix: np.ndarray = np.empty(0)
     mask_matrix: np.ndarray = np.empty(0)
@@ -76,6 +78,12 @@ class RawArraysSolution:
             level=None,
             value_type=ValueType.faults_block
         ).astype("int8").ravel()
+        
+        raw_arrays_solution.litho_faults_block = get_regular_grid_value_for_level(
+            octree_list=octrees_output,
+            level=None,
+            value_type=ValueType.litho_faults_block
+        ).astype("int32").ravel()
 
         raw_arrays_solution.scalar_field_matrix = cls._get_regular_grid_values_for_all_structural_groups(
             octree_output=octrees_output,
