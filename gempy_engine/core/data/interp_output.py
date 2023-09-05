@@ -72,8 +72,8 @@ class InterpOutput:
   
     @property
     def litho_faults_ids(self):
-        litho_ids = self.block
-        faults_ids = self.faults_block
+        litho_ids = np.rint(self.block)
+        faults_ids = np.rint(self.faults_block)
 
         # Get the number of unique lithology IDs
         multiplier = len(np.unique(litho_ids))
