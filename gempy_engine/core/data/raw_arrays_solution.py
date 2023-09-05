@@ -26,6 +26,7 @@ class RawArraysSolution:
 
     # region Regular Grid
     lith_block: np.ndarray = np.empty(0)
+    fault_block: np.ndarray = np.empty(0)
     scalar_field_matrix: np.ndarray = np.empty(0)
     block_matrix: np.ndarray = np.empty(0)
     mask_matrix: np.ndarray = np.empty(0)
@@ -70,6 +71,12 @@ class RawArraysSolution:
             scalar_type=ValueType.values_block
         )
         
+        raw_arrays_solution.fault_block = get_regular_grid_value_for_level(
+            octree_list=octrees_output,
+            level=None,
+            value_type=ValueType.faults_block
+        ).astype("int8").ravel()
+
         raw_arrays_solution.scalar_field_matrix = cls._get_regular_grid_values_for_all_structural_groups(
             octree_output=octrees_output,
             scalar_type=ValueType.scalar
@@ -109,6 +116,7 @@ class RawArraysSolution:
         # endregion
         return raw_arrays_solution
 
+    # ? Should all these arrays being properties better?
     @staticmethod
     def _get_regular_grid_values_for_all_structural_groups(octree_output: list[OctreeLevel], scalar_type: ValueType):
         temp_list = []

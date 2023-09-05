@@ -235,7 +235,7 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
         combined_scalar_fields = CombinedScalarFieldsOutput(
             squeezed_mask_array   = (lithology_mask[i]),
             final_block           = squeezed_value_block,
-            fault_block           = squeezed_fault_block,
+            faults_block           = squeezed_fault_block,
             final_exported_fields = final_exported_fields
         )
 

@@ -15,6 +15,7 @@ from gempy_engine.core.data.grid import Grid
 
 class ValueType(enum.Enum):
     ids = enum.auto()
+    faults_block = enum.auto()
     scalar = enum.auto()
     squeeze_mask = enum.auto()
     mask_component = enum.auto()
@@ -134,6 +135,8 @@ def _get_block_from_value_type(root: OctreeLevel, scalar_n: int, value_type: Val
     match value_type:
         case ValueType.ids:
             block = element_output.final_block
+        case ValueType.faults_block:
+            block = element_output.faults_block
         case ValueType.values_block:
             block = element_output.values_block[0]
         case ValueType.scalar:

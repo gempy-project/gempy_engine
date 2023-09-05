@@ -10,5 +10,5 @@ from gempy_engine.core.data.exported_fields import ExportedFields
 class CombinedScalarFieldsOutput:
     squeezed_mask_array: np.ndarray
     final_block: np.ndarray  # Masked array containing only the active voxels
-    fault_block: np.ndarray
+    faults_block: np.ndarray
     final_exported_fields: ExportedFields  # Masked array containing only the active voxels

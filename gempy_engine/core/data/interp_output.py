@@ -16,6 +16,9 @@ class InterpOutput:
     def squeezed_mask_array(self): return self.combined_scalar_field.squeezed_mask_array
     @property
     def final_block(self): return self.combined_scalar_field.final_block
+    
+    @property
+    def faults_block(self): return self.combined_scalar_field.faults_block
     @property
     def final_exported_fields(self): return self.combined_scalar_field.final_exported_fields
     @property
