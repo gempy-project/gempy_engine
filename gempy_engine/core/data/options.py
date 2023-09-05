@@ -112,7 +112,8 @@ class InterpolationOptions:
     debug_water_tight              : bool                         = False
 
     tensor_dtype                   : str                          = gempy_engine.config.TENSOR_DTYPE
-
+    _number_octree_levels_surface  : int                          = 4
+    
     def __init__(
             self,
             range                     : int | float,
@@ -190,7 +191,12 @@ class InterpolationOptions:
 
     @property
     def compute_corners(self):
-        corners_for_dual_cont = self.dual_contouring or (self.is_last_octree_level is False)
+        is_not_last_octree = (self.is_last_octree_level is False)
+        is_dual_contouring = self.dual_contouring
+        is_octree_for_surfaces = self.current_octree_level == self.number_octree_levels_surface - 1
+        is_dual_contouring_and_octree_is_for_surfaces = is_dual_contouring and is_octree_for_surfaces
+        
+        corners_for_dual_cont = is_dual_contouring_and_octree_is_for_surfaces or is_not_last_octree
         return corners_for_dual_cont
 
     @property
@@ -248,3 +254,18 @@ class InterpolationOptions:
     @property
     def n_uni_eq(self):
         return self.kernel_options.n_uni_eq
+    
+    @property
+    def number_octree_levels_surface(self):
+        if self._number_octree_levels_surface == -1:
+            return self.number_octree_levels
+        else:
+            return self._number_octree_levels_surface
+        
+    @number_octree_levels_surface.setter
+    def number_octree_levels_surface(self, value):
+        # Check value is between 1 and number_octree_levels
+        if not 1 <= value <= self.number_octree_levels:
+            raise ValueError("number_octree_levels_surface must be between 1 and number_octree_levels")
+        self._number_octree_levels_surface = value
+    

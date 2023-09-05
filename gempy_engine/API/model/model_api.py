@@ -36,7 +36,7 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
             data_descriptor=data_descriptor,
             interpolation_input=interpolation_input,
             options=options,
-            octree_list=output
+            octree_list=output[:options.number_octree_levels_surface]
         )
 
     # ---------------------
