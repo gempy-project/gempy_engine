@@ -35,7 +35,7 @@ class InterpOutput:
     @property
     def values_block(self): return self.scalar_fields.values_block
     @property
-    def mask_components(self): return self.scalar_fields.mask_components_erode.mask_lith
+    def mask_components(self): return self.scalar_fields.mask_components_erode
     
     @property
     def geological_map(self): return self.block[self.grid.topography_slice]

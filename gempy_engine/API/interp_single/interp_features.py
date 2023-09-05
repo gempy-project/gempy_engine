@@ -47,6 +47,7 @@ def interpolate_all_fields_no_octree(interpolation_input: InterpolationInput, op
 
 
 # region testing
+# ? DEP - It seems I just run this in the tests
 def interpolate_single_field(interpolation_input: InterpolationInput, options: data.InterpolationOptions,
                              data_shape: gempy_engine.core.data.tensors_structure.TensorsStructure) -> InterpOutput:  # * Only For testing
 
@@ -65,7 +66,6 @@ def interpolate_single_field(interpolation_input: InterpolationInput, options: d
         grid=grid,
         exported_fields=exported_fields,
         values_block=None,
-        mask_components=None
     )
 
     return InterpOutput(scalar_output)

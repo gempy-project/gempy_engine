@@ -26,11 +26,11 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
     """Interpolate all scalar fields given a xyz array of points"""
 
     all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
-    final_mask_matrix: np.ndarray = _squeeze_mask(all_scalar_fields_outputs, data_descriptor.stack_relation)
-
+    
     combined_scalar_output: List[CombinedScalarFieldsOutput] = _combine_scalar_fields(
         all_scalar_fields_outputs = all_scalar_fields_outputs,
-        squeezed_mask_arrays      = final_mask_matrix,
+        lithology_mask            = _lithology_mask(all_scalar_fields_outputs, data_descriptor.stack_relation),
+        faults_mask               = _faults_mask(all_scalar_fields_outputs, data_descriptor.stack_relation),
         compute_scalar_grad       = options.compute_scalar_gradient
     )
 
@@ -119,7 +119,7 @@ def _modify_faults_values_output(fault_input: FaultsData, values_on_all_xyz: np.
 
 
 # @off
-def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relation: List[StackRelationType]) -> np.ndarray:
+def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relation: List[StackRelationType]) -> np.ndarray:
     n_scalar_fields = len(all_scalar_fields_outputs)
     grid_size       = all_scalar_fields_outputs[0].grid_size
     mask_matrix     = np.zeros((n_scalar_fields, grid_size), dtype = bool)
@@ -132,7 +132,7 @@ def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_rela
         onlap_chain_counter: int  = (onlap_chain_counter + 1) * onlap_chain_cont * onlap_chain_began
 
         if onlap_chain_counter:
-            mask_matrix[i - 1] = all_scalar_fields_outputs[i].mask_components_erode_components_onlap.mask_lith
+            mask_matrix[i - 1] = all_scalar_fields_outputs[i].mask_components_erode_components_onlap
 
             cumprod_mask = np.cumprod(mask_matrix[(i - onlap_chain_counter):i, :][::-1], axis=0)[::-1]
             mask_matrix[i - onlap_chain_counter: i] = cumprod_mask
@@ -142,10 +142,10 @@ def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_rela
             case StackRelationType.ONLAP:
                 pass
             case StackRelationType.ERODE:
-                mask_lith = all_scalar_fields_outputs[i].mask_components_erode.mask_lith
+                mask_lith = all_scalar_fields_outputs[i].mask_components_erode
                 mask_matrix[i, :] = mask_lith
             case StackRelationType.FAULT:
-                mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_fault.mask_lith
+                mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_fault
             case False | StackRelationType.BASEMENT:
                 mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_basement
             case _:
@@ -160,41 +160,64 @@ def _squeeze_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_rela
     return final_mask_array
 
 
+def _faults_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relation: List[StackRelationType]) -> np.ndarray:
+    n_scalar_fields = len(all_scalar_fields_outputs)
+    grid_size       = all_scalar_fields_outputs[0].grid_size
+    mask_matrix     = np.zeros((n_scalar_fields, grid_size), dtype = bool)
+
+    for i in range(len(all_scalar_fields_outputs)):
+        match stack_relation[i]:
+            case StackRelationType.FAULT:
+                mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_erode # * Faults behave as erosion contacts for the fault block
+            case _:
+                mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_fault
+            
+    return mask_matrix
+                
+
+
 def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
-                           squeezed_mask_arrays: np.ndarray,
+                           lithology_mask: np.ndarray,
+                           faults_mask: np.ndarray,
                            compute_scalar_grad: bool = False) -> List[CombinedScalarFieldsOutput]:
     n_scalar_fields            : int     = len(all_scalar_fields_outputs)
-    squeezed_value_block       : ndarray = np.zeros((1 , squeezed_mask_arrays.shape[1]))
-    squeezed_scalar_field_block: ndarray = np.zeros((1 , squeezed_mask_arrays.shape[1]))
+    squeezed_value_block       : ndarray = np.zeros((1 , lithology_mask.shape[1]))
+    squeezed_fault_block       : ndarray = np.zeros((1 , lithology_mask.shape[1]))
+    squeezed_scalar_field_block: ndarray = np.zeros((1 , lithology_mask.shape[1]))
 
-    def _mask_and_squeeze(block_to_squeeze: np.ndarray, squeezed_mask_array: np.ndarray, previous_block: np.ndarray) -> np.ndarray:
+    def _apply_mask(block_to_squeeze: np.ndarray, squeezed_mask_array: np.ndarray, previous_block: np.ndarray) -> np.ndarray:
         return (previous_block + block_to_squeeze * squeezed_mask_array).reshape(-1)
 
     all_combined_scalar_fields = []
     for i in range(n_scalar_fields):
         interp_output: ScalarFieldOutput = all_scalar_fields_outputs[i]
-        squeezed_array = squeezed_mask_arrays[i]
-
-        squeezed_value_block = _mask_and_squeeze(
+        
+        squeezed_value_block = _apply_mask(
             block_to_squeeze    = interp_output.values_block,
-            squeezed_mask_array = squeezed_array,
+            squeezed_mask_array = (lithology_mask[i]),
             previous_block      = squeezed_value_block
         )
 
-        squeezed_scalar_field_block = _mask_and_squeeze(
+        squeezed_scalar_field_block = _apply_mask(
             block_to_squeeze    = interp_output.exported_fields.scalar_field,
-            squeezed_mask_array = squeezed_array,
+            squeezed_mask_array = (lithology_mask[i]),
             previous_block      = squeezed_scalar_field_block
+        )
+        
+        squeezed_fault_block = _apply_mask(
+            block_to_squeeze    = interp_output.values_block,
+            squeezed_mask_array = faults_mask[i],
+            previous_block      = squeezed_fault_block
         )
 
         if compute_scalar_grad is True:
-            squeezed_gx_block: Optional[ndarray] = np.zeros((1, squeezed_mask_arrays.shape[1]))
-            squeezed_gy_block: Optional[ndarray] = np.zeros((1, squeezed_mask_arrays.shape[1]))
-            squeezed_gz_block: Optional[ndarray] = np.zeros((1, squeezed_mask_arrays.shape[1]))
+            squeezed_gx_block: Optional[ndarray] = np.zeros((1, lithology_mask.shape[1]))
+            squeezed_gy_block: Optional[ndarray] = np.zeros((1, lithology_mask.shape[1]))
+            squeezed_gz_block: Optional[ndarray] = np.zeros((1, lithology_mask.shape[1]))
 
-            squeezed_gx_block = _mask_and_squeeze(interp_output.exported_fields.gx_field, squeezed_array, squeezed_gx_block)
-            squeezed_gy_block = _mask_and_squeeze(interp_output.exported_fields.gy_field, squeezed_array, squeezed_gy_block)
-            squeezed_gz_block = _mask_and_squeeze(interp_output.exported_fields.gz_field, squeezed_array, squeezed_gz_block)
+            squeezed_gx_block = _apply_mask(interp_output.exported_fields.gx_field, lithology_mask[i], squeezed_gx_block)
+            squeezed_gy_block = _apply_mask(interp_output.exported_fields.gy_field, lithology_mask[i], squeezed_gy_block)
+            squeezed_gz_block = _apply_mask(interp_output.exported_fields.gz_field, lithology_mask[i], squeezed_gz_block)
         else:
             squeezed_gx_block = None
             squeezed_gy_block = None
@@ -210,8 +233,9 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
         )
 
         combined_scalar_fields = CombinedScalarFieldsOutput(
-            squeezed_mask_array   = squeezed_array,
+            squeezed_mask_array   = (lithology_mask[i]),
             final_block           = squeezed_value_block,
+            fault_block           = squeezed_fault_block,
             final_exported_fields = final_exported_fields
         )
 
