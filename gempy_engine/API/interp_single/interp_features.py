@@ -10,7 +10,7 @@ from ...core.data.scalar_field_output import ScalarFieldOutput
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
 
-from ...modules.octrees_topology import octrees_topology_interface as octrees
+from ...modules.octrees_topology.octrees_topology_interface import get_next_octree_grid
 
 from . import _multi_scalar_field_manager as ms
 from ._interp_scalar_field import WeightsBuffer, interpolate_scalar_field
@@ -29,7 +29,7 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
         next_octree: OctreeLevel = interpolate_on_octree(interpolation_input, options, data_descriptor)
         
         if options.is_last_octree_level is False:
-            grid_1_centers = octrees.get_next_octree_grid(
+            grid_1_centers = get_next_octree_grid(
                 prev_octree=next_octree,
                 compute_topology=False,
                 debug=False
