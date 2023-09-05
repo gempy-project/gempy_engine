@@ -72,16 +72,23 @@ class Transform:
         scaling_factors = 1 / range_coord
         
         # ! Be careful with toy models
-        center = (max_coord + min_coord) / 2
+        center: np.ndarray = (max_coord + min_coord) / 2
         return cls(
             position=-center,
             rotation=np.zeros(3),
-            scale=scaling_factors
+            scale=cls._adjust_scale_to_limit_ratio(
+                s=scaling_factors,
+                anisotropic_limit=np.array([1, 1, 1])  # ! Increase this number to auto anisotropy
+            )
         )
 
     def apply_anisotropy(self, anisotropy_type: GlobalAnisotropy, anisotropy_limit: Optional[np.ndarray] = None):
         if anisotropy_type == GlobalAnisotropy.CUBE:
-            self.scale = np.ones(3)
+            warnings.warn(
+                message="Interpolation is being done with the default transform. "
+                        "If you do not know what you are doing you should probably call GeoModel.update_transform() first.",
+                category=RuntimeWarning
+            )
         elif anisotropy_type == GlobalAnisotropy.NONE:
             self.scale = self._adjust_scale_to_limit_ratio(
                 s=self.scale,
@@ -199,6 +206,7 @@ class Transform:
 
     def apply_with_pivot(self, points: np.ndarray, pivot: np.ndarray,
                          transform_op_order: TransformOpsOrder = TransformOpsOrder.SRT):
+        """This are used for ellipsoids for finite faults"""
         assert points.shape[1] == 3
         if self._is_default_transform:
             warnings.warn(
