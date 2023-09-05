@@ -22,7 +22,7 @@ class ValueType(enum.Enum):
 
 
 def get_next_octree_grid(prev_octree: OctreeLevel, compute_topology=False, **kwargs) -> Grid:
-    return compute_next_octree_locations(prev_octree, compute_topology, **kwargs)
+    return compute_next_octree_locations(prev_octree, compute_topology)
 
 
 def get_regular_grid_value_for_level(octree_list: List[OctreeLevel], level: Optional[int] = None,

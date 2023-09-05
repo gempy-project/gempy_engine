@@ -9,7 +9,7 @@ from gempy_engine.core.data.regular_grid import RegularGrid
 from gempy_engine.modules.octrees_topology._octree_common import _generate_next_level_centers
 
 
-def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=False, debug=False) -> Grid:
+def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=False) -> Grid:
     list_ixd_select = []
 
     def _mark_voxel(uv_8):
@@ -36,8 +36,6 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
     ids = prev_octree.last_output_corners.ids_custom_grid
 
     uv_8 = ids.reshape((-1, 8))
-
-    # uv_8 = uv_8[idx].reshape((-1, 4))
 
     # Old octree
     shift_select_xyz, voxel_select = _mark_voxel(uv_8)

@@ -23,7 +23,7 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
     output_0_centers: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # interpolate - centers
 
     # * Interpolate - corners
-    grid_0_centers: Grid = interpolation_input.grid  # ? This could be move to the next section
+    grid_0_centers: Grid = interpolation_input.grid  # ? This could be moved to the next section
     if options.compute_corners:
         grid_0_corners = _get_grid_for_corners(grid_0_centers)
         interpolation_input.grid = grid_0_corners  # * Prepare grid for next interpolation
