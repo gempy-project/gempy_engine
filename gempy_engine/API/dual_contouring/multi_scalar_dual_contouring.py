@@ -130,6 +130,8 @@ def _mask_generation(octree_leaves, masking_option: DualContouringMaskingOptions
             case DualContouringMaskingOptions.INTERSECT, StackRelationType.ONLAP:
                 mask_matrix[i] = all_scalar_fields_outputs[i].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
                 onlap_chain_counter += 1
+            case _, StackRelationType.FAULT:
+                mask_matrix[i] = np.ones(grid_size//8, dtype=bool)
             case _:
                 raise ValueError("Invalid combination of options")
     
