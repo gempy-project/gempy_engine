@@ -4,17 +4,18 @@ from typing import List
 import pytest
 
 from gempy_engine.API.interp_single._multi_scalar_field_manager import _interpolate_stack, interpolate_all_fields
+from gempy_engine.API.interp_single._octree_generation import _get_grid_for_corners
 from gempy_engine.API.interp_single.interp_features import interpolate_n_octree_levels
 from gempy_engine.API.model.model_api import compute_model
-from gempy_engine.core.data.solutions import Solutions
-from gempy_engine.core.data.interp_output import InterpOutput
-from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data import TensorsStructure
+from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
+from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
+from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 from gempy_engine.plugins.plotting import helper_functions_pyvista
-from tests.conftest import plot_pyvista, TEST_SPEED
 from gempy_engine.plugins.plotting.helper_functions import plot_block
+from tests.conftest import plot_pyvista, TEST_SPEED
 
 try:
     # noinspection PyUnresolvedReferences
@@ -61,9 +62,9 @@ def test_compute_mask_components_all_erode(unconformity_complex):
 
     if plot_pyvista or False:
         grid = interpolation_input.grid.regular_grid
-        plot_block(outputs[0].mask_components.mask_lith, grid)
-        plot_block(outputs[1].mask_components.mask_lith, grid)
-        plot_block(outputs[2].mask_components.mask_lith, grid)
+        plot_block(outputs[0].mask_components_erode, grid)
+        plot_block(outputs[1].mask_components_erode, grid)
+        plot_block(outputs[2].mask_components_erode, grid)
 
 
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
@@ -74,11 +75,8 @@ def test_mask_arrays(unconformity_complex):
     grid = interpolation_input.grid.regular_grid
 
     grid_0_centers = interpolation_input.grid
-    from gempy_engine.modules.octrees_topology._octree_common import _generate_corners
-    from gempy_engine.core.data.grid import Grid
-    grid_0_corners = Grid(
-        custom_grid=_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz)
-    )
+
+    grid_0_corners = _get_grid_for_corners(grid_0_centers)
     interpolation_input.grid = grid_0_corners
 
     output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)  # TODO: This is unnecessary for the last level except for Dual contouring

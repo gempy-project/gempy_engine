@@ -42,7 +42,7 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
     return next_octree_level
 
 
-def _get_grid_for_corners(grid_0_centers):
+def _get_grid_for_corners(grid_0_centers: Grid) -> Grid:
     xyz_at_corners = _generate_corners(regular_grid=grid_0_centers.regular_grid)
     generic_grid = GenericGrid(values=xyz_at_corners)
     grid_0_corners = Grid(custom_grid=generic_grid)
