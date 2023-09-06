@@ -27,10 +27,9 @@ def test_compute_mask_components_all_erode_implicit_sphere(unconformity_complex_
 
     if PLOT or False:
         grid = interpolation_input.grid.regular_grid
-        plot_block(outputs[0].mask_components.mask_lith, grid)
-        plot_block(outputs[1].mask_components.mask_lith, grid)
-        plot_block(outputs[2].mask_components.mask_lith, grid)
-        plot_block(outputs[3].mask_components.mask_lith, grid)
+        plot_block(outputs[0].mask_components_erode, grid)
+        plot_block(outputs[1].mask_components_erode, grid)
+        plot_block(outputs[2].mask_components_erode, grid)
 
 
 def test_final_block_implicit(unconformity_complex_implicit):

@@ -396,13 +396,13 @@ def unconformity_complex_implicit():
         extent=extent)
 
     stack_structure = StacksStructure(
-        number_of_points_per_stack=np.array([0, 3, 2, 6]),
-        number_of_orientations_per_stack=np.array([0, 2, 1, 6]),
-        number_of_surfaces_per_stack=np.array([1, 1, 1, 2]),
-        masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, StackRelationType.ERODE, False],
+        number_of_points_per_stack=np.array([3, 2, 6]),
+        number_of_orientations_per_stack=np.array([2, 1, 6]),
+        number_of_surfaces_per_stack=np.array([1, 1, 2]),
+        masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, StackRelationType.BASEMENT],
         interp_functions_per_stack=[custom_function, None, None, None])  # * For custom functions we need to add the feature on the DataDescriptor (first element in this model)
 
-    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([0, 3, 2, 3, 3]))
+    tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([3, 2, 3, 3]))
     input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
 
     range_ = 0.8660254 * 100

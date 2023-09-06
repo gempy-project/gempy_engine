@@ -94,12 +94,12 @@ class StacksStructure:
 
     @property
     def interp_function(self):
-        if self._interp_functions_per_stack is None:
+        if self.interp_functions_per_stack is None:
             return None
-        return self._interp_functions_per_stack[self.stack_number]
+        return self.interp_functions_per_stack[self.stack_number]
 
     @property
     def segmentation_function(self):
-        if self._segmentation_functions_per_stack is None:
+        if self.segmentation_functions_per_stack is None:
             return None
-        return self._segmentation_functions_per_stack[self.stack_number]
+        return self.segmentation_functions_per_stack[self.stack_number]
