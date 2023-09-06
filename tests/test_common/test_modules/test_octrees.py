@@ -91,7 +91,10 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
                                                       clean_buffer=False)
 
     # Interpolate level 1 - Corners
-    grid_1_corners = Grid(_generate_corners(grid_1_centers.values, grid_1_centers.dxdydz))
+    grid_1_corners = Grid.from_xyz_coords(
+        xyz_coords=_generate_corners(regular_grid=grid_1_centers.regular_grid)
+    )
+
     interpolation_input.grid = grid_1_corners
     output_1_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure,
                                                       clean_buffer=False)

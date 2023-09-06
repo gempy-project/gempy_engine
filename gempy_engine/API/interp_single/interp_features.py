@@ -69,7 +69,7 @@ def interpolate_single_field(interpolation_input: InterpolationInput, options: d
         stack_relation=interpolation_input.stack_relation
     )
 
-    return InterpOutput(scalar_output)
+    return InterpOutput(scalar_output, None)
 
 
 def interpolate_and_segment(interpolation_input: InterpolationInput, options: data.InterpolationOptions,  # * Just for testing
@@ -80,6 +80,6 @@ def interpolate_and_segment(interpolation_input: InterpolationInput, options: da
         data_shape=data_shape,
         solver_input=input_preprocess(data_shape, interpolation_input)
     )
-    return InterpOutput(output)
+    return InterpOutput(output, None)
 
 # endregion
