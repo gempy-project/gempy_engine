@@ -71,7 +71,7 @@ def _mask_generation(n_scalar_field, octree_leaves, masking_option: DualContouri
     stack_relation: StackRelationType = output_corners.scalar_fields.stack_relation
 
     match (masking_option, stack_relation):
-        case DualContouringMaskingOptions.RAW:
+        case DualContouringMaskingOptions.RAW, _:
             return None
         case (DualContouringMaskingOptions.DISJOINT | DualContouringMaskingOptions.INTERSECT, StackRelationType.FAULT):
             return None
@@ -83,6 +83,8 @@ def _mask_generation(n_scalar_field, octree_leaves, masking_option: DualContouri
                 mask = (MaskBuffer.previous_mask ^ mask_scalar) * mask_scalar
             MaskBuffer.previous_mask = mask
             return mask
-        case DualContouringMaskingOptions.INTERSECT:
+        case DualContouringMaskingOptions.INTERSECT, _:
             mask = output_corners.squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
             return mask
+        case _:
+            raise ValueError("Invalid combination of options")
