@@ -4,9 +4,12 @@ from typing import List
 
 import numpy as np
 
+from core.data.interp_output import InterpOutput
+from core.data.options import DualContouringMaskingOptions
+from core.data.stack_relation_type import StackRelationType
 from ...core.data.octree_level import OctreeLevel
 from ._experimental_water_tight_DC_1 import _experimental_water_tight
-from ._interpolate_on_edges import interpolate_on_edges_for_dual_contouring, _mask_generation
+from ._interpolate_on_edges import interpolate_on_edges_for_dual_contouring 
 from ._mask_buffer import MaskBuffer
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_data import DualContouringData
@@ -90,3 +93,27 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
         # @on
 
     return all_meshes
+
+
+def _mask_generation(n_scalar_field, octree_leaves, masking_option: DualContouringMaskingOptions) -> np.ndarray | None:
+    output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
+    stack_relation: StackRelationType = output_corners.scalar_fields.stack_relation
+
+    match (masking_option, stack_relation):
+        case DualContouringMaskingOptions.RAW, _:
+            return None
+        case (DualContouringMaskingOptions.DISJOINT | DualContouringMaskingOptions.INTERSECT, StackRelationType.FAULT):
+            return None
+        case DualContouringMaskingOptions.DISJOINT, _:
+            mask_scalar = output_corners.squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+            if MaskBuffer.previous_mask is None:
+                mask = mask_scalar
+            else:
+                mask = (MaskBuffer.previous_mask ^ mask_scalar) * mask_scalar
+            MaskBuffer.previous_mask = mask
+            return mask
+        case DualContouringMaskingOptions.INTERSECT, _:
+            mask = output_corners.squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+            return mask
+        case _:
+            raise ValueError("Invalid combination of options")
