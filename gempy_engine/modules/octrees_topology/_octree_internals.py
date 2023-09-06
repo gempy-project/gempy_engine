@@ -64,55 +64,6 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
         return grid_next_centers
 
 
-def compute_octree_root_on_faces(prev_octree: OctreeLevel, debug=False) -> Grid:
-    warnings.warn.DeprecationWarning("This function is deprecated. Use compute_next_octree_locations instead")
-    def _mark_voxel(uv_6):
-        shift_x = uv_6[0] - uv_6[1]
-        shift_y = uv_6[2] - uv_6[3]
-        shift_z = uv_6[4] - uv_6[5]
-
-        shift_x_select = np.not_equal(shift_x, 0)
-        shift_y_select = np.not_equal(shift_y, 0) * ~shift_x_select
-        shift_z_select = np.not_equal(shift_z, 0) * ~shift_y_select * ~shift_x_select
-        shift_select_xyz = np.array([shift_x_select, shift_y_select, shift_z_select])
-
-        return shift_select_xyz
-
-    def _create_oct_level(shift_select_xyz, xyz_6):
-        return ((xyz_6[::2] + xyz_6[1::2]) / 2)[shift_select_xyz]
-
-    xyz = prev_octree.grid_corners.values
-    dxdydz = prev_octree.dxdydz
-    ids = prev_octree.output_corners.ids_block
-
-    xyz_6 = xyz.reshape((6, -1, 3))
-    uv_6 = ids.reshape((6, -1))
-
-    # Old octree
-    shift_select_xyz = _mark_voxel(uv_6)
-    prev_octree.marked_edges = shift_select_xyz
-
-    # New Octree
-    xyz_anchor = _create_oct_level(shift_select_xyz, xyz_6)
-    xyz_coords = _generate_next_level_centers(xyz_anchor, dxdydz, level=1)
-
-    bool_regular_grid = shift_select_xyz.sum(axis=0, dtype=bool)
-
-    grid_next_centers = Grid(
-        xyz_coords,
-        regular_grid=RegularGrid(
-            prev_octree.grid_centers.regular_grid.extent,
-            prev_octree.grid_centers.regular_grid.resolution * 2,
-            bool_regular_grid
-        ),
-    )
-
-    if debug:
-        return (xyz_coords, xyz_anchor, shift_select_xyz, bool_regular_grid)
-    else:
-        return grid_next_centers
-
-
 def _calculate_topology(shift_select_xyz: List[np.ndarray], ids: np.ndarray):
     """This is for the typology of level 0. Probably for the rest of octtrees
     levels it will be a bit different

@@ -133,19 +133,3 @@ def moureze_model_factory(path_to_root: str, pick_every=8, octree_lvls=3, solver
 
     # endregion
     return interpolation_input, interpolation_options, input_data_descriptor
-
-
-def dep_code_to_duplicate_dips_moureze_orientations_heavy(moureze):
-    _, ori = moureze
-    n = 2
-    ori_poss = ori[['X', 'Y', 'Z']].values,
-    ori_pos = ori_poss[0]
-    ori_grad = ori[['G_x', 'G_y', 'G_z']].values
-
-    for i in range(n):
-        ori_pos = np.vstack([ori_pos, ori_pos + np.array([i * 100, i * 100, i * 100])])
-        ori_grad = np.vstack([ori_grad, ori_grad])
-
-    ori_t = Orientations(ori_pos, dip_gradients=ori_grad)
-
-    return ori_t
