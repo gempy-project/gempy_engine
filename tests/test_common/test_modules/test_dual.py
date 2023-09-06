@@ -233,7 +233,8 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
     last_octree_level: OctreeLevel = octree_list[-1]
 
     intersection_xyz, valid_edges = _get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
-    interpolation_input.grid = Grid(intersection_xyz)
+    interpolation_input.grid = Grid.from_xyz_coords(intersection_xyz)
+
     output_on_edges = interp.interpolate_single_field(interpolation_input, options, data_shape.tensors_structure)
 
     dc_data = DualContouringData(
@@ -256,8 +257,8 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
             grid_0_centers=grid_0_centers,
             xyz_on_edge=dc_data.xyz_on_edge,
             gradients=dc_data.gradients,
-            v_pro=mesh[0].vertices,
-            indices=mesh[0].edges,
+            v_pro=meshes[0].vertices,
+            indices=meshes[0].edges,
             plot_label=False,
             plot_marching_cubes=False,
             n=0
@@ -284,7 +285,7 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
 
     # region Get Normals
 
-    interpolation_input.grid = Grid(xyz_on_edge)
+    interpolation_input.grid = Grid.from_xyz_coords(xyz_on_edge)
     output_on_edges = interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure)
 
     gradients = np.stack(
@@ -395,8 +396,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     # endregion
 
     # region Get Normals
-
-    interpolation_input.grid = Grid(xyz_on_edge)
+    interpolation_input.grid = Grid.from_xyz_coords(xyz_on_edge)
     output_on_edges = interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure)
     # stack gradients output_on_edges.exported_fields.gx_field
     gradients = np.stack(
@@ -507,7 +507,7 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
 
     # region Get Normals
 
-    interpolation_input.grid = Grid(xyz_on_edge)
+    interpolation_input.grid = Grid.from_xyz_coords(xyz_on_edge)
     output_on_edges = interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure)
 
     gradients = np.stack(

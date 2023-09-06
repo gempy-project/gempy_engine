@@ -193,7 +193,7 @@ class InterpolationOptions:
     def compute_corners(self):
         is_not_last_octree = (self.is_last_octree_level is False)
         is_dual_contouring = self.dual_contouring
-        is_octree_for_surfaces = self.current_octree_level == self.number_octree_levels_surface - 1
+        is_octree_for_surfaces = self.current_octree_level == self.number_octree_levels_surface 
         is_dual_contouring_and_octree_is_for_surfaces = is_dual_contouring and is_octree_for_surfaces
         
         corners_for_dual_cont = is_dual_contouring_and_octree_is_for_surfaces or is_not_last_octree
