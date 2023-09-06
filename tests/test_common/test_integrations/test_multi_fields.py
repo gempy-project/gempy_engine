@@ -4,7 +4,8 @@ from typing import List
 import pytest
 
 from gempy_engine.API.interp_single._multi_scalar_field_manager import _interpolate_stack, interpolate_all_fields
-from gempy_engine.API.model.model_api import _interpolate, compute_model
+from gempy_engine.API.interp_single.interp_features import interpolate_n_octree_levels
+from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
@@ -142,7 +143,10 @@ def test_plot_corners(unconformity_complex, n_oct_levels=2):
 def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
-    solution: Solutions = _interpolate(interpolation_input, options, structure)
+    solution: Solutions = Solutions(
+        octrees_output=interpolate_n_octree_levels(interpolation_input, options, structure)
+    )
+    
     final_block = solution.octrees_output[0].output_centers.final_block
     final_block2 = get_regular_grid_value_for_level(solution.octrees_output, 1).astype("int8")
 

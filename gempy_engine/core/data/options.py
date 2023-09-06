@@ -257,7 +257,7 @@ class InterpolationOptions:
     
     @property
     def number_octree_levels_surface(self):
-        if self._number_octree_levels_surface == -1:
+        if self._number_octree_levels_surface >= self.number_octree_levels:
             return self.number_octree_levels
         else:
             return self._number_octree_levels_surface
