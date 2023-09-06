@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import dataclass
 from typing import Optional
 
@@ -61,7 +62,12 @@ class InterpOutput:
     def ids_block(self) -> np.ndarray:
         return np.rint(self.block[self.grid.regular_grid_slice])
 
-    
+
+    @ids_block.setter
+    def ids_block(self, value): # ! This is just used for testing or other weird stuff
+        warnings.warn("This is just used for testing or other weird stuff")
+        self.block[self.grid.regular_grid_slice] = value
+
     @property
     def block(self):
         if self.combined_scalar_field is None:

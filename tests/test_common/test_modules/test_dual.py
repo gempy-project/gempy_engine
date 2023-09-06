@@ -54,7 +54,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     last_octree_level: OctreeLevel = octree_list[-1]
 
     intersection_xyz, valid_edges = _get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
-    interpolation_input.grid = Grid(intersection_xyz)
+    interpolation_input.grid = Grid.from_xyz_coords(intersection_xyz)
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
 
     dc_data = DualContouringData(
@@ -115,17 +115,21 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
 
     octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
-    last_octree_level: OctreeLevel = octree_list[-1]
+    octree_level_for_surface: OctreeLevel = octree_list[options.number_octree_levels_surface]
 
-    intersection_xyz, valid_edges = _get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
-    interpolation_input.grid = Grid(intersection_xyz)
+    intersection_xyz, valid_edges = _get_intersection_on_edges(
+        octree_level=octree_level_for_surface,
+        output_corners=octree_level_for_surface.outputs_corners[0]
+    )
+    
+    interpolation_input.grid = Grid.from_xyz_coords(intersection_xyz)
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
 
     dc_data = DualContouringData(
         xyz_on_edge=intersection_xyz,
         valid_edges=valid_edges,
-        xyz_on_centers=last_octree_level.grid_centers.values,
-        dxdydz=last_octree_level.grid_centers.dxdydz,
+        xyz_on_centers=octree_level_for_surface.grid_centers.values,
+        dxdydz=octree_level_for_surface.grid_centers.dxdydz,
         exported_fields_on_edges=output_on_edges[0].exported_fields,
         n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
     )
@@ -135,16 +139,29 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
     valid_voxels = dc_data.valid_voxels
 
     # Mark active voxels
-    temp_ids = last_octree_level.last_output_center.ids_block  # ! I need this because setters in python sucks
+    temp_ids = octree_level_for_surface.last_output_center.ids_block  # ! I need this because setters in python sucks
     temp_ids[valid_voxels] = 5
-    last_octree_level.last_output_center.ids_block = temp_ids  # paint valid voxels
+    octree_level_for_surface.last_output_center.ids_block = temp_ids  # paint valid voxels
 
     # * ---- New code Here ----
 
     stacked = get_left_right_array(octree_list)
     validated_stacked = stacked[valid_voxels]
     validated_edges = valid_edges[valid_voxels]
-    indices_array: np.ndarray = triangulate(validated_stacked, validated_edges, options.number_octree_levels)
+
+    edges_normals = np.zeros((valid_edges.shape[0], 12, 3))
+    edges_normals[:] = np.nan
+    edges_normals[valid_edges] = dc_data.gradients
+
+    voxel_normal = np.nanmean(edges_normals, axis=1)
+    voxel_normal = voxel_normal[(~np.isnan(voxel_normal).any(axis=1))]  # drop nans
+
+    indices_array: np.ndarray = triangulate(
+        left_right_array=validated_stacked,
+        valid_edges=validated_edges,
+        tree_depth=options.number_octree_levels,
+        voxel_normals=voxel_normal
+    )
 
     # endregion
 

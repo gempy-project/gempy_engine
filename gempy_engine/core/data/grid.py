@@ -20,6 +20,13 @@ class Grid:
 
     debug_vals = None
     
+    @classmethod
+    def from_xyz_coords(cls, xyz_coords: ndarray) -> "Grid":
+        return cls(custom_grid=GenericGrid(values=xyz_coords))
+
+    @classmethod
+    def from_regular_grid(cls, regular_grid: RegularGrid) -> "Grid":
+        return cls(regular_grid=regular_grid)
     
     @property
     def values(self) -> np.ndarray:
@@ -80,9 +87,6 @@ class Grid:
         )
 
 
-    @classmethod
-    def from_regular_grid(cls, regular_grid: RegularGrid) -> "Grid":
-        return cls(regular_grid=regular_grid)
 
     @property
     def len_all_grids(self) -> int:
