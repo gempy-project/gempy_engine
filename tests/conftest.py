@@ -4,11 +4,7 @@ from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 # ! Do not delete the fixtures imports
 # Import fixtures
-from tests.fixtures.simple_geometries import \
-    horizontal_stratigraphic, \
-    horizontal_stratigraphic_scaled, \
-    recumbent_fold_scaled, \
-    unconformity
+from tests.fixtures.simple_geometries import unconformity
 
 from tests.fixtures.grids import \
     simple_grid_2d, \
