@@ -5,8 +5,8 @@ from tests.conftest import plot_pyvista
 from tests.fixtures.simple_models import simple_model_interpolation_input_factory
 
 
-def test_interpolate_model_cubic(simple_grid_3d_octree, n_oct_levels=3):
-    interpolation_input, options, structure = simple_model_interpolation_input_factory(simple_grid_3d_octree)
+def test_interpolate_model_cubic(n_oct_levels=3):
+    interpolation_input, options, structure = simple_model_interpolation_input_factory()
     options = InterpolationOptions(
         range=options.range,
         c_o=options.c_o,
@@ -28,8 +28,8 @@ def test_interpolate_model_cubic(simple_grid_3d_octree, n_oct_levels=3):
         p.show()
 
 
-def test_interpolate_model_exponential(simple_grid_3d_octree, n_oct_levels=3):
-    interpolation_input, options, structure = simple_model_interpolation_input_factory(simple_grid_3d_octree)
+def test_interpolate_model_exponential(n_oct_levels=3):
+    interpolation_input, options, structure = simple_model_interpolation_input_factory()
 
     options = InterpolationOptions(
         range=options.range,

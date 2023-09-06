@@ -12,6 +12,8 @@ from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.API.interp_single.interp_features import interpolate_single_field
 from tests.conftest import TEST_SPEED
 from gempy_engine.plugins.plotting.helper_functions import plot_block
+from tests.fixtures.grids import simple_grid_3d_octree
+from tests.fixtures.simple_models import simple_model_interpolation_input_factory
 
 dir_name = os.path.dirname(__file__)
 
@@ -68,8 +70,8 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
         plt.show()
 
 
-def test_export_simple_model_low_res(simple_model_interpolation_input, plot=True):
-    interpolation_input, options, structure = simple_model_interpolation_input
+def test_export_simple_model_low_res(plot=True):
+    interpolation_input, options, structure = simple_model_interpolation_input_factory()
     options.compute_scalar_gradient = True
     
     output: InterpOutput = interpolate_single_field(interpolation_input, options, structure.tensors_structure)

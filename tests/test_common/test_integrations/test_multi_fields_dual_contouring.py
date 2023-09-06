@@ -6,33 +6,34 @@ from gempy_engine.core.data.options import DualContouringMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.plugins.plotting import helper_functions_pyvista
 from tests.conftest import TEST_SPEED
+from tests.fixtures.simple_models import unconformity_complex_factory
 from tests.test_common.test_integrations.test_multi_fields import plot_pyvista
 
 
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
-def test_dual_contouring_multiple_independent_fields(unconformity_complex, n_oct_levels=2):
+def test_dual_contouring_multiple_independent_fields(n_oct_levels=2):
     _run_model_for_dual_contouring_option(
         dual_contouring_option=DualContouringMaskingOptions.DISJOINT,
         n_oct_levels=n_oct_levels,
-        model=unconformity_complex
+        model=unconformity_complex_factory()
     )
 
 
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
-def test_dual_contouring_multiple_independent_fields_intersect(unconformity_complex, n_oct_levels=2):
+def test_dual_contouring_multiple_independent_fields_intersect(n_oct_levels=2):
     _run_model_for_dual_contouring_option(
         dual_contouring_option=DualContouringMaskingOptions.INTERSECT,
         n_oct_levels=n_oct_levels,
-        model=unconformity_complex
+        model=unconformity_complex_factory()
     )
 
 
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
-def test_dual_contouring_multiple_independent_fields_intersect_raw(unconformity_complex, n_oct_levels=2):
+def test_dual_contouring_multiple_independent_fields_intersect_raw(n_oct_levels=2):
     _run_model_for_dual_contouring_option(
         dual_contouring_option=DualContouringMaskingOptions.RAW,
         n_oct_levels=n_oct_levels,
-        model=unconformity_complex
+        model=unconformity_complex_factory()
     )
 
 

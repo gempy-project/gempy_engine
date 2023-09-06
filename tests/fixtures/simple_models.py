@@ -131,8 +131,13 @@ def simple_model() -> Tuple[SurfacePoints, Orientations, InterpolationOptions, I
     return spi, ori_i, kri, input_data_descriptor
 
 
-def simple_model_interpolation_input_factory(simple_grid_3d_octree):
-    grid_0_centers = copy.deepcopy(simple_grid_3d_octree)
+def simple_model_interpolation_input_factory():
+    resolution = [2, 2, 3]
+    extent = [0.25, .75, 0.25, .75, 0.25, .75]
+
+    regular_grid = RegularGrid(extent, resolution)
+    grid_0_centers = Grid.from_regular_grid(regular_grid)
+    
     dip_positions = np.array([
         [0.25010, 0.50010, 0.54177],
         [0.66677, 0.50010, 0.62510],
@@ -168,10 +173,8 @@ def simple_model_interpolation_input_factory(simple_grid_3d_octree):
 
 
 @pytest.fixture(scope="session")
-def simple_model_interpolation_input(simple_grid_3d_octree) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
-    interpolation_input, interpolation_options, input_data_descriptor = simple_model_interpolation_input_factory(simple_grid_3d_octree)
-
-    yield interpolation_input, interpolation_options, input_data_descriptor
+def simple_model_interpolation_input() -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
+    return simple_model_interpolation_input_factory()
 
 
 @pytest.fixture(scope="session")
@@ -327,47 +330,41 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
 
 @pytest.fixture(scope="session")
 def unconformity_complex():
+    return unconformity_complex_factory()
+
+
+def unconformity_complex_factory():
     orientations = pd.read_csv(data_path + "05_toy_fold_unconformity_orientations.csv")
     sp = pd.read_csv(data_path + "05_toy_fold_unconformity_interfaces.csv")
-
     sp_coords = sp[["X", "Y", "Z"]].values
     dip_postions = orientations[["X", "Y", "Z"]].values
     dip_gradients_ = calculate_gradient(orientations["dip"],
                                         orientations["azimuth"],
                                         orientations["polarity"])
     dip_gradients = np.vstack(dip_gradients_).T
-
     stack_structure = StacksStructure(
         number_of_points_per_stack=np.array([3, 2, 6]),
         number_of_orientations_per_stack=np.array([2, 1, 6]),
         number_of_surfaces_per_stack=np.array([1, 1, 2]),
         masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, False],
     )
-
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([3, 2, 3, 3]))
     input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
-
     range_ = 0.8660254 * 100
     c_o = 35.71428571 * 100
     i_r = 4
     gi_r = 2
-
     options = InterpolationOptions(
         range_, c_o, uni_degree=0, i_res=i_r, gi_res=gi_r,
         number_dimensions=3,
         kernel_function=AvailableKernelFunctions.cubic)
-
     resolution = [15, 2, 15]
     extent = [0, 10., 0, 2., 0, 5.]
-
     regular_grid = RegularGrid(extent, resolution)
-
     grid = Grid(regular_grid=regular_grid)
-
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)
     ids = np.array([0, 1, 2, 3, 4, 5])
-
     interpolation_input = InterpolationInput(spi, ori, grid, ids)
     return interpolation_input, options, input_data_descriptor
 

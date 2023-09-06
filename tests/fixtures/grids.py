@@ -29,6 +29,7 @@ def simple_grid_3d_more_points_grid():
     grid = Grid.from_regular_grid(regular_grid)
     return grid
 
+
 @pytest.fixture(scope="session")
 def simple_grid_3d_octree():
     resolution = [2, 2, 3]
