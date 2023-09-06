@@ -106,7 +106,7 @@ class TestCompareWithGempy_v2:
 
         # Test weights and b vector
         b_vec = yield_b_vector(ori_internals, cov.shape[0])
-        weights = kernel_reduction(cov, b_vec, options)
+        weights = kernel_reduction(cov, b_vec, options.kernel_options)
         print(weights)
 
         weights_gempy_v2 = [6.402e+00, -1.266e+01, 2.255e-15, -2.784e-15, 1.236e+01, 2.829e+01, -6.702e+01, -6.076e+02,
