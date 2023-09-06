@@ -104,7 +104,7 @@ class InterpolationOptions:
     compute_scalar_gradient        : bool                         = False
 
     dual_contouring                : bool                         = True
-    dual_contouring_masking_options: DualContouringMaskingOptions = DualContouringMaskingOptions.RAW
+    dual_contouring_masking_options: DualContouringMaskingOptions = DualContouringMaskingOptions.INTERSECT
     dual_contouring_fancy          : bool                         = True
 
     debug                          : bool                         = gempy_engine.config.DEBUG_MODE

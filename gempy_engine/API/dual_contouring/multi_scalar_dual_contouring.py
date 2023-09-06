@@ -4,20 +4,19 @@ from typing import List
 
 import numpy as np
 
-from core.data.interp_output import InterpOutput
-from core.data.options import DualContouringMaskingOptions
-from core.data.stack_relation_type import StackRelationType
-from ...core.data.octree_level import OctreeLevel
+from ._dual_contouring import compute_dual_contouring
 from ._experimental_water_tight_DC_1 import _experimental_water_tight
-from ._interpolate_on_edges import interpolate_on_edges_for_dual_contouring 
+from ._interpolate_on_edges import interpolate_on_edges_for_dual_contouring
 from ._mask_buffer import MaskBuffer
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.input_data_descriptor import InputDataDescriptor
+from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput
-
-from ._dual_contouring import compute_dual_contouring
+from ...core.data.octree_level import OctreeLevel
+from ...core.data.options import DualContouringMaskingOptions
+from ...core.data.stack_relation_type import StackRelationType
 from ...core.utils import gempy_profiler_decorator
 from ...modules.dual_contouring.fancy_triangulation import get_left_right_array
 
@@ -51,7 +50,12 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
         case _:
             raise ValueError("Invalid combination of options")
     # endregion
-
+    
+    all_mask_arrays : np.ndarray = _mask_generation(
+            octree_leaves=octree_leaves,
+            masking_option=options.dual_contouring_masking_options
+        )
+    
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
         previous_stack_is_onlap = data_descriptor.stack_relation[n_scalar_field - 1] == 'Onlap'
         was_erosion_before = data_descriptor.stack_relation[n_scalar_field - 1] == 'Erosion'
@@ -59,11 +63,7 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
             raise NotImplementedError("Erosion and Onlap are not supported yet")
             pass
 
-        mask: np.ndarray = _mask_generation(
-            n_scalar_field=n_scalar_field,
-            octree_leaves=octree_leaves,
-            masking_option=options.dual_contouring_masking_options
-        )
+        mask: np.ndarray = all_mask_arrays[n_scalar_field] 
         
         if mask is not None and left_right_codes is not None:
             left_right_codes_per_stack = left_right_codes[mask]
@@ -95,25 +95,42 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
     return all_meshes
 
 
-def _mask_generation(n_scalar_field, octree_leaves, masking_option: DualContouringMaskingOptions) -> np.ndarray | None:
-    output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
-    stack_relation: StackRelationType = output_corners.scalar_fields.stack_relation
+def _mask_generation(octree_leaves, masking_option: DualContouringMaskingOptions) -> np.ndarray | None:
+    all_scalar_fields_outputs: list[InterpOutput] = octree_leaves.outputs_corners
+    n_scalar_fields = len(all_scalar_fields_outputs)
+    grid_size = all_scalar_fields_outputs[0].grid_size
+    mask_matrix = np.zeros((n_scalar_fields, grid_size//8), dtype=bool)
+    onlap_chain_counter = 0
 
-    match (masking_option, stack_relation):
-        case DualContouringMaskingOptions.RAW, _:
-            return None
-        case (DualContouringMaskingOptions.DISJOINT | DualContouringMaskingOptions.INTERSECT, StackRelationType.FAULT):
-            return None
-        case DualContouringMaskingOptions.DISJOINT, _:
-            mask_scalar = output_corners.squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
-            if MaskBuffer.previous_mask is None:
-                mask = mask_scalar
-            else:
-                mask = (MaskBuffer.previous_mask ^ mask_scalar) * mask_scalar
-            MaskBuffer.previous_mask = mask
-            return mask
-        case DualContouringMaskingOptions.INTERSECT, _:
-            mask = output_corners.squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
-            return mask
-        case _:
-            raise ValueError("Invalid combination of options")
+    for i in range(n_scalar_fields):
+        stack_relation = all_scalar_fields_outputs[i].scalar_fields.stack_relation
+        match (masking_option, stack_relation):
+            case DualContouringMaskingOptions.RAW, _:
+                mask_matrix[i] = np.ones(grid_size//8, dtype=bool)
+            case DualContouringMaskingOptions.DISJOINT, _:
+                raise NotImplementedError("Disjoint is not supported yet. Not even sure if there is anything to support")
+            # case (DualContouringMaskingOptions.DISJOINT | DualContouringMaskingOptions.INTERSECT, StackRelationType.FAULT):
+            #     mask_matrix[i] = np.ones(grid_size//8, dtype=bool)
+            # case DualContouringMaskingOptions.DISJOINT, StackRelationType.ERODE | StackRelationType.BASEMENT:
+            #     mask_scalar = all_scalar_fields_outputs[i - 1].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+            #     if MaskBuffer.previous_mask is None:
+            #         mask = mask_scalar
+            #     else:
+            #         mask = (MaskBuffer.previous_mask ^ mask_scalar) * mask_scalar
+            #     MaskBuffer.previous_mask = mask
+            # case DualContouringMaskingOptions.DISJOINT, StackRelationType.ONLAP:
+            #     raise NotImplementedError("Onlap is not supported yet")
+            #     return octree_leaves.outputs_corners[n_scalar_field].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+            case DualContouringMaskingOptions.INTERSECT, StackRelationType.ERODE:
+                mask_matrix[i] = all_scalar_fields_outputs[i + onlap_chain_counter].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+                onlap_chain_counter = 0
+            case DualContouringMaskingOptions.INTERSECT,  StackRelationType.BASEMENT:
+                mask_matrix[i] = all_scalar_fields_outputs[i].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+                onlap_chain_counter = 0
+            case DualContouringMaskingOptions.INTERSECT, StackRelationType.ONLAP:
+                mask_matrix[i] = all_scalar_fields_outputs[i].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+                onlap_chain_counter += 1
+            case _:
+                raise ValueError("Invalid combination of options")
+    
+    return mask_matrix

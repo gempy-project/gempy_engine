@@ -14,7 +14,7 @@ class OctreeLevel:
     grid_centers: Grid
     grid_corners: Optional[Grid]
     outputs_centers: List[InterpOutput]  #: List of output (one per stack)
-    outputs_corners: List[InterpOutput]
+    outputs_corners: list[InterpOutput]
 
     # Topo
     edges_id: np.ndarray = None
