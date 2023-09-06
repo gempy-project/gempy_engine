@@ -79,18 +79,6 @@ def test_export_simple_model_low_res(simple_model_interpolation_input, plot=True
     gy = output.exported_fields.gy_field
     gz = output.exported_fields.gz_field
 
-    # one layer weights:
-    # [  0.263 -10.335   0.      0.      5.425   4.585
-    #   -9.435 -19.55   -2.565  16.013 -12.997   1.39 ]
-
-    #  print(ids_block)
-    # np.save(dir_name+"/solutions/test_activator", np.round(ids_block))
-
-    # ids_sol = np.load(dir_name+"/solutions/test_activator.npy")
-    # np.testing.assert_almost_equal(
-    #     np.round(ids_block),
-    #     ids_sol[:, :-7], # NOTE(miguel) Now we only segment on the grid
-    #     decimal=3)
     if plot:
         plt.contourf(Z_x.reshape(2, 2, 3)[:, 0, :].T, N=40, cmap="autumn",
                      extent=(.25, .75, .25, .75)
@@ -119,23 +107,11 @@ def test_export_3_layers(simple_model_3_layers_high_res, plot=True):
     options.compute_scalar_gradient = True
     output: InterpOutput = interpolate_single_field(interpolation_input, options, structure.tensors_structure)
     Z_x = output.exported_fields.scalar_field
-    # ids_block = output.ids_block
+    
     gx = output.exported_fields.gx_field
     gy = output.exported_fields.gy_field
     gz = output.exported_fields.gz_field
 
-    # one layer weights:
-    # [  0.263 -10.335   0.      0.      5.425   4.585
-    #   -9.435 -19.55   -2.565  16.013 -12.997   1.39 ]
-
-    #  print(ids_block)
-    # np.save(dir_name+"/solutions/test_activator", np.round(ids_block))
-
-    # ids_sol = np.load(dir_name+"/solutions/test_activator.npy")
-    # np.testing.assert_almost_equal(
-    #     np.round(ids_block),
-    #     ids_sol[:, :-7], # NOTE(miguel) Now we only segment on the grid
-    #     decimal=3)
     if plot:
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn",
                      extent=(.25, .75, .25, .75)

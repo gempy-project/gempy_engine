@@ -6,6 +6,7 @@ import pytest
 
 import gempy_engine.API.interp_single.interp_features as interp
 from gempy_engine.API.interp_single._interp_scalar_field import _evaluate_sys_eq
+from gempy_engine.API.interp_single._octree_generation import _generate_corners
 from gempy_engine.core.data.grid import Grid, RegularGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.internal_structs import SolverInput
@@ -70,8 +71,9 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     output_0_centers = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure)
 
     # Interpolate level 0 - corners
-    from gempy_engine.modules.octrees_topology._octree_common import _generate_corners
-    grid_0_corners = Grid(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
+    grid_0_corners = Grid.from_xyz_coords(
+        xyz_coords=_generate_corners(regular_grid=grid_0_centers.regular_grid)
+    )
     interpolation_input.grid = grid_0_corners
     output_0_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure, clean_buffer=False)
 
@@ -170,8 +172,10 @@ def test_octree_root_idx(simple_model):
     output_0_centers = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure)
 
     # Interpolate level 0 - corners
-    from gempy_engine.modules.octrees_topology._octree_common import _generate_corners
-    grid_0_corners = Grid(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
+    grid_0_corners = Grid.from_xyz_coords(
+        xyz_coords=_generate_corners(regular_grid=grid_0_centers.regular_grid)
+    )
+
     interpolation_input.grid = grid_0_corners
     output_0_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure, clean_buffer=False)
 

@@ -115,7 +115,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
 
     octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
-    octree_level_for_surface: OctreeLevel = octree_list[options.number_octree_levels_surface]
+    octree_level_for_surface: OctreeLevel = octree_list[options.number_octree_levels_surface - 1]
 
     intersection_xyz, valid_edges = _get_intersection_on_edges(
         octree_level=octree_level_for_surface,

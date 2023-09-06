@@ -66,6 +66,7 @@ def interpolate_single_field(interpolation_input: InterpolationInput, options: d
         grid=grid,
         exported_fields=exported_fields,
         values_block=None,
+        stack_relation=interpolation_input.stack_relation
     )
 
     return InterpOutput(scalar_output)
