@@ -132,18 +132,6 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=1):
     options.dual_contouring = True
     options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
 
-    # region no faults
-    # faults_relations = np.array(
-    #     [[False, False, False],
-    #      [False, False, False],
-    #      [False, False, False]
-    #      ]
-    # )
-    # structure.stack_structure.faults_relations = faults_relations
-    # solutions: Solutions = compute_model(interpolation_input, options, structure)
-    # meshes = solutions.dc_meshes
-    # endregion
-
     # region finite fault
     faults_relations = np.array(
         [[False, True, True],
@@ -178,7 +166,7 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=1):
         plot_scalar_and_input_2d(1, interpolation_input, outputs, structure.stack_structure)
         plot_scalar_and_input_2d(2, interpolation_input, outputs, structure.stack_structure)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=meshes,

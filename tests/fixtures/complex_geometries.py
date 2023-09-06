@@ -176,7 +176,7 @@ def graben_fault_model():
     resolution = [2, 2, 2]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
-    grid = Grid(regular_grid.values, regular_grid=regular_grid)
+    grid = Grid(regular_grid=regular_grid)
 
     interpolation_input = InterpolationInput(spi, ori, grid, ids)
     # endregion

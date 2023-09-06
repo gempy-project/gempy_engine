@@ -362,7 +362,7 @@ def unconformity_complex():
 
     regular_grid = RegularGrid(extent, resolution)
 
-    grid = Grid(regular_grid.values, regular_grid=regular_grid)
+    grid = Grid(regular_grid=regular_grid)
 
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)
@@ -378,7 +378,7 @@ def unconformity_complex_implicit():
     extent = [0, 10., 0, 2., 0, 5.]
 
     regular_grid = RegularGrid(extent, resolution)
-    grid = Grid(regular_grid.values, regular_grid=regular_grid)
+    grid = Grid(regular_grid=regular_grid)
 
     orientations = pd.read_csv(data_path + "05_toy_fold_unconformity_orientations.csv")
     sp = pd.read_csv(data_path + "05_toy_fold_unconformity_interfaces.csv")

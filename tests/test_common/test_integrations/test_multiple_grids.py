@@ -27,7 +27,7 @@ def test_interpolate_model_on_multiple_grids(simple_model_interpolation_input, n
     
     solutions = compute_model(interpolation_input, options, structure)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels -1)
