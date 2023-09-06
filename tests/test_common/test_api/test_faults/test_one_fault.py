@@ -73,14 +73,6 @@ def test_one_fault_model_pykeops(one_fault_model):
     solver_input = input_preprocess(tensor_struct_i, interpolation_input_i)
 
     A_matrix = yield_covariance(solver_input, options.kernel_options)
-    array_to_cache = A_matrix
-
-    if True:
-        if pykeops_enabled is False:
-            cache_array = np.save("cached_array", array_to_cache)
-        cached_array = np.load("cached_array.npy")
-        foo = A_matrix.sum(0).T - cached_array.sum(0)
-        print(cached_array)
 
 
 def test_one_fault_model_thickness(one_fault_model, n_oct_levels=2):

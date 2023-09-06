@@ -319,7 +319,7 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
             exported_fields=exported_fields,
             values_block=values_block,
             stack_relation=ii.stack_relation,
-        )
+        ),
     )
 
     return output

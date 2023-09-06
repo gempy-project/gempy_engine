@@ -11,7 +11,7 @@ from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 @dataclass(init=True)
 class InterpOutput:
     scalar_fields: ScalarFieldOutput
-    combined_scalar_field: CombinedScalarFieldsOutput
+    combined_scalar_field: Optional[CombinedScalarFieldsOutput] = None
 
     @property
     def squeezed_mask_array(self):
