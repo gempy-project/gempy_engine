@@ -20,8 +20,9 @@ class StacksStructure:
     faults_relations                : Optional[np.ndarray]                = None
     faults_input_data               : Optional[List[FaultsData]]          = None  # ? Shouldn't be private?
     
-    _interp_functions_per_stack      : List[CustomInterpolationFunctions] = None
-    _segmentation_functions_per_stack: Optional[List[Callable[[np.ndarray], float]]] = None
+    # * These two fields are optional but public
+    interp_functions_per_stack      : List[CustomInterpolationFunctions] = None
+    segmentation_functions_per_stack: Optional[List[Callable[[np.ndarray], float]]] = None
 
     _number_of_points_per_stack_vector      : np.ndarray = np.ones(1)
     _number_of_orientations_per_stack_vector: np.ndarray = np.ones(1)

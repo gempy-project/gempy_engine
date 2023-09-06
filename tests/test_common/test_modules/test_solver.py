@@ -17,7 +17,7 @@ def kriging_eq(simple_model_2_internals):
     solver_input = SolverInput(sp_internal, ori_internal, xyz_to_interpolate=None, fault_internal=None)
     A_matrix = yield_covariance(solver_input, options.kernel_options)
     b_vector = yield_b_vector(ori_internal, A_matrix.shape[0])
-    return A_matrix, b_vector
+    return A_matrix, b_vector, options
 
 
 weights_sol = np.array(

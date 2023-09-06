@@ -457,7 +457,7 @@ def unconformity_complex_one_layer():
 
     regular_grid = RegularGrid(extent, resolution)
 
-    grid = Grid(regular_grid.values, regular_grid=regular_grid)
+    grid = Grid(regular_grid=regular_grid)
 
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)

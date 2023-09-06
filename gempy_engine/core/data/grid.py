@@ -19,7 +19,8 @@ class Grid:
     centered_grid = None  # TODO: Not implemented this probably will need something different that the generic grid?
 
     debug_vals = None
-
+    
+    
     @property
     def values(self) -> np.ndarray:
         """Collect values from all associated grids."""

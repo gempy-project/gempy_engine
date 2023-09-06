@@ -76,7 +76,9 @@ def test_mask_arrays(unconformity_complex):
     grid_0_centers = interpolation_input.grid
     from gempy_engine.modules.octrees_topology._octree_common import _generate_corners
     from gempy_engine.core.data.grid import Grid
-    grid_0_corners = Grid(_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz))
+    grid_0_corners = Grid(
+        custom_grid=_generate_corners(grid_0_centers.values, grid_0_centers.dxdydz)
+    )
     interpolation_input.grid = grid_0_corners
 
     output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)  # TODO: This is unnecessary for the last level except for Dual contouring
@@ -146,7 +148,7 @@ def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
     solution: Solutions = Solutions(
         octrees_output=interpolate_n_octree_levels(interpolation_input, options, structure)
     )
-    
+
     final_block = solution.octrees_output[0].output_centers.final_block
     final_block2 = get_regular_grid_value_for_level(solution.octrees_output, 1).astype("int8")
 

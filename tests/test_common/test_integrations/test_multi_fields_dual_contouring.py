@@ -73,7 +73,7 @@ def _run_model_for_FANCY_dual_contouring(dual_contouring_option, n_oct_levels, u
     options.dual_contouring_masking_options = dual_contouring_option
     options.dual_contouring_fancy = True
     regular_grid = RegularGrid(extent=[0, 10., 0, 2., 0, 5.], regular_grid_shape=[2, 2, 2])
-    grid = Grid(regular_grid.values, regular_grid=regular_grid)
+    grid = Grid(regular_grid=regular_grid)
     interpolation_input.grid = grid
     solutions: Solutions = compute_model(interpolation_input, options, structure)
     if plot_pyvista or False:

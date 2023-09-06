@@ -194,7 +194,7 @@ def graben_fault_model():
         number_of_points_per_stack=np.array([9, 9, 54]),
         number_of_orientations_per_stack=np.array([1, 1, 10]),
         number_of_surfaces_per_stack=np.array([1, 1, 4]),
-        masking_descriptor=[StackRelationType.FAULT, StackRelationType.FAULT, StackRelationType.ERODE, False],
+        masking_descriptor=[StackRelationType.FAULT, StackRelationType.FAULT, StackRelationType.BASEMENT],
         faults_relations=faults_relations
     )
 

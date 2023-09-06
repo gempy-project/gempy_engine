@@ -117,7 +117,7 @@ def test_graben_fault_model_offset(graben_fault_model):
     options.compute_scalar_gradient = False
     options.dual_contouring = False
 
-    fault_data: FaultsData = FaultsData.from_user_input(thickness=None, offset=50)
+    fault_data: FaultsData = FaultsData.from_user_input(thickness=None)
     structure.stack_structure.faults_input_data = [fault_data, None, None]
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
