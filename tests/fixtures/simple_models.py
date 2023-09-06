@@ -318,7 +318,7 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
             grid=grid,
             exported_fields=exported_fields,
             values_block=values_block,
-            mask_components=None
+            stack_relation=ii.stack_relation,
         )
     )
 

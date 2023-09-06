@@ -22,13 +22,7 @@ def test_activator(simple_model_values_block_output):
 
     ids_block = activate_formation_block(simple_model_values_block_output.exported_fields, ids, 50000)[:, :-7]
     print(ids_block)
-    # np.save(dir_name+"/solutions/test_activator", np.round(ids_block))
 
-    ids_sol = np.load(dir_name + "/solutions/test_activator.npy")
-    # np.testing.assert_almost_equal(
-    #     np.round(ids_block),
-    #     ids_sol, # NOTE(miguel) Now we only segment on the grid
-    #     decimal=3)
     if plot:
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
         plt.colorbar()
