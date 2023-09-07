@@ -116,9 +116,6 @@ class InterpolationInput:
 
         # region Transforming the grid
 
-        # DE- BUG
-        actual_scaling = transform.apply(grid.regular_grid.values)
-        
         transformed = transform.apply(grid.regular_grid.bounding_box)
         new_extents = np.array([transformed[:, 0].min(), transformed[:, 0].max(),
                                 transformed[:, 1].min(), transformed[:, 1].max(),
@@ -129,7 +126,6 @@ class InterpolationInput:
             regular_grid_shape=interpolation_resolution,
         )
         
-        foo = regular_grid.values
         topography_values: GenericGrid = GenericGrid( values=transform.apply(grid.topography.values)) if grid.topography is not None else None
         section_values: GenericGrid = GenericGrid(values=transform.apply(grid.sections.values)) if grid.sections is not None else None
         custom_values: GenericGrid = GenericGrid(values=transform.apply(grid.custom_grid.values)) if grid.custom_grid is not None else None
