@@ -1,5 +1,4 @@
-from gempy_engine.config import TENSOR_DTYPE
-from gempy_engine.core.backend_tensor import BackendTensor as bt
+from gempy_engine.core.backend_tensor import BackendTensor as bt, BackendTensor
 from gempy_engine.core.data.kernel_classes.orientations import OrientationsInternals
 
 
@@ -14,7 +13,7 @@ def b_vector_assembly(ori: OrientationsInternals, cov_size: int) -> bt.tensor_ty
     else:
         raise ValueError("Wrong number of dimensions in the gradients.")
 
-    b_vector = bt.tfnp.concatenate([*g_vector, bt.tfnp.zeros(cov_size - g_s, dtype=TENSOR_DTYPE)], -1)
+    b_vector = bt.tfnp.concatenate([*g_vector, bt.tfnp.zeros(cov_size - g_s, dtype=BackendTensor.dtype)], -1)
     b_vector = bt.tfnp.expand_dims(b_vector, axis=1)
 
     return b_vector

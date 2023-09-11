@@ -3,7 +3,7 @@ from typing import Union, List
 
 import numpy as np
 
-from ...config import TENSOR_DTYPE
+from ..backend_tensor import BackendTensor
 from ..utils import _check_and_convert_list_to_array
 from .kernel_classes.server.input_parser import GridSchema
 
@@ -163,9 +163,9 @@ class RegularGrid:
     def _create_regular_grid(cls, extent, resolution):
         dx, dy, dz = cls._compute_dxdydz(extent, resolution)
 
-        x = np.linspace(extent[0] + dx / 2, extent[1] - dx / 2, resolution[0], dtype=TENSOR_DTYPE)
-        y = np.linspace(extent[2] + dy / 2, extent[3] - dy / 2, resolution[1], dtype=TENSOR_DTYPE)
-        z = np.linspace(extent[4] + dz / 2, extent[5] - dz / 2, resolution[2], dtype=TENSOR_DTYPE)
+        x = np.linspace(extent[0] + dx / 2, extent[1] - dx / 2, resolution[0], dtype=BackendTensor.dtype)
+        y = np.linspace(extent[2] + dy / 2, extent[3] - dy / 2, resolution[1], dtype=BackendTensor.dtype)
+        z = np.linspace(extent[4] + dz / 2, extent[5] - dz / 2, resolution[2], dtype=BackendTensor.dtype)
 
         # Create C contiguous arrays
         xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")

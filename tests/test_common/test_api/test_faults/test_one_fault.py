@@ -85,7 +85,7 @@ def test_one_fault_model_thickness(one_fault_model, n_oct_levels=2):
     fault_data: FaultsData = FaultsData.from_user_input(thickness=.5)
     structure.stack_structure.faults_input_data = [fault_data, None, None]
     options.dual_contouring = True
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.DISJOINT
+    options.dual_contouring_masking_options = DualContouringMaskingOptions.INTERSECT
 
     options.number_octree_levels = n_oct_levels
     solutions: Solutions = compute_model(interpolation_input, options, structure)

@@ -65,9 +65,9 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
         Solutions.debug_input_data["b_vector"] = b_vector
 
         # Check matrices have the right dtype:
-        assert A_matrix.dtype == gempy_engine.config.TENSOR_DTYPE, f"Wrong dtype for A_matrix: {A_matrix.dtype}. should be {gempy_engine.config.TENSOR_DTYPE}"
-        assert b_vector.dtype == gempy_engine.config.TENSOR_DTYPE, f"Wrong dtype for b_vector: {b_vector.dtype}. should be {gempy_engine.config.TENSOR_DTYPE}"
-        assert weights.dtype == gempy_engine.config.TENSOR_DTYPE, f"Wrong dtype for weights: {weights.dtype}. should be {gempy_engine.config.TENSOR_DTYPE}"
+        assert A_matrix.dtype == BackendTensor.dtype, f"Wrong dtype for A_matrix: {A_matrix.dtype}. should be {BackendTensor.dtype}"
+        assert b_vector.dtype == BackendTensor.dtype, f"Wrong dtype for b_vector: {b_vector.dtype}. should be {BackendTensor.dtype}"
+        assert weights.dtype == BackendTensor.dtype, f"Wrong dtype for weights: {weights.dtype}. should be {BackendTensor.dtype}"
 
     return weights
 

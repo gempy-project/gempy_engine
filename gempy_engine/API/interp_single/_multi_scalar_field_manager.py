@@ -4,7 +4,7 @@ from typing import List, Iterable, Optional
 import numpy as np
 from numpy import ndarray
 
-from ...config import TENSOR_DTYPE
+from ...core.backend_tensor import BackendTensor
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.exported_structs import CombinedScalarFieldsOutput
 from ...core.data.interp_output import InterpOutput
@@ -61,7 +61,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
     all_scalar_fields_outputs: List[ScalarFieldOutput | None] = [None] * stack_structure.n_stacks
 
     xyz_to_interpolate_size: int = root_interpolation_input.grid.len_all_grids + root_interpolation_input.surface_points.n_points
-    all_stack_values_block: np.ndarray = np.zeros((stack_structure.n_stacks, xyz_to_interpolate_size), dtype=TENSOR_DTYPE)  # * Used for faults
+    all_stack_values_block: np.ndarray = np.zeros((stack_structure.n_stacks, xyz_to_interpolate_size), dtype=BackendTensor.dtype)  # * Used for faults
 
     for i in range(stack_structure.n_stacks):
         stack_structure.stack_number = i

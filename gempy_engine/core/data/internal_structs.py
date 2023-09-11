@@ -5,7 +5,7 @@ import numpy as np
 
 from . import SurfacePointsInternals, OrientationsInternals
 from .kernel_classes.faults import FaultsData
-from ...config import TENSOR_DTYPE
+from ..backend_tensor import BackendTensor
 
 
 @dataclass
@@ -22,7 +22,7 @@ class SolverInput(object):
         self.sp_internal = sp_internal
         self.ori_internal = ori_internal
         if xyz_to_interpolate is not None:
-            self.xyz_to_interpolate = xyz_to_interpolate.astype(TENSOR_DTYPE)
+            self.xyz_to_interpolate = xyz_to_interpolate.astype(BackendTensor.dtype)
         self._fault_internal = fault_internal
 
     def __hash__(self):
@@ -34,8 +34,8 @@ class SolverInput(object):
     @property
     def fault_internal(self):
         if self._fault_internal is None:
-            empty_fault_values_on_sp = np.zeros((0, 0), dtype=TENSOR_DTYPE)
-            empty_fault_values_on_grid = np.zeros((0, 0), dtype=TENSOR_DTYPE)
+            empty_fault_values_on_sp = np.zeros((0, 0), dtype=BackendTensor.dtype)
+            empty_fault_values_on_grid = np.zeros((0, 0), dtype=BackendTensor.dtype)
             return FaultsData(empty_fault_values_on_grid, empty_fault_values_on_sp)
         return self._fault_internal
 

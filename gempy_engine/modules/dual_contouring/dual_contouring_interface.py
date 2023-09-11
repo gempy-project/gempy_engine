@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from ...config import TENSOR_DTYPE
+from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
 import numpy as np
 
@@ -23,7 +23,7 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field_on_corners:
         xyz_8 = xyz_8[ma_8]
         scalar_8 = scalar_8[:, ma_8]
 
-    scalar_at_sp = scalar_at_sp.reshape((-1, 1, 1)).astype(TENSOR_DTYPE)
+    scalar_at_sp = scalar_at_sp.reshape((-1, 1, 1)).astype(BackendTensor.dtype)
 
     n_isosurface = scalar_at_sp.shape[0]
     xyz_8 = np.tile(xyz_8, (n_isosurface, 1, 1))  # TODO: Generalize

@@ -21,7 +21,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions) -> np.ndarray:
     compute_condition_number = kernel_options.compute_condition_number
     
     # ? Maybe we should always compute the conditional_number no matter the branch
-    dtype = gempy_engine.config.TENSOR_DTYPE
+    dtype = BackendTensor.dtype
     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled, solver):
         case (AvailableBackends.tensorflow, True, _):
             raise NotImplementedError('Pykeops is not implemented for tensorflow yet')

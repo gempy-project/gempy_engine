@@ -3,7 +3,6 @@ from enum import Enum
 
 from typing import Callable
 
-from gempy_engine.config import TENSOR_DTYPE
 from gempy_engine.core.backend_tensor import BackendTensor
 
 
@@ -28,7 +27,7 @@ def exp_function_p_div_r(sq_r, a):
 
 
 def exp_function_a(sq_r, a):
-    first_term = BackendTensor.tfnp.divide(sq_r, (a ** 4), dtype=TENSOR_DTYPE) # ! This term is almost always zero. I thnk we can just remove it
+    first_term = BackendTensor.tfnp.divide(sq_r, (a ** 4), dtype=BackendTensor.dtype) # ! This term is almost always zero. I thnk we can just remove it
     second_term = 1 / (a ** 2)
     third_term = BackendTensor.tfnp.exp(-(sq_r / (2 * a ** 2)))
     return (first_term - second_term) * third_term

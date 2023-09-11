@@ -1,10 +1,10 @@
-from typing import Union, Any
+from typing import Union, Any, Optional
 import warnings
 
 import numpy
 
 from gempy_engine.config import is_pykeops_installed, is_numpy_installed, is_tensorflow_installed, DEBUG_MODE, \
-    DEFAULT_BACKEND, AvailableBackends, DEFAULT_PYKEOPS
+    DEFAULT_BACKEND, AvailableBackends, DEFAULT_PYKEOPS, DEFAULT_TENSOR_DTYPE
 
 if is_pykeops_installed:
     import pykeops.numpy
@@ -15,6 +15,7 @@ class BackendTensor:
 
     pykeops_enabled: bool
     use_gpu: bool = True
+    dtype: str = 'float64'
 
     tensor_types: Union
     tensor_backend_pointer: dict = dict()  # Pycharm will infer the type. It is the best I got so far
@@ -33,11 +34,12 @@ class BackendTensor:
                 return "CPU"
 
     @classmethod
-    def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = True):
-        cls.change_backend(engine_backend, pykeops_enabled=DEFAULT_PYKEOPS, use_gpu=use_gpu)
+    def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = True, dtype: Optional[str] = None):
+        cls.dtype = DEFAULT_TENSOR_DTYPE if dtype is None else dtype
+        cls._change_backend(engine_backend, pykeops_enabled=DEFAULT_PYKEOPS, use_gpu=use_gpu)
     
     @classmethod
-    def change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled: bool = False, use_gpu: bool = True):
+    def _change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled: bool = False, use_gpu: bool = True):
         match engine_backend:
             case (engine_backend.numpy):
                 if is_numpy_installed is False:
@@ -164,4 +166,4 @@ class BackendTensor:
         cls.tfnp.constant = cls.tfnp.array
 
 
-BackendTensor.change_backend(DEFAULT_BACKEND)
+BackendTensor._change_backend(DEFAULT_BACKEND)

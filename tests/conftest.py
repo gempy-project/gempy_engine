@@ -20,7 +20,7 @@ backend = AvailableBackends.numpy
 use_gpu = False
 plot_pyvista = False  # ! Set here if you want to plot the results
 
-BackendTensor.change_backend(backend, use_gpu=use_gpu, pykeops_enabled=pykeops_enabled)
+BackendTensor._change_backend(backend, use_gpu=use_gpu, pykeops_enabled=pykeops_enabled)
 
 try:
     import pyvista as pv

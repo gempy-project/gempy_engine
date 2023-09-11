@@ -2,7 +2,7 @@ from typing import Tuple
 
 import numpy as np
 
-from ...config import TENSOR_DTYPE
+from ...core.backend_tensor import BackendTensor
 from ...core.data.matrices_sizes import MatricesSizes
 from ...core.data.kernel_classes.orientations import OrientationsInternals
 from ...core.data.options import KernelOptions
@@ -11,7 +11,7 @@ from ...core.data.options import KernelOptions
 def assembly_dips_points_tensor(dips_coord: np.ndarray, sp_coord: np.ndarray, matrices_size: MatricesSizes):
     n_dim = matrices_size.dim
     drift_size = matrices_size.drifts_size
-    z = np.zeros((drift_size, n_dim), dtype=TENSOR_DTYPE)
+    z = np.zeros((drift_size, n_dim), dtype=BackendTensor.dtype)
     
     dipspoints = np.vstack((dips_coord, sp_coord, z))
     return dipspoints
@@ -25,7 +25,7 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, interpolation_
     full_cov_size = matrices_size.cov_size
     shift = matrices_size.sp_size + matrices_size.ori_size
 
-    z = np.zeros((full_cov_size, n_dim), dtype=TENSOR_DTYPE)
+    z = np.zeros((full_cov_size, n_dim), dtype=BackendTensor.dtype)
 
     # Assembly vectors for degree 1
     if interpolation_options.uni_degree != 0:
@@ -40,7 +40,7 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, interpolation_
     # region Second term:
     dips_b_aux = ori_internals.dip_positions_tiled
 
-    z2 = np.zeros((full_cov_size, n_dim), dtype=TENSOR_DTYPE)
+    z2 = np.zeros((full_cov_size, n_dim), dtype=BackendTensor.dtype)
 
     if interpolation_options.uni_degree == 2:
         for i in range(interpolation_options.number_dimensions):
@@ -51,8 +51,8 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, interpolation_
     # endregion
 
     # region Third term:
-    z3 = np.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=TENSOR_DTYPE)
-    uni_second_degree_selector = np.zeros_like(z3, dtype=TENSOR_DTYPE)
+    z3 = np.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=BackendTensor.dtype)
+    uni_second_degree_selector = np.zeros_like(z3, dtype=BackendTensor.dtype)
 
     if interpolation_options.uni_degree == 2:
         for i in range(interpolation_options.number_dimensions):
@@ -82,8 +82,8 @@ def assembly_dips_points_coords(surface_points: np.ndarray, matrices_sizes: Matr
     ori_size = matrices_sizes.ori_size
     drifts_size = matrices_sizes.drifts_size
     
-    z = np.zeros((ori_size, n_dim), dtype=TENSOR_DTYPE)  # * Orientations area
-    z2 = np.zeros((drifts_size, n_dim), dtype=TENSOR_DTYPE)  # * Universal area
+    z = np.zeros((ori_size, n_dim), dtype=BackendTensor.dtype)  # * Orientations area
+    z2 = np.zeros((drifts_size, n_dim), dtype=BackendTensor.dtype)  # * Universal area
 
     zb = z2.copy()  # ! This block has to be here because it has to be before we modify z2
     zc = z2.copy()

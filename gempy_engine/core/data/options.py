@@ -110,7 +110,6 @@ class InterpolationOptions:
     debug                          : bool                         = gempy_engine.config.DEBUG_MODE
     debug_water_tight              : bool                         = False
 
-    tensor_dtype                   : str                          = gempy_engine.config.TENSOR_DTYPE
     _number_octree_levels_surface  : int                          = 4
     
     def __init__(
@@ -126,7 +125,6 @@ class InterpolationOptions:
             dual_contouring           : bool                             = True,
             compute_scalar_gradient   : bool                             = False,
             compute_condition_number  : bool                             = False,
-            tensor_dtype              : gempy_engine.config.TENSOR_DTYPE = gempy_engine.config.TENSOR_DTYPE,  # TODO: This is unused
             
     ):
         self.number_octree_levels = number_octree_levels
@@ -145,7 +143,6 @@ class InterpolationOptions:
         self.dual_contouring         = dual_contouring
         self.compute_scalar_gradient = compute_scalar_gradient
 
-        self.tensor_dtype = tensor_dtype
     # @on
 
     def __repr__(self):

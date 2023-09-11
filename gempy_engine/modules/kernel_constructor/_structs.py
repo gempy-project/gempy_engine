@@ -3,9 +3,7 @@ from typing import Tuple, Optional
 
 import numpy as np
 
-from gempy_engine.config import TENSOR_DTYPE
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
-from gempy_engine.core.utils import cast_type_inplace
 
 tensor_types = BackendTensor.tensor_types
 
@@ -15,7 +13,7 @@ def _upgrade_kernel_input_to_keops_tensor(struct_data_instance):
 
     for key, val in struct_data_instance.__dict__.items():
         if key == "n_faults_i": continue
-        struct_data_instance.__dict__[key] = LazyTensor(val.astype(TENSOR_DTYPE))  # ! This as type is quite expensive
+        struct_data_instance.__dict__[key] = LazyTensor(val.astype(BackendTensor.dtype))  # ! This as type is quite expensive
         #struct_data_instance.__dict__[key] = LazyTensor(val)  # ! This as type is quite expensive
 
 
@@ -151,8 +149,8 @@ class DriftMatrixSelector:
     sel_vj: tensor_types = np.empty((1, 0, 3))
     
     def __init__(self, x_size: int, y_size: int, n_drift_eq: int, drift_start_post_x: int, drift_start_post_y: int):
-        sel_i = np.zeros((x_size, 2), dtype=TENSOR_DTYPE)
-        sel_j = np.zeros((y_size, 2), dtype=TENSOR_DTYPE)
+        sel_i = np.zeros((x_size, 2), dtype=BackendTensor.dtype)
+        sel_j = np.zeros((y_size, 2), dtype=BackendTensor.dtype)
 
         drift_pos_0_x = drift_start_post_x
         drift_pos_1_x = drift_start_post_x + n_drift_eq + 1

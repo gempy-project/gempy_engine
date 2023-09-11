@@ -15,7 +15,7 @@ def test_dtype_propagates_float32(simple_grid_3d_octree, n_oct_levels=3):
     """This test only makes sense for Tensorflow and Pykeops I think"""
     options: InterpolationOptions
     interpolation_input, options, structure = simple_model_interpolation_input_factory(simple_grid_3d_octree)
-    gempy_engine.config.TENSOR_DTYPE = 'float32'
+    BackendTensor.dtype = 'float32'
 
     options.number_octree_levels = n_oct_levels
     solutions = compute_model(interpolation_input, options, structure)
