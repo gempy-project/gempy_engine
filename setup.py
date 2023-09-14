@@ -1,5 +1,7 @@
 ﻿from setuptools import setup, find_packages
 
+version = "2023.1.0b1"
+
 
 def read_requirements(file_name):
     with open(file_name, "r", encoding="utf-8") as f:
@@ -11,14 +13,15 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="gempy_engine",
-    version="0.1.0",
+    version=version,
     author="Miguel de la Varga",
     author_email="miguel@terranigma-solutions.com",
     description="A Python package for GemPy",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/terranigma-solutions/gempy_engine",
+    url="https://github.com/gempy-project/gempy_engine",
     packages=find_packages(),
+    license='EUPL-1.2',
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
