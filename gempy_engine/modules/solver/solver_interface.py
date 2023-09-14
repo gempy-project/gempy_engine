@@ -5,7 +5,6 @@ from gempy_engine.core.data.kernel_classes.solvers import Solvers
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 import numpy as np
-from scipy.sparse.linalg import aslinearoperator, cg, cgs, LinearOperator, gmres
 
 from gempy_engine.core.data.options import KernelOptions
 
@@ -45,6 +44,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions) -> np.ndarray:
                 _compute_conditional_number(cov)
 
         case (AvailableBackends.numpy, _, Solvers.DEFAULT |Solvers.SCIPY_CG):
+            from scipy.sparse.linalg import aslinearoperator, cg
             if bt.use_gpu is False and BackendTensor.pykeops_enabled is True: 
                 cov.backend = 'CPU'
                 
@@ -61,6 +61,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions) -> np.ndarray:
             print(f'CG iterations: {n_iters}')
         
         case (AvailableBackends.numpy, _, Solvers.GMRES):
+            from scipy.sparse.linalg import aslinearoperator, gmres
             A = aslinearoperator(cov)
             w, info = gmres(
                 A=A,
