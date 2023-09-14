@@ -1,7 +1,6 @@
-from dataclasses import dataclass, asdict
-from typing import Optional
-
 import numpy as np
+from dataclasses import dataclass
+from typing import Optional
 
 from gempy_engine.core.data.dual_contouring_data import DualContouringData
 
