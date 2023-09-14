@@ -3,6 +3,7 @@ from typing import Optional
 
 import numpy as np
 
+from gempy.optional_dependencies import require_subsurface, require_pandas
 from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
 from gempy_engine.core.data.octree_level import OctreeLevel
@@ -157,3 +158,26 @@ class RawArraysSolution:
         
         block[block == 0] = block.max() + 1 # Move basement from first to last
         self.lith_block = block
+
+    def meshes_to_subsurface(self):
+        ss = require_subsurface()
+        pd = require_pandas()
+        
+        vertex: list[np.ndarray] = self.vertices
+        simplex_list: list[np.ndarray] = self.edges
+
+        idx_max = 0
+        for simplex_array in simplex_list:
+            simplex_array += idx_max
+            idx_max = simplex_array.max() + 1
+
+        id_array = [np.full(v.shape[0], i + 1) for i, v in enumerate(vertex)]
+
+        concatenated_id_array = np.concatenate(id_array)
+        meshes: ss.UnstructuredData = ss.UnstructuredData.from_array(
+            vertex=np.concatenate(vertex),
+            cells=np.concatenate(simplex_list),
+            vertex_attr=pd.DataFrame({'id': concatenated_id_array})
+        )
+        
+        return meshes

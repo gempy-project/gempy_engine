@@ -41,3 +41,6 @@ class Solutions:
     @property
     def raw_arrays(self):
         return self._raw_arrays
+    
+    
+    
