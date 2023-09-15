@@ -15,7 +15,7 @@ PLOT_SUBSURFACE_OBJECT = False
 def process_output(meshes: list[DualContouringMesh], n_stack: int, solutions: Solutions, logger: logging.Logger) \
         -> bytes:
     # * serialize meshes
-    unstructured_data_meshes: UnstructuredData = _meshes_to_unstruct(meshes, n_stack, logger)
+    unstructured_data_meshes: UnstructuredData = _meshes_to_unstruct(meshes, logger)
     if PLOT_SUBSURFACE_OBJECT:
         _plot_subsurface_object(unstructured_data_meshes)
     body_meshes, header_meshes = unstructured_data_meshes.to_binary()
@@ -52,7 +52,8 @@ def process_output(meshes: list[DualContouringMesh], n_stack: int, solutions: So
     return body
 
 
-def _meshes_to_unstruct(meshes: list[DualContouringMesh], n_stack: int, logger: logging.Logger) -> UnstructuredData:
+def _meshes_to_unstruct(meshes: list[DualContouringMesh], logger: logging.Logger) -> UnstructuredData:
+    # ? I added this function to the Solutions class
     n_meshes = len(meshes)
     logger.debug(f"Number of meshes: {n_meshes}")
     logger.debug("Mesh1TriShape" + str(meshes[0].edges.shape))

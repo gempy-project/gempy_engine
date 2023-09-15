@@ -41,6 +41,42 @@ class Solutions:
     @property
     def raw_arrays(self):
         return self._raw_arrays
-    
-    
+
+
+    def meshes_to_unstruct(self) -> "subsurface.UnstructuredData":
+        meshes = self.dc_meshes
+        import subsurface
+        import pandas as pd
+        n_meshes = len(meshes)
+
+        vertex_array = np.concatenate([meshes[i].vertices for i in range(n_meshes)])
+        simplex_array = np.concatenate([meshes[i].edges for i in range(n_meshes)])
+
+        # * Prepare the simplex array
+        simplex_array = meshes[0].edges
+        for i in range(1, n_meshes):
+            adder = np.max(meshes[i - 1].edges) + 1
+            add_mesh = meshes[i].edges + adder
+            simplex_array = np.append(simplex_array, add_mesh, axis=0)
+
+        # * Prepare the cells_attr array
+        ids_array = np.ones(simplex_array.shape[0])
+        l0 = 0
+        id = 1
+        for mesh in meshes:
+            l1 = l0 + mesh.edges.shape[0]
+            ids_array[l0:l1] = id
+            l0 = l1
+            id += 1
+
+        # * Create the unstructured data
+        unstructured_data = subsurface.UnstructuredData.from_array(
+            vertex=vertex_array,
+            cells=simplex_array,
+            cells_attr=pd.DataFrame(ids_array, columns=['id'])
+            # TODO: We have to create an array with the shape of simplex array with the id of each simplex
+        )
+
+        return unstructured_data
+
     
