@@ -50,23 +50,23 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -
                 
             A = aslinearoperator(cov)
             print(f'A size: {A.shape}')
-            x0 = np.zeros((cov.shape[0], 1))
-            if kernel_options.uni_degree == 0:
-                pass
-            elif kernel_options.uni_degree == 1:
-                x0[:3+n_faults] = 1
-            elif kernel_options.uni_degree == 2:
-                x0[:9+n_faults] = 1
-            else:
-                raise AttributeError('The degree of the polynomial should be 0, 1 or 2')
-
+            # x0 = np.zeros((cov.shape[0], 1))
+            # if kernel_options.uni_degree == 0:
+            #     pass
+            # elif kernel_options.uni_degree == 1:
+            #     x0[:3+n_faults] = 1
+            # elif kernel_options.uni_degree == 2:
+            #     x0[:9+n_faults] = 1
+            # else:
+            #     raise AttributeError('The degree of the polynomial should be 0, 1 or 2')
+            # 
             w, info = cg(
                 A=A,
                 b=b[:, 0],
                 maxiter=100,
                 tol=.000005,  # * With this tolerance we do 8 iterations
                 callback=callback,
-                x0=x0
+                # x0=x0
             )
             w = np.atleast_2d(w).T
             print(f'CG iterations: {n_iters}')
