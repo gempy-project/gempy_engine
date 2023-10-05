@@ -12,7 +12,7 @@ def cast_type_inplace(data_instance: Any):
             case (gempy_engine.config.AvailableBackends.numpy | gempy_engine.config.AvailableBackends.tensorflow):
                 data_instance.__dict__[key] = val.astype(BackendTensor.dtype)
             case (gempy_engine.config.AvailableBackends.PYTORCH):
-                data_instance.__dict__[key] = BackendTensor.t.Tensor(val) # * Dtype is set with set_default_dtype  
+                data_instance.__dict__[key] = BackendTensor.t.from_numpy(val.astype(BackendTensor.dtype))
         
 
 

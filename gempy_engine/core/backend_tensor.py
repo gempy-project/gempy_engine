@@ -36,11 +36,11 @@ class BackendTensor:
 
     @classmethod
     def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = True, dtype: Optional[str] = None):
-        cls.dtype = DEFAULT_TENSOR_DTYPE if dtype is None else dtype
-        cls._change_backend(engine_backend, pykeops_enabled=DEFAULT_PYKEOPS, use_gpu=use_gpu)
+        cls._change_backend(engine_backend, pykeops_enabled=DEFAULT_PYKEOPS, use_gpu=use_gpu, dytpe=dtype)
 
     @classmethod
-    def _change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled: bool = False, use_gpu: bool = True):
+    def _change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled: bool = False, use_gpu: bool = True, dtype: Optional[str] = None):
+        cls.dtype = DEFAULT_TENSOR_DTYPE if dtype is None else dtype
         match engine_backend:
             case (engine_backend.numpy):
                 if is_numpy_installed is False:
