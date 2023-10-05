@@ -94,7 +94,7 @@ def test_public_interface_simplest_model():
         structure=input_data_descriptor
     )
     
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, interpolation_options.number_octree_levels - 1)

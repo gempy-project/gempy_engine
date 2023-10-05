@@ -105,7 +105,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
 
 def _modify_faults_values_output(fault_input: FaultsData, values_on_all_xyz: np.ndarray,
                                  xyz_to_interpolate: np.ndarray) -> np.ndarray:
-    val_min = np.min(values_on_all_xyz, axis=1).reshape(-1, 1)  # ? Is this as good as it gets?
+    val_min = BackendTensor.t.min(values_on_all_xyz, axis=1).reshape(-1, 1)  # ? Is this as good as it gets?
     shifted_vals = (values_on_all_xyz - val_min)  # * Shift values between 0 and 1... hopefully
     if fault_input.finite_faults_defined:
         # TODO: Rescale scalar field parameters

@@ -170,6 +170,7 @@ class BackendTensor:
         cls.tfnp.hstack = lambda tensors: torch.concat(tensors, dim=1)
         cls.tfnp.array = lambda array_like, dtype=None: torch.tensor(array_like, dtype=dtype)
         cls.tfnp.to_numpy = lambda tensor: tensor.numpy()
+        cls.tfnp.min = lambda tensor, axis: tensor.min(axis=axis)[0]
 
     @classmethod
     def _wrap_pykeops_functions(cls):
