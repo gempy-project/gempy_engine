@@ -346,7 +346,7 @@ def unconformity_complex_factory():
         number_of_points_per_stack=np.array([3, 2, 6]),
         number_of_orientations_per_stack=np.array([2, 1, 6]),
         number_of_surfaces_per_stack=np.array([1, 1, 2]),
-        masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, False],
+        masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE, StackRelationType.BASEMENT],
     )
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([3, 2, 3, 3]))
     input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
