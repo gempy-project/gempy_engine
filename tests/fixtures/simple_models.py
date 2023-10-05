@@ -435,7 +435,7 @@ def unconformity_complex_one_layer():
     stack_structure = StacksStructure(number_of_points_per_stack=np.array([3]),
                                       number_of_orientations_per_stack=np.array([2]),
                                       number_of_surfaces_per_stack=np.array([1]),
-                                      masking_descriptor=[False])
+                                      masking_descriptor=[StackRelationType.BASEMENT])
 
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([3]))
     input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)

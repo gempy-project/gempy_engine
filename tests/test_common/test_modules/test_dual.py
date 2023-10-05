@@ -8,6 +8,8 @@ from gempy_engine.API.interp_single._interp_scalar_field import _evaluate_sys_eq
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields
 from gempy_engine.API.model.model_api import compute_model
+from gempy_engine.config import AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.grid import Grid, RegularGrid
 import numpy as np
 import os
@@ -91,6 +93,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     # endregion
 
 
+@pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="Only numpy supported")
 def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3d_octree):
     from gempy_engine.modules.dual_contouring.fancy_triangulation import get_left_right_array, triangulate
 
