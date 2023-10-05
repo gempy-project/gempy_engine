@@ -158,7 +158,7 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
 
     # * Coordinates for all posible edges (12) and 3 dummy edges_normals in the center
     edges_xyz = BackendTensor.t.zeros((n_edges, 15, 3), dtype=BackendTensor.dtype_obj)
-    
+    edges_xyz[:, :12][valid_edges] = xyz_on_edge
 
     # Normals
     edges_normals = BackendTensor.t.zeros((n_edges, 15, 3), dtype=BackendTensor.dtype_obj)
