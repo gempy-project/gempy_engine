@@ -15,9 +15,7 @@ def b_vector_assembly(ori: OrientationsInternals, cov_size: int) -> bt.tensor_ty
     else:
         raise ValueError("Wrong number of dimensions in the gradients.")
 
-    zeros = np.zeros(cov_size - g_s, dtype=BackendTensor.dtype)
-    if bt.engine_backend == AvailableBackends.PYTORCH:
-        zeros = bt.t.from_numpy(zeros)
+    zeros = bt.t.zeros(cov_size - g_s, dtype=BackendTensor.dtype_obj)
     b_vector = bt.tfnp.concatenate([*g_vector, zeros], -1)
     b_vector = bt.tfnp.expand_dims(b_vector, axis=1)
 

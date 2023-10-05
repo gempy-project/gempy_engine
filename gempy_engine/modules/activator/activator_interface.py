@@ -17,9 +17,7 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray, s
 
 
 def activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slope):
-    element_0 = np.array([0], dtype=BackendTensor.dtype)
-    if bt.engine_backend == AvailableBackends.PYTORCH:
-        element_0 = bt.t.from_numpy(element_0)
+    element_0 = bt.t.array([0], dtype=BackendTensor.dtype_obj)
     
     drift_0_v = bt.tfnp.concatenate([element_0, scalar_value_at_sp])
     drift_1_v = bt.tfnp.concatenate([scalar_value_at_sp, element_0])
@@ -31,9 +29,8 @@ def activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slo
     scalar_1_v[-1] = 0
     
     # * Iterate over surface
-    sigm = np.zeros((1, Z_x.shape[0]), dtype=BackendTensor.dtype) 
-    if bt.engine_backend == AvailableBackends.PYTORCH:
-        sigm = bt.t.from_numpy(sigm)
+    sigm = bt.t.zeros((1, Z_x.shape[0]), dtype=BackendTensor.dtype_obj) 
+    
     for i in range(ids.size):
         sigm += _compute_sigmoid(Z_x, scalar_0_v[i], scalar_1_v[i], drift_0_v[i], drift_1_v[i], ids[i], sigmoid_slope)
     
@@ -48,9 +45,7 @@ def _compute_sigmoid(Z_x, scale_0, scale_1, drift_0, drift_1, drift_id, sigmoid_
         if DEBUG_MODE:
             warnings.simplefilter("ignore", category=RuntimeWarning)
 
-        sigmoid_slope_tensor = np.array(sigmoid_slope, dtype=BackendTensor.dtype)
-        if bt.engine_backend == AvailableBackends.PYTORCH:
-            sigmoid_slope_tensor = bt.t.from_numpy(sigmoid_slope_tensor)
+        sigmoid_slope_tensor = BackendTensor.t.array(sigmoid_slope, dtype=BackendTensor.dtype_obj)
         
         active_sig = -scale_0.reshape((-1, 1)) / (1 + bt.tfnp.exp(-sigmoid_slope_tensor * (Z_x - drift_0)))
         deactive_sig = -scale_1.reshape((-1, 1)) / (1 + bt.tfnp.exp(sigmoid_slope_tensor * (Z_x - drift_1)))

@@ -130,9 +130,8 @@ def triangulate_dual_contouring(dc_data_per_surface: DualContouringData):
     # endregion
 
     valid_edg = valid_edges[valid_voxels][:, :]
-
-    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
-        valid_edg = valid_edg.numpy()
+    valid_edg = BackendTensor.t.to_numpy(valid_edg)
+    
     direction_each_edge = (directions * valid_edg)
 
     # Pick only edges with more than 2 voxels nearby
@@ -176,8 +175,7 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
         mask = bias_xyz == 0
         masked_arr = np.ma.masked_array(bias_xyz, mask)
         mass_points = masked_arr.mean(axis=1)
-        if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
-            mass_points = BackendTensor.t.from_numpy(mass_points)
+        mass_points = BackendTensor.t.array(mass_points)
 
     edges_xyz[:, 12] = mass_points
     edges_xyz[:, 13] = mass_points
@@ -185,14 +183,9 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
 
     BIAS_STRENGTH = 1
     
-    bias_x = np.array([BIAS_STRENGTH, 0, 0], dtype=BackendTensor.dtype)
-    bias_y = np.array([0, BIAS_STRENGTH, 0], dtype=BackendTensor.dtype)
-    bias_z = np.array([0, 0, BIAS_STRENGTH], dtype=BackendTensor.dtype)
-    
-    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
-        bias_x = BackendTensor.t.from_numpy(bias_x)
-        bias_y = BackendTensor.t.from_numpy(bias_y)
-        bias_z = BackendTensor.t.from_numpy(bias_z)
+    bias_x = BackendTensor.t.array([BIAS_STRENGTH, 0, 0], dtype=BackendTensor.dtype_obj)
+    bias_y = BackendTensor.t.array([0, BIAS_STRENGTH, 0], dtype=BackendTensor.dtype_obj)
+    bias_z = BackendTensor.t.array([0, 0, BIAS_STRENGTH], dtype=BackendTensor.dtype_obj)
     
     edges_normals[:, 12] = bias_x
     edges_normals[:, 13] = bias_y

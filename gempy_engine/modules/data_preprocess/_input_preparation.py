@@ -26,10 +26,8 @@ def surface_points_preprocess(sp_input: SurfacePoints, tensors_structure: Tensor
 
     # repeat the reference points (the number of persurface -1)  times
     number_repetitions = tensors_structure.number_of_points_per_surface - 1
+    number_repetitions = BackendTensor.t.array(number_repetitions)
     
-    if b.engine_backend == AvailableBackends.PYTORCH:
-        number_repetitions = b.t.from_numpy(number_repetitions)
-        
     ref_points_repeated = b.t.repeat(ref_points, number_repetitions, 0)  # ref_points shape: (1, 3)
     ref_nugget_repeated = b.t.repeat(ref_nugget, number_repetitions, 0)  # ref_nugget shape: (1)
 

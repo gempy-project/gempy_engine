@@ -168,6 +168,8 @@ class BackendTensor:
         cls.tfnp.expand_dims = lambda tensor, axis: tensor
         cls.tfnp.invert = lambda tensor: ~tensor
         cls.tfnp.hstack = lambda tensors: torch.concat(tensors, dim=1)
+        cls.tfnp.array = lambda array_like, dtype=None: torch.tensor(array_like, dtype=dtype)
+        cls.tfnp.to_numpy = lambda tensor: tensor.numpy()
 
     @classmethod
     def _wrap_pykeops_functions(cls):
@@ -203,6 +205,7 @@ class BackendTensor:
         cls.tfnp.reduce_sum = cls.tfnp.sum
         cls.tfnp.concat = cls.tfnp.concatenate
         cls.tfnp.constant = cls.tfnp.array
+        cls.tfnp.to_numpy = lambda tensor: tensor
     
 
 

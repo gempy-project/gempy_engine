@@ -47,9 +47,7 @@ class Grid:
             values.append(self.centered_grid.values)
         
         values_array = np.concatenate(values, dtype=BackendTensor.dtype)
-        
-        if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
-            return BackendTensor.t.from_numpy(values_array)
+        values_array = BackendTensor.t.array(values_array)
         
         return values_array
 
