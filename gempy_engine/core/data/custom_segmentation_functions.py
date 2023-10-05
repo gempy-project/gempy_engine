@@ -27,7 +27,8 @@ def _implicit_3d_ellipsoid_to_slope(xyz: np.ndarray, center: np.ndarray, radius:
     """
     # ! Finite faults needs quite a bit of fine tunning once we can compute models in real time
     # ! This function only works for elipses perpendicular to the cartesian axis
-    scalar = - np.sum((xyz - center) ** 2.00 / (radius ** 2), axis=1)
+    from gempy_engine.core.backend_tensor import BackendTensor
+    scalar = - BackendTensor.t.sum((xyz - center) ** 2.00 / (radius ** 2), axis=1)
     scalar_shifted = scalar - scalar.min()
 
     sigmoid_slope = 10  # ? This probably should be also public

@@ -145,7 +145,7 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=1):
     meshes = solutions.dc_meshes  # + meshes
 
     outputs: list[OctreeLevel] = solutions.octrees_output
-    scalar = f1_finite_fault(solutions.octrees_output[-1].grid_centers.regular_grid.values)
+    scalar = f1_finite_fault(solutions.octrees_output[-1].grid_centers.values)
     # endregion
 
     if True:
