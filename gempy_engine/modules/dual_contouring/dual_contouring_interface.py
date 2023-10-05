@@ -1,5 +1,6 @@
 from typing import Tuple
 
+from gempy_engine.config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
 import numpy as np
@@ -54,9 +55,9 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field_on_corners:
     valid_edge_z = np.logical_and(weight_z > -0.01, weight_z < 1.01)
 
     # * Note(miguel) From this point on the arrays become sparse
-    xyz_8_edges = np.hstack([xyz_8[:, 4:], xyz_8[:, [2, 3, 6, 7]], xyz_8[:, 1::2]])
-    intersect_segment = np.hstack([intersect_dx, intersect_dy, intersect_dz])
-    valid_edges = np.hstack([valid_edge_x, valid_edge_y, valid_edge_z])[:, :, 0]
+    xyz_8_edges = BackendTensor.t.hstack([xyz_8[:, 4:], xyz_8[:, [2, 3, 6, 7]], xyz_8[:, 1::2]])
+    intersect_segment = BackendTensor.t.hstack([intersect_dx, intersect_dy, intersect_dz])
+    valid_edges = BackendTensor.t.hstack([valid_edge_x, valid_edge_y, valid_edge_z])[:, :, 0]
 
     intersection_xyz = xyz_8_edges[valid_edges] + intersect_segment[valid_edges]
 
@@ -129,6 +130,9 @@ def triangulate_dual_contouring(dc_data_per_surface: DualContouringData):
     # endregion
 
     valid_edg = valid_edges[valid_voxels][:, :]
+
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        valid_edg = valid_edg.numpy()
     direction_each_edge = (directions * valid_edg)
 
     # Pick only edges with more than 2 voxels nearby
@@ -153,11 +157,11 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
     # @on
 
     # * Coordinates for all posible edges (12) and 3 dummy edges_normals in the center
-    edges_xyz = np.zeros((n_edges, 15, 3))
-    edges_xyz[:, :12][valid_edges] = xyz_on_edge
+    edges_xyz = BackendTensor.t.zeros((n_edges, 15, 3), dtype=BackendTensor.dtype_obj)
+    
 
     # Normals
-    edges_normals = np.zeros((n_edges, 15, 3))
+    edges_normals = BackendTensor.t.zeros((n_edges, 15, 3), dtype=BackendTensor.dtype_obj)
     edges_normals[:, :12][valid_edges] = gradients
 
     if OLD_METHOD:=False:
@@ -172,15 +176,27 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
         mask = bias_xyz == 0
         masked_arr = np.ma.masked_array(bias_xyz, mask)
         mass_points = masked_arr.mean(axis=1)
+        if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+            mass_points = BackendTensor.t.from_numpy(mass_points)
 
     edges_xyz[:, 12] = mass_points
     edges_xyz[:, 13] = mass_points
     edges_xyz[:, 14] = mass_points
 
     BIAS_STRENGTH = 1
-    edges_normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])
-    edges_normals[:, 13] = np.array([0, BIAS_STRENGTH, 0])
-    edges_normals[:, 14] = np.array([0, 0, BIAS_STRENGTH])
+    
+    bias_x = np.array([BIAS_STRENGTH, 0, 0], dtype=BackendTensor.dtype)
+    bias_y = np.array([0, BIAS_STRENGTH, 0], dtype=BackendTensor.dtype)
+    bias_z = np.array([0, 0, BIAS_STRENGTH], dtype=BackendTensor.dtype)
+    
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        bias_x = BackendTensor.t.from_numpy(bias_x)
+        bias_y = BackendTensor.t.from_numpy(bias_y)
+        bias_z = BackendTensor.t.from_numpy(bias_z)
+    
+    edges_normals[:, 12] = bias_x
+    edges_normals[:, 13] = bias_y
+    edges_normals[:, 14] = bias_z
 
     # Remove unused voxels
     edges_xyz = edges_xyz[valid_voxels]

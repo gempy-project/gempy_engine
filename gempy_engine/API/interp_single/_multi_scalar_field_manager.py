@@ -211,9 +211,9 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
         )
 
         if compute_scalar_grad is True:
-            squeezed_gx_block: Optional[ndarray] = np.zeros((1, lithology_mask.shape[1]))
-            squeezed_gy_block: Optional[ndarray] = np.zeros((1, lithology_mask.shape[1]))
-            squeezed_gz_block: Optional[ndarray] = np.zeros((1, lithology_mask.shape[1]))
+            squeezed_gx_block: Optional[ndarray] = BackendTensor.t.zeros((1, lithology_mask.shape[1]))
+            squeezed_gy_block: Optional[ndarray] = BackendTensor.t.zeros((1, lithology_mask.shape[1]))
+            squeezed_gz_block: Optional[ndarray] = BackendTensor.t.zeros((1, lithology_mask.shape[1]))
 
             squeezed_gx_block = _apply_mask(interp_output.exported_fields.gx_field, lithology_mask[i], squeezed_gx_block)
             squeezed_gy_block = _apply_mask(interp_output.exported_fields.gy_field, lithology_mask[i], squeezed_gy_block)

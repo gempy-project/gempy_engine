@@ -3,6 +3,7 @@ from typing import Optional
 
 import numpy as np
 
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_fields import ExportedFields
 
 
@@ -29,7 +30,7 @@ class DualContouringData:
     def __post_init__(self):
         if self.exported_fields_on_edges is not None:
             ef = self.exported_fields_on_edges
-            self._gradients = np.stack((ef.gx_field, ef.gy_field, ef.gz_field), axis=0).T  # ! When we are computing the edges for dual contouring there is no surface points
+            self._gradients = BackendTensor.t.stack((ef.gx_field, ef.gy_field, ef.gz_field), axis=0).T  # ! When we are computing the edges for dual contouring there is no surface points
 
     @property
     def gradients(self):

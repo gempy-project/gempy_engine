@@ -16,7 +16,8 @@ class BackendTensor:
 
     pykeops_enabled: bool
     use_gpu: bool = True
-    _dtype: str = 'float64'
+    dtype: str = DEFAULT_TENSOR_DTYPE
+    dtype_obj: Union[str, "torch.dtype"] = DEFAULT_TENSOR_DTYPE
 
     tensor_types: Union
     tensor_backend_pointer: dict = dict()  # Pycharm will infer the type. It is the best I got so far
@@ -24,12 +25,6 @@ class BackendTensor:
     _: Any  # Alias for the tensor backend pointer
     t: numpy  # Alias for the tensor backend pointer
 
-    @property
-    def dtype(cls) -> Union[str, "torch.dtype"]:
-        if cls.engine_backend == AvailableBackends.PYTORCH:
-            import torch
-            return getattr(torch, cls._dtype)
-        return cls._dtype
     
     @classmethod
     def get_backend_string(cls) -> str:
@@ -48,6 +43,7 @@ class BackendTensor:
     @classmethod
     def _change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled: bool = False, use_gpu: bool = True, dtype: Optional[str] = None):
         cls.dtype = DEFAULT_TENSOR_DTYPE if dtype is None else dtype
+        cls.dtype_obj = cls.dtype
         match engine_backend:
             case (engine_backend.numpy):
                 if is_numpy_installed is False:
@@ -128,6 +124,8 @@ class BackendTensor:
                 import torch as pytorch_copy
                 cls._set_active_backend_pointers(engine_backend, pytorch_copy)  # * Here is where we set the tensorflow-numpy backend
                 cls._wrap_pytorch_functions()
+                cls.dtype_obj = pytorch_copy.float32 if cls.dtype == "float32" else pytorch_copy.float64
+                
 
             case (_):
                 raise AttributeError(
@@ -169,6 +167,7 @@ class BackendTensor:
         cls.tfnp.repeat = _repeat
         cls.tfnp.expand_dims = lambda tensor, axis: tensor
         cls.tfnp.invert = lambda tensor: ~tensor
+        cls.tfnp.hstack = lambda tensors: torch.concat(tensors, dim=1)
 
     @classmethod
     def _wrap_pykeops_functions(cls):

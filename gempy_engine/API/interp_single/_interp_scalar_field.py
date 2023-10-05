@@ -57,7 +57,7 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
         kernel_options=kernel_options
     )
 
-    if gempy_engine.config.DEBUG_MODE and BackendTensor.engine_backend != gempy_engine.config.AvailableBackends.PYTORCH:
+    if gempy_engine.config.DEBUG_MODE:
         # Save debug data for later
         from gempy_engine.core.data.solutions import Solutions
         Solutions.debug_input_data["weights"] = weights
@@ -65,9 +65,9 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
         Solutions.debug_input_data["b_vector"] = b_vector
 
         # Check matrices have the right dtype:
-        assert A_matrix.dtype == BackendTensor.dtype, f"Wrong dtype for A_matrix: {A_matrix.dtype}. should be {BackendTensor.dtype}"
-        assert b_vector.dtype == BackendTensor.dtype, f"Wrong dtype for b_vector: {b_vector.dtype}. should be {BackendTensor.dtype}"
-        assert weights.dtype == BackendTensor.dtype, f"Wrong dtype for weights: {weights.dtype}. should be {BackendTensor.dtype}"
+        assert A_matrix.dtype == BackendTensor.dtype_obj, f"Wrong dtype for A_matrix: {A_matrix.dtype}. should be {BackendTensor.dtype_obj}"
+        assert b_vector.dtype == BackendTensor.dtype_obj, f"Wrong dtype for b_vector: {b_vector.dtype}. should be {BackendTensor.dtype_obj}"
+        assert weights.dtype == BackendTensor.dtype_obj, f"Wrong dtype for weights: {weights.dtype}. should be {BackendTensor.dtype_obj}"
 
     return weights
 
