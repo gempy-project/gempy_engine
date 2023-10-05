@@ -49,7 +49,8 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
             # * Fancy triangulation 👗
             
             # * Average gradient for the edges
-            edges_normals = np.zeros((valid_edges.shape[0], 12, 3))
+            from gempy_engine.core.backend_tensor import BackendTensor
+            edges_normals = BackendTensor.t.zeros((valid_edges.shape[0], 12, 3), dtype=BackendTensor.dtype_obj)
             edges_normals[:] = np.nan
             edges_normals[valid_edges] = dc_data_per_stack.gradients[slice_object]
                 
