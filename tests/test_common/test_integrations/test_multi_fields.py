@@ -13,6 +13,7 @@ from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data.solutions import Solutions
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 from gempy_engine.plugins.plotting import helper_functions_pyvista
 from gempy_engine.plugins.plotting.helper_functions import plot_block
@@ -89,9 +90,12 @@ def test_mask_arrays(unconformity_complex):
         plot_block(outputs[1].combined_scalar_field.squeezed_mask_array, grid)
         plot_block(outputs[2].combined_scalar_field.squeezed_mask_array, grid)
 
-    mask_1 = output_0_corners[0].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
-    mask_2 = output_0_corners[1].combined_scalar_field.squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
-    mask_3 = output_0_corners[2].combined_scalar_field.squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+    m1 = output_0_corners[0].squeezed_mask_array.reshape((1, -1, 8))
+    m2 = output_0_corners[1].squeezed_mask_array.reshape((1, -1, 8))
+    m3  = output_0_corners[2].squeezed_mask_array.reshape((1, -1, 8))
+    mask_1 = BackendTensor.t.to_numpy(BackendTensor.t.sum(m1, -1, bool)[0])
+    mask_2 = BackendTensor.t.to_numpy(BackendTensor.t.sum(m2, -1, bool)[0])
+    mask_3 = BackendTensor.t.to_numpy(BackendTensor.t.sum(m3, -1, bool)[0])
 
     if True:
         plot_block(mask_1, grid)
@@ -114,9 +118,15 @@ def test_final_block(unconformity_complex):
 
     if plot_pyvista or True:
         grid = interpolation_input.grid.regular_grid
-        plot_block(outputs[0].final_block, grid)
-        plot_block(outputs[1].final_block, grid)
-        plot_block(outputs[2].final_block, grid)
+        plot_block(
+            BackendTensor.t.to_numpy(outputs[0].final_block),
+            grid)
+        plot_block(
+            BackendTensor.t.to_numpy(outputs[1].final_block),
+            grid)
+        plot_block(
+            BackendTensor.t.to_numpy(outputs[2].final_block),
+            grid)
 
 
 def test_final_exported_fields(unconformity_complex):
@@ -125,9 +135,9 @@ def test_final_exported_fields(unconformity_complex):
 
     if plot_pyvista or False:
         grid = interpolation_input.grid.regular_grid
-        plot_block(outputs[0].final_exported_fields._scalar_field, grid)
-        plot_block(outputs[1].final_exported_fields._scalar_field, grid)
-        plot_block(outputs[2].final_exported_fields._scalar_field, grid)
+        plot_block(BackendTensor.t.to_numpy(outputs[0].final_exported_fields._scalar_field_at_surface_points), grid)
+        plot_block(BackendTensor.t.to_numpy(outputs[1].final_exported_fields._scalar_field_at_surface_points), grid)
+        plot_block(BackendTensor.t.to_numpy(outputs[2].final_exported_fields._scalar_field_at_surface_points), grid)
 
 
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
