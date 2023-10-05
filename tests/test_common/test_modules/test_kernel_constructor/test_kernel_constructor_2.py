@@ -61,7 +61,7 @@ plot = False
 class TestCompareWithGempy_v2:
     @pytest.fixture(scope="class")
     def internals(self, simple_model):
-        BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=False)
+        BackendTensor._change_backend(AvailableBackends.numpy, pykeops_enabled=False)
 
         surface_points = simple_model[0]
         orientations = simple_model[1]
@@ -93,6 +93,7 @@ class TestCompareWithGempy_v2:
         weights = kernel_reduction(cov, b_vec)
         return weights
 
+    @pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="These tests only makes sense for numpy backend")
     def test_reduction(self, internals):
         sp_internals, ori_internals, options = internals
         # Test cov

@@ -156,4 +156,8 @@ def test_final_exported_fields_one_layer(unconformity_complex_one_layer):
                    color='green', alpha=.6, )
 
         grid = interpolation_input.grid.regular_grid
-        plot_block(outputs[0].final_exported_fields._scalar_field, grid)
+        from gempy_engine.core.backend_tensor import BackendTensor
+        plot_block(
+            BackendTensor.t.to_numpy(outputs[0].final_exported_fields._scalar_field),
+            grid
+        )

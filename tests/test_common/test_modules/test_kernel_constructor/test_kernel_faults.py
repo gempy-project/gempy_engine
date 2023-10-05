@@ -14,7 +14,13 @@ def test_implicit_ellipsoid():
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
 
-    scalar = _implicit_3d_ellipsoid_to_slope(regular_grid.values, np.array([0, 0, 0]), np.array([1, 1, 2]))
+    from gempy_engine.core.backend_tensor import BackendTensor
+    scalar = _implicit_3d_ellipsoid_to_slope(
+        xyz=BackendTensor.t.array(regular_grid.values),
+        center= np.array([0, 0, 0]),
+        radius= np.array([1, 1, 2])
+    )
+    
     if plot_pyvista or False:
         import pyvista as pv
         p = pv.Plotter()

@@ -84,6 +84,7 @@ pykeops_enabled = True
 
 
 # TODO: (bug) When running test_covariance_spline_kernel the running the class test breaks for some weird state change
+@pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="These tests only makes sense for numpy backend and PyKEOPS")
 class TestPykeopsNumPyEqual():
 
     @pytest.fixture(scope="class")
@@ -159,7 +160,10 @@ class TestPykeopsNumPyEqual():
                 np.testing.assert_array_almost_equal(dm.r_rest_ref, dm_sol.r_rest_ref, decimal=3)
                 np.testing.assert_array_almost_equal(dm.r_rest_rest, dm_sol.r_rest_rest, decimal=3)
 
-        verify(BackendTensor.tfnp.sum(dm.dif_ref_ref, axis=1, keepdims=False), options=NamerFactory.with_parameters("dif_ref_ref"))
+        verify(
+            data=BackendTensor.tfnp.sum(dm.dif_ref_ref, axis=1, keepdims=False), 
+            options=NamerFactory.with_parameters("dif_ref_ref").with_comparator(ArrayComparator())
+        )
 
     def test_compare_cg(self, preprocess_data):
         self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_grad", cov_func=_test_covariance_items)
@@ -181,7 +185,7 @@ class TestPykeopsNumPyEqual():
         sp_internals, ori_internals, options = preprocess_data
 
         # numpy
-        BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=False)
+        BackendTensor._change_backend(AvailableBackends.numpy, pykeops_enabled=False)
         solver_input = SolverInput(sp_internals, ori_internals)
         kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
         c_n = cov_func(kernel_data, options, item=item)
@@ -194,7 +198,7 @@ class TestPykeopsNumPyEqual():
         c_n_sum = c_n.sum(0).reshape(-1, 1)
 
         # pykeops
-        BackendTensor.change_backend(AvailableBackends.numpy, pykeops_enabled=pykeops_enabled)
+        BackendTensor._change_backend(AvailableBackends.numpy, pykeops_enabled=pykeops_enabled)
         kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
         c_k = cov_func(kernel_data, options, item=item)
         c_k_sum = c_n.sum(0).reshape(-1, 1)
