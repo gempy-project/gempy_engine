@@ -93,8 +93,7 @@ class BackendTensor:
                 physical_devices_gpu = tf.config.list_physical_devices('GPU')
                 physical_devices_cpu = tf.config.list_physical_devices('CPU')
 
-                tf.config.experimental.set_memory_growth(physical_devices_gpu[0],
-                                                         True)  # * This cannot be modified on run time
+                tf.config.experimental.set_memory_growth(physical_devices_gpu[0], True)  # * This cannot be modified on run time
                 tf.config.set_soft_device_placement(True)  # * This seems to allow changing the device on run time
 
                 if DEBUG_MODE:
@@ -119,17 +118,6 @@ class BackendTensor:
                     raise AttributeError(
                         f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: pytorch")
 
-
-                # * Import a copy of pytorch 
-                # from importlib.util import find_spec, module_from_spec
-                # 
-                # with warnings.catch_warnings():
-                #     warnings.simplefilter("ignore")
-                # 
-                #     spec = find_spec('torch')
-                #     pytorch_copy = module_from_spec(spec)
-                #     spec.loader.exec_module(pytorch_copy)
-                    
                 import torch as pytorch_copy
                 cls._set_active_backend_pointers(engine_backend, pytorch_copy)  # * Here is where we set the tensorflow-numpy backend
                 cls._wrap_pytorch_functions()
@@ -159,7 +147,15 @@ class BackendTensor:
     @classmethod
     def _wrap_pytorch_functions(cls):
         from torch import sum, repeat_interleave
+        import torch
+        
         def _sum(tensor, axis, keepdims=False, dtype=None):
+            # if dtype == "int8":
+            #     dtype = torch.int8
+            if isinstance(dtype, str):
+                dtype = getattr(torch, dtype)
+           
+            
             return sum(tensor, axis, keepdims, dtype=dtype)
         
         def _repeat(tensor, n_repeats, axis=None):

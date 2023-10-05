@@ -3,6 +3,7 @@ from typing import Tuple, Optional
 
 import numpy as np
 
+from gempy_engine.core.utils import cast_type_inplace
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
 tensor_types = BackendTensor.tensor_types
@@ -14,7 +15,17 @@ def _upgrade_kernel_input_to_keops_tensor(struct_data_instance):
     for key, val in struct_data_instance.__dict__.items():
         if key == "n_faults_i": continue
         struct_data_instance.__dict__[key] = LazyTensor(val.astype(BackendTensor.dtype))  # ! This as type is quite expensive
-        #struct_data_instance.__dict__[key] = LazyTensor(val)  # ! This as type is quite expensive
+
+def _cast_tensors(data_class_instance):
+    match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled):
+        case (AvailableBackends.numpy, True):
+            _upgrade_kernel_input_to_keops_tensor(data_class_instance)
+        case (AvailableBackends.PYTORCH, False):
+            cast_type_inplace(data_class_instance)
+        case (AvailableBackends.PYTORCH, True):
+            raise NotImplementedError("Pytorch with pykeops is not implemented yet")
+        case (_, _):
+            pass
 
 
 @dataclass
@@ -32,9 +43,8 @@ class OrientationSurfacePointsCoords:
 
         self.dip_ref_i, self.dip_ref_j = _assembly(x_ref, y_ref)
         self.diprest_i, self.diprest_j = _assembly(x_rest, y_rest)
-        
-        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
-            _upgrade_kernel_input_to_keops_tensor(self)
+
+        _cast_tensors(self)
 
 
 @dataclass
@@ -62,8 +72,7 @@ class OrientationsDrift:
         self.selector_ci = selector_degree_2[:, None, :]
         self.selector_cj = selector_degree_2[None, :, :]
 
-        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
-            _upgrade_kernel_input_to_keops_tensor(self)
+        _cast_tensors(self)
 
 
 @dataclass
@@ -83,25 +92,24 @@ class PointsDrift:
         self.dipsPoints_ui_bj1 = y_degree_2a[None, :, :]
         self.dipsPoints_ui_bi2 = x_degree_2b[:, None, :]
         self.dipsPoints_ui_bj2 = y_degree_2b[None, :, :]
-        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
-            _upgrade_kernel_input_to_keops_tensor(self)
+
+        _cast_tensors(self)
 
 
 @dataclass
 class FaultDrift:
     faults_i: tensor_types = np.empty((0, 1, 3))
     faults_j: tensor_types = np.empty((1, 0, 3))
-    
+
     n_faults_i: int = 0
-    
+
     def __init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, ):
         self.faults_i = x_degree_1[:, None, :]
         self.faults_j = y_degree_1[None, :, :]
-        
+
         self.n_faults_i = x_degree_1.shape[1]
-        
-        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
-            _upgrade_kernel_input_to_keops_tensor(self)
+
+        _cast_tensors(self)
 
 
 @dataclass
@@ -137,17 +145,14 @@ class CartesianSelector:
         self.h_sel_rest_i = x_sel_h_rest[:, None, :]
         self.h_sel_rest_j = y_sel_h_rest[None, :, :]
 
-#        self.is_gradient = is_gradient
-
-        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
-            _upgrade_kernel_input_to_keops_tensor(self)
+        _cast_tensors(self)
 
 
 @dataclass
 class DriftMatrixSelector:
     sel_ui: tensor_types = np.empty((0, 1, 3))
     sel_vj: tensor_types = np.empty((1, 0, 3))
-    
+
     def __init__(self, x_size: int, y_size: int, n_drift_eq: int, drift_start_post_x: int, drift_start_post_y: int):
         sel_i = np.zeros((x_size, 2), dtype=BackendTensor.dtype)
         sel_j = np.zeros((y_size, 2), dtype=BackendTensor.dtype)
@@ -157,22 +162,19 @@ class DriftMatrixSelector:
 
         drift_pos_0_y = drift_start_post_y
         drift_pos_1_y = drift_start_post_y + n_drift_eq + 1
-        
+
         if n_drift_eq != 0:
             sel_i[:drift_pos_0_x, 0] = 1
             sel_i[drift_pos_0_x:drift_pos_1_x, 1] = 1
-        
+
             sel_j[:drift_pos_0_y, 0] = -1
             sel_j[drift_pos_0_y:drift_pos_1_y, 1] = -1
 
         self.sel_ui = sel_i[:, None, :]
         self.sel_vj = sel_j[None, :, :]
 
-        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
-            _upgrade_kernel_input_to_keops_tensor(self)
-    
-    
-    
+        _cast_tensors(self)
+
     @classmethod
     def old_method(cls, x_size: int, y_size: int, n_drift_eq: int):  # * This does not account for faults
         sel_i = np.zeros((x_size, 2))

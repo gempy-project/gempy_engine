@@ -45,9 +45,13 @@ def get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_res
 
 def _get_cov_grad(dm, k_a, k_p_ref, nugget):
     cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
-    grad_nugget = nugget[0]
+    grad_nugget = nugget[0, 0]
     if BackendTensor.pykeops_enabled is False:
-        nugget_selector = np.eye(cov_grad.shape[0], dtype=BackendTensor.dtype) * dm.perp_matrix
+        eye = np.eye(cov_grad.shape[0], dtype=BackendTensor.dtype)
+        if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.PYTORCH:
+            eye = BackendTensor.t.from_numpy(eye)
+            
+        nugget_selector = eye * dm.perp_matrix
         nugget_matrix = nugget_selector * grad_nugget
         cov_grad += nugget_matrix
     else:
@@ -68,9 +72,11 @@ def _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, 
     flipped_perp_matrix = ( dm.perp_matrix - 1 ) * -1
     
     if BackendTensor.pykeops_enabled is False: # Add nugget effect for ref and rest point
-        diag = np.eye(cov_surface_points.shape[0], dtype=BackendTensor.dtype) * ref_nugget  # * This is also applying it to the grad which is bad
+        eye = np.eye(cov_surface_points.shape[0], dtype=BackendTensor.dtype)
+        if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.PYTORCH:
+            eye = BackendTensor.t.from_numpy(eye)
+        diag = eye * ref_nugget  # * This is also applying it to the grad which is bad
         cov_surface_points += diag * flipped_perp_matrix
-        # cov_surface_points[:3, :3] = 0
     else:
         from pykeops.numpy import LazyTensor
         matrix_shape = k_rest_ref.shape[0]

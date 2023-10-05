@@ -4,7 +4,7 @@ from typing import Optional
 import numpy as np
 
 from ...core.backend_tensor import BackendTensor
-from gempy_engine.config import DEBUG_MODE
+from gempy_engine.config import DEBUG_MODE, AvailableBackends
 
 
 @dataclass
@@ -29,7 +29,7 @@ class InternalDistancesMatrices:
     # 
     
     def __post_init__(self):
-        if DEBUG_MODE:
+        if DEBUG_MODE and BackendTensor.engine_backend != AvailableBackends.PYTORCH:
             assert self.dif_ref_ref.dtype == BackendTensor.dtype, f"Wrong dtype for dif_ref_ref: {self.dif_ref_ref.dtype}. should be {BackendTensor.dtype}"
             assert self.dif_rest_rest.dtype == BackendTensor.dtype, f"Wrong dtype for dif_rest_rest: {self.dif_rest_rest.dtype}. should be {BackendTensor.dtype}"
             assert self.hu.dtype == BackendTensor.dtype, f"Wrong dtype for hu: {self.hu.dtype}. should be {BackendTensor.dtype}"
