@@ -5,6 +5,7 @@ from typing import Type
 
 import numpy as np
 
+from gempy_engine.config import AvailableBackends
 from ..backend_tensor import BackendTensor as b
 
 
@@ -62,6 +63,9 @@ class TensorsStructure:
 
         res = np.eye(self.total_number_sp, dtype='int32')[np.array(ref_positions).reshape(-1)]
         one_hot_ = res.reshape(list(ref_positions.shape) + [self.total_number_sp])
-
+        
+        if b.engine_backend == AvailableBackends.PYTORCH:
+            one_hot_ = b.tfnp.from_numpy(one_hot_)
+            
         partitions = b.tfnp.sum(one_hot_, axis=0, dtype=bool)
         return partitions

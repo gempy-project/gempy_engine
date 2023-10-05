@@ -3,8 +3,9 @@ import warnings
 
 import numpy
 
-from gempy_engine.config import is_pykeops_installed, is_numpy_installed, is_tensorflow_installed, DEBUG_MODE, \
-    DEFAULT_BACKEND, AvailableBackends, DEFAULT_PYKEOPS, DEFAULT_TENSOR_DTYPE
+from gempy_engine.config import (is_pykeops_installed, is_numpy_installed, is_tensorflow_installed,
+                                 is_pytorch_installed,
+                                 DEBUG_MODE, DEFAULT_BACKEND, AvailableBackends, DEFAULT_PYKEOPS, DEFAULT_TENSOR_DTYPE)
 
 if is_pykeops_installed:
     import pykeops.numpy
@@ -25,32 +26,33 @@ class BackendTensor:
 
     @classmethod
     def get_backend_string(cls) -> str:
-        match(cls.use_gpu, cls.pykeops_enabled):
-            case(True, True):
+        match (cls.use_gpu, cls.pykeops_enabled):
+            case (True, True):
                 return "GPU"
-            case(False, True):
+            case (False, True):
                 return "CPU"
-            case(False, _):
+            case (False, _):
                 return "CPU"
 
     @classmethod
     def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = True, dtype: Optional[str] = None):
         cls.dtype = DEFAULT_TENSOR_DTYPE if dtype is None else dtype
         cls._change_backend(engine_backend, pykeops_enabled=DEFAULT_PYKEOPS, use_gpu=use_gpu)
-    
+
     @classmethod
     def _change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled: bool = False, use_gpu: bool = True):
         match engine_backend:
             case (engine_backend.numpy):
                 if is_numpy_installed is False:
-                    raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: numpy")
+                    raise AttributeError(
+                        f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: numpy")
 
                 # * Import a copy of numpy as tfnp
                 from importlib.util import find_spec, module_from_spec
 
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    
+
                     spec = find_spec('numpy')
                     tfnp = module_from_spec(spec)
                     spec.loader.exec_module(tfnp)
@@ -70,13 +72,15 @@ class BackendTensor:
                         cls.use_gpu = False
                         cls._wrap_pykeops_functions()
                     case (True, False, _):
-                        raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: pykeops")
+                        raise AttributeError(
+                            f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: pykeops")
                     case (False, _, _):
                         cls.pykeops_enabled = False
                         cls.use_gpu = False
             case (engine_backend.tensorflow):
                 if is_tensorflow_installed is False:
-                    raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: tensorflow")
+                    raise AttributeError(
+                        f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: tensorflow")
 
                 import tensorflow as tf
                 experimental_numpy_api = tf.experimental.numpy
@@ -89,7 +93,8 @@ class BackendTensor:
                 physical_devices_gpu = tf.config.list_physical_devices('GPU')
                 physical_devices_cpu = tf.config.list_physical_devices('CPU')
 
-                tf.config.experimental.set_memory_growth(physical_devices_gpu[0], True)  # * This cannot be modified on run time
+                tf.config.experimental.set_memory_growth(physical_devices_gpu[0],
+                                                         True)  # * This cannot be modified on run time
                 tf.config.set_soft_device_placement(True)  # * This seems to allow changing the device on run time
 
                 if DEBUG_MODE:
@@ -109,9 +114,30 @@ class BackendTensor:
                         cls.pykeops_enabled = False
                     case (True, _):
                         raise NotImplementedError("Pykeops is not compatible with Tensorflow yet")
+            case (engine_backend.PYTORCH):
+                if is_pytorch_installed is False:
+                    raise AttributeError(
+                        f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: pytorch")
+
+
+                # * Import a copy of pytorch 
+                # from importlib.util import find_spec, module_from_spec
+                # 
+                # with warnings.catch_warnings():
+                #     warnings.simplefilter("ignore")
+                # 
+                #     spec = find_spec('torch')
+                #     pytorch_copy = module_from_spec(spec)
+                #     spec.loader.exec_module(pytorch_copy)
+                    
+                import torch as pytorch_copy
+                cls._set_active_backend_pointers(engine_backend, pytorch_copy)  # * Here is where we set the tensorflow-numpy backend
+                cls._wrap_pytorch_functions()
+
             case (_):
-                raise AttributeError(f"Engine Backend: {engine_backend} cannot be used because the correspondent library"
-                                     f"is not installed:")
+                raise AttributeError(
+                    f"Engine Backend: {engine_backend} cannot be used because the correspondent library"
+                    f"is not installed:")
 
     @classmethod
     def _set_active_backend_pointers(cls, engine_backend, tfnp):
@@ -129,6 +155,18 @@ class BackendTensor:
         print(f"\n Using {cls.engine_backend} backend. \n")
         print(f"\n Using gpu: {cls.use_gpu}. \n")
         print(f"\n Using pykeops: {cls.pykeops_enabled}. \n")
+
+    @classmethod
+    def _wrap_pytorch_functions(cls):
+        from torch import sum, repeat_interleave
+        def _sum(tensor, axis, keepdims=False, dtype=None):
+            return sum(tensor, axis, keepdims, dtype=dtype)
+        
+        def _repeat(tensor, n_repeats, axis=None):
+            return repeat_interleave(tensor, n_repeats, dim=axis)
+
+        cls.tfnp.sum = _sum
+        cls.tfnp.repeat = _repeat
 
     @classmethod
     def _wrap_pykeops_functions(cls):
@@ -152,7 +190,7 @@ class BackendTensor:
 
         def _sqrt_fn(tensor):
             return tensor.sqrt()
-        
+
         cls.tfnp.sqrt = _sqrt_fn
         cls.tfnp.sum = _sum
         cls.tfnp.exp = _exp
@@ -164,6 +202,7 @@ class BackendTensor:
         cls.tfnp.reduce_sum = cls.tfnp.sum
         cls.tfnp.concat = cls.tfnp.concatenate
         cls.tfnp.constant = cls.tfnp.array
+    
 
 
 BackendTensor._change_backend(DEFAULT_BACKEND)

@@ -8,7 +8,12 @@ def cast_type_inplace(data_instance: Any):
     """Converts all numpy arrays to the global dtype"""    
     for key, val in data_instance.__dict__.items():
         if type(val) != np.ndarray: continue
-        data_instance.__dict__[key] = val.astype(BackendTensor.dtype)
+        match BackendTensor.engine_backend:
+            case (gempy_engine.config.AvailableBackends.numpy | gempy_engine.config.AvailableBackends.tensorflow):
+                data_instance.__dict__[key] = val.astype(BackendTensor.dtype)
+            case (gempy_engine.config.AvailableBackends.PYTORCH):
+                data_instance.__dict__[key] = BackendTensor.t.from_numpy(val.astype(BackendTensor.dtype))
+        
 
 
 def gempy_profiler_decorator(func):
