@@ -4,6 +4,7 @@ from typing import List
 
 import numpy as np
 
+from gempy_engine.core.backend_tensor import BackendTensor
 from ._dual_contouring import compute_dual_contouring
 from ._experimental_water_tight_DC_1 import _experimental_water_tight
 from ._interpolate_on_edges import interpolate_on_edges_for_dual_contouring
@@ -99,14 +100,14 @@ def _mask_generation(octree_leaves, masking_option: DualContouringMaskingOptions
     all_scalar_fields_outputs: list[InterpOutput] = octree_leaves.outputs_corners
     n_scalar_fields = len(all_scalar_fields_outputs)
     grid_size = all_scalar_fields_outputs[0].grid_size
-    mask_matrix = np.zeros((n_scalar_fields, grid_size//8), dtype=bool)
+    mask_matrix = BackendTensor.t.zeros((n_scalar_fields, grid_size//8), dtype=bool)
     onlap_chain_counter = 0
 
     for i in range(n_scalar_fields):
         stack_relation = all_scalar_fields_outputs[i].scalar_fields.stack_relation
         match (masking_option, stack_relation):
             case DualContouringMaskingOptions.RAW, _:
-                mask_matrix[i] = np.ones(grid_size//8, dtype=bool)
+                mask_matrix[i] = BackendTensor.t.ones(grid_size//8, dtype=bool)
             case DualContouringMaskingOptions.DISJOINT, _:
                 raise NotImplementedError("Disjoint is not supported yet. Not even sure if there is anything to support")
             # case (DualContouringMaskingOptions.DISJOINT | DualContouringMaskingOptions.INTERSECT, StackRelationType.FAULT):
@@ -122,7 +123,8 @@ def _mask_generation(octree_leaves, masking_option: DualContouringMaskingOptions
             #     raise NotImplementedError("Onlap is not supported yet")
             #     return octree_leaves.outputs_corners[n_scalar_field].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
             case DualContouringMaskingOptions.INTERSECT, StackRelationType.ERODE:
-                mask_matrix[i] = all_scalar_fields_outputs[i + onlap_chain_counter].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
+                x = all_scalar_fields_outputs[i + onlap_chain_counter].squeezed_mask_array.reshape((1, -1, 8))
+                mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
                 onlap_chain_counter = 0
             case DualContouringMaskingOptions.INTERSECT,  StackRelationType.BASEMENT:
                 mask_matrix[i] = all_scalar_fields_outputs[i].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]

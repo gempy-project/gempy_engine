@@ -4,6 +4,7 @@ from typing import Optional
 
 import numpy as np
 
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_fields import ExportedFields
 from gempy_engine.core.data.grid import Grid
 from gempy_engine.core.data.stack_relation_type import StackRelationType
@@ -96,7 +97,7 @@ class ScalarFieldOutput:
                     f1 = exported_fields.scalar_field > thickness_1
                     f2 = exported_fields.scalar_field < thickness_2
 
-                    exported_fields.scalar_field_at_fault_shell = np.array([thickness_1, thickness_2])
+                    exported_fields.scalar_field_at_fault_shell = BackendTensor.t.array([thickness_1, thickness_2])
                     mask_array = f1 * f2
                 else:
                     # TODO:  This branch should be like
@@ -104,9 +105,9 @@ class ScalarFieldOutput:
                     # erode_limit_value = exported_fields.scalar_field_at_surface_points.min()
                     # mask_lith = exported_fields.scalar_field > erode_limit_value
 
-                    mask_array = np.zeros_like(exported_fields.scalar_field)
+                    mask_array = BackendTensor.t.zeros_like(exported_fields.scalar_field)
             case False | StackRelationType.BASEMENT:
-                mask_array = np.ones_like(exported_fields.scalar_field)
+                mask_array = BackendTensor.t.ones_like(exported_fields.scalar_field)
             case _:
                 raise ValueError("Stack relation type is not supported")
 

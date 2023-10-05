@@ -3,6 +3,7 @@ from typing import Optional, Callable
 
 import numpy as np
 
+from gempy_engine.config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ._interp_scalar_field import interpolate_scalar_field
 from ...core.data import SurfacePoints, SurfacePointsInternals, Orientations, OrientationsInternals, TensorsStructure
@@ -71,7 +72,7 @@ def interpolate_feature(interpolation_input: InterpolationInput,
         stack_relation=interpolation_input.stack_relation
     )
 
-    if BackendTensor.dtype:
+    if BackendTensor.dtype and BackendTensor.engine_backend != AvailableBackends.PYTORCH:
         # Check matrices have the right dtype:
         assert values_block.dtype == BackendTensor.dtype, f"Wrong dtype for values_bloc: {values_block.dtype}. should be {BackendTensor.dtype}"
         assert exported_fields.scalar_field.dtype == BackendTensor.dtype, f"Wrong dtype for scalar_field: {exported_fields.scalar_field.dtype}. should be {BackendTensor.dtype}"

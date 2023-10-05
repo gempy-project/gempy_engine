@@ -122,7 +122,7 @@ def _modify_faults_values_output(fault_input: FaultsData, values_on_all_xyz: np.
 def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relation: List[StackRelationType]) -> np.ndarray:
     n_scalar_fields = len(all_scalar_fields_outputs)
     grid_size       = all_scalar_fields_outputs[0].grid_size
-    mask_matrix     = np.zeros((n_scalar_fields, grid_size), dtype = bool)
+    mask_matrix     = BackendTensor.t.zeros((n_scalar_fields, grid_size), dtype = bool)
     
     onlap_chain_counter = 0
     # Setting the mask matrix
@@ -152,9 +152,9 @@ def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_re
                 raise ValueError(f"Stack relation {stack_relation[i]} not recognized")
     
     # Doing the black magic
-    final_mask_array     = np.zeros((n_scalar_fields, grid_size), dtype=bool)
+    final_mask_array     = BackendTensor.t.zeros((n_scalar_fields, grid_size), dtype=bool)
     final_mask_array[0]  = mask_matrix[-1]
-    final_mask_array[1:] = np.cumprod(np.invert(mask_matrix[:-1]), axis=0)
+    final_mask_array[1:] = BackendTensor.t.cumprod(BackendTensor.t.invert(mask_matrix[:-1]), axis=0)
     final_mask_array     *= mask_matrix
 
     return final_mask_array
@@ -163,7 +163,7 @@ def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_re
 def _faults_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relation: List[StackRelationType]) -> np.ndarray:
     n_scalar_fields = len(all_scalar_fields_outputs)
     grid_size       = all_scalar_fields_outputs[0].grid_size
-    mask_matrix     = np.zeros((n_scalar_fields, grid_size), dtype = bool)
+    mask_matrix     = BackendTensor.t.zeros((n_scalar_fields, grid_size), dtype = bool)
 
     for i in range(len(all_scalar_fields_outputs)):
         match stack_relation[i]:
@@ -181,9 +181,9 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
                            faults_mask: np.ndarray,
                            compute_scalar_grad: bool = False) -> List[CombinedScalarFieldsOutput]:
     n_scalar_fields            : int     = len(all_scalar_fields_outputs)
-    squeezed_value_block       : ndarray = np.zeros((1 , lithology_mask.shape[1]))
-    squeezed_fault_block       : ndarray = np.zeros((1 , lithology_mask.shape[1]))
-    squeezed_scalar_field_block: ndarray = np.zeros((1 , lithology_mask.shape[1]))
+    squeezed_value_block       : ndarray = BackendTensor.t.zeros((1 , lithology_mask.shape[1]))
+    squeezed_fault_block       : ndarray = BackendTensor.t.zeros((1 , lithology_mask.shape[1]))
+    squeezed_scalar_field_block: ndarray = BackendTensor.t.zeros((1 , lithology_mask.shape[1]))
 
     def _apply_mask(block_to_squeeze: np.ndarray, squeezed_mask_array: np.ndarray, previous_block: np.ndarray) -> np.ndarray:
         return (previous_block + block_to_squeeze * squeezed_mask_array).reshape(-1)

@@ -16,7 +16,7 @@ class BackendTensor:
 
     pykeops_enabled: bool
     use_gpu: bool = True
-    dtype: str = 'float64'
+    _dtype: str = 'float64'
 
     tensor_types: Union
     tensor_backend_pointer: dict = dict()  # Pycharm will infer the type. It is the best I got so far
@@ -24,6 +24,13 @@ class BackendTensor:
     _: Any  # Alias for the tensor backend pointer
     t: numpy  # Alias for the tensor backend pointer
 
+    @property
+    def dtype(cls) -> Union[str, "torch.dtype"]:
+        if cls.engine_backend == AvailableBackends.PYTORCH:
+            import torch
+            return getattr(torch, cls._dtype)
+        return cls._dtype
+    
     @classmethod
     def get_backend_string(cls) -> str:
         match (cls.use_gpu, cls.pykeops_enabled):
@@ -149,12 +156,9 @@ class BackendTensor:
         from torch import sum, repeat_interleave
         import torch
         
-        def _sum(tensor, axis, keepdims=False, dtype=None):
-            # if dtype == "int8":
-            #     dtype = torch.int8
+        def _sum(tensor, axis, dtype=None, keepdims=False,):
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
-           
             
             return sum(tensor, axis, keepdims, dtype=dtype)
         
@@ -163,6 +167,8 @@ class BackendTensor:
 
         cls.tfnp.sum = _sum
         cls.tfnp.repeat = _repeat
+        cls.tfnp.expand_dims = lambda tensor, axis: tensor
+        cls.tfnp.invert = lambda tensor: ~tensor
 
     @classmethod
     def _wrap_pykeops_functions(cls):

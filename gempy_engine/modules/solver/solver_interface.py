@@ -22,6 +22,10 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -
     # ? Maybe we should always compute the conditional_number no matter the branch
     dtype = BackendTensor.dtype
     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled, solver):
+        case (AvailableBackends.PYTORCH, False, _):
+            w = bt.t.linalg.solve(cov, b)
+        case (AvailableBackends.PYTORCH, True, _):
+            raise NotImplementedError('Pykeops is not implemented for pytorch yet')
         case (AvailableBackends.tensorflow, True, _):
             raise NotImplementedError('Pykeops is not implemented for tensorflow yet')
             # w = cov.solve(b.numpy().astype('float32'), alpha=smooth, dtype_acc='float32')
@@ -50,16 +54,6 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -
                 
             A = aslinearoperator(cov)
             print(f'A size: {A.shape}')
-            # x0 = np.zeros((cov.shape[0], 1))
-            # if kernel_options.uni_degree == 0:
-            #     pass
-            # elif kernel_options.uni_degree == 1:
-            #     x0[:3+n_faults] = 1
-            # elif kernel_options.uni_degree == 2:
-            #     x0[:9+n_faults] = 1
-            # else:
-            #     raise AttributeError('The degree of the polynomial should be 0, 1 or 2')
-            # 
             w, info = cg(
                 A=A,
                 b=b[:, 0],

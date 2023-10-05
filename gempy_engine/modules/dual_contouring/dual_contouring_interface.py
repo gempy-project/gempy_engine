@@ -23,10 +23,10 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field_on_corners:
         xyz_8 = xyz_8[ma_8]
         scalar_8 = scalar_8[:, ma_8]
 
-    scalar_at_sp = scalar_at_sp.reshape((-1, 1, 1)).astype(BackendTensor.dtype)
+    scalar_at_sp = scalar_at_sp.reshape((-1, 1, 1))
 
     n_isosurface = scalar_at_sp.shape[0]
-    xyz_8 = np.tile(xyz_8, (n_isosurface, 1, 1))  # TODO: Generalize
+    xyz_8 = BackendTensor.t.tile(xyz_8, (n_isosurface, 1, 1))  # TODO: Generalize
 
     # Compute distance of scalar field on the corners
     scalar_dx = scalar_8[:, :, :4] - scalar_8[:, :, 4:]

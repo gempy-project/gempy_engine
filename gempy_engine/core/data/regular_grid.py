@@ -23,6 +23,7 @@ class RegularGrid:
         self.extent = _check_and_convert_list_to_array(self.extent) + 1e-6  # * This to avoid some errors evaluating in 0 (e.g. bias in dual contouring)
 
         self.values = self._create_regular_grid(self.extent, self.regular_grid_shape)
+        
 
     @classmethod
     def from_octree_level(cls, xyz_coords_octree: np.ndarray, previous_regular_grid: "RegularGrid",

@@ -57,7 +57,7 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
         kernel_options=kernel_options
     )
 
-    if gempy_engine.config.DEBUG_MODE:
+    if gempy_engine.config.DEBUG_MODE and BackendTensor.engine_backend != gempy_engine.config.AvailableBackends.PYTORCH:
         # Save debug data for later
         from gempy_engine.core.data.solutions import Solutions
         Solutions.debug_input_data["weights"] = weights

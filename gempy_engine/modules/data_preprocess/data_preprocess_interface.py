@@ -2,6 +2,7 @@ from typing import Tuple
 
 from numpy import ndarray
 
+from gempy_engine.config import AvailableBackends
 from gempy_engine.core.data import SurfacePoints, Orientations, SurfacePointsInternals, TensorsStructure, OrientationsInternals
 import numpy as np
 from gempy_engine.core.backend_tensor import BackendTensor as bt
@@ -20,7 +21,6 @@ def prepare_orientations(orientations: Orientations) -> OrientationsInternals:
 
 def prepare_grid(grid: np.ndarray, surface_points: SurfacePoints) -> np.ndarray:
     concat = bt.tfnp.concatenate([grid, surface_points.sp_coords])
-    #concat = np.concatenate([grid, surface_points.sp_coords])    
     return concat
 
 

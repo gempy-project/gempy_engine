@@ -4,6 +4,8 @@ from typing import Optional
 import numpy as np
 from numpy import ndarray
 
+from gempy_engine.core.backend_tensor import BackendTensor
+from gempy_engine.config import AvailableBackends
 from .generic_grid import GenericGrid
 from .regular_grid import RegularGrid
 
@@ -43,8 +45,13 @@ class Grid:
             values.append(self.sections.values)
         if self.centered_grid is not None:
             values.append(self.centered_grid.values)
-
-        return np.concatenate(values)
+        
+        values_array = np.concatenate(values, dtype=BackendTensor.dtype)
+        
+        if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+            return BackendTensor.t.from_numpy(values_array)
+        
+        return values_array
 
 
     @property
