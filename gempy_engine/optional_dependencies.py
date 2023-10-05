@@ -13,6 +13,12 @@ def require_pandas():
         raise ImportError("The pandas library is required to use this function.")
     return pd
 
+def require_subsurface():
+    try:
+        import subsurface
+    except ImportError:
+        raise ImportError("The subsurface library is required to use this function.")
+    return subsurface
 
 def require_pooch():
     try:

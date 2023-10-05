@@ -3,7 +3,6 @@ from typing import Optional
 
 import numpy as np
 
-from gempy.optional_dependencies import require_subsurface, require_pandas
 from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
 from gempy_engine.core.data.octree_level import OctreeLevel
@@ -11,6 +10,7 @@ from gempy_engine.core.data.octree_level import OctreeLevel
 # ? These two imports are suggesting that this class should be splatted and move one half into a gempy.module
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import ValueType
+from gempy_engine.optional_dependencies import require_pandas, require_subsurface
 
 
 @dataclass(init=True)
