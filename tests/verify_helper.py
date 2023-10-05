@@ -37,14 +37,15 @@ class ArrayComparator(Comparator):
             # Remove PyTorch-specific substrings if they exist
             if "tensor" in received_text:
                 received_text = re.sub(r"tensor\(", "", received_text)
-                received_text = re.sub(r", dtype=torch.float[0-9]+", "", received_text)
+                received_text = re.sub(r"\s*dtype=torch\.float[0-9]+", "", received_text)
                 received_text = re.sub(r"\)", "", received_text)
             if "tensor" in approved_text:
                 approved_text = re.sub(r"tensor\(", "", approved_text)
-                approved_text = re.sub(r", dtype=torch.float[0-9]+", "", approved_text)
+                approved_text = re.sub(r"\s*dtype=torch\.float[0-9]+", "", approved_text)
                 approved_text = re.sub(r"\)", "", approved_text)
                 
             # Parse 2D matrices
+            import ast
             received = np.matrix(received_text)
             approved = np.matrix(approved_text)
 
@@ -52,5 +53,9 @@ class ArrayComparator(Comparator):
             self.rtol = 1e-05
             self.atol = 1e-05
             return allclose
+        except SystemError:
+            print("Error parsing files")
+            return False
         except BaseException:
+            print("Error comparing files")
             return False

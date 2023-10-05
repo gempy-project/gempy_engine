@@ -57,7 +57,10 @@ def test_b_vector(simple_model_2):
 
     b_vec = yield_b_vector(ori_internals, 9)
 
-    verify(b_vec)
+    verify(
+        data=b_vec,
+        options=NamerFactory.with_parameters().with_comparator(ArrayComparator())
+    )
 
 
 def test_eval_kernel(simple_model_2, simple_grid_2d):

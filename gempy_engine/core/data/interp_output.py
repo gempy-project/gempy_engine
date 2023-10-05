@@ -79,7 +79,7 @@ class InterpOutput:
 
     @property
     def ids_block_regular_grid(self):
-        return np.rint(self.block[self.grid.regular_grid_slice].reshape(self.grid.regular_grid_shape))
+        return np.rint(self.block[self.grid.regular_grid_slice].reshape(self.grid.regular_grid_shape.tolist()))
 
     @property
     def ids_custom_grid(self):
