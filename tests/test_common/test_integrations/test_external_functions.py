@@ -56,7 +56,11 @@ def test_implicit_function(unconformity_complex):
     xyz = grid.values
     scalar = implicit_sphere(xyz, grid.extent)
 
-    exported_fields = ExportedFields(scalar, _scalar_field_at_surface_points=np.array([20]))
+    from gempy_engine.core.backend_tensor import BackendTensor
+    exported_fields = ExportedFields(
+        _scalar_field=BackendTensor.t.array(scalar),
+        _scalar_field_at_surface_points=BackendTensor.t.array([20])
+    )
     values_block = activate_formation_block(exported_fields, np.array([0, 1]), 100000)
 
     if PLOT or False:

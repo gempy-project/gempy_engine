@@ -5,6 +5,8 @@ from typing import Callable
 
 import numpy as np
 
+from gempy_engine.core.backend_tensor import BackendTensor
+
 
 class InterpolationFunctions(enum.Enum):
     GAUSSIAN_PROCESS = enum.auto()
@@ -20,6 +22,9 @@ class CustomInterpolationFunctions:
     gy_function: Callable
     gz_function: Callable
     
+    def __post_init__(self):
+        self.scalar_field_at_surface_points = BackendTensor.t.array(self.scalar_field_at_surface_points, dtype=BackendTensor.dtype_obj)
+        
     @classmethod
     def from_builtin(cls, interpolation_function: InterpolationFunctions, scalar_field_at_surface_points: np.ndarray,
                      **kwargs):
