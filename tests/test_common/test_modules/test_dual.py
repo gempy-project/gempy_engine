@@ -268,6 +268,8 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
         )
 
 
+
+@pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="Only numpy supported")
 def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octree):
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
@@ -276,9 +278,10 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
     options.number_octree_levels = 5
+    options.compute_scalar_gradient = True
     octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
-    last_octree_level: OctreeLevel = octree_list[2]
+    last_octree_level: OctreeLevel = octree_list[-1]
 
     sfsp = last_octree_level.last_output_corners.scalar_field_at_sp
 
@@ -382,6 +385,8 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     return xyz_on_edge, gradients
 
 
+
+@pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="Only numpy supported")
 def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
@@ -389,6 +394,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
+    options.compute_scalar_gradient = True
     octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
@@ -488,6 +494,9 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     return xyz_on_edge, gradients
 
 
+
+
+@pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="Only numpy supported")
 def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple_grid_3d_octree):
     """This looks works that taking the center of gravity of the edges intersections. I leave this test here as 
     documentation"""
@@ -498,6 +507,7 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
     grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
+    options.compute_scalar_gradient = True
     octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
