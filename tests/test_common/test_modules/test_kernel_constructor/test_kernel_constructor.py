@@ -46,7 +46,9 @@ def test_covariance_cubic_kernel(simple_model_2):
     # todo: verify the full matrix when pykeops is False
 
     parameters: Options = NamerFactory.with_parameters("axis=1").with_comparator(ArrayComparator())
-    verify(BackendTensor.tfnp.sum(cov, axis=1, keepdims=True), options=parameters)
+    sol = BackendTensor.tfnp.sum(cov, axis=1, keepdims=True)
+    # verify(BackendTensor.t.to_numpy(sol), options=parameters)
+    verify(sol, options=parameters)
 
 
 def test_b_vector(simple_model_2):

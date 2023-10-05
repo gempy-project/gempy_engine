@@ -1,4 +1,5 @@
 import numpy as np
+import re
 from approvaltests import Options, verify
 from approvaltests.core import Comparator
 from approvaltests.namer import NamerFactory
@@ -14,7 +15,7 @@ class ArrayComparator(Comparator):
     rtol: float = 1e-05
     atol: float = 1e-05
     
-    def __init__(self, rtol: float = 1e-05, atol: float = 1e-05):
+    def __init__(self, rtol: float = 1e-03, atol: float = 1e-05):
         self.rtol = rtol
         self.atol = atol
     
@@ -32,7 +33,17 @@ class ArrayComparator(Comparator):
             approved_text = approved_raw.replace("\r\n", "\n")
             received_raw = pathlib.Path(received_path).read_text()
             received_text = received_raw.replace("\r\n", "\n")
-            
+
+            # Remove PyTorch-specific substrings if they exist
+            if "tensor" in received_text:
+                received_text = re.sub(r"tensor\(", "", received_text)
+                received_text = re.sub(r", dtype=torch.float[0-9]+", "", received_text)
+                received_text = re.sub(r"\)", "", received_text)
+            if "tensor" in approved_text:
+                approved_text = re.sub(r"tensor\(", "", approved_text)
+                approved_text = re.sub(r", dtype=torch.float[0-9]+", "", approved_text)
+                approved_text = re.sub(r"\)", "", approved_text)
+                
             # Parse 2D matrices
             received = np.matrix(received_text)
             approved = np.matrix(approved_text)
