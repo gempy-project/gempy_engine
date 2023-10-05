@@ -193,13 +193,14 @@ def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
     resolution = regular_grid.resolution
 
     radius = np.array([1, 1, 2])
+    from gempy_engine.core.backend_tensor import BackendTensor
     scalar = _implicit_3d_ellipsoid_to_slope(  # * This paints the 3d regular grid
-        xyz=regular_grid.values,
+        xyz=BackendTensor.t.array(regular_grid.values),
         center=np.array([0, 0, 0]),
         radius=radius
     )
     scalar_fault = _implicit_3d_ellipsoid_to_slope(  # * This paints the 2d fault mesh
-        xyz=fault_mesh.vertices, 
+        xyz=BackendTensor.t.array(fault_mesh.vertices),
         center=np.array([0, 0, 0]),
         radius=radius
     )
