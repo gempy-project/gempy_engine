@@ -18,7 +18,7 @@ from ...core.utils import gempy_profiler_decorator
 
 @gempy_profiler_decorator
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
-                  data_descriptor: InputDataDescriptor, geophysics_input: GeophysicsInput) -> Solutions:
+                  data_descriptor: InputDataDescriptor, geophysics_input: Optional[GeophysicsInput] = None) -> Solutions:
     WeightsBuffer.clean()
     
     # TODO: Make sure if this works with TF
@@ -38,12 +38,13 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
 
     # TODO: [ ] Magnetics
 
-    first_level_last_field: InterpOutput = output[0].outputs_centers[-1]
-    gravity = compute_gravity(
-        tz= geophysics_input.tz,
-        densities= first_level_last_field
-    )
-    
+    if geophysics_input is not None:
+        first_level_last_field: InterpOutput = output[0].outputs_centers[-1]
+        gravity = compute_gravity(
+            tz= geophysics_input.tz,
+            densities= first_level_last_field
+        )
+        
     # endregion
     
     meshes: Optional[list[DualContouringMesh]] = None

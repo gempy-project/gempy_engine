@@ -114,7 +114,7 @@ class RawArraysSolution:
         
         raw_arrays_solution.geological_map = BackendTensor.t.to_numpy(output.geological_map)
         raw_arrays_solution.sections = BackendTensor.t.to_numpy(output.sections)
-        raw_arrays_solution.custom = BackendTensor.t.to_numpy(output.custom_grid)
+        raw_arrays_solution.custom = BackendTensor.t.to_numpy(output.custom_grid_values)
         # endregion
         
         # region Meshes
