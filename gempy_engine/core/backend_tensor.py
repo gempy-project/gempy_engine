@@ -38,7 +38,7 @@ class BackendTensor:
 
     @classmethod
     def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = True, dtype: Optional[str] = None):
-        cls._change_backend(engine_backend, pykeops_enabled=DEFAULT_PYKEOPS, use_gpu=use_gpu, dytpe=dtype)
+        cls._change_backend(engine_backend, pykeops_enabled=DEFAULT_PYKEOPS, use_gpu=use_gpu, dtype=dtype)
 
     @classmethod
     def _change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled: bool = False, use_gpu: bool = True, dtype: Optional[str] = None):
@@ -180,7 +180,7 @@ class BackendTensor:
             elif type(tensor) == pykeops.numpy.LazyTensor:
                 return tensor.exp()
 
-        def _sum(tensor, axis, keepdims=False, dtype=None):
+        def _sum(tensor, axis, dtype=None, keepdims=False):
             if type(tensor) == numpy.ndarray:
                 return numpy.sum(tensor, axis=axis, keepdims=keepdims, dtype=dtype)
             elif type(tensor) == pykeops.numpy.LazyTensor:
