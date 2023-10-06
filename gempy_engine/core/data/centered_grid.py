@@ -6,7 +6,7 @@ import numpy as np
 
 @dataclass
 class CenteredGrid:
-    centers: np.ndarray #: This is just used to calculate xyz to interpolate. Tz is independent
+    centers: np.ndarray  #: This is just used to calculate xyz to interpolate. Tz is independent
     resolution: Sequence[float]
     radius: Union[float, Sequence[float]]
 
@@ -18,7 +18,9 @@ class CenteredGrid:
         return self.centers.shape[0] * self.cached_kernel_grid_centers.shape[0]
 
     def __post_init__(self):
-        assert self.centers.shape[1] == 3, 'Centers must be a numpy array that contains the coordinates XYZ'
+        self.centers = np.atleast_2d(self.centers)
+        
+        assert self.centers.shape[1] == 3, 'Centers must be a numpy array of shape (n, 3) that contains the coordinates XYZ'
         self.update_kernels(self.resolution, self.radius)
 
     def update_kernels(self, grid_resolution, scaling_factor, base_spacing=0.01, z_axis_shift=0.05, z_axis_scale=1.2) -> None:
@@ -51,7 +53,7 @@ class CenteredGrid:
         values_ = np.empty((0, 3))
         for xyz_device in centers:
             values_ = np.vstack((values_, xyz_device + self.cached_kernel_grid_centers))
-        return values_ 
+        return values_
 
     @staticmethod
     def create_irregular_grid_kernel(grid_resolution, scaling_factor, base_spacing=0.01, z_axis_shift=0.05, z_axis_scale=1.2):

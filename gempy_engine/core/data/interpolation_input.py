@@ -6,6 +6,7 @@ import numpy as np
 
 from . import SurfacePoints, Orientations
 from gempy_engine.core.data.generic_grid import GenericGrid
+from gempy_engine.core.data.centered_grid import CenteredGrid
 from .grid import Grid
 from .regular_grid import RegularGrid
 from .stack_relation_type import StackRelationType
@@ -129,12 +130,21 @@ class InterpolationInput:
         topography_values: GenericGrid = GenericGrid( values=transform.apply(grid.topography.values)) if grid.topography is not None else None
         section_values: GenericGrid = GenericGrid(values=transform.apply(grid.sections.values)) if grid.sections is not None else None
         custom_values: GenericGrid = GenericGrid(values=transform.apply(grid.custom_grid.values)) if grid.custom_grid is not None else None
+        if grid.centered_grid is not None:
+            centered_grid = CenteredGrid(
+                centers=transform.apply(grid.centered_grid.centers),
+                radius=transform.apply(np.atleast_2d(grid.centered_grid.radius))[0], # * This is a bit too much shape manipulation for my taste
+                resolution=grid.centered_grid.resolution
+            )
+        else:
+            centered_grid = None
 
         grid: Grid = Grid(
             regular_grid=regular_grid,
             topography=topography_values,
             sections=section_values,
-            custom_grid=custom_values
+            custom_grid=custom_values,
+            geophysics_grid=centered_grid
         )
 
         # endregion
