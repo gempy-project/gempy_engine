@@ -6,6 +6,7 @@ from numpy import ndarray
 
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.config import AvailableBackends
+from .centered_grid import CenteredGrid
 from .generic_grid import GenericGrid
 from .regular_grid import RegularGrid
 
@@ -18,7 +19,7 @@ class Grid:
     custom_grid: Optional[GenericGrid] = None
     topography: Optional[GenericGrid] = None
     sections: Optional[GenericGrid] = None
-    geophysics_grid: Optional[GenericGrid] = None  # TODO: Not implemented this probably will need something different that the generic grid?
+    geophysics_grid: Optional[CenteredGrid] = None  # TODO: Not implemented this probably will need something different that the generic grid?
 
     debug_vals = None
     

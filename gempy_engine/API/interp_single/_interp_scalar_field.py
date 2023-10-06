@@ -31,8 +31,7 @@ class WeightsBuffer:
         return current_weights
 
 
-def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions) -> \
-        Tuple[np.ndarray, ExportedFields]:
+def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions) -> Tuple[np.ndarray, ExportedFields]:
     # region Solver
     if WeightsBuffer.get(solver_input, options.kernel_options) is None:
         weights = _solve_interpolation(solver_input, options.kernel_options)

@@ -3,7 +3,7 @@
 from gempy_engine.core.data.centered_grid import CenteredGrid
 
 
-def calculate_gravity_gradient(centered_grid: CenteredGrid, ugal=True):
+def calculate_gravity_gradient(centered_grid: CenteredGrid, ugal=True) -> np.ndarray:
     # Extract the voxel center coordinates
     voxel_centers = centered_grid.cached_kernel_grid_centers
     center_x, center_y, center_z = voxel_centers[:, 0], voxel_centers[:, 1], voxel_centers[:, 2]

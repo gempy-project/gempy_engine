@@ -89,7 +89,10 @@ def input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpol
     ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(orientations)
 
     # * We need to interpolate in ALL the surface points not only the surface points of the stack
-    grid_internal: np.ndarray = data_preprocess_interface.prepare_grid(grid.values, interpolation_input.all_surface_points)
+    grid_internal: np.ndarray = data_preprocess_interface.prepare_grid(
+        grid=grid.values,
+        surface_points=interpolation_input.all_surface_points
+    )
 
     fault_values: FaultsData = interpolation_input.fault_values
     faults_on_sp: np.ndarray = fault_values.fault_values_on_sp

@@ -51,50 +51,6 @@ class CenteredGrid:
         return values_ 
 
     @staticmethod
-    def create_irregular_grid_kernel_(resolution, radius_scale):
-        """
-        Create an isometric grid kernel (centered at 0)
-
-        Args:
-            resolution: [s0]
-            radius_scale (float): Maximum distance of the kernel
-
-        Returns:
-            tuple: center of the voxel, left edge of each voxel (for xyz), right edge of each voxel (for xyz).
-        """
-
-        if radius_scale is not list or radius_scale is not np.ndarray:
-            radius_scale = np.repeat(radius_scale, 3)
-
-        coord_list = []
-        d_list = []
-        for xyz in [0, 1, 2]:
-            if xyz == 2:  # * Make the grid only negative for the z axis
-                unit_radius = np.geomspace(0.01, 1, int(resolution[xyz]))
-                unit_radius_with_0 = np.concatenate((np.zeros(1), unit_radius))
-                unit_radius_with_0_shifted = unit_radius_with_0 + 0.05
-                z_coord = unit_radius_with_0_shifted * - radius_scale[xyz] * 1.2  # * plus 20%
-                coord_list.append(z_coord)
-            else:
-                unit_radius = np.geomspace(0.01, 1, int(resolution[xyz] / 2))
-                unit_radius_with_0 = np.concatenate((-unit_radius[::-1], np.zeros(1), unit_radius))
-                x_or_y_coords = unit_radius_with_0 * radius_scale[xyz]
-                coord_list.append(x_or_y_coords)
-
-            pad = np.pad(coord_list[xyz], 1, 'reflect', reflect_type='odd')
-            diff = np.diff(pad)
-            d_list.append(diff)
-
-        g = np.meshgrid(*coord_list)
-        d_left = np.meshgrid(d_list[0][:-1] / 2, d_list[1][:-1] / 2, d_list[2][:-1] / 2)
-        d_right = np.meshgrid(d_list[0][1:] / 2, d_list[1][1:] / 2, d_list[2][1:] / 2)
-        kernel_g = np.vstack(tuple(map(np.ravel, g))).T.astype("float64")
-        kernel_d_left = np.vstack(tuple(map(np.ravel, d_left))).T.astype("float64")
-        kernel_d_right = np.vstack(tuple(map(np.ravel, d_right))).T.astype("float64")
-
-        return kernel_g, kernel_d_left, kernel_d_right
-
-    @staticmethod
     def create_irregular_grid_kernel(grid_resolution, scaling_factor, base_spacing=0.01, z_axis_shift=0.05, z_axis_scale=1.2):
         if not isinstance(scaling_factor, (list, np.ndarray)):
             scaling_factor = np.repeat(scaling_factor, 3)

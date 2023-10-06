@@ -3,9 +3,11 @@ import pytest
 import numpy as np
 
 from gempy_engine.API.model.model_api import compute_model
+from gempy_engine.core.data.centered_grid import CenteredGrid
 from gempy_engine.core.data.generic_grid import GenericGrid
 from gempy_engine.core.data.geophysics_input import GeophysicsInput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
+from gempy_engine.modules.geophysics.gravity_gradient import calculate_gravity_gradient
 from ...conftest import plot_pyvista, TEST_SPEED
 
 try:
@@ -29,20 +31,23 @@ def test_gravity(simple_model_interpolation_input, n_oct_levels=3):
     # TODO: [ ] Calculate reasonable geophysics grid with tz
     
     # Here is spawning from the device
-    geophysics_grid = GenericGrid(
-        values=np.array([[0.5, 0.5, 0.75]]),
+    geophysics_grid = CenteredGrid(
+        centers=np.array([[0.5, 0.5, 0.75]]),
+        resolution=np.array([10, 10, 15]), 
+        radius=np.array([1, 1, 1])  
     )
     
     interpolation_input.grid.geophysics_grid = geophysics_grid
     # -----------------------------
     
+    gravity_gradient = calculate_gravity_gradient(geophysics_grid)
     # * set up the geophysics input
     geophysics_input = GeophysicsInput(
-        tz=np.array([0.0]),
+        tz=gravity_gradient,
         densities=np.array([1.3, 2]),
     )
     
-    solutions = compute_model(interpolation_input, options, structure)
+    solutions = compute_model(interpolation_input, options, structure, geophysics_input)
 
     if plot_pyvista or True:
         pv.global_theme.show_edges = True
