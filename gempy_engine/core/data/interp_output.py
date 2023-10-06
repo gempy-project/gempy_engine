@@ -80,6 +80,10 @@ class InterpOutput:
     @property
     def geophysics_grid_values(self):
         return self.block[self.grid.geophysics_grid_slice]
+    
+    @property
+    def ids_geophysics_grid(self):
+        return np.rint(self.block[self.grid.geophysics_grid_slice]).astype(int)
 
     @property
     def ids_block_regular_grid(self):
