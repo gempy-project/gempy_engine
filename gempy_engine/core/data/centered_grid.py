@@ -14,6 +14,9 @@ class CenteredGrid:
     cached_kernel_left_voxel_edges: np.ndarray = None
     cached_kernel_right_voxel_edges: np.ndarray = None
 
+    def __len__(self):
+        return self.centers.shape[0] * self.cached_kernel_grid_centers.shape[0]
+
     def __post_init__(self):
         assert self.centers.shape[1] == 3, 'Centers must be a numpy array that contains the coordinates XYZ'
         self.update_kernels(self.resolution, self.radius)
@@ -79,8 +82,8 @@ class CenteredGrid:
 
         grid_centers, left_voxel_edges, right_voxel_edges = np.meshgrid(*coordinates), np.meshgrid(*left_voxel_edges), np.meshgrid(*right_voxel_edges)
 
-        flattened_grid_centers = np.vstack(map(np.ravel, grid_centers)).T.astype("float64")
-        flattened_left_voxel_edges = np.vstack(map(np.ravel, left_voxel_edges)).T.astype("float64")
-        flattened_right_voxel_edges = np.vstack(map(np.ravel, right_voxel_edges)).T.astype("float64")
+        flattened_grid_centers = np.vstack(tuple(map(np.ravel, grid_centers))).T.astype("float64")
+        flattened_left_voxel_edges = np.vstack(tuple(map(np.ravel, left_voxel_edges))).T.astype("float64")
+        flattened_right_voxel_edges = np.vstack(tuple(map(np.ravel, right_voxel_edges))).T.astype("float64")
 
         return flattened_grid_centers, flattened_left_voxel_edges, flattened_right_voxel_edges

@@ -19,14 +19,16 @@ class Solutions:
 
     debug_input_data: dict = {}
     
-    def __init__(self, octrees_output: List[OctreeLevel], dc_meshes: List[DualContouringMesh] = None):
+    def __init__(self, octrees_output: List[OctreeLevel], dc_meshes: List[DualContouringMesh] = None, fw_gravity: np.ndarray = None):
         self.octrees_output = octrees_output
         self.dc_meshes = dc_meshes
+        self.gravity = fw_gravity
         
         if SET_RAW_ARRAYS_IN_SOLUTION:  # * This can add an unnecessary overhead
             self._raw_arrays = RawArraysSolution.from_gempy_engine_solutions(
                 octrees_output=octrees_output,
-                meshes=dc_meshes
+                meshes=dc_meshes,
+                fw_gravity=fw_gravity
             )
 
     def __repr__(self):

@@ -30,7 +30,7 @@ class RawArraysSolution:
     lith_block: np.ndarray = np.empty(0)
     fault_block: np.ndarray = np.empty(0)
     litho_faults_block: np.ndarray = np.empty(0)
-    
+
     scalar_field_matrix: np.ndarray = np.empty(0)
     block_matrix: np.ndarray = np.empty(0)
     mask_matrix: np.ndarray = np.empty(0)
@@ -51,7 +51,7 @@ class RawArraysSolution:
     # endregion
 
     # region Mesh
-    vertices: list[np.ndarray] = np.empty(( 0, 3 ))
+    vertices: list[np.ndarray] = np.empty((0, 3))
     edges: list[np.ndarray] = None
     # endregion
 
@@ -63,24 +63,24 @@ class RawArraysSolution:
 
     # ? TODO: This could be just the init
     @classmethod
-    def from_gempy_engine_solutions(cls, octrees_output: list[OctreeLevel], meshes: list[DualContouringMesh]) \
-            -> "RawArraysSolution":
+    def from_gempy_engine_solutions(cls, octrees_output: list[OctreeLevel], meshes: list[DualContouringMesh],
+                                    fw_gravity: Optional[np.ndarray] = None) -> "RawArraysSolution":
         raw_arrays_solution = cls()
 
         # region Blocks
         last_octree_level: OctreeLevel = octrees_output[(-1)]
 
         raw_arrays_solution.block_matrix = cls._get_regular_grid_values_for_all_structural_groups(
-            octree_output=octrees_output, 
+            octree_output=octrees_output,
             scalar_type=ValueType.values_block
         )
-        
+
         raw_arrays_solution.fault_block = get_regular_grid_value_for_level(
             octree_list=octrees_output,
             level=None,
             value_type=ValueType.faults_block
         ).astype("int8").ravel()
-        
+
         raw_arrays_solution.litho_faults_block = get_regular_grid_value_for_level(
             octree_list=octrees_output,
             level=None,
@@ -91,12 +91,12 @@ class RawArraysSolution:
             octree_output=octrees_output,
             scalar_type=ValueType.scalar
         )
-        
+
         raw_arrays_solution.mask_matrix = cls._get_regular_grid_values_for_all_structural_groups(
             octree_output=octrees_output,
             scalar_type=ValueType.mask_component
         )
-        
+
         raw_arrays_solution.mask_matrix_squeezed = cls._get_regular_grid_values_for_all_structural_groups(
             octree_output=octrees_output,
             scalar_type=ValueType.squeeze_mask
@@ -105,24 +105,24 @@ class RawArraysSolution:
         raw_arrays_solution._set_lith_block(octrees_output)
         raw_arrays_solution._set_scalar_field_at_surface_points(last_octree_level)
         # endregion
-        
+
         # region Grids
         first_level_octree: OctreeLevel = octrees_output[0]
-        
+
         # TODO: Make this more clever to account for the fact that we can have more than one scalar field
         output: InterpOutput = first_level_octree.outputs_centers[-1]  # ! This is the scalar field. Usually we want the last one but not necessarily
-        
+
         raw_arrays_solution.geological_map = BackendTensor.t.to_numpy(output.geological_map)
         raw_arrays_solution.sections = BackendTensor.t.to_numpy(output.sections)
         raw_arrays_solution.custom = BackendTensor.t.to_numpy(output.custom_grid_values)
         # endregion
-        
+
         # region Meshes
         if meshes:
             raw_arrays_solution.vertices = [mesh.vertices for mesh in meshes]
             raw_arrays_solution.edges = [mesh.edges for mesh in meshes]
             # TODO: I will have to apply the transform to this one
-            
+
         # endregion
         return raw_arrays_solution
 
@@ -156,14 +156,14 @@ class RawArraysSolution:
             level=None,
             value_type=ValueType.ids
         ).astype("int8").ravel()
-        
-        block[block == 0] = block.max() + 1 # Move basement from first to last
+
+        block[block == 0] = block.max() + 1  # Move basement from first to last
         self.lith_block = block
 
     def meshes_to_subsurface(self):
         ss = require_subsurface()
         pd = require_pandas()
-        
+
         vertex: list[np.ndarray] = self.vertices
         simplex_list: list[np.ndarray] = self.edges
 
@@ -180,5 +180,5 @@ class RawArraysSolution:
             cells=np.concatenate(simplex_list),
             vertex_attr=pd.DataFrame({'id': concatenated_id_array})
         )
-        
+
         return meshes

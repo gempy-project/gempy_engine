@@ -32,7 +32,7 @@ def test_gravity(simple_model_interpolation_input, n_oct_levels=3):
     
     # Here is spawning from the device
     geophysics_grid = CenteredGrid(
-        centers=np.array([[0.5, 0.5, 0.75]]),
+        centers=np.array([[0.25, 0.5, 0.75], [0.75, 0.5, 0.75]]),
         resolution=np.array([10, 10, 15]), 
         radius=np.array([1, 1, 1])  
     )
@@ -44,10 +44,12 @@ def test_gravity(simple_model_interpolation_input, n_oct_levels=3):
     # * set up the geophysics input
     geophysics_input = GeophysicsInput(
         tz=gravity_gradient,
-        densities=np.array([1.3, 2]),
+        densities=np.array([1.3, 4]),
     )
     
-    solutions = compute_model(interpolation_input, options, structure, geophysics_input)
+    solutions = compute_model(interpolation_input, options, structure, geophysics_input=geophysics_input)
+    
+    print(solutions.gravity)
 
     if plot_pyvista or True:
         pv.global_theme.show_edges = True
