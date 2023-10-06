@@ -18,7 +18,7 @@ class Grid:
     custom_grid: Optional[GenericGrid] = None
     topography: Optional[GenericGrid] = None
     sections: Optional[GenericGrid] = None
-    centered_grid = None  # TODO: Not implemented this probably will need something different that the generic grid?
+    geophysics_grid: Optional[GenericGrid] = None  # TODO: Not implemented this probably will need something different that the generic grid?
 
     debug_vals = None
     
@@ -43,8 +43,8 @@ class Grid:
             values.append(self.topography.values)
         if self.sections is not None:
             values.append(self.sections.values)
-        if self.centered_grid is not None:
-            values.append(self.centered_grid.values)
+        if self.geophysics_grid is not None:
+            values.append(self.geophysics_grid.values)
         
         values_array = np.concatenate(values, dtype=BackendTensor.dtype)
         values_array = BackendTensor.t.array(values_array)
@@ -84,14 +84,12 @@ class Grid:
         )
 
     @property
-    def centered_grid_slice(self) -> slice:
+    def geophysics_grid_slice(self) -> slice:
         start = self.sections_slice.stop
         return slice(
             start,
-            start + len(self.centered_grid) if self.centered_grid is not None else start
+            start + len(self.geophysics_grid) if self.geophysics_grid is not None else start
         )
-
-
 
     @property
     def len_all_grids(self) -> int:
@@ -114,8 +112,8 @@ class Grid:
         return self.sections.values
 
     @property
-    def centered_grid_values(self) -> np.ndarray:
-        return self.centered_grid.values
+    def geophysics_grid_values(self) -> np.ndarray:
+        return self.geophysics_grid.values
 
     @property
     def regular_grid_shape(self) -> ndarray | list:

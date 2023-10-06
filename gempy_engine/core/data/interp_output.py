@@ -76,6 +76,10 @@ class InterpOutput:
     @property
     def custom_grid(self):
         return self.block[self.grid.custom_grid_slice]
+    
+    @property
+    def geophysics_grid(self):
+        return self.block[self.grid.geophysics_grid_slice]
 
     @property
     def ids_block_regular_grid(self):
