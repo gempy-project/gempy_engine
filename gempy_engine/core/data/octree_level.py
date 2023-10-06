@@ -13,7 +13,7 @@ class OctreeLevel:
     # Input
     grid_centers: Grid
     grid_corners: Optional[Grid]
-    outputs_centers: List[InterpOutput]  #: List of output (one per stack)
+    outputs_centers: list[InterpOutput]  #: List of output (one per stack)
     outputs_corners: list[InterpOutput]
 
     # Topo

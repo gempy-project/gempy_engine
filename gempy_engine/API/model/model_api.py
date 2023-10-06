@@ -1,6 +1,7 @@
 import copy
 from typing import List, Optional
 
+from ...core.data.interp_output import InterpOutput
 from ...core.data.geophysics_input import GeophysicsInput
 from ...modules.geophysics.fw_gravity import compute_gravity
 from ...core.data.dual_contouring_mesh import DualContouringMesh
@@ -37,9 +38,10 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
 
     # TODO: [ ] Magnetics
 
+    first_level_last_field: InterpOutput = output[0].outputs_centers[-1]
     gravity = compute_gravity(
         tz= geophysics_input.tz,
-        densities= geophysics_input.densities
+        densities= first_level_last_field
     )
     
     # endregion
