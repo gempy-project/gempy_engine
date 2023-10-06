@@ -1,6 +1,8 @@
 import copy
 from typing import List, Optional
 
+from ...core.data.geophysics_input import GeophysicsInput
+from ...modules.geophysics.fw_gravity import compute_gravity
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ..dual_contouring.multi_scalar_dual_contouring import dual_contouring_multi_scalar
 from ..interp_single._interp_scalar_field import WeightsBuffer
@@ -15,7 +17,7 @@ from ...core.utils import gempy_profiler_decorator
 
 @gempy_profiler_decorator
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
-                  data_descriptor: InputDataDescriptor) -> Solutions:
+                  data_descriptor: InputDataDescriptor, geophysics_input: GeophysicsInput) -> Solutions:
     WeightsBuffer.clean()
     
     # TODO: Make sure if this works with TF
@@ -27,7 +29,21 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
         options=options,
         data_descriptor=data_descriptor
     )
+    
+    # region Geophysics
+    # ---------------------
+    
+    # TODO: [ ] Gravity
 
+    # TODO: [ ] Magnetics
+
+    gravity = compute_gravity(
+        tz= geophysics_input.tz,
+        densities= geophysics_input.densities
+    )
+    
+    # endregion
+    
     meshes: Optional[list[DualContouringMesh]] = None
     if options.dual_contouring:
         meshes: list[DualContouringMesh] = dual_contouring_multi_scalar(
@@ -36,11 +52,6 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
             options=options,
             octree_list=output[:options.number_octree_levels_surface]
         )
-
-    # ---------------------
-    # TODO: [ ] Gravity
-
-    # TODO: [ ] Magnetics
 
     solutions = Solutions(
         octrees_output=output,
