@@ -125,6 +125,7 @@ class BackendTensor:
                 cls._set_active_backend_pointers(engine_backend, pytorch_copy)  # * Here is where we set the tensorflow-numpy backend
                 cls._wrap_pytorch_functions()
                 cls.dtype_obj = pytorch_copy.float32 if cls.dtype == "float32" else pytorch_copy.float64
+                cls.tensor_types = pytorch_copy.Tensor
                 
 
             case (_):

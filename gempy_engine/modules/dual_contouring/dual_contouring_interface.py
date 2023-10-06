@@ -58,6 +58,7 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field_on_corners:
     xyz_8_edges = BackendTensor.t.hstack([xyz_8[:, 4:], xyz_8[:, [2, 3, 6, 7]], xyz_8[:, 1::2]])
     intersect_segment = BackendTensor.t.hstack([intersect_dx, intersect_dy, intersect_dz])
     valid_edges = BackendTensor.t.hstack([valid_edge_x, valid_edge_y, valid_edge_z])[:, :, 0]
+    valid_edges = valid_edges > 0
 
     intersection_xyz = xyz_8_edges[valid_edges] + intersect_segment[valid_edges]
 
@@ -157,6 +158,7 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
 
     # * Coordinates for all posible edges (12) and 3 dummy edges_normals in the center
     edges_xyz = BackendTensor.t.zeros((n_edges, 15, 3), dtype=BackendTensor.dtype_obj)
+    valid_edges = valid_edges > 0
     edges_xyz[:, :12][valid_edges] = xyz_on_edge
 
     # Normals

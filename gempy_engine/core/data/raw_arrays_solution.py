@@ -3,6 +3,7 @@ from typing import Optional
 
 import numpy as np
 
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
 from gempy_engine.core.data.octree_level import OctreeLevel
@@ -111,9 +112,9 @@ class RawArraysSolution:
         # TODO: Make this more clever to account for the fact that we can have more than one scalar field
         output: InterpOutput = first_level_octree.outputs_centers[-1]  # ! This is the scalar field. Usually we want the last one but not necessarily
         
-        raw_arrays_solution.geological_map = output.geological_map
-        raw_arrays_solution.sections = output.sections
-        raw_arrays_solution.custom = output.custom_grid
+        raw_arrays_solution.geological_map = BackendTensor.t.to_numpy(output.geological_map)
+        raw_arrays_solution.sections = BackendTensor.t.to_numpy(output.sections)
+        raw_arrays_solution.custom = BackendTensor.t.to_numpy(output.custom_grid)
         # endregion
         
         # region Meshes
