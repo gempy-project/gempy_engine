@@ -133,7 +133,7 @@ class InterpolationInput:
         if grid.centered_grid is not None:
             centered_grid = CenteredGrid(
                 centers=transform.apply(grid.centered_grid.centers),
-                radius=transform.apply(np.atleast_2d(grid.centered_grid.radius))[0], # * This is a bit too much shape manipulation for my taste
+                radius=transform.scale_points(np.atleast_2d(grid.centered_grid.radius))[0], # * This is a bit too much shape manipulation for my taste
                 resolution=grid.centered_grid.resolution
             )
         else:

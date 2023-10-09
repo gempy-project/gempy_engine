@@ -5,7 +5,6 @@ import numpy as np
 from numpy import ndarray
 
 from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.config import AvailableBackends
 from .centered_grid import CenteredGrid
 from .generic_grid import GenericGrid
 from .regular_grid import RegularGrid
