@@ -32,13 +32,15 @@ def map_densities_to_ids_basic(ids_gravity_grid, densities):
 
 def compute_gravity(geophysics_input: GeophysicsInput, root_ouput: InterpOutput) -> BackendTensor.t:
     tz = geophysics_input.tz
-    ids_gravity_grid = root_ouput.ids_geophysics_grid
+    densities = map_densities_to_ids_basic(
+        ids_gravity_grid=root_ouput.ids_geophysics_grid,
+        densities=BackendTensor.t.array(geophysics_input.densities)
+    )
     
-    densities = map_densities_to_ids_basic(ids_gravity_grid, densities=geophysics_input.densities)
     n_devices = densities.shape[0] // tz.shape[0]
     
     tz = tz.reshape(1, -1)
     densities = densities.reshape(n_devices, -1)
     
-    grav = BackendTensor.t.sum(tz * densities, axis=1)
+    grav = BackendTensor.t.sum(densities * tz, axis=1)
     return grav

@@ -127,6 +127,7 @@ class BackendTensor:
                 cls.dtype_obj = pytorch_copy.float32 if cls.dtype == "float32" else pytorch_copy.float64
                 cls.tensor_types = pytorch_copy.Tensor
                 
+                
 
             case (_):
                 raise AttributeError(
@@ -172,6 +173,7 @@ class BackendTensor:
         cls.tfnp.array = lambda array_like, dtype=None: torch.tensor(array_like, dtype=dtype)
         cls.tfnp.to_numpy = lambda tensor: tensor.numpy()
         cls.tfnp.min = lambda tensor, axis: tensor.min(axis=axis)[0]
+        cls.tfnp.rint = lambda tensor: tensor.round().type(torch.int32)
 
     @classmethod
     def _wrap_pykeops_functions(cls):
@@ -208,6 +210,7 @@ class BackendTensor:
         cls.tfnp.concat = cls.tfnp.concatenate
         cls.tfnp.constant = cls.tfnp.array
         cls.tfnp.to_numpy = lambda tensor: tensor
+        cls.tfnp.rint = lambda tensor: tensor.round().astype(numpy.int32)
     
 
 

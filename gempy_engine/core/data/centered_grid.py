@@ -10,12 +10,12 @@ class CenteredGrid:
     resolution: Sequence[float]
     radius: Union[float, Sequence[float]]
 
-    cached_kernel_grid_centers: np.ndarray = None
-    cached_kernel_left_voxel_edges: np.ndarray = None
-    cached_kernel_right_voxel_edges: np.ndarray = None
+    kernel_grid_centers: np.ndarray = None
+    left_voxel_edges: np.ndarray = None
+    right_voxel_edges: np.ndarray = None
 
     def __len__(self):
-        return self.centers.shape[0] * self.cached_kernel_grid_centers.shape[0]
+        return self.centers.shape[0] * self.kernel_grid_centers.shape[0]
 
     def __post_init__(self):
         self.centers = np.atleast_2d(self.centers)
@@ -37,7 +37,7 @@ class CenteredGrid:
         Returns:
             None
         """
-        self.cached_kernel_grid_centers, self.cached_kernel_left_voxel_edges, self.cached_kernel_right_voxel_edges = (
+        self.kernel_grid_centers, self.left_voxel_edges, self.right_voxel_edges = (
             self.create_irregular_grid_kernel(
                 grid_resolution=grid_resolution,
                 scaling_factor=scaling_factor,
@@ -52,7 +52,7 @@ class CenteredGrid:
         centers = np.atleast_2d(self.centers)
         values_ = np.empty((0, 3))
         for xyz_device in centers:
-            values_ = np.vstack((values_, xyz_device + self.cached_kernel_grid_centers))
+            values_ = np.vstack((values_, xyz_device + self.kernel_grid_centers))
         return values_
 
     @staticmethod

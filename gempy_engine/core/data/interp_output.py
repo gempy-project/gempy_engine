@@ -4,6 +4,7 @@ from typing import Optional
 
 import numpy as np
 
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_structs import CombinedScalarFieldsOutput
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 
@@ -83,7 +84,7 @@ class InterpOutput:
     
     @property
     def ids_geophysics_grid(self):
-        return np.rint(self.block[self.grid.geophysics_grid_slice]).astype(int)
+        return BackendTensor.t.rint(self.block[self.grid.geophysics_grid_slice])
 
     @property
     def ids_block_regular_grid(self):
