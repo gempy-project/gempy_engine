@@ -14,7 +14,10 @@ class RegularGrid:
     regular_grid_shape: Union[np.ndarray, List]  # Shape(3)
     _active_cells: np.ndarray = field(default=None, repr=False, init=False)
     left_right: np.ndarray = field(default=None, repr=False, init=False)
-
+    
+    values: np.ndarray = field(default=None, repr=False, init=False)
+    original_values: np.ndarray = field(default=None, repr=False, init=False)  #: When the regular grid is representing a octree level, only active cells are stored in values. This is the original values of the regular grid.
+    
     def __len__(self):
         return self.regular_grid_shape.prod()
 
@@ -23,6 +26,7 @@ class RegularGrid:
         self.extent = _check_and_convert_list_to_array(self.extent) + 1e-6  # * This to avoid some errors evaluating in 0 (e.g. bias in dual contouring)
 
         self.values = self._create_regular_grid(self.extent, self.regular_grid_shape)
+        self.original_values = self.values.copy()
         
 
     @classmethod
