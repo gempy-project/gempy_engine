@@ -41,7 +41,7 @@ default_interpolation_options: InterpolationOptions = InterpolationOptions(
     c_o=( range_ ** 2 ) / 14 / 3,
     number_octree_levels=4,
     kernel_function=AvailableKernelFunctions.cubic,
-    dual_contouring=True
+    mesh_extraction=True
 )
 
 
@@ -63,7 +63,7 @@ def compute_gempy_model(gempy_input: GemPyInput):
     # region Set new fancy triangulation TODO: This has to be move to the interpolation options coming from the client
     FANCY_TRIANGULATION = True
     if FANCY_TRIANGULATION:
-        default_interpolation_options.dual_contouring_fancy = True
+        default_interpolation_options.mesh_extraction_fancy = True
         # default_interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW  # * To Date only raw making is supported
     # endregion
 

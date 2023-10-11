@@ -50,7 +50,7 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
     # endregion
 
     meshes: Optional[list[DualContouringMesh]] = None
-    if options.dual_contouring:
+    if options.mesh_extraction:
         meshes: list[DualContouringMesh] = dual_contouring_multi_scalar(
             data_descriptor=data_descriptor,
             interpolation_input=interpolation_input,

@@ -103,9 +103,9 @@ class InterpolationOptions:
 
     compute_scalar_gradient        : bool                         = False
 
-    dual_contouring                : bool                         = True
-    dual_contouring_masking_options: DualContouringMaskingOptions = DualContouringMaskingOptions.INTERSECT
-    dual_contouring_fancy          : bool                         = True
+    mesh_extraction                : bool                         = True
+    mesh_extraction_masking_options: DualContouringMaskingOptions = DualContouringMaskingOptions.INTERSECT
+    mesh_extraction_fancy          : bool                         = True
 
     debug                          : bool                         = gempy_engine.config.DEBUG_MODE
     debug_water_tight              : bool                         = False
@@ -122,7 +122,7 @@ class InterpolationOptions:
             number_dimensions         : int                              = 3                                   , # ? This probably too
             number_octree_levels      : int                              = 1,
             kernel_function           : AvailableKernelFunctions         = AvailableKernelFunctions.cubic,
-            dual_contouring           : bool                             = True,
+            mesh_extraction           : bool                             = True,
             compute_scalar_gradient   : bool                             = False,
             compute_condition_number  : bool                             = False,
             
@@ -140,7 +140,7 @@ class InterpolationOptions:
             compute_condition_number = compute_condition_number
         )
 
-        self.dual_contouring         = dual_contouring
+        self.mesh_extraction         = mesh_extraction
         self.compute_scalar_gradient = compute_scalar_gradient
 
     # @on
@@ -188,7 +188,7 @@ class InterpolationOptions:
     @property
     def compute_corners(self):
         is_not_last_octree = (self.is_last_octree_level is False)
-        is_dual_contouring = self.dual_contouring
+        is_dual_contouring = self.mesh_extraction
         is_octree_for_surfaces = self.current_octree_level == self.number_octree_levels_surface - 1
         is_dual_contouring_and_octree_is_for_surfaces = is_dual_contouring and is_octree_for_surfaces
         

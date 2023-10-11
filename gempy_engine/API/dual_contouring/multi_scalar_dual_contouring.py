@@ -40,7 +40,7 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
 
     # region new triangulations
     is_pure_octree = bool(np.all(octree_list[0].grid_centers.regular_grid_shape == 2))
-    match (options.dual_contouring_fancy, is_pure_octree):
+    match (options.mesh_extraction_fancy, is_pure_octree):
         case (True, True):
             left_right_codes = get_left_right_array(octree_list)
         case (True, False):
