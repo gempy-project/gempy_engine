@@ -16,7 +16,7 @@ from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.octree_level import OctreeLevel
-from ...core.data.options import DualContouringMaskingOptions
+from ...core.data.options import MeshExtractionMaskingOptions
 from ...core.data.stack_relation_type import StackRelationType
 from ...core.utils import gempy_profiler_decorator
 from ...modules.dual_contouring.fancy_triangulation import get_left_right_array
@@ -54,7 +54,7 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
 
     all_mask_arrays: np.ndarray = _mask_generation(
         octree_leaves=octree_leaves,
-        masking_option=options.dual_contouring_masking_options
+        masking_option=options.mesh_extraction_masking_options
     )
 
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
@@ -96,7 +96,7 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
     return all_meshes
 
 
-def _mask_generation(octree_leaves, masking_option: DualContouringMaskingOptions) -> np.ndarray | None:
+def _mask_generation(octree_leaves, masking_option: MeshExtractionMaskingOptions) -> np.ndarray | None:
     all_scalar_fields_outputs: list[InterpOutput] = octree_leaves.outputs_corners
     n_scalar_fields = len(all_scalar_fields_outputs)
     grid_size = all_scalar_fields_outputs[0].grid_size
@@ -106,9 +106,9 @@ def _mask_generation(octree_leaves, masking_option: DualContouringMaskingOptions
     for i in range(n_scalar_fields):
         stack_relation = all_scalar_fields_outputs[i].scalar_fields.stack_relation
         match (masking_option, stack_relation):
-            case DualContouringMaskingOptions.RAW, _:
+            case MeshExtractionMaskingOptions.RAW, _:
                 mask_matrix[i] = BackendTensor.t.ones(grid_size // 8, dtype=bool)
-            case DualContouringMaskingOptions.DISJOINT, _:
+            case MeshExtractionMaskingOptions.DISJOINT, _:
                 raise NotImplementedError("Disjoint is not supported yet. Not even sure if there is anything to support")
             # case (DualContouringMaskingOptions.DISJOINT | DualContouringMaskingOptions.INTERSECT, StackRelationType.FAULT):
             #     mask_matrix[i] = np.ones(grid_size//8, dtype=bool)
@@ -122,15 +122,15 @@ def _mask_generation(octree_leaves, masking_option: DualContouringMaskingOptions
             # case DualContouringMaskingOptions.DISJOINT, StackRelationType.ONLAP:
             #     raise NotImplementedError("Onlap is not supported yet")
             #     return octree_leaves.outputs_corners[n_scalar_field].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
-            case DualContouringMaskingOptions.INTERSECT, StackRelationType.ERODE:
+            case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.ERODE:
                 x = all_scalar_fields_outputs[i + onlap_chain_counter].squeezed_mask_array.reshape((1, -1, 8))
                 mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
                 onlap_chain_counter = 0
-            case DualContouringMaskingOptions.INTERSECT, StackRelationType.BASEMENT:
+            case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.BASEMENT:
                 x = all_scalar_fields_outputs[i].squeezed_mask_array.reshape((1, -1, 8))
                 mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
                 onlap_chain_counter = 0
-            case DualContouringMaskingOptions.INTERSECT, StackRelationType.ONLAP:
+            case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.ONLAP:
                 x = all_scalar_fields_outputs[i].squeezed_mask_array.reshape((1, -1, 8))
                 mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
                 onlap_chain_counter += 1

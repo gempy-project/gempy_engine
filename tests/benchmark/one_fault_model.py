@@ -26,7 +26,7 @@ def my_func():
 
     options.compute_scalar_gradient = False
     options.dual_contouring = False
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
+    options.mesh_extraction_masking_options = DualContouringMaskingOptions.RAW
 
     options.number_octree_levels = 8
     solutions: Solutions = compute_model(interpolation_input, options, structure)

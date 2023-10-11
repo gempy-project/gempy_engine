@@ -8,7 +8,7 @@ from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKern
 from ._process_output import process_output
 from ._server_functions import process_input, setup_logger
 from ...core.data.kernel_classes.server.input_parser import GemPyInput
-from ...core.data.options import DualContouringMaskingOptions
+from ...core.data.options import MeshExtractionMaskingOptions
 from ...core.data.solutions import Solutions
 
 try:
@@ -64,10 +64,10 @@ def compute_gempy_model(gempy_input: GemPyInput):
     FANCY_TRIANGULATION = True
     if FANCY_TRIANGULATION:
         default_interpolation_options.mesh_extraction_fancy = True
-        # default_interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW  # * To Date only raw making is supported
+        # default_interpolation_options.mesh_extraction_masking_options = DualContouringMaskingOptions.RAW  # * To Date only raw making is supported
     # endregion
 
-    default_interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW  # * To Date only raw making is supported
+    default_interpolation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW  # * To Date only raw making is supported
     
     solutions: Solutions = _compute_model(
         interpolation_input=interpolation_input,

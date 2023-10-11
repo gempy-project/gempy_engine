@@ -29,7 +29,7 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
 
     options.compute_scalar_gradient = False
     options.dual_contouring = True
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.INTERSECT
+    options.mesh_extraction_masking_options = DualContouringMaskingOptions.INTERSECT
     options.dual_contouring_fancy = True
 
     options.number_octree_levels = n_oct_levels
@@ -85,7 +85,7 @@ def test_one_fault_model_thickness(one_fault_model, n_oct_levels=2):
     fault_data: FaultsData = FaultsData.from_user_input(thickness=.5)
     structure.stack_structure.faults_input_data = [fault_data, None, None]
     options.dual_contouring = True
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.INTERSECT
+    options.mesh_extraction_masking_options = DualContouringMaskingOptions.INTERSECT
 
     options.number_octree_levels = n_oct_levels
     solutions: Solutions = compute_model(interpolation_input, options, structure)
@@ -122,7 +122,7 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=1):
 
     options.compute_scalar_gradient = False
     options.dual_contouring = True
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
+    options.mesh_extraction_masking_options = DualContouringMaskingOptions.RAW
 
     # region finite fault
     faults_relations = np.array(
@@ -175,7 +175,7 @@ def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
     interpolation_input, structure, options = one_fault_model
     structure.stack_structure.faults_input_data = None
 
-    options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
+    options.mesh_extraction_masking_options = DualContouringMaskingOptions.RAW
     options.number_octree_levels = 1
 
     rescaling_factor = 240

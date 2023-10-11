@@ -112,7 +112,7 @@ def moureze_model_factory(path_to_root: str, pick_every=8, octree_lvls=3, solver
     interpolation_options.kernel_options.kernel_solver = solver
 
     from gempy_engine.core.data.options import DualContouringMaskingOptions
-    interpolation_options.dual_contouring_masking_options = DualContouringMaskingOptions.RAW
+    interpolation_options.mesh_extraction_masking_options = DualContouringMaskingOptions.RAW
 
     # endregion
     # region InputDataDescriptor
