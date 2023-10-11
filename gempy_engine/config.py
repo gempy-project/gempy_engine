@@ -15,7 +15,7 @@ class AvailableBackends(Flag):
 # ! Careful what we commit here!
 DEBUG_MODE = True
 OPTIMIZE_MEMORY = True
-DEFAULT_BACKEND = AvailableBackends.numpy
+DEFAULT_BACKEND = AvailableBackends.PYTORCH
 DEFAULT_PYKEOPS = False
 DEFAULT_TENSOR_DTYPE = 'float64'
 LINE_PROFILER_ENABLED = False
