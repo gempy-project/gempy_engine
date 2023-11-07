@@ -34,8 +34,8 @@ import numpy as np
 
 # This is a mock function to represent the unknown behavior of the classes and functions.
 def simple_model_interpolation_input_TORCH():
-    resolution = torch.tensor([2, 2, 3], dtype=torch.float32, requires_grad=True)
-    extent = torch.tensor([0.25, .75, 0.25, .75, 0.25, .75], dtype=torch.float32, requires_grad=True)
+    resolution = [2, 2, 3]
+    extent = [0.25, .75, 0.25, .75, 0.25, .75]
 
     regular_grid = RegularGrid(extent, resolution)
     grid_0_centers = Grid.from_regular_grid(regular_grid)
@@ -90,6 +90,7 @@ def test_pytorch_gradients_I(n_oct_levels=3):
 
     options: InterpolationOptions
     options.number_octree_levels = n_oct_levels
+    options.mesh_extraction = False
     options.kernel_options.kernel_solver = Solvers.DEFAULT
 
     solutions = compute_model(interpolation_input, options, structure)
@@ -98,5 +99,6 @@ def test_pytorch_gradients_I(n_oct_levels=3):
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
-        plot_dc_meshes(p, solutions.dc_meshes[0])
+        # TODO: Adapt gradients for mesh extraction?
+        # plot_dc_meshes(p, solutions.dc_meshes[0])
         p.show()

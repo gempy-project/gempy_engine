@@ -163,16 +163,26 @@ class BackendTensor:
         
         def _repeat(tensor, n_repeats, axis=None):
             return repeat_interleave(tensor, n_repeats, dim=axis)
+        
+        def _array(array_like, dtype=None):
+            if isinstance(dtype, str):
+                dtype = getattr(torch, dtype)
+            
+            return torch.tensor(array_like, dtype=dtype)
 
         cls.tfnp.sum = _sum
         cls.tfnp.repeat = _repeat
         cls.tfnp.expand_dims = lambda tensor, axis: tensor
         cls.tfnp.invert = lambda tensor: ~tensor
         cls.tfnp.hstack = lambda tensors: torch.concat(tensors, dim=1)
-        cls.tfnp.array = lambda array_like, dtype=None: torch.tensor(array_like, dtype=dtype)
-        cls.tfnp.to_numpy = lambda tensor: tensor.numpy()
+        cls.tfnp.array = _array 
+        cls.tfnp.to_numpy = lambda tensor: tensor.detach().numpy()
         cls.tfnp.min = lambda tensor, axis: tensor.min(axis=axis)[0]
         cls.tfnp.rint = lambda tensor: tensor.round().type(torch.int32)
+        cls.tfnp.vstack = lambda tensors: torch.cat(tensors, dim=0)
+        cls.tfnp.copy = lambda tensor: tensor.clone()
+    
+        
 
     @classmethod
     def _wrap_pykeops_functions(cls):

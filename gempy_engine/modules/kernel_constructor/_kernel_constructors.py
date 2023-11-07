@@ -6,14 +6,15 @@ from ...core.backend_tensor import BackendTensor
 from ...core.data.matrices_sizes import MatricesSizes
 from ...core.data.kernel_classes.orientations import OrientationsInternals
 from ...core.data.options import KernelOptions
+from ...core.backend_tensor import BackendTensor as bt
 
 
 def assembly_dips_points_tensor(dips_coord: np.ndarray, sp_coord: np.ndarray, matrices_size: MatricesSizes):
     n_dim = matrices_size.dim
     drift_size = matrices_size.drifts_size
-    z = np.zeros((drift_size, n_dim), dtype=BackendTensor.dtype)
+    z = bt.t.zeros((drift_size, n_dim), dtype=BackendTensor.dtype_obj)
     
-    dipspoints = np.vstack((dips_coord, sp_coord, z))
+    dipspoints = bt.t.vstack((dips_coord, sp_coord, z))
     return dipspoints
 
 
@@ -82,18 +83,18 @@ def assembly_dips_points_coords(surface_points: np.ndarray, matrices_sizes: Matr
     ori_size = matrices_sizes.ori_size
     drifts_size = matrices_sizes.drifts_size
     
-    z = np.zeros((ori_size, n_dim), dtype=BackendTensor.dtype)  # * Orientations area
-    z2 = np.zeros((drifts_size, n_dim), dtype=BackendTensor.dtype)  # * Universal area
+    z = bt.t.zeros((ori_size, n_dim), dtype=BackendTensor.dtype_obj)  # * Orientations area
+    z2 = bt.t.zeros((drifts_size, n_dim), dtype=BackendTensor.dtype_obj)  # * Universal area
 
-    zb = z2.copy()  # ! This block has to be here because it has to be before we modify z2
-    zc = z2.copy()
+    zb = bt.t.copy(z2)  # ! This block has to be here because it has to be before we modify z2
+    zc = bt.t.copy(z2)
 
     if interpolation_options.uni_degree != 0:
         for i in range(n_dim):
             z2[i, i] = 1
 
     # Degree 1
-    points_degree_1 = np.vstack((z, surface_points, z2))
+    points_degree_1 = bt.t.vstack((z, surface_points, z2))
 
     # Degree 2
     # TODO: Substitute vstack
@@ -113,7 +114,7 @@ def assembly_dips_points_coords(surface_points: np.ndarray, matrices_sizes: Matr
         zc[n_dim * 2 + 1, 2] = 1
         zc[n_dim * 2 + 2, 2] = 1
 
-    points_degree_2a = np.vstack((z, surface_points, zb))
-    points_degree_2b = np.vstack((z, surface_points, zc))
+    points_degree_2a = bt.t.vstack((z, surface_points, zb))
+    points_degree_2b = bt.t.vstack((z, surface_points, zc))
 
     return points_degree_1, points_degree_2a, points_degree_2b

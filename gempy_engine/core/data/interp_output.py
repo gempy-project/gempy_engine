@@ -115,8 +115,8 @@ class InterpOutput:
         if self.combined_scalar_field is None:  # * This in principle is only used for testing
             return self.ids_block
 
-        litho_ids = np.rint(self.block)
-        faults_ids = np.rint(self.faults_block)
+        litho_ids = BackendTensor.t.rint(self.block)
+        faults_ids = BackendTensor.t.rint(self.faults_block)
 
         # Get the number of unique lithology IDs
         multiplier = len(np.unique(litho_ids))

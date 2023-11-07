@@ -18,43 +18,42 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray, s
 
 def activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slope):
     element_0 = bt.t.array([0], dtype=BackendTensor.dtype_obj)
-    
+
     drift_0_v = bt.tfnp.concatenate([element_0, scalar_value_at_sp])
     drift_1_v = bt.tfnp.concatenate([scalar_value_at_sp, element_0])
 
-    scalar_0_v = ids.copy()
+    ids = bt.t.array(ids, dtype="int32")
+    scalar_0_v = bt.t.copy(ids)
     scalar_0_v[0] = 0
-    
-    scalar_1_v = ids.copy()
+
+    scalar_1_v = bt.t.copy(ids)
     scalar_1_v[-1] = 0
-    
+
     # * Iterate over surface
-    sigm = bt.t.zeros((1, Z_x.shape[0]), dtype=BackendTensor.dtype_obj) 
-    
-    for i in range(ids.size):
+    sigm = bt.t.zeros((1, Z_x.shape[0]), dtype=BackendTensor.dtype_obj)
+
+    for i in range(len(ids)):
         sigm += _compute_sigmoid(Z_x, scalar_0_v[i], scalar_1_v[i], drift_0_v[i], drift_1_v[i], ids[i], sigmoid_slope)
-    
+
     if False: _add_relu()  # TODO: Add this
     return sigm
 
 
 def _compute_sigmoid(Z_x, scale_0, scale_1, drift_0, drift_1, drift_id, sigmoid_slope):
     # TODO: Test to remove reshape once multiple values are implemented
-    
+
     with warnings.catch_warnings():
         if DEBUG_MODE:
             warnings.simplefilter("ignore", category=RuntimeWarning)
 
         sigmoid_slope_tensor = BackendTensor.t.array(sigmoid_slope, dtype=BackendTensor.dtype_obj)
-        
+
         active_sig = -scale_0.reshape((-1, 1)) / (1 + bt.tfnp.exp(-sigmoid_slope_tensor * (Z_x - drift_0)))
         deactive_sig = -scale_1.reshape((-1, 1)) / (1 + bt.tfnp.exp(sigmoid_slope_tensor * (Z_x - drift_1)))
         activation_sig = active_sig + deactive_sig
 
     sigm = activation_sig + drift_id.reshape((-1, 1))
     return sigm
-
-
 
 
 def _add_relu():

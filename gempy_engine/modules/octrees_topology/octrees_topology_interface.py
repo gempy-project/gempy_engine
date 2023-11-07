@@ -90,19 +90,19 @@ def get_regular_grid_value_for_level(octree_list: List[OctreeLevel], level: Opti
     regular_grid_shape = root.grid_centers.regular_grid_shape
 
     block = _get_block_from_value_type(root, scalar_n, value_type)
-
-    regular_grid: np.ndarray = _expand_regular_grid(
-        active_cells_erg=block.reshape(regular_grid_shape.tolist()),
-        n_rep=level
-    )
     
+    # Check if block is pytorch tensor and detach
     # ! Convert to numpy
     from gempy_engine.core.backend_tensor import BackendTensor
     from gempy_engine.config import AvailableBackends
     match (BackendTensor.engine_backend):
         case AvailableBackends.PYTORCH:
-            regular_grid = regular_grid.numpy()
+            block = block.detach().numpy()
     
+    regular_grid: np.ndarray = _expand_regular_grid(
+        active_cells_erg=block.reshape(regular_grid_shape.tolist()),
+        n_rep=level
+    )
     
     shape = regular_grid_shape
 
@@ -119,6 +119,9 @@ def get_regular_grid_value_for_level(octree_list: List[OctreeLevel], level: Opti
         oct: np.ndarray = calculate_oct(shape, n_rep)
 
         block = _get_block_from_value_type(octree, scalar_n, value_type)
+        match (BackendTensor.engine_backend):
+            case AvailableBackends.PYTORCH:
+                block = block.detach().numpy()
 
         ids: np.ndarray = _expand_octree(block.reshape((-1, 2, 2, 2)), n_rep - 1)
 
