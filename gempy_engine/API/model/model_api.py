@@ -23,7 +23,7 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
 
     # TODO: Make sure if this works with TF
     # ! If we inline this it seems the deepcopy does not work
-    interpolation_input = copy.deepcopy(interpolation_input)
+    # interpolation_input = copy.deepcopy(interpolation_input)
 
     output: list[OctreeLevel] = interpolate_n_octree_levels(
         interpolation_input=interpolation_input,

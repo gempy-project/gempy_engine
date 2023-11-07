@@ -94,6 +94,8 @@ def test_pytorch_gradients_I(n_oct_levels=3):
     options.kernel_options.kernel_solver = Solvers.DEFAULT
 
     solutions = compute_model(interpolation_input, options, structure)
+    tensor = solutions.octrees_output[0].last_output_center.final_block[-1]
+    tensor.backward()
 
     if plot_pyvista or True:
         pv.global_theme.show_edges = True

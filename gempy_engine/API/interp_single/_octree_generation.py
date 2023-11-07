@@ -16,7 +16,7 @@ import numpy as np
 
 def interpolate_on_octree(interpolation_input: InterpolationInput, options: InterpolationOptions,
                           data_shape: InputDataDescriptor) -> OctreeLevel:
-    interpolation_input = copy.deepcopy(interpolation_input)
+    # interpolation_input = copy.deepcopy(interpolation_input)
     
     # * Interpolate - centers
     output_0_centers: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # interpolate - centers
