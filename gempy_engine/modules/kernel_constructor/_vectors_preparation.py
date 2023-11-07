@@ -120,10 +120,10 @@ def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: K
 def _assembly_dips_points_tensors(matrices_size: MatricesSizes, ori_, sp_) -> OrientationSurfacePointsCoords:
     dips_ref_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.ref_surface_points, matrices_size)
     dips_rest_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.rest_surface_points, matrices_size)
-
+    
     orientations_sp_matrices = OrientationSurfacePointsCoords(dips_ref_coord, dips_ref_coord, dips_rest_coord,
                                                               dips_rest_coord)  # When we create que core covariance these are the repeated since the distance are with themselves
-
+    
     return orientations_sp_matrices
 
 

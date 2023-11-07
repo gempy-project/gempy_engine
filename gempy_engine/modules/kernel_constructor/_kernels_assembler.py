@@ -12,7 +12,7 @@ tensor_types = bt.tensor_types
 
 def create_cov_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
     kernel_f: KernelFunction = options.kernel_function.value
-    
+
     distances_matrices = _compute_all_distance_matrices(
         cs=ki.cartesian_selector,
         ori_sp_matrices=ki.ori_sp_matrices,
@@ -170,7 +170,7 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
 
     if develeping_distances_buffer := False and is_gradient:  # This is for developing
         _check_which_items_are_the_same_between_calls(distance_matrices)
-
+    
     DistancesBuffer.last_internal_distances_matrices = distance_matrices  # * Save common values for next call
     return distance_matrices
 
@@ -239,30 +239,32 @@ def _compute_distances_new(cs: CartesianSelector, ori_sp_matrices, square_distan
     r_rest_rest = bt.t.sum(dif_rest_rest ** 2, axis=-1)  # Can be cached
     r_ref_rest = bt.t.sum((ori_sp_matrices.dip_ref_i - ori_sp_matrices.diprest_j) ** 2, axis=-1)  # Can be cached
     r_rest_ref = bt.t.sum((ori_sp_matrices.diprest_i - ori_sp_matrices.dip_ref_j) ** 2, axis=-1)  # Can be cached
+
     if square_distance is False:
         # @off
-        r_ref_ref   = bt.t.sqrt(r_ref_ref)
-        r_rest_rest = bt.t.sqrt(r_rest_rest)
-        r_ref_rest  = bt.t.sqrt(r_ref_rest)
-        r_rest_ref  = bt.t.sqrt(r_rest_ref)
+        epsilon = 1e-10  # Add small regularization term to avoid numerical errors
+        r_ref_ref = bt.t.sqrt(r_ref_ref + epsilon)
+        r_rest_rest = bt.t.sqrt(r_rest_rest + epsilon)
+        r_ref_rest = bt.t.sqrt(r_ref_rest + epsilon)
+        r_rest_ref = bt.t.sqrt(r_rest_ref + epsilon)
     # endregion
 
     new_distance_matrices = InternalDistancesMatrices(
-        dif_ref_ref     = dif_ref_ref,
-        dif_rest_rest   = dif_rest_rest,
-        hu              = hu,
-        hv              = hv,
-        huv_ref         = huv_ref,
-        huv_rest        = huv_rest,
-        perp_matrix     = perp_matrix,
-        r_ref_ref       = r_ref_ref,
-        r_ref_rest      = r_ref_rest,
-        r_rest_ref      = r_rest_ref,
-        r_rest_rest     = r_rest_rest,
-        hu_ref          = hu_ref,
-        hu_rest         = hu_rest,
-        hu_ref_grad     = None,
-        hu_rest_grad    = None,
+        dif_ref_ref=dif_ref_ref,
+        dif_rest_rest=dif_rest_rest,
+        hu=hu,
+        hv=hv,
+        huv_ref=huv_ref,
+        huv_rest=huv_rest,
+        perp_matrix=perp_matrix,
+        r_ref_ref=r_ref_ref,
+        r_ref_rest=r_ref_rest,
+        r_rest_ref=r_rest_ref,
+        r_rest_rest=r_rest_rest,
+        hu_ref=hu_ref,
+        hu_rest=hu_rest,
+        hu_ref_grad=None,
+        hu_rest_grad=None,
         #    hu_ref_sum = hu_ref_sum   , hu_rest_sum = hu_rest_sum,
         # @on
     )

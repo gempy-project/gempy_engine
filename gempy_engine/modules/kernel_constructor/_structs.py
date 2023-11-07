@@ -43,7 +43,7 @@ class OrientationSurfacePointsCoords:
 
         self.dip_ref_i, self.dip_ref_j = _assembly(x_ref, y_ref)
         self.diprest_i, self.diprest_j = _assembly(x_rest, y_rest)
-
+        
         _cast_tensors(self)
 
 

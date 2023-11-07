@@ -91,16 +91,21 @@ def test_pytorch_gradients_I(n_oct_levels=3):
     options: InterpolationOptions
     options.number_octree_levels = n_oct_levels
     options.mesh_extraction = False
+    options.sigmoid_slope = 50
     options.kernel_options.kernel_solver = Solvers.DEFAULT
 
-    solutions = compute_model(interpolation_input, options, structure)
-    tensor = solutions.octrees_output[0].last_output_center.final_block[-1]
-    tensor.backward()
+    coords: torch.tensor = interpolation_input.surface_points.sp_coords
+    coords.register_hook(lambda x: print("I am here!", x))
 
-    if plot_pyvista or True:
+    solutions = compute_model(interpolation_input, options, structure)
+    print("last")
+    solutions.octrees_output[0].last_output_center.final_block.sum().backward()
+
+    if plot_pyvista or False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
         # TODO: Adapt gradients for mesh extraction?
         # plot_dc_meshes(p, solutions.dc_meshes[0])
         p.show()
+

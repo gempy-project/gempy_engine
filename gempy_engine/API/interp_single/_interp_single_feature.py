@@ -58,7 +58,7 @@ def interpolate_feature(interpolation_input: InterpolationInput,
     if external_segment_funct is not None:
         sigmoid_slope = external_segment_funct(xyz)
     else:
-        sigmoid_slope = 50000
+        sigmoid_slope = options.sigmoid_slope
 
     values_block: np.ndarray = activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=sigmoid_slope)
     
@@ -87,7 +87,7 @@ def input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpol
 
     sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
     ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(orientations)
-
+    
     # * We need to interpolate in ALL the surface points not only the surface points of the stack
     grid_internal: np.ndarray = data_preprocess_interface.prepare_grid(
         grid=grid.values,

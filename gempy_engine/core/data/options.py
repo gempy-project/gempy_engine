@@ -110,7 +110,9 @@ class InterpolationOptions:
     debug                          : bool                         = gempy_engine.config.DEBUG_MODE
     debug_water_tight              : bool                         = False
 
+    sigmoid_slope                  : int                          = 50000
     _number_octree_levels_surface  : int                          = 4
+
     
     def __init__(
             self,
