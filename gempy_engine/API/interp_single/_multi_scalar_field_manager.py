@@ -38,7 +38,6 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
     for e, _ in enumerate(all_scalar_fields_outputs):
         output: InterpOutput = InterpOutput(all_scalar_fields_outputs[e], combined_scalar_output[e])
         all_outputs.append(output)
-
     return all_outputs
 
 
