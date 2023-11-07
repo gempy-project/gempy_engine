@@ -23,6 +23,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -
     dtype = BackendTensor.dtype
     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled, solver):
         case (AvailableBackends.PYTORCH, False, _):
+            cov.sum().backward(retain_graph=True)
             w = bt.t.linalg.solve(cov, b)
         case (AvailableBackends.PYTORCH, True, _):
             raise NotImplementedError('Pykeops is not implemented for pytorch yet')
