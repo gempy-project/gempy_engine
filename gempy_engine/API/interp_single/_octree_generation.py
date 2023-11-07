@@ -1,6 +1,7 @@
 import copy
 from typing import List
 
+from ...config import COMPUTE_GRADIENTS
 from ...core.data.regular_grid import RegularGrid
 from ...core.data.options import InterpolationOptions
 from ...core.data.octree_level import OctreeLevel
@@ -16,7 +17,8 @@ import numpy as np
 
 def interpolate_on_octree(interpolation_input: InterpolationInput, options: InterpolationOptions,
                           data_shape: InputDataDescriptor) -> OctreeLevel:
-    # interpolation_input = copy.deepcopy(interpolation_input)
+    if COMPUTE_GRADIENTS is False:
+        interpolation_input = copy.deepcopy(interpolation_input)
     
     # * Interpolate - centers
     output_0_centers: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # interpolate - centers
