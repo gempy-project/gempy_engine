@@ -145,7 +145,8 @@ class RawArraysSolution:
     def _set_scalar_field_at_surface_points(self, octree_output: OctreeLevel):
         temp_list = []
         for i in range(octree_output.number_of_outputs):
-            temp_list.append(octree_output.outputs_centers[i].scalar_fields.exported_fields.scalar_field_at_surface_points)
+            at_surface_points = octree_output.outputs_centers[i].scalar_fields.exported_fields.scalar_field_at_surface_points
+            temp_list.append(BackendTensor.t.to_numpy(at_surface_points))
 
         self.scalar_field_at_surface_points = temp_list
 

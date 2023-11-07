@@ -20,7 +20,7 @@ class SurfacePoints:
     def __post_init__(self):
         if type(self.nugget_effect_scalar) is float or type(self.nugget_effect_scalar) is int:
             self.nugget_effect_scalar = np.ones(self.n_points) * self.nugget_effect_scalar
-        cast_type_inplace(self)
+        cast_type_inplace(self, requires_grad=True) # TODO: This has to be grabbed from options
 
     @classmethod
     def from_schema(cls, schema: SurfacePointsSchema):
