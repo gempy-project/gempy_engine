@@ -155,7 +155,7 @@ class BackendTensor:
         from torch import sum, repeat_interleave
         import torch
         
-        def _sum(tensor, axis, dtype=None):
+        def _sum(tensor, axis=None, dtype=None):
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
             
