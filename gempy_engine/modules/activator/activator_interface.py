@@ -34,6 +34,7 @@ def activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slo
 
     for i in range(len(ids)):
         sigm += _compute_sigmoid(Z_x, scalar_0_v[i], scalar_1_v[i], drift_0_v[i], drift_1_v[i], ids[i], sigmoid_slope)
+        # sigm  += CustomSigmoidFunction.apply(Z_x, scalar_0_v[i], scalar_1_v[i], drift_0_v[i], drift_1_v[i], ids[i], sigmoid_slope)
 
     if False: _add_relu()  # TODO: Add this
     return sigm
@@ -63,3 +64,28 @@ def _add_relu():
     #                      0.01 * T.abs_(Z_x - scalar_field_iter[-2]))
     # formations_block += ReLU_down + ReLU_up
     pass
+
+# * This gets the scalar gradient
+import torch
+class CustomSigmoidFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, Z_x, scale_0, scale_1, drift_0, drift_1, drift_id, sigmoid_slope, epsilon=1e-7):
+        sigmoid_slope_tensor = sigmoid_slope
+
+        active_sig = -scale_0 / (1 + torch.exp(-sigmoid_slope_tensor * (Z_x - drift_0)).clamp(min=epsilon))
+        deactive_sig = -scale_1 / (1 + torch.exp(sigmoid_slope_tensor * (Z_x - drift_1)).clamp(min=epsilon))
+        activation_sig = active_sig + deactive_sig
+
+        sigm = activation_sig + drift_id
+
+        ctx.save_for_backward(sigm)
+        return sigm
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        sigm, = ctx.saved_tensors
+        # Here you need to compute the actual gradient of your function with respect to the inputs.
+        # The following is just a placeholder to illustrate replacing NaNs with zeros.
+        # grad_input = torch.nan_to_num(grad_output)  # Replace NaNs with zeros
+        # Do the actual gradient computation here
+        return grad_output, None, None, None, None, None, None

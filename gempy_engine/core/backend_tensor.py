@@ -155,11 +155,11 @@ class BackendTensor:
         from torch import sum, repeat_interleave
         import torch
         
-        def _sum(tensor, axis=None, dtype=None):
+        def _sum(tensor, axis=None, dtype=None, keepdim=False):
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
             
-            return sum(tensor, axis, dtype=dtype)
+            return sum(tensor, axis, dtype=dtype, keepdim=keepdim)
         
         def _repeat(tensor, n_repeats, axis=None):
             return repeat_interleave(tensor, n_repeats, dim=axis)
