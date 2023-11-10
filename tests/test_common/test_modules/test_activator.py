@@ -88,14 +88,14 @@ def test_activator_3_layers(simple_model_3_layers, simple_grid_3d_more_points_gr
         interpolation_input.surface_points.sp_coords = interpolation_input.surface_points.sp_coords.detach().numpy()
     
     if plot:
-        plt.contourf(Z_x.reshape(50, 5, 50)[:, 0, :].T, N=40, cmap="autumn",
-                     extent=(.25, .75, .25, .75))
-
-        xyz = interpolation_input.surface_points.sp_coords
-        plt.plot(xyz[:, 0], xyz[:, 2], "o")
-        plt.colorbar()
-        
-        plt.show()
+        # plt.contourf(Z_x.reshape(50, 5, 50)[:, 0, :].T, N=40, cmap="autumn",
+        #              extent=(.25, .75, .25, .75))
+        # 
+        # xyz = interpolation_input.surface_points.sp_coords
+        # plt.plot(xyz[:, 0], xyz[:, 2], "o")
+        # plt.colorbar()
+        # 
+        # plt.show()
 
         plt.contourf(
             ids_block[:-4].reshape(50, 5, 50)[:, 2, :].T, 

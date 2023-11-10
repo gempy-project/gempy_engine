@@ -178,6 +178,7 @@ class BackendTensor:
         cls.tfnp.array = _array 
         cls.tfnp.to_numpy = lambda tensor: tensor.detach().numpy()
         cls.tfnp.min = lambda tensor, axis: tensor.min(axis=axis)[0]
+        cls.tfnp.max = lambda tensor, axis: tensor.max(axis=axis)[0]
         cls.tfnp.rint = lambda tensor: tensor.round().type(torch.int32)
         cls.tfnp.vstack = lambda tensors: torch.cat(tensors, dim=0)
         cls.tfnp.copy = lambda tensor: tensor.clone()
