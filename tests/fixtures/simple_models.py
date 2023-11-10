@@ -327,6 +327,40 @@ def simple_model_values_block_output(simple_model, simple_grid_3d_more_points_gr
 
     return output
 
+@pytest.fixture(scope="session")
+def simple_model_3_layers_output(simple_model_3_layers):
+    interporlation_input = simple_model_3_layers[0]
+    options = simple_model_3_layers[1]
+    data_shape = simple_model_3_layers[2].tensors_structure
+    ids = np.array([1, 2, 3, 4])
+
+    interp_input: SolverInput = input_preprocess(data_shape, interporlation_input)
+    weights = _solve_interpolation(interp_input, options.kernel_options)
+
+    exported_fields = _evaluate_sys_eq(interp_input, weights, options)
+
+    exported_fields.set_structure_values(
+        reference_sp_position=data_shape.reference_sp_position,
+        slice_feature=interporlation_input.slice_feature,
+        grid_size=interporlation_input.grid.len_all_grids)
+
+    # -----------------
+    # Export and Masking operations can happen even in parallel
+    # TODO: [~X] Export block
+    values_block: np.ndarray = activate_formation_block(exported_fields, ids, sigmoid_slope=50000)
+
+    output = InterpOutput(
+        ScalarFieldOutput(
+            weights=weights,
+            grid=interporlation_input.grid,
+            exported_fields=exported_fields,
+            values_block=values_block,
+            stack_relation=interporlation_input.stack_relation,
+        ),
+    )
+
+    return output
+
 
 @pytest.fixture(scope="session")
 def unconformity_complex():

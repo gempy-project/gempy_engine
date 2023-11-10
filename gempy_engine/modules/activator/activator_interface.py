@@ -33,7 +33,7 @@ def activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slo
     sigm = bt.t.zeros((1, Z_x.shape[0]), dtype=BackendTensor.dtype_obj)
 
     for i in range(len(ids)):
-        if LEGACY:=False:
+        if LEGACY:=True:
             sigm += _compute_sigmoid(Z_x, scalar_0_v[i], scalar_1_v[i], drift_0_v[i], drift_1_v[i], ids[i], sigmoid_slope)
         else:
             sigm += HardSigmoid.apply(Z_x, scalar_0_v[i], scalar_1_v[i])
