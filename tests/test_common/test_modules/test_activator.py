@@ -1,15 +1,15 @@
 import dataclasses
 import os
-import pytest
+
 import matplotlib.pyplot as plt
 import numpy as np
 
 from gempy_engine.API.interp_single._interp_scalar_field import _solve_interpolation, _evaluate_sys_eq
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
+from gempy_engine.config import AvailableBackends
 from gempy_engine.core.data.internal_structs import SolverInput
-from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
-from gempy_engine.API.interp_single.interp_features import interpolate_single_field
+from gempy_engine.core.backend_tensor import BackendTensor
 
 dir_name = os.path.dirname(__file__)
 
@@ -27,13 +27,22 @@ def test_activator(simple_model_values_block_output):
     ids_block = activate_formation_block(simple_model_values_block_output.exported_fields, ids, 50000)[:, :-7]
     print(ids_block)
 
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        ids_block = ids_block.detach().numpy()
+        Z_x = Z_x.detach().numpy()
+        
     if plot:
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
         plt.colorbar()
 
         plt.show()
 
-        plt.contourf(ids_block[0].reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="viridis")
+        plt.contourf(
+            ids_block[0].reshape(50, 5, 50)[:, 2, :].T,
+            N=40,
+            cmap="viridis",
+            # levels=[-1, 0.5, 1, 1.5, 2.5]
+        )
         plt.colorbar()
 
         plt.show()
@@ -71,8 +80,13 @@ def test_activator_3_layers(simple_model_3_layers, simple_grid_3d_more_points_gr
         exported_fields=exported_fields,
         ids= ids,
         sigmoid_slope=50000
-    )[:, :-7]
+    )[0, :-7]
 
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        ids_block = ids_block.detach().numpy()
+        Z_x = Z_x.detach().numpy()
+        interpolation_input.surface_points.sp_coords = interpolation_input.surface_points.sp_coords.detach().numpy()
+    
     if plot:
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 0, :].T, N=40, cmap="autumn",
                      extent=(.25, .75, .25, .75))
@@ -83,7 +97,11 @@ def test_activator_3_layers(simple_model_3_layers, simple_grid_3d_more_points_gr
         
         plt.show()
 
-        plt.contourf(ids_block[0, :-4].reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="viridis")
+        plt.contourf(
+            ids_block[:-4].reshape(50, 5, 50)[:, 2, :].T, 
+            N=250,
+            cmap="viridis"
+        )
         plt.colorbar()
 
         plt.show()

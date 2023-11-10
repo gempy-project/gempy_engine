@@ -11,7 +11,10 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray, s
     Z_x: np.ndarray = exported_fields.scalar_field_everywhere
     scalar_value_at_sp: np.ndarray = exported_fields.scalar_field_at_surface_points
 
-    sigm = activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slope)
+    if LEGACY :=False:
+        sigm = activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slope)
+    else:
+        sigm = activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp, sigmoid_slope)
 
     return sigm
 
@@ -33,11 +36,38 @@ def activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slo
     sigm = bt.t.zeros((1, Z_x.shape[0]), dtype=BackendTensor.dtype_obj)
 
     for i in range(len(ids)):
-        if LEGACY:=True:
-            sigm += _compute_sigmoid(Z_x, scalar_0_v[i], scalar_1_v[i], drift_0_v[i], drift_1_v[i], ids[i], sigmoid_slope)
-        else:
-            sigm += HardSigmoid.apply(Z_x, scalar_0_v[i], scalar_1_v[i])
+        sigm += _compute_sigmoid(Z_x, scalar_0_v[i], scalar_1_v[i], drift_0_v[i], drift_1_v[i], ids[i], sigmoid_slope)
     return sigm
+
+
+def activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp, sigmoid_slope):
+    element_0 = bt.t.array([0], dtype=BackendTensor.dtype_obj)
+
+    min_Z_x = BackendTensor.t.min(Z_x, axis=0).reshape(-1)  # ? Is this as good as it gets?
+    max_Z_x = BackendTensor.t.max(Z_x, axis=0)[0].reshape(-1)  # ? Is this as good as it gets?
+    
+    # Add 5%
+    min_Z_x = min_Z_x - 0.05 * (max_Z_x - min_Z_x)
+    max_Z_x = max_Z_x + 0.05 * (max_Z_x - min_Z_x)
+    
+    
+    drift_0_v = bt.tfnp.concatenate([min_Z_x, scalar_value_at_sp])
+    drift_1_v = bt.tfnp.concatenate([scalar_value_at_sp, max_Z_x])
+
+    ids = bt.t.array(ids, dtype="int32")
+    scalar_0_v = bt.t.copy(ids)
+    scalar_0_v[0] = 0
+    # 
+    # scalar_1_v = bt.t.copy(ids)
+    # scalar_1_v[-1] = 0
+
+    # * Iterate over surface
+    sigm = bt.t.zeros((1, Z_x.shape[0]), dtype=BackendTensor.dtype_obj)
+
+    for i in range(len(ids)):
+        # if (i == 3):
+            sigm += ids[i] * HardSigmoidModified.apply(Z_x, drift_0_v[i], drift_1_v[i])
+    return sigm.view(1, -1)
 
 
 def _compute_sigmoid(Z_x, scale_0, scale_1, drift_0, drift_1, drift_id, sigmoid_slope):
@@ -49,9 +79,9 @@ def _compute_sigmoid(Z_x, scale_0, scale_1, drift_0, drift_1, drift_id, sigmoid_
 
         sigmoid_slope_tensor = BackendTensor.t.array(sigmoid_slope, dtype=BackendTensor.dtype_obj)
 
-        active_denominator   = (1 + bt.tfnp.exp(-sigmoid_slope_tensor * (Z_x - drift_0)))
+        active_denominator = (1 + bt.tfnp.exp(-sigmoid_slope_tensor * (Z_x - drift_0)))
         deactive_denominator = (1 + bt.tfnp.exp(sigmoid_slope_tensor * (Z_x - drift_1)))
-        
+
         active_sig = -scale_0.reshape((-1, 1)) / active_denominator
         deactive_sig = -scale_1.reshape((-1, 1)) / deactive_denominator
         activation_sig = active_sig + deactive_sig
@@ -71,12 +101,50 @@ def _add_relu():
 
 # * This gets the scalar gradient
 import torch
-class HardSigmoid(torch.autograd.Function):
+
+
+class HardSigmoidModified(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, a, b):
         ctx.save_for_backward(input)
         ctx.bounds = (a, b)
-        slope = 1 / (b - a)
+        output = torch.zeros_like(input)
+        slope_up = 100 / (b - a)
+
+        # For x in the range [a, b]
+        output[(input >= a) & (input <= b)] += torch.clamp(slope_up * (input[(input >= a) & (input <= b)] - a), min=0, max=1)
+
+        output[(input >= a) & (input <= b)] += torch.clamp(-slope_up * (input[(input >= a) & (input <= b)] - b), min=0, max=1)
+        
+        # Clamping the values outside the range [a, c] to zero
+        output[input < a] = 0
+        output[input >= b] = 0
+
+        return output
+
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, = ctx.saved_tensors
+        a, b = ctx.bounds
+        midpoint = (a + b) / 2
+        grad_input = grad_output.clone()
+
+        # Gradient is 1/(b-a) for x in [a, midpoint), -1/(b-a) for x in (midpoint, b], and 0 elsewhere
+        grad_input[input < a] = 0
+        grad_input[input > b] = 0
+        grad_input[(input >= a) & (input < midpoint)] = 1 / (b - a)
+        grad_input[(input > midpoint) & (input <= b)] = -1 / (b - a)
+
+        return grad_input, None, None
+
+
+class HardSigmoid(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, a, b, c):
+        ctx.save_for_backward(input)
+        ctx.bounds = (a, b)
+        slope = 1000 / (b - a)
         return torch.clamp(slope * (input - a) + 0.5, min=0, max=1)
 
     @staticmethod
@@ -88,8 +156,6 @@ class HardSigmoid(torch.autograd.Function):
         grad_input[input > b] = 0
         grad_input[(input >= a) & (input <= b)] = 1 / (b - a)
         return grad_input, None, None
-
-
 
 
 class CustomSigmoidFunction(torch.autograd.Function):
