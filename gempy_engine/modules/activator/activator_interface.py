@@ -33,10 +33,10 @@ def activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slo
     sigm = bt.t.zeros((1, Z_x.shape[0]), dtype=BackendTensor.dtype_obj)
 
     for i in range(len(ids)):
-        sigm += _compute_sigmoid(Z_x, scalar_0_v[i], scalar_1_v[i], drift_0_v[i], drift_1_v[i], ids[i], sigmoid_slope)
-        # sigm  += CustomSigmoidFunction.apply(Z_x, scalar_0_v[i], scalar_1_v[i], drift_0_v[i], drift_1_v[i], ids[i], sigmoid_slope)
-
-    if False: _add_relu()  # TODO: Add this
+        if LEGACY:=False:
+            sigm += _compute_sigmoid(Z_x, scalar_0_v[i], scalar_1_v[i], drift_0_v[i], drift_1_v[i], ids[i], sigmoid_slope)
+        else:
+            sigm += HardSigmoid.apply(Z_x, scalar_0_v[i], scalar_1_v[i])
     return sigm
 
 
@@ -49,8 +49,11 @@ def _compute_sigmoid(Z_x, scale_0, scale_1, drift_0, drift_1, drift_id, sigmoid_
 
         sigmoid_slope_tensor = BackendTensor.t.array(sigmoid_slope, dtype=BackendTensor.dtype_obj)
 
-        active_sig = -scale_0.reshape((-1, 1)) / (1 + bt.tfnp.exp(-sigmoid_slope_tensor * (Z_x - drift_0)))
-        deactive_sig = -scale_1.reshape((-1, 1)) / (1 + bt.tfnp.exp(sigmoid_slope_tensor * (Z_x - drift_1)))
+        active_denominator   = (1 + bt.tfnp.exp(-sigmoid_slope_tensor * (Z_x - drift_0)))
+        deactive_denominator = (1 + bt.tfnp.exp(sigmoid_slope_tensor * (Z_x - drift_1)))
+        
+        active_sig = -scale_0.reshape((-1, 1)) / active_denominator
+        deactive_sig = -scale_1.reshape((-1, 1)) / deactive_denominator
         activation_sig = active_sig + deactive_sig
 
     sigm = activation_sig + drift_id.reshape((-1, 1))
@@ -65,8 +68,30 @@ def _add_relu():
     # formations_block += ReLU_down + ReLU_up
     pass
 
+
 # * This gets the scalar gradient
 import torch
+class HardSigmoid(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, a, b):
+        ctx.save_for_backward(input)
+        ctx.bounds = (a, b)
+        slope = 1 / (b - a)
+        return torch.clamp(slope * (input - a) + 0.5, min=0, max=1)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, = ctx.saved_tensors
+        a, b = ctx.bounds
+        grad_input = grad_output.clone()
+        grad_input[input < a] = 0
+        grad_input[input > b] = 0
+        grad_input[(input >= a) & (input <= b)] = 1 / (b - a)
+        return grad_input, None, None
+
+
+
+
 class CustomSigmoidFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, Z_x, scale_0, scale_1, drift_0, drift_1, drift_id, sigmoid_slope, epsilon=1e-7):
