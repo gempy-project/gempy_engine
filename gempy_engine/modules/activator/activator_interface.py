@@ -47,8 +47,8 @@ def activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp
     max_Z_x = BackendTensor.t.max(Z_x, axis=0).reshape(-1)  # ? Is this as good as it gets?
 
     # Add 5%
-    min_Z_x = min_Z_x - 0.05 * (max_Z_x - min_Z_x)
-    max_Z_x = max_Z_x + 0.05 * (max_Z_x - min_Z_x)
+    min_Z_x = min_Z_x - 0.5 * (max_Z_x - min_Z_x)
+    max_Z_x = max_Z_x + 0.5 * (max_Z_x - min_Z_x)
 
     drift_0_v = bt.tfnp.concatenate([min_Z_x, scalar_value_at_sp])
     drift_1_v = bt.tfnp.concatenate([scalar_value_at_sp, max_Z_x])
@@ -59,7 +59,7 @@ def activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp
     # 
     # scalar_1_v = bt.t.copy(ids)
     # scalar_1_v[-1] = 0
-
+    ids = ids.flip(0)
     # * Iterate over surface
     sigm = bt.t.zeros((1, Z_x.shape[0]), dtype=BackendTensor.dtype_obj)
 
@@ -71,22 +71,20 @@ def activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp
                 (drift_0_v[i + 1] + drift_1_v[i + 1]) / 2,
                 ids[i]
             )
-            return sigm.reshape(1, -1)
-
         else:
             output = bt.t.zeros_like(Z_x)
             a = (drift_0_v[i] + drift_1_v[i]) / 2
-            b = (drift_0_v[i + 1] + drift_1_v[i + 1]) / 2 
-            
-            slope_up = 1 / (b - a)
+            b = (drift_0_v[i + 1] + drift_1_v[i + 1]) / 2
+
+            slope_up = -1 / (b - a)
 
             # For x in the range [a, b]
             b_ = (Z_x > a) & (Z_x <= b)
             pos = slope_up * (Z_x[b_] - a)
 
-            output[b_] = ids[i] + pos
+            output[b_] = ids[i] + 0.5 + pos
             sigm += output
-            return sigm.reshape(1, -1)
+    return sigm.reshape(1, -1)
 
 
 import torch
@@ -119,10 +117,9 @@ class HardSigmoidModified2(torch.autograd.Function):
 
         grad_input = grad_output.clone()
         # Apply gradient only within the range [a, b]
-        grad_input[b_] = grad_input[b_] * slope_up 
+        grad_input[b_] = grad_input[b_] * slope_up
 
         return grad_input, None, None, None
-
 
 
 def _compute_sigmoid(Z_x, scale_0, scale_1, drift_0, drift_1, drift_id, sigmoid_slope):

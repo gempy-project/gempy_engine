@@ -75,7 +75,6 @@ def test_activator_3_layers(simple_model_3_layers, simple_grid_3d_more_points_gr
     print(Z_x, Z_x.shape[0])
     print(sasp)
 
-
     ids_block = activate_formation_block(
         exported_fields=exported_fields,
         ids= ids,
