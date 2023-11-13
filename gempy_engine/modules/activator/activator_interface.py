@@ -56,10 +56,8 @@ def activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp
     ids = bt.t.array(ids, dtype="int32")
     scalar_0_v = bt.t.copy(ids)
     scalar_0_v[0] = 0
-    # 
-    # scalar_1_v = bt.t.copy(ids)
-    # scalar_1_v[-1] = 0
-    ids = ids.flip(0)
+    
+    ids = bt.t.flip(ids, (0,))
     # * Iterate over surface
     sigm = bt.t.zeros((1, Z_x.shape[0]), dtype=BackendTensor.dtype_obj)
 
