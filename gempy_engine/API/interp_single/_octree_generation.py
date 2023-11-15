@@ -18,20 +18,21 @@ import numpy as np
 
 def interpolate_on_octree(interpolation_input: InterpolationInput, options: InterpolationOptions,
                           data_shape: InputDataDescriptor) -> OctreeLevel:
+    
     if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and COMPUTE_GRADIENTS is False:
-        interpolation_input = copy.deepcopy(interpolation_input)
+        temp_interpolation_input = copy.deepcopy(interpolation_input)
     
     # * Interpolate - centers
-    output_0_centers: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # interpolate - centers
+    output_0_centers: List[InterpOutput] = interpolate_all_fields(temp_interpolation_input, options, data_shape)  # interpolate - centers
 
     # * Interpolate - corners
-    grid_0_centers: Grid = interpolation_input.grid  # ? This could be moved to the next section
+    grid_0_centers: Grid = temp_interpolation_input.grid  # ? This could be moved to the next section
     if options.compute_corners:
         grid_0_corners = Grid.from_xyz_coords(
             xyz_coords=_generate_corners(regular_grid=grid_0_centers.regular_grid)
         )
-        interpolation_input.grid = grid_0_corners  # * Prepare grid for next interpolation
-        output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)  # * This is unnecessary for the last level except for Dual contouring
+        temp_interpolation_input.grid = grid_0_corners  # * Prepare grid for next interpolation
+        output_0_corners: List[InterpOutput] = interpolate_all_fields(temp_interpolation_input, options, data_shape)  # * This is unnecessary for the last level except for Dual contouring
     else:
         output_0_corners = []
         grid_0_corners = None

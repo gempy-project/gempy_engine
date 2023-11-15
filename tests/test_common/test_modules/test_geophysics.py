@@ -51,7 +51,7 @@ def test_gravity(simple_model_interpolation_input, n_oct_levels=3):
     
     print(solutions.gravity)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels -1)
