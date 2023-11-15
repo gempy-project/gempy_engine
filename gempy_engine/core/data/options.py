@@ -169,7 +169,7 @@ class InterpolationOptions:
             current_octree_level (int, optional): Current octree level. Default is 0.
             compute_scalar_gradient (bool, optional): Whether to compute the scalar gradient. Default is False.
             dual_contouring (bool, optional): Whether to use dual contouring. Default is True.
-            mesh_extraction_masking_options (DualContouringMaskingOptions, optional): Options for dual contouring masking.
+            mesh_extraction_masking_options (MeshExtractionMaskingOptions, optional): Options for dual contouring masking.
             dual_contouring_fancy (bool, optional): Fancy version of dual contouring. Default is True.
             debug (bool, optional): Debug mode status. Default is derived from config.
             debug_water_tight (bool, optional): Debug mode for water-tight conditions. Default is False.

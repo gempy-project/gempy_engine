@@ -2,7 +2,7 @@ import pytest
 
 from gempy_engine import compute_model
 from gempy_engine.core.data.grid import RegularGrid, Grid
-from gempy_engine.core.data.options import DualContouringMaskingOptions
+from gempy_engine.core.data.options import MeshExtractionMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.plugins.plotting import helper_functions_pyvista
 from tests.conftest import TEST_SPEED
@@ -14,7 +14,7 @@ from tests.test_common.test_integrations.test_multi_fields import plot_pyvista
 @pytest.mark.skipif(True, reason="Disjoint is not working for now")
 def test_dual_contouring_multiple_independent_fields(n_oct_levels=2):
     _run_model_for_dual_contouring_option(
-        dual_contouring_option=DualContouringMaskingOptions.DISJOINT,
+        dual_contouring_option=MeshExtractionMaskingOptions.DISJOINT,
         n_oct_levels=n_oct_levels,
         model=unconformity_complex_factory()
     )
@@ -23,7 +23,7 @@ def test_dual_contouring_multiple_independent_fields(n_oct_levels=2):
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_dual_contouring_multiple_independent_fields_intersect(n_oct_levels=2):
     _run_model_for_dual_contouring_option(
-        dual_contouring_option=DualContouringMaskingOptions.INTERSECT,
+        dual_contouring_option=MeshExtractionMaskingOptions.INTERSECT,
         n_oct_levels=n_oct_levels,
         model=unconformity_complex_factory()
     )
@@ -32,7 +32,7 @@ def test_dual_contouring_multiple_independent_fields_intersect(n_oct_levels=2):
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_dual_contouring_multiple_independent_fields_intersect_raw(n_oct_levels=2):
     _run_model_for_dual_contouring_option(
-        dual_contouring_option=DualContouringMaskingOptions.RAW,
+        dual_contouring_option=MeshExtractionMaskingOptions.RAW,
         n_oct_levels=n_oct_levels,
         model=unconformity_complex_factory()
     )
@@ -42,7 +42,7 @@ def test_dual_contouring_multiple_independent_fields_intersect_raw(n_oct_levels=
 def test_dual_contouring_multiple_independent_fields_intersect_RAW_fancy_triangulation(
         unconformity_complex, n_oct_levels=5):
     _run_model_for_FANCY_dual_contouring(
-        dual_contouring_option=DualContouringMaskingOptions.RAW,
+        dual_contouring_option=MeshExtractionMaskingOptions.RAW,
         n_oct_levels=n_oct_levels,
         unconformity_complex=unconformity_complex
     )
@@ -53,7 +53,7 @@ def test_dual_contouring_multiple_independent_fields_intersect_RAW_fancy_triangu
 def test_dual_contouring_multiple_independent_fields_intersect_DISJOINT_fancy_triangulation(
         unconformity_complex, n_oct_levels=5):
     _run_model_for_FANCY_dual_contouring(
-        dual_contouring_option=DualContouringMaskingOptions.DISJOINT,
+        dual_contouring_option=MeshExtractionMaskingOptions.DISJOINT,
         n_oct_levels=n_oct_levels,
         unconformity_complex=unconformity_complex
     )
@@ -63,7 +63,7 @@ def test_dual_contouring_multiple_independent_fields_intersect_DISJOINT_fancy_tr
 def test_dual_contouring_multiple_independent_fields_intersect_INTERSECT_fancy_triangulation(
         unconformity_complex, n_oct_levels=5):
     _run_model_for_FANCY_dual_contouring(
-        dual_contouring_option=DualContouringMaskingOptions.INTERSECT,
+        dual_contouring_option=MeshExtractionMaskingOptions.INTERSECT,
         n_oct_levels=n_oct_levels,
         unconformity_complex=unconformity_complex
     )

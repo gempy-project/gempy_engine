@@ -11,7 +11,7 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray, s
     Z_x: np.ndarray = exported_fields.scalar_field_everywhere
     scalar_value_at_sp: np.ndarray = exported_fields.scalar_field_at_surface_points
 
-    if LEGACY := False:
+    if LEGACY := True:
         sigm = activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slope)
     else:
         sigm = activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp, sigmoid_slope)

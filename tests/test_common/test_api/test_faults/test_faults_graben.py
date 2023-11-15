@@ -4,7 +4,7 @@ from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.faults import FaultsData
 from gempy_engine.core.data.octree_level import OctreeLevel
-from gempy_engine.core.data.options import DualContouringMaskingOptions
+from gempy_engine.core.data.options import MeshExtractionMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import ValueType
 
@@ -23,7 +23,7 @@ def test_graben_fault_model(graben_fault_model):
 
     options.compute_scalar_gradient = False
     options.dual_contouring = True
-    options.mesh_extraction_masking_options = DualContouringMaskingOptions.INTERSECT
+    options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
     options.dual_conturing_fancy = True
     options.debug=True
 
@@ -64,7 +64,7 @@ def test_graben_fault_model_thickness(graben_fault_model, n_octree_levels=3):
 
     options.compute_scalar_gradient = False
     options.dual_contouring = True
-    options.mesh_extraction_masking_options = DualContouringMaskingOptions.RAW
+    options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
 
     fault_data: FaultsData = FaultsData.from_user_input(thickness=.2)
     fault_data2: FaultsData = FaultsData.from_user_input(thickness=.2)

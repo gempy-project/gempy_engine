@@ -110,16 +110,16 @@ def _mask_generation(octree_leaves, masking_option: MeshExtractionMaskingOptions
                 mask_matrix[i] = BackendTensor.t.ones(grid_size // 8, dtype=bool)
             case MeshExtractionMaskingOptions.DISJOINT, _:
                 raise NotImplementedError("Disjoint is not supported yet. Not even sure if there is anything to support")
-            # case (DualContouringMaskingOptions.DISJOINT | DualContouringMaskingOptions.INTERSECT, StackRelationType.FAULT):
+            # case (MeshExtractionMaskingOptions.DISJOINT | MeshExtractionMaskingOptions.INTERSECT, StackRelationType.FAULT):
             #     mask_matrix[i] = np.ones(grid_size//8, dtype=bool)
-            # case DualContouringMaskingOptions.DISJOINT, StackRelationType.ERODE | StackRelationType.BASEMENT:
+            # case MeshExtractionMaskingOptions.DISJOINT, StackRelationType.ERODE | StackRelationType.BASEMENT:
             #     mask_scalar = all_scalar_fields_outputs[i - 1].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
             #     if MaskBuffer.previous_mask is None:
             #         mask = mask_scalar
             #     else:
             #         mask = (MaskBuffer.previous_mask ^ mask_scalar) * mask_scalar
             #     MaskBuffer.previous_mask = mask
-            # case DualContouringMaskingOptions.DISJOINT, StackRelationType.ONLAP:
+            # case MeshExtractionMaskingOptions.DISJOINT, StackRelationType.ONLAP:
             #     raise NotImplementedError("Onlap is not supported yet")
             #     return octree_leaves.outputs_corners[n_scalar_field].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
             case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.ERODE:

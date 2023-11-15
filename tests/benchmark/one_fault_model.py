@@ -17,7 +17,7 @@ from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
-from gempy_engine.core.data.options import DualContouringMaskingOptions
+from gempy_engine.core.data.options import MeshExtractionMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
 
 
@@ -26,7 +26,7 @@ def my_func():
 
     options.compute_scalar_gradient = False
     options.dual_contouring = False
-    options.mesh_extraction_masking_options = DualContouringMaskingOptions.RAW
+    options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
 
     options.number_octree_levels = 8
     solutions: Solutions = compute_model(interpolation_input, options, structure)

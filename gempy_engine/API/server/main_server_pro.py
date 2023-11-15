@@ -64,7 +64,7 @@ def compute_gempy_model(gempy_input: GemPyInput):
     FANCY_TRIANGULATION = True
     if FANCY_TRIANGULATION:
         default_interpolation_options.mesh_extraction_fancy = True
-        # default_interpolation_options.mesh_extraction_masking_options = DualContouringMaskingOptions.RAW  # * To Date only raw making is supported
+        # default_interpolation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW  # * To Date only raw making is supported
     # endregion
 
     default_interpolation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW  # * To Date only raw making is supported

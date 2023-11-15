@@ -10,7 +10,7 @@ from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data.exported_fields import ExportedFields
-from gempy_engine.core.data.options import DualContouringMaskingOptions
+from gempy_engine.core.data.options import MeshExtractionMaskingOptions
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.plugins.plotting import helper_functions_pyvista
 from tests.conftest import TEST_SPEED
@@ -73,7 +73,7 @@ def test_dual_contouring_multiple_independent_fields(unconformity_complex_implic
     interpolation_input, options, structure = unconformity_complex_implicit
     options.number_octree_levels = n_oct_levels
     options.debug = True
-    options.mesh_extraction_masking_options = DualContouringMaskingOptions.INTERSECT
+    options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 

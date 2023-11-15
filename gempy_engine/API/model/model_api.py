@@ -1,7 +1,8 @@
 import copy
 from typing import List, Optional
 
-from ...config import COMPUTE_GRADIENTS
+from ...core.backend_tensor import BackendTensor
+from ...config import COMPUTE_GRADIENTS, AvailableBackends
 from ...core.data.interp_output import InterpOutput
 from ...core.data.geophysics_input import GeophysicsInput
 from ...modules.geophysics.fw_gravity import compute_gravity
@@ -24,7 +25,8 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
 
     # TODO: Make sure if this works with TF
     # ! If we inline this it seems the deepcopy does not work
-    if COMPUTE_GRADIENTS is False:
+
+    if BackendTensor.engine_backend is AvailableBackends.PYTORCH and COMPUTE_GRADIENTS is False:
         interpolation_input = copy.deepcopy(interpolation_input)
 
     output: list[OctreeLevel] = interpolate_n_octree_levels(
