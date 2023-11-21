@@ -24,6 +24,11 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -
     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled, solver):
         case (AvailableBackends.PYTORCH, False, _):
             w = bt.t.linalg.solve(cov, b)
+            
+            cond_number = bt.t.linalg.cond(cov)
+            print(f'Condition number: {cond_number}.')
+            cond_number.backward()
+            
         case (AvailableBackends.PYTORCH, True, _):
             raise NotImplementedError('Pykeops is not implemented for pytorch yet')
         case (AvailableBackends.tensorflow, True, _):
@@ -89,8 +94,18 @@ def _compute_conditional_number(cov):
     eigvals = np.linalg.eigvals(cov)
     is_positive_definite = np.all(eigvals > 0)
     print(f'Condition number: {cond_number}. Is positive definite: {is_positive_definite}')
+    
+    idx = np.where(eigvals > 800)
+    print(idx)
+    import matplotlib.pyplot as plt
     if not is_positive_definite:  # ! Careful numpy False
         warnings.warn('The covariance matrix is not positive definite')
+    # Plotting the histogram
+    plt.hist(eigvals, bins=50, color='blue', alpha=0.7, log=True)
+    plt.xlabel('Eigenvalue')
+    plt.ylabel('Frequency')
+    plt.title('Histogram of Eigenvalues')
+    plt.show()
 
 
 
