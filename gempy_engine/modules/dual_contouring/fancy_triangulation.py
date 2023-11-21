@@ -178,9 +178,10 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
 
     valid_edges_within_extent = code__a_prod_edge * code__b_prod_edge * code__c_prod_edge  # * Valid in the sense that there are valid voxels around
 
-    code__a_p = mapped_voxel_0[:, valid_edges_within_extent] == 0  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
-    code__b_p = mapped_voxel_1[:, valid_edges_within_extent] == 0  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
-    code__c_p = mapped_voxel_2[:, valid_edges_within_extent] == 0  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
+    from ...core.backend_tensor import BackendTensor
+    code__a_p = BackendTensor.t.array(mapped_voxel_0[:, valid_edges_within_extent] == 0)  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
+    code__b_p = BackendTensor.t.array(mapped_voxel_1[:, valid_edges_within_extent] == 0)  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
+    code__c_p = BackendTensor.t.array(mapped_voxel_2[:, valid_edges_within_extent] == 0)  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
 
     if False:
         debug_code_p = code__a_p + code__b_p + code__c_p  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)

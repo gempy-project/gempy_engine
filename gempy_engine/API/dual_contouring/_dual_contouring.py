@@ -3,6 +3,9 @@ from typing import List
 
 import numpy as np
 
+from gempy_engine.config import AvailableBackends
+
+from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.utils import gempy_profiler_decorator
@@ -49,12 +52,12 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
             # * Fancy triangulation 👗
             
             # * Average gradient for the edges
-            from gempy_engine.core.backend_tensor import BackendTensor
             edges_normals = BackendTensor.t.zeros((valid_edges.shape[0], 12, 3), dtype=BackendTensor.dtype_obj)
             edges_normals[:] = np.nan
             edges_normals[valid_edges] = dc_data_per_stack.gradients[slice_object]
                 
-            if LEGACY:=False:
+            # if LEGACY:=True:
+            if BackendTensor.engine_backend != AvailableBackends.PYTORCH:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", category=RuntimeWarning)
                     voxel_normal  = np.nanmean(edges_normals, axis=1)
@@ -76,7 +79,7 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
                 voxel_normal = sum_normals / valid_count.clamp(min=1)
 
                 # Remove rows where all elements were NaN (and hence valid_count is 0)
-                voxel_normal = voxel_normal[valid_count > 0]
+                voxel_normal = voxel_normal[valid_count > 0].reshape(-1, 3)
                 
 
             valid_voxels = dc_data_per_surface.valid_voxels
@@ -89,5 +92,11 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
             indices = np.vstack(indices)
             
         # @on
-        stack_meshes.append(DualContouringMesh(vertices, indices, dc_data_per_stack))
+        stack_meshes.append(
+            DualContouringMesh(
+                BackendTensor.t.to_numpy(vertices),
+                indices,
+                dc_data_per_stack
+            )
+        )
     return stack_meshes

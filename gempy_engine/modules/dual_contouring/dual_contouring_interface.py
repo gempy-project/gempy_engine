@@ -173,7 +173,8 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
         bias_xyz[isclose] = np.nan  # np zero values to nans
         mass_points = np.nanmean(bias_xyz, axis=1)  # Mean ignoring nans
     else:  # ? This is actually doing something
-        bias_xyz = BackendTensor.t.copy(edges_xyz[:, :12]).detach().numpy()
+        bias_xyz = BackendTensor.t.copy(edges_xyz[:, :12])
+        bias_xyz = BackendTensor.t.to_numpy(bias_xyz)
         mask = bias_xyz == 0
         masked_arr = np.ma.masked_array(bias_xyz, mask)
         mass_points = masked_arr.mean(axis=1)
@@ -200,10 +201,15 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
     # Compute LSTSQS in all voxels at the same time
     A = edges_normals
     b = (A * edges_xyz).sum(axis=2)
-    
-    term1 = BackendTensor.t.einsum("ijk, ilj->ikl", A, BackendTensor.t.transpose(A, (2, 1)))
+
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        transpose_shape = (2, 1)
+    else:
+        transpose_shape = (0, 2,1)
+        
+    term1 = BackendTensor.t.einsum("ijk, ilj->ikl", A, BackendTensor.t.transpose(A, transpose_shape))
     term2 = BackendTensor.t.linalg.inv(term1)
-    term3 = BackendTensor.t.einsum("ijk,ik->ij", BackendTensor.t.transpose(A, (2, 1)), b)
+    term3 = BackendTensor.t.einsum("ijk,ik->ij", BackendTensor.t.transpose(A, transpose_shape), b)
     vertices = BackendTensor.t.einsum("ijk, ij->ik", term2, term3)
 
     if debug:
