@@ -21,6 +21,8 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
     
     if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and COMPUTE_GRADIENTS is False:
         temp_interpolation_input = copy.deepcopy(interpolation_input)
+    else:
+        temp_interpolation_input = interpolation_input
     
     # * Interpolate - centers
     output_0_centers: List[InterpOutput] = interpolate_all_fields(temp_interpolation_input, options, data_shape)  # interpolate - centers

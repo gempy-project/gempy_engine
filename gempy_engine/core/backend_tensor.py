@@ -169,7 +169,19 @@ class BackendTensor:
                 dtype = getattr(torch, dtype)
             
             return torch.tensor(array_like, dtype=dtype)
-
+        
+        def _concatenate(tensors, axis=0, dtype=None):
+            # Switch if tensor is numpy array or a torch tensor
+            match type(tensors[0]):
+                case numpy.ndarray:
+                    return numpy.concatenate(tensors, axis=axis)
+                case torch.Tensor:
+                    return torch.cat(tensors, dim=axis)
+        
+        def _transpose(tensor, axes=None):
+            return tensor.transpose(axes[0], axes[1])
+        
+        
         cls.tfnp.sum = _sum
         cls.tfnp.repeat = _repeat
         cls.tfnp.expand_dims = lambda tensor, axis: tensor
@@ -182,7 +194,8 @@ class BackendTensor:
         cls.tfnp.rint = lambda tensor: tensor.round().type(torch.int32)
         cls.tfnp.vstack = lambda tensors: torch.cat(tensors, dim=0)
         cls.tfnp.copy = lambda tensor: tensor.clone()
-    
+        cls.tfnp.concatenate = _concatenate
+        cls.tfnp.transpose = _transpose
         
 
     @classmethod

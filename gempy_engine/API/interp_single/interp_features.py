@@ -2,6 +2,8 @@ import copy
 from typing import List
 
 import gempy_engine.core.data.tensors_structure
+from gempy_engine.config import AvailableBackends, COMPUTE_GRADIENTS
+from ...core.backend_tensor import BackendTensor
 from ...core.data.grid import Grid
 from ...core import data
 from ...core.data import InterpolationOptions
@@ -45,8 +47,12 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
 
 def interpolate_all_fields_no_octree(interpolation_input: InterpolationInput, options: InterpolationOptions,
                                      data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
-    interpolation_input = copy.deepcopy(interpolation_input)
-    return ms.interpolate_all_fields(interpolation_input, options, data_descriptor)
+    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and COMPUTE_GRADIENTS is False:
+        temp_interpolation_input = copy.deepcopy(interpolation_input)
+    else:
+        temp_interpolation_input = interpolation_input
+
+    return ms.interpolate_all_fields(temp_interpolation_input, options, data_descriptor)
 
 
 # region testing

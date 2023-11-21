@@ -46,7 +46,7 @@ class Grid:
         if self.geophysics_grid is not None:
             values.append(self.geophysics_grid.values)
         
-        values_array = np.concatenate(values, dtype=BackendTensor.dtype)
+        values_array = BackendTensor.t.concatenate(values, dtype=BackendTensor.dtype)
         values_array = BackendTensor.t.array(values_array)
         
         return values_array

@@ -3,7 +3,7 @@ from typing import Optional, Callable
 
 import numpy as np
 
-from gempy_engine.config import AvailableBackends
+from gempy_engine.config import AvailableBackends, COMPUTE_GRADIENTS
 from ...core.backend_tensor import BackendTensor
 from ._interp_scalar_field import interpolate_scalar_field
 from ...core.data import SurfacePoints, SurfacePointsInternals, Orientations, OrientationsInternals, TensorsStructure
@@ -26,7 +26,10 @@ def interpolate_feature(interpolation_input: InterpolationInput,
                         external_segment_funct: Optional[Callable[[np.ndarray], float]] = None,
                         clean_buffer: bool = True) -> ScalarFieldOutput:
     
-    grid = copy.deepcopy(interpolation_input.grid)
+    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and COMPUTE_GRADIENTS is False:
+        grid = copy.deepcopy(interpolation_input.grid)
+    else:
+        grid = interpolation_input.grid
 
     # region Interpolate scalar field
     xyz = solver_input.xyz_to_interpolate

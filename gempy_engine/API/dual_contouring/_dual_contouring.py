@@ -54,10 +54,30 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
             edges_normals[:] = np.nan
             edges_normals[valid_edges] = dc_data_per_stack.gradients[slice_object]
                 
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", category=RuntimeWarning)
-                voxel_normal  = np.nanmean(edges_normals, axis=1)
-                voxel_normal  = voxel_normal[(~np.isnan(voxel_normal).any(axis=1))]  # drop nans
+            if LEGACY:=False:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", category=RuntimeWarning)
+                    voxel_normal  = np.nanmean(edges_normals, axis=1)
+                    voxel_normal  = voxel_normal[(~np.isnan(voxel_normal).any(axis=1))]  # drop nans
+                    pass 
+            else:
+                # Assuming edges_normals is a PyTorch tensor
+                nan_mask = BackendTensor.t.isnan(edges_normals)
+                valid_count = (~nan_mask).sum(dim=1)
+
+                # Replace NaNs with 0 for sum calculation
+                safe_normals = edges_normals.clone()
+                safe_normals[nan_mask] = 0
+
+                # Compute the sum of non-NaN elements
+                sum_normals = BackendTensor.t.sum(safe_normals, 1)
+
+                # Calculate the mean, avoiding division by zero
+                voxel_normal = sum_normals / valid_count.clamp(min=1)
+
+                # Remove rows where all elements were NaN (and hence valid_count is 0)
+                voxel_normal = voxel_normal[valid_count > 0]
+                
 
             valid_voxels = dc_data_per_surface.valid_voxels
             indices = triangulate(
