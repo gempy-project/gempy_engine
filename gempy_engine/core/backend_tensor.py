@@ -167,8 +167,10 @@ class BackendTensor:
         def _array(array_like, dtype=None):
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
-            
-            return torch.tensor(array_like, dtype=dtype)
+            if isinstance(array_like, torch.Tensor):
+                return array_like
+            else: 
+                return torch.tensor(array_like, dtype=dtype)
         
         def _concatenate(tensors, axis=0, dtype=None):
             # Switch if tensor is numpy array or a torch tensor

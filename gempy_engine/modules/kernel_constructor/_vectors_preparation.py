@@ -226,11 +226,11 @@ def _assembly_fault_internals(faults_val, options, ori_size):
     def _assembler(matrix_val, ori_size_: int, uni_drift_size: int):  # TODO: This function (probably)needs to be extracted to _kernel_constructors
         n_uni_eq = uni_drift_size  # * Number of equations. This should be how many faults are active
         n_faults = matrix_val.shape[1]  # TODO [ ]: We are going to have to tweak this for multiple faults
-        z = np.zeros((ori_size_, n_faults), dtype=BackendTensor.dtype)
-        z2 = np.zeros((n_uni_eq, n_faults), dtype=BackendTensor.dtype)
-        z3 = np.eye(n_faults, dtype=BackendTensor.dtype)
+        z = BackendTensor.t.zeros((ori_size_, n_faults), dtype=BackendTensor.dtype_obj)
+        z2 = BackendTensor.t.zeros((n_uni_eq, n_faults), dtype=BackendTensor.dtype_obj)
+        z3 = BackendTensor.t.eye(n_faults, dtype=BackendTensor.dtype_obj)
         # Degree 1
-        return np.vstack((z, matrix_val, z2, z3))
+        return BackendTensor.t.vstack((z, matrix_val, z2, z3))
 
     ref_matrix_val = faults_val.fault_values_ref
     rest_matrix_val = faults_val.fault_values_rest
