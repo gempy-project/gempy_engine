@@ -1,6 +1,6 @@
 ﻿from setuptools import setup, find_packages
 
-version = "2023.1.0b5"
+version = "2023.2.0b1"
 
 
 def read_requirements(file_name):
