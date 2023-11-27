@@ -1,6 +1,6 @@
 import warnings
 
-import gempy_engine.config
+from ...core.data.continue_epoch import ContinueEpoch
 from gempy_engine.core.data.kernel_classes.solvers import Solvers
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
@@ -10,6 +10,7 @@ from gempy_engine.core.data.options import KernelOptions
 
 bt = BackendTensor
 global n_iters
+
 
 
 def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -> np.ndarray:
@@ -23,11 +24,14 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -
     dtype = BackendTensor.dtype
     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled, solver):
         case (AvailableBackends.PYTORCH, False, _):
+            
             w = bt.t.linalg.solve(cov, b)
             
             cond_number = bt.t.linalg.cond(cov)
             print(f'Condition number: {cond_number}.')
-            cond_number.backward()
+            if kernel_options.optimizing_condition_number: # TODO: add condition
+                cond_number.backward()
+                raise ContinueEpoch()
             
         case (AvailableBackends.PYTORCH, True, _):
             raise NotImplementedError('Pykeops is not implemented for pytorch yet')

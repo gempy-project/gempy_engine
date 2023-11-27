@@ -4,6 +4,7 @@ from typing import List, Iterable, Optional
 import numpy as np
 from numpy import ndarray
 
+from ...core.data.internal_structs import SolverInput
 from ...core.backend_tensor import BackendTensor
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.exported_structs import CombinedScalarFieldsOutput
@@ -80,7 +81,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
         )
         interpolation_input_i.fault_values = fault_input
 
-        solver_input = input_preprocess(tensor_struct_i, interpolation_input_i)
+        solver_input: SolverInput = input_preprocess(tensor_struct_i, interpolation_input_i)
         output: ScalarFieldOutput = interpolate_feature(
             interpolation_input    = interpolation_input_i,
             options                = options,

@@ -25,6 +25,7 @@ class KernelOptions:
 
     kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.exponential
     compute_condition_number: bool = False
+    optimizing_condition_number: bool = False
     kernel_solver: Solvers = Solvers.DEFAULT
 
     @property

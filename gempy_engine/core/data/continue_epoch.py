@@ -1,0 +1,2 @@
+﻿class ContinueEpoch(Exception):
+    pass
