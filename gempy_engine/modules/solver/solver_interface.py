@@ -24,14 +24,16 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -
     dtype = BackendTensor.dtype
     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled, solver):
         case (AvailableBackends.PYTORCH, False, _):
-            
-            w = bt.t.linalg.solve(cov, b)
-            
-            cond_number = bt.t.linalg.cond(cov)
-            print(f'Condition number: {cond_number}.')
             if kernel_options.optimizing_condition_number: # TODO: add condition
+                cond_number = bt.t.linalg.cond(cov)
                 cond_number.backward()
+                kernel_options.condition_number = cond_number
+                print(f'Condition number: {cond_number}.')
                 raise ContinueEpoch()
+            else:
+                w = bt.t.linalg.solve(cov, b)
+                # if compute_condition_number:
+                #     _compute_conditional_number(cov)
             
         case (AvailableBackends.PYTORCH, True, _):
             raise NotImplementedError('Pykeops is not implemented for pytorch yet')

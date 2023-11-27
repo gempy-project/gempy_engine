@@ -24,9 +24,11 @@ class KernelOptions:
     number_dimensions: int = 3
 
     kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.exponential
+    kernel_solver: Solvers = Solvers.DEFAULT
+
     compute_condition_number: bool = False
     optimizing_condition_number: bool = False
-    kernel_solver: Solvers = Solvers.DEFAULT
+    condition_number: float = None
 
     @property
     def n_uni_eq(self):
