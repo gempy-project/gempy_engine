@@ -27,7 +27,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -
             
             cond_number = bt.t.linalg.cond(cov)
             print(f'Condition number: {cond_number}.')
-            # cond_number.backward()
+            cond_number.backward()
             
         case (AvailableBackends.PYTORCH, True, _):
             raise NotImplementedError('Pykeops is not implemented for pytorch yet')

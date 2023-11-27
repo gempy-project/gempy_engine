@@ -1,4 +1,5 @@
 import numpy as np
+from gempy_engine.config import AvailableBackends
 
 import gempy_engine.config
 from gempy_engine.core.backend_tensor import BackendTensor
@@ -15,7 +16,8 @@ global_nugget = 1e-5
 
 def get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, ki: KernelInput, options):
     cov_grad = _get_cov_grad(dm, k_a, k_p_ref, ki.nugget_grad)
-    cov_sp = _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options, ki.nugget_scalar)  # TODO: Add nugget effect properly (individual) # cov_sp += np.eye(cov_sp.shape[0]) * .00000001
+    cov_sp = _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options, ki.nugget_scalar,
+                                     ki.nugget_grad.shape[1])  # TODO: Add nugget effect properly (individual) # cov_sp += np.eye(cov_sp.shape[0]) * .00000001
     cov_grad_sp = _get_cross_cov_grad_sp(dm, k_p_ref, k_p_rest, options)  # C
 
     # Universal drift
@@ -63,17 +65,26 @@ def _get_cov_grad(dm, k_a, k_p_ref, nugget):
     return cov_grad
 
 
-def _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options: KernelOptions, nugget_effect):
+def _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options: KernelOptions, nugget_effect, grad_matrix_size):
     cov_surface_points = options.i_res * (k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref)
-    ref_nugget = nugget_effect[0]
     flipped_perp_matrix = ( dm.perp_matrix - 1 ) * -1
     
     if BackendTensor.pykeops_enabled is False: # Add nugget effect for ref and rest point
-        eye = BackendTensor.t.array(np.eye(cov_surface_points.shape[0], dtype=BackendTensor.dtype))
-        diag = eye * ref_nugget  # * This is also applying it to the grad which is bad
-        cov_surface_points += diag * flipped_perp_matrix
+        diag = BackendTensor.t.array(np.eye(cov_surface_points.shape[0], dtype=BackendTensor.dtype))
+        
+        shape_sp_size = nugget_effect.shape[0]
+        if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+            modified_diag = diag.clone()
+        else:
+            modified_diag = diag
+        modified_diag[
+            grad_matrix_size:grad_matrix_size+shape_sp_size,
+            grad_matrix_size:grad_matrix_size+shape_sp_size
+            ] *= nugget_effect
+        cov_surface_points += modified_diag * flipped_perp_matrix
     else:
         from pykeops.numpy import LazyTensor
+        ref_nugget = nugget_effect[0]
         matrix_shape = k_rest_ref.shape[0]
         diag_ = np.arange(matrix_shape).reshape(-1, 1).astype(BackendTensor.dtype)
         diag_i = LazyTensor(diag_[:, None])
