@@ -2,7 +2,6 @@ from typing import Union, Any, Optional
 import warnings
 
 import numpy
-import torch
 
 from gempy_engine.config import (is_pykeops_installed, is_numpy_installed, is_tensorflow_installed,
                                  is_pytorch_installed,
@@ -129,7 +128,9 @@ class BackendTensor:
                 cls.tensor_types = pytorch_copy.Tensor
             
                 cls.pykeops_enabled = pykeops_enabled  # TODO: Make this compatible with pykeops
-                if (pykeops_enabled): cls._wrap_pykeops_functions()
+                if (pykeops_enabled):
+                    import pykeops
+                    cls._wrap_pykeops_functions()
 
 
             case (_):
