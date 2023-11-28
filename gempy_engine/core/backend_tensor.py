@@ -10,6 +10,9 @@ from gempy_engine.config import (is_pykeops_installed, is_numpy_installed, is_te
 if is_pykeops_installed:
     import pykeops.numpy
 
+if is_pytorch_installed:
+    import torch
+
 
 class BackendTensor:
     engine_backend: AvailableBackends

@@ -101,10 +101,13 @@ def _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, 
         else:
             raise NotImplementedError("Pykeops is not implemented for this backend")
         
-        ref_nugget = nugget_effect[0]
+        nuggets = BackendTensor.t.zeros(matrix_shape, dtype=BackendTensor.dtype_obj)
+        nuggets[grad_matrix_size:grad_matrix_size+nugget_effect.shape[0]] += nugget_effect
+
+        nuggets_lazy = LazyTensor(nuggets[None, :, None])  # Reshaping for proper broadcasting
         diag_i = LazyTensor(diag_[:, None])
         diag_j = LazyTensor(diag_[None, :])
-        nugget_matrix = (((0.5 - (diag_i - diag_j) ** 2).step()) * ref_nugget)
+        nugget_matrix = (((0.5 - (diag_i - diag_j) ** 2).step()) * nuggets_lazy)
         cov_surface_points += nugget_matrix * flipped_perp_matrix
 
     return cov_surface_points

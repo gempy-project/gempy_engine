@@ -24,7 +24,7 @@ COMPUTE_GRADIENTS = False
 
 is_numpy_installed = find_spec("numpy") is not None
 is_tensorflow_installed = find_spec("tensorflow") is not None
-is_pytorch_installed = find_spec("pytorch")
+is_pytorch_installed = find_spec("torch")
 is_pykeops_installed = find_spec("pykeops") is not None
 
 
