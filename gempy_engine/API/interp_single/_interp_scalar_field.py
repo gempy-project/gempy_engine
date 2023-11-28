@@ -49,6 +49,24 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
 def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOptions) -> np.ndarray:
     A_matrix = kernel_constructor.yield_covariance(interp_input, kernel_options)
     b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
+
+    if kernel_options.optimizing_condition_number:  # TODO: add condition
+
+        from ...core.data.continue_epoch import ContinueEpoch
+        import torch
+        
+        cond_number = BackendTensor.t.linalg.cond(A_matrix)
+        nuggets = interp_input.sp_internal.nugget_effect_ref_rest
+
+        l1_reg = torch.norm(nuggets, 2)**2
+        lambda_l1 = 1000000
+        loss = cond_number - lambda_l1 * l1_reg 
+        loss.backward()
+        
+        kernel_options.condition_number = cond_number
+        print(f'Condition number: {cond_number}.')
+        raise ContinueEpoch()
+
     # TODO: Smooth should be taken from options
     weights = solver_interface.kernel_reduction(
         cov=A_matrix,
