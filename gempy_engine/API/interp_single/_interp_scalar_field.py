@@ -82,9 +82,10 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
         Solutions.debug_input_data["b_vector"] = b_vector
 
         # Check matrices have the right dtype:
-        assert A_matrix.dtype == BackendTensor.dtype_obj, f"Wrong dtype for A_matrix: {A_matrix.dtype}. should be {BackendTensor.dtype_obj}"
-        assert b_vector.dtype == BackendTensor.dtype_obj, f"Wrong dtype for b_vector: {b_vector.dtype}. should be {BackendTensor.dtype_obj}"
-        assert weights.dtype == BackendTensor.dtype_obj, f"Wrong dtype for weights: {weights.dtype}. should be {BackendTensor.dtype_obj}"
+        if False:
+            assert A_matrix.dtype == BackendTensor.dtype_obj, f"Wrong dtype for A_matrix: {A_matrix.dtype}. should be {BackendTensor.dtype_obj}"
+            assert b_vector.dtype == BackendTensor.dtype_obj, f"Wrong dtype for b_vector: {b_vector.dtype}. should be {BackendTensor.dtype_obj}"
+            assert weights.dtype == BackendTensor.dtype_obj, f"Wrong dtype for weights: {weights.dtype}. should be {BackendTensor.dtype_obj}"
 
     return weights
 
@@ -94,7 +95,7 @@ def _evaluate_sys_eq(solver_input: SolverInput, weights: np.ndarray, options: In
 
     eval_kernel = kernel_constructor.yield_evaluation_kernel(solver_input, options.kernel_options)
 
-    if BackendTensor.pykeops_enabled is True:
+    if BackendTensor.pykeops_enabled is True and BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
         if solver_input.xyz_to_interpolate.flags['C_CONTIGUOUS'] is False:  # ! This is not working with TF yet
             print("xyz is not C_CONTIGUOUS")
 

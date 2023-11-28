@@ -54,11 +54,19 @@ def _get_cov_grad(dm, k_a, k_p_ref, nugget):
         nugget_matrix = nugget_selector * grad_nugget
         cov_grad += nugget_matrix
     else:
-        from pykeops.numpy import LazyTensor
         matrix_shape = dm.hu.shape[0]
-        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype(BackendTensor.dtype)
+        if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+            from pykeops.torch import LazyTensor
+            diag_ = BackendTensor.t.arange(matrix_shape).reshape(-1, 1).type(BackendTensor.dtype_obj)
+        elif BackendTensor.engine_backend == AvailableBackends.numpy:
+            from pykeops.numpy import LazyTensor
+            diag_ = np.arange(matrix_shape).reshape(-1, 1).astype(BackendTensor.dtype)
+        else:
+            raise NotImplementedError("Pykeops is not implemented for this backend")
+        
         diag_i = LazyTensor(diag_[:, None])
         diag_j = LazyTensor(diag_[None, :])
+        
         nugget_matrix = (((0.5 - (diag_i - diag_j)**2).step()) * grad_nugget) * dm.perp_matrix
         cov_grad += nugget_matrix
         
@@ -83,10 +91,17 @@ def _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, 
             ] *= nugget_effect
         cov_surface_points += modified_diag * flipped_perp_matrix
     else:
-        from pykeops.numpy import LazyTensor
-        ref_nugget = nugget_effect[0]
         matrix_shape = k_rest_ref.shape[0]
-        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype(BackendTensor.dtype)
+        if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+            from pykeops.torch import LazyTensor
+            diag_ = BackendTensor.t.arange(matrix_shape).reshape(-1, 1).type(BackendTensor.dtype_obj)
+        elif BackendTensor.engine_backend == AvailableBackends.numpy:
+            from pykeops.numpy import LazyTensor
+            diag_ = np.arange(matrix_shape).reshape(-1, 1).astype(BackendTensor.dtype)
+        else:
+            raise NotImplementedError("Pykeops is not implemented for this backend")
+        
+        ref_nugget = nugget_effect[0]
         diag_i = LazyTensor(diag_[:, None])
         diag_j = LazyTensor(diag_[None, :])
         nugget_matrix = (((0.5 - (diag_i - diag_j) ** 2).step()) * ref_nugget)

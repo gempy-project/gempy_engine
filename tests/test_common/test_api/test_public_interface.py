@@ -94,7 +94,7 @@ def test_public_interface_simplest_model():
         structure=input_data_descriptor
     )
     
-    if plot_pyvista or False:
+    if plot_pyvista or True:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, interpolation_options.number_octree_levels - 1)
@@ -102,7 +102,7 @@ def test_public_interface_simplest_model():
         surface_points_to_plot = interpolation_input.surface_points.sp_coords
         # If they are torch tensors convert to numpy
         if isinstance(surface_points_to_plot, BackendTensor.t.Tensor):
-            surface_points_to_plot = surface_points_to_plot.numpy()
+            surface_points_to_plot = BackendTensor.t.to_numpy(surface_points_to_plot)
             
         plot_points(p, surface_points_to_plot)
         p.show()
