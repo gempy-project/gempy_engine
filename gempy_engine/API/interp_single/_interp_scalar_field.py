@@ -59,7 +59,7 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
         nuggets = interp_input.sp_internal.nugget_effect_ref_rest
 
         l1_reg = torch.norm(nuggets, 2)**2
-        lambda_l1 = 1000000
+        lambda_l1 = 100000000
         loss = cond_number - lambda_l1 * l1_reg 
         loss.backward()
         
