@@ -33,12 +33,9 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
         options=options,
         data_descriptor=data_descriptor
     )
-
     # region Geophysics
     # ---------------------
-
-    # TODO: [ ] Gravity
-
+    # TODO: [x] Gravity
     # TODO: [ ] Magnetics
 
     if geophysics_input is not None:

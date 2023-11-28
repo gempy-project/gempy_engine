@@ -2,6 +2,7 @@ from typing import Union, Any, Optional
 import warnings
 
 import numpy
+import torch
 
 from gempy_engine.config import (is_pykeops_installed, is_numpy_installed, is_tensorflow_installed,
                                  is_pytorch_installed,
@@ -126,7 +127,10 @@ class BackendTensor:
                 cls._wrap_pytorch_functions()
                 cls.dtype_obj = pytorch_copy.float32 if cls.dtype == "float32" else pytorch_copy.float64
                 cls.tensor_types = pytorch_copy.Tensor
-                cls.pykeops_enabled = False  # TODO: Make this compatible with pykeops
+            
+                cls.pykeops_enabled = pykeops_enabled  # TODO: Make this compatible with pykeops
+                if (pykeops_enabled): cls._wrap_pykeops_functions()
+
 
             case (_):
                 raise AttributeError(
@@ -201,23 +205,37 @@ class BackendTensor:
         
 
     @classmethod
-    def _wrap_pykeops_functions(cls):
+    def _wrap_pykeops_functions_(cls):
         def _exp(tensor):
             if type(tensor) == numpy.ndarray:
                 return numpy.exp(tensor)
             elif type(tensor) == pykeops.numpy.LazyTensor:
                 return tensor.exp()
+            elif type(tensor) == pykeops.torch.LazyTensor:
+                return tensor.exp()
+            elif type(tensor) == torch.Tensor:
+                return tensor.exp()
+            
 
         def _sum(tensor, axis, dtype=None, keepdims=False):
             if type(tensor) == numpy.ndarray:
                 return numpy.sum(tensor, axis=axis, keepdims=keepdims, dtype=dtype)
             elif type(tensor) == pykeops.numpy.LazyTensor:
                 return tensor.sum(axis)
+            elif type(tensor) == pykeops.torch.LazyTensor:
+                return tensor.sum(axis)
+            elif type(tensor) == torch.Tensor:
+                return tensor.sum(axis, keepdims=keepdims, dtype=dtype)
+            
 
         def _divide(tensor, other, dtype=None):
             if type(tensor) == numpy.ndarray:
                 return numpy.divide(tensor, other, dtype=dtype)
             elif type(tensor) == pykeops.numpy.LazyTensor:
+                return tensor / other
+            elif type(tensor) == pykeops.torch.LazyTensor:
+                return tensor / other
+            elif type(tensor) == torch.Tensor:
                 return tensor / other
 
         def _sqrt_fn(tensor):
@@ -229,6 +247,51 @@ class BackendTensor:
         cls.tfnp.divide = _divide
 
     @classmethod
+    def _wrap_pykeops_functions(cls):
+        torch_available = cls.engine_backend == AvailableBackends.PYTORCH
+        
+        def _exp(tensor):
+            match tensor:
+                case numpy.ndarray():
+                    return numpy.exp(tensor)
+                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor() if torch_available:
+                    return tensor.exp()
+                case torch.Tensor() if torch_available:
+                    return tensor.exp()
+                case _:
+                    raise TypeError("Unsupported tensor type")
+
+        def _sum(tensor, axis, dtype=None, keepdims=False):
+            match tensor:
+                case numpy.ndarray():
+                    return numpy.sum(tensor, axis=axis, keepdims=keepdims, dtype=dtype)
+                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor() if torch_available:
+                    return tensor.sum(axis)
+                case torch.Tensor() if torch_available:
+                    return tensor.sum(axis, keepdims=keepdims, dtype=dtype)
+                case _:
+                    raise TypeError("Unsupported tensor type")
+
+        def _divide(tensor, other, dtype=None):
+            match tensor:
+                case numpy.ndarray():
+                    return numpy.divide(tensor, other, dtype=dtype)
+                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor() if torch_available:
+                    return tensor / other
+                case torch.Tensor() if torch_available:
+                    return tensor / other
+                case _:
+                    raise TypeError("Unsupported tensor type")
+
+        def _sqrt_fn(tensor):
+            return tensor.sqrt()
+
+        cls.tfnp.sqrt = _sqrt_fn
+        cls.tfnp.sum = _sum
+        cls.tfnp.exp = _exp
+        cls.tfnp.divide = _divide
+        
+    @classmethod
     def _wrap_numpy_functions(cls):
         cls.tfnp.cast = lambda tensor, dtype: tensor.astype(dtype)
         cls.tfnp.reduce_sum = cls.tfnp.sum
@@ -237,6 +300,13 @@ class BackendTensor:
         cls.tfnp.to_numpy = lambda tensor: tensor
         cls.tfnp.rint = lambda tensor: tensor.round().astype(numpy.int32)
     
+    @classmethod
+    def is_pykeops_enabled(cls):
 
+        compatible_backend = BackendTensor.engine_backend == AvailableBackends.numpy or cls.engine_backend == AvailableBackends.PYTORCH
+        if compatible_backend and BackendTensor.pykeops_enabled:
+            return True
+        else:
+            return False
 
 BackendTensor._change_backend(DEFAULT_BACKEND)

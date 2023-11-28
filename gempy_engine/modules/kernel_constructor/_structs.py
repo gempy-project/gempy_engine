@@ -9,21 +9,31 @@ from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 tensor_types = BackendTensor.tensor_types
 
 
-def _upgrade_kernel_input_to_keops_tensor(struct_data_instance):
+def _upgrade_kernel_input_to_keops_tensor_numpy(struct_data_instance):
     from pykeops.numpy import LazyTensor
 
     for key, val in struct_data_instance.__dict__.items():
         if key == "n_faults_i": continue
         struct_data_instance.__dict__[key] = LazyTensor(val.astype(BackendTensor.dtype))  # ! This as type is quite expensive
 
+
+def _upgrade_kernel_input_to_keops_tensor_pytorch(struct_data_instance):
+    from pykeops.torch import LazyTensor
+
+    for key, val in struct_data_instance.__dict__.items():
+        if key == "n_faults_i": continue
+        struct_data_instance.__dict__[key] = LazyTensor(val.type(BackendTensor.dtype_obj))
+        
+        
 def _cast_tensors(data_class_instance):
     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled):
         case (AvailableBackends.numpy, True):
-            _upgrade_kernel_input_to_keops_tensor(data_class_instance)
+            _upgrade_kernel_input_to_keops_tensor_numpy(data_class_instance)
         case (AvailableBackends.PYTORCH, False):
             cast_type_inplace(data_class_instance)
         case (AvailableBackends.PYTORCH, True):
-            raise NotImplementedError("Pytorch with pykeops is not implemented yet")
+            cast_type_inplace(data_class_instance, requires_grad=False)
+            _upgrade_kernel_input_to_keops_tensor_pytorch(data_class_instance)
         case (_, _):
             pass
 
@@ -192,8 +202,8 @@ class DriftMatrixSelector:
         foo.sel_ui = sel_i[:, None, :]
         foo.sel_vj = sel_j[None, :, :]
 
-        if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
-            _upgrade_kernel_input_to_keops_tensor(cls)
+        if BackendTensor.is_pykeops_enabled():
+            _upgrade_kernel_input_to_keops_tensor_numpy(cls)
         return foo
 
 
