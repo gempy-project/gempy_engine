@@ -26,7 +26,12 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -
         case (AvailableBackends.PYTORCH, False, _):
             w = bt.t.linalg.solve(cov, b)
         case (AvailableBackends.PYTORCH, True, _):
-            w = cov.solve(b.view(-1,1), alpha=0)
+            w = cov.solve(
+                b.view(-1,1), 
+                alpha=0,
+                backend="GPU"
+            )
+            
         case (AvailableBackends.tensorflow, True, _):
             raise NotImplementedError('Pykeops is not implemented for tensorflow yet')
             # w = cov.solve(b.numpy().astype('float32'), alpha=smooth, dtype_acc='float32')
