@@ -288,7 +288,15 @@ class BackendTensor:
                     raise TypeError("Unsupported tensor type")
 
         def _sqrt_fn(tensor):
-            return tensor.sqrt()
+            match tensor:
+                case numpy.ndarray():
+                    return numpy.sqrt(tensor)
+                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor() if torch_available:
+                    return tensor.sqrt()
+                case torch.Tensor() if torch_available:
+                    return tensor.sqrt()
+                case _:
+                    raise TypeError("Unsupported tensor type")
 
         cls.tfnp.sqrt = _sqrt_fn
         cls.tfnp.sum = _sum

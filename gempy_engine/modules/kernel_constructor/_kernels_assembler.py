@@ -5,7 +5,6 @@ from ._structs import KernelInput, CartesianSelector, OrientationSurfacePointsCo
 from ...core.backend_tensor import BackendTensor as bt
 from ...core.data.kernel_classes.kernel_functions import KernelFunction
 from ...core.data.options import KernelOptions
-from ...core.utils import gempy_profiler_decorator
 
 tensor_types = bt.tensor_types
 

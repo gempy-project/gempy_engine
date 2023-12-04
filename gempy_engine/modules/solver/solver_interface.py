@@ -23,7 +23,12 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -
     dtype = BackendTensor.dtype
     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled, solver):
         case (AvailableBackends.PYTORCH, False, _):
+            if kernel_options.compute_condition_number:
+                cond_number = BackendTensor.t.linalg.cond(cov)
+                print(f'Condition number: {cond_number}.')
+
             w = bt.t.linalg.solve(cov, b)
+            
         case (AvailableBackends.PYTORCH, True, _):
             solver = cov.solve(
                 b.view(-1,1), 

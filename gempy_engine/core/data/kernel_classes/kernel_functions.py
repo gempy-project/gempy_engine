@@ -27,10 +27,33 @@ def exp_function_p_div_r(sq_r, a):
 
 
 def exp_function_a(sq_r, a):
-    first_term = BackendTensor.tfnp.divide(sq_r, (a ** 4)) # ! This term is almost always zero. I thnk we can just remove it
+    first_term = BackendTensor.tfnp.divide(sq_r, (a ** 4))  # ! This term is almost always zero. I thnk we can just remove it
     second_term = 1 / (a ** 2)
     third_term = BackendTensor.tfnp.exp(-(sq_r / (2 * a ** 2)))
     return (first_term - second_term) * third_term
+
+
+square_root_3 = 1.73205080757
+
+
+
+sqrt5 = 2.2360679775
+
+
+def matern_function_5_2(r, a, nu=5 / 2):
+    # Using nu=5/2 for the Matern kernel
+    sqrt5_r_over_ell = sqrt5 * r / a
+    return (1 + sqrt5_r_over_ell + (5 * r ** 2) / (3 * a ** 2)) * BackendTensor.tfnp.exp(-sqrt5_r_over_ell)
+
+
+def matern_function_5_2_p_div_r(r, a, nu=5 / 2):
+    sqrt5_r_over_ell = sqrt5 * r / a
+    return -(5 * BackendTensor.tfnp.exp(-sqrt5_r_over_ell) * (a + sqrt5 * r)) / (3 * a ** 3)
+
+
+def matern_function_5_2_a(r, a, nu=5 / 2):
+    sqrt5_r_over_ell = sqrt5 * r / a
+    return -5 * BackendTensor.tfnp.exp(-sqrt5_r_over_ell) * (a ** 2 + sqrt5 * a * r - 5 * r ** 2) / (3 * a ** 4)
 
 
 @dataclass
@@ -44,3 +67,4 @@ class KernelFunction:
 class AvailableKernelFunctions(Enum):
     cubic = KernelFunction(cubic_function, cubic_function_p_div_r, cubic_function_a, consume_sq_distance=False)
     exponential = KernelFunction(exp_function, exp_function_p_div_r, exp_function_a, consume_sq_distance=True)
+    matern_5_2 = KernelFunction(matern_function_5_2, matern_function_5_2_p_div_r, matern_function_5_2_a, consume_sq_distance=False)
