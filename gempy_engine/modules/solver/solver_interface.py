@@ -1,6 +1,5 @@
 import warnings
 
-from ...core.data.continue_epoch import ContinueEpoch
 from gempy_engine.core.data.kernel_classes.solvers import Solvers
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
@@ -26,12 +25,18 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -
         case (AvailableBackends.PYTORCH, False, _):
             w = bt.t.linalg.solve(cov, b)
         case (AvailableBackends.PYTORCH, True, _):
-            w = cov.solve(
+            solver = cov.solve(
                 b.view(-1,1), 
                 alpha=0,
-                backend="GPU"
+                backend="GPU",
+                call=False,
+                dtype_acc="float64",
+                sum_scheme="kahan_scheme"
+                
             )
             
+            w = solver(eps=1e-5)
+
         case (AvailableBackends.tensorflow, True, _):
             raise NotImplementedError('Pykeops is not implemented for tensorflow yet')
             # w = cov.solve(b.numpy().astype('float32'), alpha=smooth, dtype_acc='float32')
