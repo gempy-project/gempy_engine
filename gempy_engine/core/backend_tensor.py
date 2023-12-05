@@ -28,7 +28,6 @@ class BackendTensor:
     _: Any  # Alias for the tensor backend pointer
     t: numpy  # Alias for the tensor backend pointer
 
-    
     @classmethod
     def get_backend_string(cls) -> str:
         match (cls.use_gpu, cls.pykeops_enabled):
@@ -129,12 +128,11 @@ class BackendTensor:
                 cls._wrap_pytorch_functions()
                 cls.dtype_obj = pytorch_copy.float32 if cls.dtype == "float32" else pytorch_copy.float64
                 cls.tensor_types = pytorch_copy.Tensor
-            
+
                 cls.pykeops_enabled = pykeops_enabled  # TODO: Make this compatible with pykeops
                 if (pykeops_enabled):
                     import pykeops
                     cls._wrap_pykeops_functions()
-
 
             case (_):
                 raise AttributeError(
@@ -162,24 +160,24 @@ class BackendTensor:
     def _wrap_pytorch_functions(cls):
         from torch import sum, repeat_interleave
         import torch
-        
+
         def _sum(tensor, axis=None, dtype=None, keepdim=False):
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
-            
+
             return sum(tensor, axis, dtype=dtype, keepdim=keepdim)
-        
+
         def _repeat(tensor, n_repeats, axis=None):
             return repeat_interleave(tensor, n_repeats, dim=axis)
-        
+
         def _array(array_like, dtype=None):
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
             if isinstance(array_like, torch.Tensor):
                 return array_like
-            else: 
+            else:
                 return torch.tensor(array_like, dtype=dtype)
-        
+
         def _concatenate(tensors, axis=0, dtype=None):
             # Switch if tensor is numpy array or a torch tensor
             match type(tensors[0]):
@@ -187,17 +185,16 @@ class BackendTensor:
                     return numpy.concatenate(tensors, axis=axis)
                 case torch.Tensor:
                     return torch.cat(tensors, dim=axis)
-        
+
         def _transpose(tensor, axes=None):
             return tensor.transpose(axes[0], axes[1])
-        
-        
+
         cls.tfnp.sum = _sum
         cls.tfnp.repeat = _repeat
         cls.tfnp.expand_dims = lambda tensor, axis: tensor
         cls.tfnp.invert = lambda tensor: ~tensor
         cls.tfnp.hstack = lambda tensors: torch.concat(tensors, dim=1)
-        cls.tfnp.array = _array 
+        cls.tfnp.array = _array
         cls.tfnp.to_numpy = lambda tensor: tensor.detach().numpy()
         cls.tfnp.min = lambda tensor, axis: tensor.min(axis=axis)[0]
         cls.tfnp.max = lambda tensor, axis: tensor.max(axis=axis)[0]
@@ -206,7 +203,6 @@ class BackendTensor:
         cls.tfnp.copy = lambda tensor: tensor.clone()
         cls.tfnp.concatenate = _concatenate
         cls.tfnp.transpose = _transpose
-        
 
     @classmethod
     def _wrap_pykeops_functions_(cls):
@@ -219,7 +215,6 @@ class BackendTensor:
                 return tensor.exp()
             elif type(tensor) == torch.Tensor:
                 return tensor.exp()
-            
 
         def _sum(tensor, axis, dtype=None, keepdims=False):
             if type(tensor) == numpy.ndarray:
@@ -230,7 +225,6 @@ class BackendTensor:
                 return tensor.sum(axis)
             elif type(tensor) == torch.Tensor:
                 return tensor.sum(axis, keepdims=keepdims, dtype=dtype)
-            
 
         def _divide(tensor, other, dtype=None):
             if type(tensor) == numpy.ndarray:
@@ -253,12 +247,12 @@ class BackendTensor:
     @classmethod
     def _wrap_pykeops_functions(cls):
         torch_available = cls.engine_backend == AvailableBackends.PYTORCH
-        
+
         def _exp(tensor):
             match tensor:
                 case numpy.ndarray():
                     return numpy.exp(tensor)
-                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor() if torch_available:
+                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor(): 
                     return tensor.exp()
                 case torch.Tensor() if torch_available:
                     return tensor.exp()
@@ -269,7 +263,7 @@ class BackendTensor:
             match tensor:
                 case numpy.ndarray():
                     return numpy.sum(tensor, axis=axis, keepdims=keepdims, dtype=dtype)
-                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor() if torch_available:
+                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor():
                     return tensor.sum(axis)
                 case torch.Tensor() if torch_available:
                     return tensor.sum(axis, keepdims=keepdims, dtype=dtype)
@@ -280,7 +274,7 @@ class BackendTensor:
             match tensor:
                 case numpy.ndarray():
                     return numpy.divide(tensor, other, dtype=dtype)
-                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor() if torch_available:
+                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor():
                     return tensor / other
                 case torch.Tensor() if torch_available:
                     return tensor / other
@@ -291,7 +285,7 @@ class BackendTensor:
             match tensor:
                 case numpy.ndarray():
                     return numpy.sqrt(tensor)
-                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor() if torch_available:
+                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor(): 
                     return tensor.sqrt()
                 case torch.Tensor() if torch_available:
                     return tensor.sqrt()
@@ -302,7 +296,7 @@ class BackendTensor:
         cls.tfnp.sum = _sum
         cls.tfnp.exp = _exp
         cls.tfnp.divide = _divide
-        
+
     @classmethod
     def _wrap_numpy_functions(cls):
         cls.tfnp.cast = lambda tensor, dtype: tensor.astype(dtype)
@@ -311,7 +305,7 @@ class BackendTensor:
         cls.tfnp.constant = cls.tfnp.array
         cls.tfnp.to_numpy = lambda tensor: tensor
         cls.tfnp.rint = lambda tensor: tensor.round().astype(numpy.int32)
-    
+
     @classmethod
     def is_pykeops_enabled(cls):
 
@@ -320,5 +314,6 @@ class BackendTensor:
             return True
         else:
             return False
+
 
 BackendTensor._change_backend(DEFAULT_BACKEND)
