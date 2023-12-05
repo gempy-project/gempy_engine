@@ -4,6 +4,7 @@ from typing import List
 import numpy as np
 
 from gempy_engine.config import SET_RAW_ARRAYS_IN_SOLUTION
+from gempy_engine.core.backend_tensor import BackendTensor
 from .dual_contouring_mesh import DualContouringMesh
 from .octree_level import OctreeLevel
 from .raw_arrays_solution import RawArraysSolution
@@ -12,18 +13,22 @@ from .raw_arrays_solution import RawArraysSolution
 class Solutions:
     octrees_output: List[OctreeLevel]
     dc_meshes: List[DualContouringMesh]
+    scalar_field_at_surface_points: np.ndarray = np.empty(0)
+    _ordered_elements: List[np.ndarray] = []
     _raw_arrays: RawArraysSolution = field(init=False)
     # ------
     gravity: np.ndarray = None
     magnetics: np.ndarray = None
 
     debug_input_data: dict = {}
-    
+
     def __init__(self, octrees_output: List[OctreeLevel], dc_meshes: List[DualContouringMesh] = None, fw_gravity: np.ndarray = None):
         self.octrees_output = octrees_output
         self.dc_meshes = dc_meshes
         self.gravity = fw_gravity
-        
+
+        self._set_scalar_field_at_surface_points_and_elements_order(octrees_output)
+            
         if SET_RAW_ARRAYS_IN_SOLUTION:  # * This can add an unnecessary overhead
             self._raw_arrays = RawArraysSolution.from_gempy_engine_solutions(
                 octrees_output=octrees_output,
@@ -31,19 +36,19 @@ class Solutions:
                 fw_gravity=fw_gravity
             )
 
+
     def __repr__(self):
         return f"Solutions({len(self.octrees_output)} Octree Levels, {len(self.dc_meshes)} DualContouringMeshes)"
 
     def _repr_html_(self):
         return f"<b>Solutions:</b> {len(self.octrees_output)} Octree Levels, {len(self.dc_meshes)} DualContouringMeshes"
-    
+
     # def __repr__(self):
     #     return f"{self.__class__.__name__}({self.octrees_output})"
-    
+
     @property
     def raw_arrays(self):
         return self._raw_arrays
-
 
     def meshes_to_unstruct(self) -> "subsurface.UnstructuredData":
         meshes = self.dc_meshes
@@ -80,5 +85,14 @@ class Solutions:
         )
 
         return unstructured_data
-
     
+    def _set_scalar_field_at_surface_points_and_elements_order(self, octrees_output):
+        for structural_group in octrees_output[0].outputs_centers:
+            scalar_field_at_surface_points_data = BackendTensor.t.to_numpy(structural_group.scalar_field_at_sp)
+            self.scalar_field_at_surface_points = np.append(
+                self.scalar_field_at_surface_points,
+                scalar_field_at_surface_points_data
+            )
+
+            # Order self_scalar_field_at_surface_points
+            self._ordered_elements.append(np.argsort(scalar_field_at_surface_points_data)[::-1])
