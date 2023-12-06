@@ -10,6 +10,7 @@ from ...core.data.options import KernelOptions, InterpolationOptions
 
 from ...modules.kernel_constructor import kernel_constructor_interface as kernel_constructor
 from ...modules.solver import solver_interface
+from ...modules.weights_cache.weights_cache_interface import WeightCache, generate_cache_key
 
 
 class WeightsBuffer:
@@ -33,11 +34,23 @@ class WeightsBuffer:
 
 def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions) -> Tuple[np.ndarray, ExportedFields]:
     # region Solver
-    if WeightsBuffer.get(solver_input, options.kernel_options) is None:
+
+    weights_key = generate_cache_key(
+        name="sandstone",
+        parameters={
+            "solver_input": solver_input,
+            "kernel_options": options.kernel_options
+        }
+    )
+    
+    weights_from_cache = WeightCache.load_weights(weights_key)
+    
+    if weights_from_cache is None:
         weights = _solve_interpolation(solver_input, options.kernel_options)
-        WeightsBuffer.add(weights, solver_input, options.kernel_options)
+        
+        WeightCache.store_weights(weights_key, weights)
     else:
-        weights = WeightsBuffer.get(solver_input, options.kernel_options)
+        weights = weights_from_cache
 
     # endregion
 

@@ -6,8 +6,7 @@ example_weights = np.array([.2, .2, .4, .2])
 
 
 def test_save_weights():
-    cache_dir = get_default_cache_dir()
-    cache = WeightCache(cache_dir)
+    WeightCache.initialize_cache_dir()
 
     weights_key = generate_cache_key(
         name="sandstone",
@@ -17,7 +16,7 @@ def test_save_weights():
         }
     )
 
-    cache.store_weights(
+    WeightCache.store_weights(
         key=weights_key,
         weights=example_weights
     )
@@ -25,8 +24,7 @@ def test_save_weights():
 
 def test_load_weights():
     # Load weights
-    cache_dir = get_default_cache_dir()
-    cache = WeightCache(cache_dir)
+    WeightCache.initialize_cache_dir()
     
     weights_key = generate_cache_key(
         name="sandstone",
@@ -36,7 +34,7 @@ def test_load_weights():
         }
     )
 
-    retrieved_weights = cache.load_weights(weights_key)
+    retrieved_weights = WeightCache.load_weights(weights_key)
     print(retrieved_weights)
 
 
