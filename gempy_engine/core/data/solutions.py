@@ -87,6 +87,9 @@ class Solutions:
         return unstructured_data
     
     def _set_scalar_field_at_surface_points_and_elements_order(self, octrees_output):
+        self.scalar_field_at_surface_points = np.empty(0)
+        self._ordered_elements = []
+        
         for structural_group in octrees_output[0].outputs_centers:
             scalar_field_at_surface_points_data = BackendTensor.t.to_numpy(structural_group.scalar_field_at_sp)
             self.scalar_field_at_surface_points = np.append(
