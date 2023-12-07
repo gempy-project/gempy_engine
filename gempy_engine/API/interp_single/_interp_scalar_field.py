@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Optional
 
 import numpy as np
 
@@ -34,10 +34,9 @@ class WeightsBuffer:
 
 def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions, stack_number: int) -> Tuple[np.ndarray, ExportedFields]:
     # region Solver
-
-    model_name = options._model_name
-    weights_key = f"{model_name}.{stack_number}"
     
+    weights_key = f"{options._model_name}.{stack_number}"
+    weights_cached: Optional[dict] = WeightCache.load_weights(weights_key),
     weights_hash = generate_cache_key(
         name="",
         parameters={
@@ -47,39 +46,29 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
             "kernel_options": options.kernel_options
         }
     )
-    
-    # TODO: If the weights_key are exactly the same we can skip the interpolation all along. Otherwise if the shape is
-    #  the same we can use the weights as initial guess
-    # TODO: Pass model name + group at least number in solver_input?
-    
-    weights_from_cache = WeightCache.load_weights(weights_key)
 
-    # TODO: Check if the weights are the same and if the shape is the same
-    if weights_from_cache is None or (force:=True):
-        weights = _solve_interpolation(solver_input, options.kernel_options)
-        
-        WeightCache.store_weights(
-            file_name=weights_key,
-            hash=weights_hash,
-            weights= weights
-        )
-    elif hash_is_equals:= weights_from_cache["hash"] == weights_hash:
-        weights = weights_from_cache["weights"]
-    else:
-        solver_input.weights_x0 = weights_from_cache["weights"]
-        weights = _solve_interpolation(solver_input, options.kernel_options)
-        WeightCache.store_weights(
-            file_name=weights_key,
-            hash=weights_hash,
-            weights=weights
-        )
-
+    match weights_cached:
+        case None:
+            weights = _solve_and_store_weights(solver_input, options.kernel_options, weights_key, weights_hash)
+        case _ if weights_cached["hash"] != weights_hash:
+            solver_input.weights_x0 = weights_cached["weights"]
+            weights = _solve_and_store_weights(solver_input, options.kernel_options, weights_key, weights_hash)
+        case _ if weights_cached["hash"] == weights_hash:
+            weights = weights_cached["weights"]
+        case _:
+            raise ValueError("Something went wrong with the cache")
+  
     # endregion
 
     exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options)
 
     return weights, exported_fields
 
+
+def _solve_and_store_weights(solver_input, kernel_options, weights_key, weights_hash):
+    weights = _solve_interpolation(solver_input, kernel_options)
+    WeightCache.store_weights(file_name=weights_key, hash=weights_hash, weights=weights)
+    return weights
 
 def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOptions) -> np.ndarray:
     A_matrix = kernel_constructor.yield_covariance(interp_input, kernel_options)

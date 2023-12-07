@@ -2,6 +2,7 @@
 import os
 import pickle
 import tempfile
+from typing import Optional
 
 
 def generate_cache_key(name, parameters):
@@ -76,7 +77,7 @@ class WeightCache:
                 f)
 
     @staticmethod
-    def load_weights(key):
+    def load_weights(key) -> Optional[dict]:
         # Try to load from memory
         if key in WeightCache.memory_cache:
             return WeightCache.memory_cache[key]

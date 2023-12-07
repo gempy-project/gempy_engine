@@ -2,7 +2,7 @@
 from pykeops.common.parse_type import get_optional_flags, complete_aliases, get_sizes
 from pykeops.common.utils import pyKeOps_Warning, axis2cat
 
-from modules.solver._kernel_solve_autograd import KernelSolveAutograd
+from gempy_engine.modules.solver._kernel_solve_autograd import KernelSolveAutograd
 
 
 class KernelSolve:
