@@ -55,7 +55,6 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
     weights_from_cache = WeightCache.load_weights(weights_key)
 
     # TODO: Check if the weights are the same and if the shape is the same
-    hash_is_equals = weights_from_cache["hash"] == weights_hash
     if weights_from_cache is None:
         weights = _solve_interpolation(solver_input, options.kernel_options)
         
@@ -64,7 +63,7 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
             hash=weights_hash,
             weights= weights
         )
-    elif hash_is_equals:
+    elif hash_is_equals:= weights_from_cache["hash"] == weights_hash:
         weights = weights_from_cache["weights"]
     else:
         solver_input.weights_x0 = weights_from_cache["weights"]

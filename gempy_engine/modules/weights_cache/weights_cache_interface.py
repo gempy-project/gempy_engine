@@ -61,14 +61,19 @@ class WeightCache:
     def store_weights(file_name, hash, weights):
         
         # Store in memory
-        WeightCache.memory_cache[hash] = {
+        WeightCache.memory_cache[file_name] = {
             "hash": hash,
             "weights": weights
         }
 
         # Optionally store on disk as well
-        with open(WeightCache._disk_cache_path(hash), 'wb') as f:
-            pickle.dump(weights, f)
+        with open(WeightCache._disk_cache_path(file_name), 'wb') as f:
+            pickle.dump(
+                {
+                    "hash": hash,
+                    "weights": weights
+                },
+                f)
 
     @staticmethod
     def load_weights(key):
