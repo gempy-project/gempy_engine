@@ -47,7 +47,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0, x
                 
                 w = solver(eps=1e-5)
             else:
-                from .custom_pykeops_solver import solve
+                from ._custom_pykeops_solver import solve
                 solver = solve(
                     cov,
                     b.view(-1, 1),
@@ -58,8 +58,10 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0, x
                     sum_scheme="kahan_scheme"
                 )
 
-                x0 = 5
-                w = solver(eps=1e-5, x0=x0)
+                w = solver(
+                    eps=1e-5, 
+                    x0=x0
+                )
 
         case (AvailableBackends.tensorflow, True, _):
             raise NotImplementedError('Pykeops is not implemented for tensorflow yet')
