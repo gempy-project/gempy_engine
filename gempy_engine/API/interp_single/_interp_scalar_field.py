@@ -36,7 +36,7 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
     # region Solver
     
     weights_key = f"{options._model_name}.{stack_number}"
-    weights_cached: Optional[dict] = WeightCache.load_weights(weights_key),
+    weights_cached: Optional[dict] = WeightCache.load_weights(weights_key)
     weights_hash = generate_cache_key(
         name="",
         parameters={

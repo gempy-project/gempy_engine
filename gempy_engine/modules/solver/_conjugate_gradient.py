@@ -1,5 +1,7 @@
 ﻿from pykeops.common.utils import get_tools
 
+from gempy_engine.core.backend_tensor import BackendTensor
+
 
 def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None):
     # Conjugate gradient algorithm to solve linear system of the form
@@ -10,7 +12,7 @@ def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None):
 
     # Initialize 'a' with 'x0' if provided, otherwise as zero vector
     if x0 is not None:
-        a = tools.copy(x0)
+        a = tools.copy(x0.to(BackendTensor.dtype_obj))
     else:
         a = 0 * b
 
