@@ -121,24 +121,36 @@ class InterpolationInput:
         new_extents = np.array([transformed[:, 0].min(), transformed[:, 0].max(),
                                 transformed[:, 1].min(), transformed[:, 1].max(),
                                 transformed[:, 2].min(), transformed[:, 2].max()])
-        
-        regular_grid: RegularGrid = RegularGrid(
-            extent=new_extents,
-            regular_grid_shape=interpolation_resolution,
-        )
-        
-        topography_values: GenericGrid = GenericGrid( values=transform.apply(grid.topography.values)) if grid.topography is not None else None
-        section_values: GenericGrid = GenericGrid(values=transform.apply(grid.sections.values)) if grid.sections is not None else None
-        custom_values: GenericGrid = GenericGrid(values=transform.apply(grid.custom_grid.values)) if grid.custom_grid is not None else None
-        if grid.centered_grid is not None:
+
+        # Initialize all variables to None
+        regular_grid: Optional[RegularGrid] = None
+        custom_values: Optional[GenericGrid] = None
+        topography_values: Optional[GenericGrid] = None
+        section_values: Optional[GenericGrid] = None
+        centered_grid: Optional[CenteredGrid] = None
+
+        if grid.active_grids_bool[0]:
+            regular_grid = RegularGrid(
+                extent=new_extents,
+                regular_grid_shape=interpolation_resolution,
+            )
+
+        if grid.active_grids_bool[1] and grid.custom_grid is not None:
+            custom_values = GenericGrid(values=transform.apply(grid.custom_grid.values))
+
+        if grid.active_grids_bool[2] and grid.topography is not None:
+            topography_values = GenericGrid(values=transform.apply(grid.topography.values))
+
+        if grid.active_grids_bool[3] and grid.sections is not None:
+            section_values = GenericGrid(values=transform.apply(grid.sections.values))
+
+        if grid.active_grids_bool[4] and grid.centered_grid is not None:
             centered_grid = CenteredGrid(
                 centers=transform.apply(grid.centered_grid.centers),
-                radius=transform.scale_points(np.atleast_2d(grid.centered_grid.radius))[0], # * This is a bit too much shape manipulation for my taste
+                radius=transform.scale_points(np.atleast_2d(grid.centered_grid.radius))[0],
                 resolution=grid.centered_grid.resolution
             )
-        else:
-            centered_grid = None
-
+                
         grid: Grid = Grid(
             regular_grid=regular_grid,
             topography=topography_values,
