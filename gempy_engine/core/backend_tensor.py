@@ -259,7 +259,7 @@ class BackendTensor:
                 case _:
                     raise TypeError("Unsupported tensor type")
 
-        def _sum(tensor, axis, dtype=None, keepdims=False):
+        def _sum(tensor, axis=None, dtype=None, keepdims=False):
             match tensor:
                 case numpy.ndarray():
                     return numpy.sum(tensor, axis=axis, keepdims=keepdims, dtype=dtype)
