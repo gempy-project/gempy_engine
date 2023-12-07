@@ -19,9 +19,11 @@ def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None):
     if nr2 < delta:
         return a
     p = tools.copy(r)
-    k = 0
+    k = 1
     prev_nr2 = nr2  # Initialize previous nr2 for divergence check
-    max_iterations = 1000
+    max_iterations = 5000
+    divergence_tolerance = 20  # Number of consecutive iterations allowed for increase in residual
+    consecutive_divergence = 0  # Counter for consecutive divergence
 
     while k < max_iterations:
         Mp = linop(p)
@@ -36,20 +38,25 @@ def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None):
 
         # Check for divergence
         if nr2new > prev_nr2:
-            print(f"Diverging at iteration {k}. Stopping algorithm.")
-            break
-
+            consecutive_divergence += 1
+            if consecutive_divergence >= divergence_tolerance:
+                print(f"Diverging for {divergence_tolerance} consecutive iterations at iteration {k}. Stopping algorithm.")
+                break
+        else:
+            consecutive_divergence = 0  # Reset counter if no divergence in this iteration
         # Update for next iteration
         p = r + (nr2new / nr2) * p
         nr2 = nr2new
         prev_nr2 = nr2  # Update previous nr2
 
         # Print every 100 iterations
-        if k % 100 == 0:
+        if k % 1000 == 0:
             print(f"Iteration {k}, Residual Norm: {nr2}")
 
         k += 1
 
+    # Print final number of iterations
+    print(f"Final Iteration {k}, Residual Norm: {nr2}")
     return a
 
 
