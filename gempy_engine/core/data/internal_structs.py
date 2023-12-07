@@ -14,6 +14,7 @@ class SolverInput(object):
     ori_internal: OrientationsInternals = field(init=False, hash=False)
     xyz_to_interpolate: Optional[np.ndarray] = field(init=False, hash=False)  # * it is optional if the instance is only used to create the cov
     _fault_internal: Optional[FaultsData] = field(init=False, hash=False)
+    weights_x0: Optional[BackendTensor.dtype_obj] = None
 
     debug = None
 

@@ -2,17 +2,50 @@
 
 from pykeops.common.get_options import get_tag_backend
 from pykeops.common.keops_io import keops_binder
-from pykeops.common.operations import ConjugateGradientSolver
 from pykeops.common.parse_type import (
     get_type,
     get_sizes,
     complete_aliases,
     get_optional_flags,
 )
-from pykeops.common.utils import axis2cat
+from pykeops.common.utils import axis2cat, get_tools
 from pykeops.torch.generic.generic_red import GenredAutograd
 from pykeops import default_device_id
 from pykeops.common.utils import pyKeOps_Warning
+
+
+def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None):
+    # Conjugate gradient algorithm to solve linear system of the form
+    # Ma=b where linop is a linear operation corresponding
+    # to a symmetric and positive definite matrix
+    tools = get_tools(binding)
+    delta = tools.size(b) * eps**2
+
+    # Initialize 'a' with 'x0' if provided, otherwise as zero vector
+    if x0 is not None:
+        a = tools.copy(x0)
+    else:
+        a = 0 * b
+
+    r = tools.copy(b) - linop(a)  # Update the residual based on the initial guess
+    nr2 = (r**2).sum()
+    if nr2 < delta:
+        return a
+    p = tools.copy(r)
+    k = 0
+    while True:
+        Mp = linop(p)
+        alp = nr2 / (p * Mp).sum()
+        a += alp * p
+        r -= alp * Mp
+        nr2new = (r**2).sum()
+        if nr2new < delta:
+            break
+        p = r + (nr2new / nr2) * p
+        nr2 = nr2new
+        k += 1
+    return a
+
 
 
 class KernelSolveAutograd(torch.autograd.Function):
@@ -36,6 +69,7 @@ class KernelSolveAutograd(torch.autograd.Function):
             rec_multVar_highdim,
             nx,
             ny,
+            x0,
             *args
     ):
         # N.B. when rec_multVar_highdim option is set, it means that formula is of the form "sum(F*b)", where b is a variable
@@ -119,7 +153,7 @@ class KernelSolveAutograd(torch.autograd.Function):
             return res
 
         global copy
-        result = ConjugateGradientSolver("torch", linop, varinv.data, eps)
+        result = ConjugateGradientSolver("torch", linop, varinv.data, eps, x0=x0)
 
         # relying on the 'ctx.saved_variables' attribute is necessary  if you want to be able to differentiate the output
         #  of the backward once again. It helps pytorch to keep track of 'who is who'.
@@ -350,6 +384,7 @@ class KernelSolve:
             rec_multVar_highdim=None,
             dtype=None,
             cuda_type=None,
+            x0=None
     ):
         r"""
         Instantiate a new KernelSolve operation.
@@ -461,7 +496,7 @@ class KernelSolve:
         self.axis = axis
 
     def __call__(
-            self, *args, backend="auto", device_id=-1, alpha=1e-10, eps=1e-6, ranges=None
+            self, *args, backend="auto", device_id=-1, alpha=1e-10, eps=1e-6, ranges=None, x0=None
     ):
         r"""
         Apply the routine on arbitrary torch Tensors.
@@ -531,5 +566,6 @@ class KernelSolve:
             self.rec_multVar_highdim,
             nx,
             ny,
+            x0,
             *args
         )

@@ -1,5 +1,5 @@
 import warnings
-
+from typing import Optional
 
 from gempy_engine.core.data.kernel_classes.solvers import Solvers
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
@@ -13,7 +13,7 @@ global n_iters
 
 
 
-def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -> np.ndarray:
+def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0, x0: Optional[BackendTensor.dtype_obj] = None) -> np.ndarray:
     global n_iters
     n_iters = 0
     
@@ -58,7 +58,8 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0) -
                     sum_scheme="kahan_scheme"
                 )
 
-                w = solver(eps=1e-5)
+                x0 = 5
+                w = solver(eps=1e-5, x0=x0)
 
         case (AvailableBackends.tensorflow, True, _):
             raise NotImplementedError('Pykeops is not implemented for tensorflow yet')
