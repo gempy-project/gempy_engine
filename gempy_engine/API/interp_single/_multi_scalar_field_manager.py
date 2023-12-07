@@ -88,7 +88,8 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
             data_shape             = tensor_struct_i,
             solver_input           = solver_input,
             external_interp_funct  = stack_structure.interp_function,
-            external_segment_funct = stack_structure.segmentation_function
+            external_segment_funct = stack_structure.segmentation_function,
+            stack_number           = i
         )
 
 # @on

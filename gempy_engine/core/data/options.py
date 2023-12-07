@@ -115,6 +115,8 @@ class InterpolationOptions:
 
     sigmoid_slope                  : int                          = 50000
     _number_octree_levels_surface  : int                          = 4
+    
+    _model_name                    : str                          = None # : Model name for the cache
 
     
     def __init__(

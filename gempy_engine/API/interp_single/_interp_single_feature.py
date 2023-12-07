@@ -24,6 +24,7 @@ def interpolate_feature(interpolation_input: InterpolationInput,
                         solver_input: SolverInput,
                         external_interp_funct: Optional[CustomInterpolationFunctions] = None,
                         external_segment_funct: Optional[Callable[[np.ndarray], float]] = None,
+                        stack_number: Optional[int] = None,
                         clean_buffer: bool = True) -> ScalarFieldOutput:
     
     if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and COMPUTE_GRADIENTS is False:
@@ -35,7 +36,7 @@ def interpolate_feature(interpolation_input: InterpolationInput,
     xyz = solver_input.xyz_to_interpolate
 
     if external_interp_funct is None:  # * EXTERNAL INTERPOLATION FUNCTION branching
-        weights, exported_fields = interpolate_scalar_field(solver_input, options)
+        weights, exported_fields = interpolate_scalar_field(solver_input, options, stack_number)
 
         exported_fields.set_structure_values(
             reference_sp_position = data_shape.reference_sp_position,

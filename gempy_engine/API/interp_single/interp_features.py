@@ -3,22 +3,20 @@ from typing import List
 
 import gempy_engine.core.data.tensors_structure
 from gempy_engine.config import AvailableBackends, COMPUTE_GRADIENTS
-from ...core.backend_tensor import BackendTensor
-from ...core.data.grid import Grid
-from ...core import data
-from ...core.data import InterpolationOptions
-from ...core.data.octree_level import OctreeLevel
-from ...core.data.interp_output import InterpOutput
-from ...core.data.scalar_field_output import ScalarFieldOutput
-from ...core.data.input_data_descriptor import InputDataDescriptor
-from ...core.data.interpolation_input import InterpolationInput
-
-from ...modules.octrees_topology.octrees_topology_interface import get_next_octree_grid
-
 from . import _multi_scalar_field_manager as ms
-from ._interp_scalar_field import WeightsBuffer, interpolate_scalar_field
+from ._interp_scalar_field import interpolate_scalar_field
 from ._interp_single_feature import interpolate_feature, input_preprocess
 from ._octree_generation import interpolate_on_octree
+from ...core import data
+from ...core.backend_tensor import BackendTensor
+from ...core.data import InterpolationOptions
+from ...core.data.grid import Grid
+from ...core.data.input_data_descriptor import InputDataDescriptor
+from ...core.data.interp_output import InterpOutput
+from ...core.data.interpolation_input import InterpolationInput
+from ...core.data.octree_level import OctreeLevel
+from ...core.data.scalar_field_output import ScalarFieldOutput
+from ...modules.octrees_topology.octrees_topology_interface import get_next_octree_grid
 
 
 def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options: data.InterpolationOptions,

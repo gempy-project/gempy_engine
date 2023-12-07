@@ -32,25 +32,43 @@ class WeightsBuffer:
         return current_weights
 
 
-def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions) -> Tuple[np.ndarray, ExportedFields]:
+def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions, stack_number: int) -> Tuple[np.ndarray, ExportedFields]:
     # region Solver
 
-    weights_key = generate_cache_key(
-        name="sandstone",
+    model_name = options._model_name
+    weights_key = f"{model_name}.{stack_number}"
+    
+    weights_hash = generate_cache_key(
+        name="",
         parameters={
-            "solver_input": solver_input,
+            "surface_points": solver_input.sp_internal,
+            "orientations": solver_input.ori_internal,
+            "fault_internal": solver_input._fault_internal.fault_values_on_sp,
             "kernel_options": options.kernel_options
         }
     )
     
-    weights_from_cache = WeightCache.load_weights(weights_key)
+    # TODO: If the weights_key are exactly the same we can skip the interpolation all along. Otherwise if the shape is
+    #  the same we can use the weights as initial guess
+    # TODO: Pass model name + group at least number in solver_input?
     
+    weights_from_cache = WeightCache.load_weights(weights_key)
+
+    # TODO: Check if the weights are the same and if the shape is the same
+    hash_is_equals = weights_from_cache["hash"] == weights_hash
     if weights_from_cache is None:
         weights = _solve_interpolation(solver_input, options.kernel_options)
         
-        WeightCache.store_weights(weights_key, weights)
+        WeightCache.store_weights(
+            file_name=weights_key,
+            hash=weights_hash,
+            weights= weights
+        )
+    elif hash_is_equals:
+        weights = weights_from_cache["weights"]
     else:
-        weights = weights_from_cache
+        solver_input.weights_x0 = weights_from_cache["weights"]
+        weights = _solve_interpolation(solver_input, options.kernel_options)
 
     # endregion
 
@@ -63,22 +81,8 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
     A_matrix = kernel_constructor.yield_covariance(interp_input, kernel_options)
     b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
 
-    if kernel_options.optimizing_condition_number:  # TODO: add condition
-
-        from ...core.data.continue_epoch import ContinueEpoch
-        import torch
-        
-        cond_number = BackendTensor.t.linalg.cond(A_matrix)
-        nuggets = interp_input.sp_internal.nugget_effect_ref_rest
-
-        l1_reg = torch.norm(nuggets, 2)**2
-        lambda_l1 = 100000000
-        loss = cond_number - lambda_l1 * l1_reg 
-        loss.backward()
-        
-        kernel_options.condition_number = cond_number
-        print(f'Condition number: {cond_number}.')
-        raise ContinueEpoch()
+    if kernel_options.optimizing_condition_number:  
+        _optimize_nuggets_against_condition_number(A_matrix, interp_input, kernel_options)
 
     # TODO: Smooth should be taken from options
     weights = solver_interface.kernel_reduction(
@@ -101,6 +105,20 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
             assert weights.dtype == BackendTensor.dtype_obj, f"Wrong dtype for weights: {weights.dtype}. should be {BackendTensor.dtype_obj}"
 
     return weights
+
+
+def _optimize_nuggets_against_condition_number(A_matrix, interp_input, kernel_options):
+    from ...core.data.continue_epoch import ContinueEpoch
+    import torch
+    cond_number = BackendTensor.t.linalg.cond(A_matrix)
+    nuggets = interp_input.sp_internal.nugget_effect_ref_rest
+    l1_reg = torch.norm(nuggets, 2) ** 2
+    lambda_l1 = 100000000
+    loss = cond_number - lambda_l1 * l1_reg
+    loss.backward()
+    kernel_options.condition_number = cond_number
+    print(f'Condition number: {cond_number}.')
+    raise ContinueEpoch()
 
 
 def _evaluate_sys_eq(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions) -> ExportedFields:
