@@ -102,7 +102,7 @@
     else:
         res.rec_multVar_highdim = None
 
-    from modules.solver._kernel_solver_from_lazy_tensor import KernelSolve
+    from gempy_engine.modules.solver._kernel_solver_from_lazy_tensor import KernelSolve
     if res._dtype is not None:
         res.fixvariables()
         res.callfun = KernelSolve(
