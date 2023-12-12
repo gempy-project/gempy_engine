@@ -165,7 +165,7 @@ class BackendTensor:
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
 
-            return sum(tensor, axis, dtype=dtype, keepdim=keepdim)
+            return sum(tensor, axis, dtype=dtype)
 
         def _repeat(tensor, n_repeats, axis=None):
             return repeat_interleave(tensor, n_repeats, dim=axis)

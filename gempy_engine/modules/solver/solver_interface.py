@@ -60,7 +60,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0, x
 
                 w = solver(
                     eps=1e-5, 
-                    x0=x0
+                    x0=BackendTensor.t.array(x0)
                 )
 
         case (AvailableBackends.tensorflow, True, _):
