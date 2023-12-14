@@ -171,6 +171,8 @@ class BackendTensor:
             return repeat_interleave(tensor, n_repeats, dim=axis)
 
         def _array(array_like, dtype=None):
+            if array_like is None:
+                return None
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
             if isinstance(array_like, torch.Tensor):
