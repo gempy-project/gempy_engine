@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Type
 
 import numpy as np
@@ -20,7 +20,7 @@ class TensorsStructure:
     number_of_points_per_surface: np.ndarray
     dtype: Type = np.int32  # ? Isn't this more for options?
 
-    _reference_sp_position: np.ndarray = np.ones(1)
+    _reference_sp_position: np.ndarray =  field(default_factory=lambda: np.ones(1))
 
     def __post_init__(self):  # TODO: Move this to init
         _cast_type_inplace(self)

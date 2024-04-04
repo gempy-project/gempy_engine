@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Callable, Iterable
 
 import numpy as np
@@ -17,16 +17,16 @@ class StacksStructure:
     number_of_orientations_per_stack: np.ndarray
     number_of_surfaces_per_stack    : np.ndarray
     masking_descriptor              : List[StackRelationType | False]
-    faults_relations                : Optional[np.ndarray]                = None
+    faults_relations                : Optional[np.ndarray]               = None
     faults_input_data               : Optional[List[FaultsData]]          = None  # ? Shouldn't be private?
     
     # * These two fields are optional but public
     interp_functions_per_stack      : List[CustomInterpolationFunctions] = None
     segmentation_functions_per_stack: Optional[List[Callable[[np.ndarray], float]]] = None
 
-    _number_of_points_per_stack_vector      : np.ndarray = np.ones(1)
-    _number_of_orientations_per_stack_vector: np.ndarray = np.ones(1)
-    _number_of_surfaces_per_stack_vector    : np.ndarray = np.ones(1)
+    _number_of_points_per_stack_vector      : np.ndarray = field(default_factory=lambda: np.ones(1))
+    _number_of_orientations_per_stack_vector: np.ndarray = field(default_factory=lambda: np.ones(1))
+    _number_of_surfaces_per_stack_vector    : np.ndarray = field(default_factory=lambda: np.ones(1))
 
     stack_number: int = -1
 

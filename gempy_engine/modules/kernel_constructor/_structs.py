@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Tuple, Optional
 
 import numpy as np
@@ -23,8 +23,8 @@ def _upgrade_kernel_input_to_keops_tensor_pytorch(struct_data_instance):
     for key, val in struct_data_instance.__dict__.items():
         if key == "n_faults_i": continue
         struct_data_instance.__dict__[key] = LazyTensor(val.type(BackendTensor.dtype_obj))
-        
-        
+
+
 def _cast_tensors(data_class_instance):
     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled):
         case (AvailableBackends.numpy, True):
@@ -40,10 +40,10 @@ def _cast_tensors(data_class_instance):
 
 @dataclass
 class OrientationSurfacePointsCoords:
-    dip_ref_i: tensor_types = np.empty((0, 1, 3))
-    dip_ref_j: tensor_types = np.empty((1, 0, 3))
-    diprest_i: tensor_types = np.empty((0, 1, 3))
-    diprest_j: tensor_types = np.empty((1, 0, 3))
+    dip_ref_i: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    dip_ref_j: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
+    diprest_i: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    diprest_j: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
 
     def __init__(self, x_ref: np.ndarray, y_ref: np.ndarray, x_rest: np.ndarray, y_rest: np.ndarray):
         def _assembly(x, y) -> Tuple[np.ndarray, np.ndarray]:
@@ -53,20 +53,20 @@ class OrientationSurfacePointsCoords:
 
         self.dip_ref_i, self.dip_ref_j = _assembly(x_ref, y_ref)
         self.diprest_i, self.diprest_j = _assembly(x_rest, y_rest)
-        
+
         _cast_tensors(self)
 
 
 @dataclass
 class OrientationsDrift:
-    dips_ug_ai: tensor_types = np.empty((0, 1, 3))
-    dips_ug_aj: tensor_types = np.empty((1, 0, 3))
-    dips_ug_bi: tensor_types = np.empty((0, 1, 3))
-    dips_ug_bj: tensor_types = np.empty((1, 0, 3))
-    dips_ug_ci: tensor_types = np.empty((0, 1, 3))
-    dips_ug_cj: tensor_types = np.empty((1, 0, 3))
-    selector_ci: tensor_types = np.empty((0, 1, 3))
-    selector_cj: tensor_types = np.empty((1, 0, 3))
+    dips_ug_ai: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    dips_ug_aj: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
+    dips_ug_bi: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    dips_ug_bj: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
+    dips_ug_ci: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    dips_ug_cj: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
+    selector_ci: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    selector_cj: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
 
     def __init__(self,
                  x_degree_1: np.ndarray, y_degree_1: np.ndarray,
@@ -87,12 +87,12 @@ class OrientationsDrift:
 
 @dataclass
 class PointsDrift:
-    dipsPoints_ui_ai: tensor_types = np.empty((0, 1, 3))
-    dipsPoints_ui_aj: tensor_types = np.empty((1, 0, 3))
-    dipsPoints_ui_bi1: tensor_types = np.empty((0, 1, 3))
-    dipsPoints_ui_bj1: tensor_types = np.empty((1, 0, 3))
-    dipsPoints_ui_bi2: tensor_types = np.empty((0, 1, 3))
-    dipsPoints_ui_bj2: tensor_types = np.empty((1, 0, 3))
+    dipsPoints_ui_ai: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    dipsPoints_ui_aj: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
+    dipsPoints_ui_bi1: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    dipsPoints_ui_bj1: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
+    dipsPoints_ui_bi2: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    dipsPoints_ui_bj2: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
 
     def __init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, x_degree_2a: np.ndarray,
                  y_degree_2a: np.ndarray, x_degree_2b: np.ndarray, y_degree_2b: np.ndarray):
@@ -108,8 +108,8 @@ class PointsDrift:
 
 @dataclass
 class FaultDrift:
-    faults_i: tensor_types = np.empty((0, 1, 3))
-    faults_j: tensor_types = np.empty((1, 0, 3))
+    faults_i: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    faults_j: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
 
     n_faults_i: int = 0
 
@@ -124,17 +124,16 @@ class FaultDrift:
 
 @dataclass
 class CartesianSelector:
-    hu_sel_i: tensor_types = np.empty((0, 1, 3))
-    hu_sel_j: tensor_types = np.empty((1, 0, 3))
-    hv_sel_i: tensor_types = np.empty((0, 1, 3))
-    hv_sel_j: tensor_types = np.empty((1, 0, 3))
+    hu_sel_i: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    hu_sel_j: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
+    hv_sel_i: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    hv_sel_j: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
 
-    h_sel_ref_i: tensor_types = np.empty((0, 1, 3))
-    h_sel_ref_j: tensor_types = np.empty((1, 0, 3))
+    h_sel_ref_i: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    h_sel_ref_j: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
 
-    h_sel_rest_i: tensor_types = np.empty((0, 1, 3))
-    h_sel_rest_j: tensor_types = np.empty((1, 0, 3))
-
+    h_sel_rest_i: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    h_sel_rest_j: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
     # is_gradient: bool = False (June) This seems to be unused
 
     def __init__(self,
@@ -160,9 +159,9 @@ class CartesianSelector:
 
 @dataclass
 class DriftMatrixSelector:
-    sel_ui: tensor_types = np.empty((0, 1, 3))
-    sel_vj: tensor_types = np.empty((1, 0, 3))
-
+    sel_ui: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
+    sel_vj: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
+    
     def __init__(self, x_size: int, y_size: int, n_drift_eq: int, drift_start_post_x: int, drift_start_post_y: int):
         sel_i = np.zeros((x_size, 2), dtype=BackendTensor.dtype)
         sel_j = np.zeros((y_size, 2), dtype=BackendTensor.dtype)

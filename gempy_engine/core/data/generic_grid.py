@@ -1,11 +1,11 @@
-﻿from dataclasses import dataclass
+﻿from dataclasses import dataclass, field
 
 import numpy as np
 
 
 @dataclass
 class GenericGrid:
-    values: np.ndarray = np.zeros((0, 3))
+    values: np.ndarray = field(default_factory=lambda: np.zeros((0, 3)))
     name: str = "Generic Grid"
     
     def __len__(self):

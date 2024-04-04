@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Union
 
 from gempy_engine.core.backend_tensor import BackendTensor
@@ -71,9 +71,9 @@ class Orientations:
 
 @dataclass
 class OrientationsGradients:
-    gx: np.array = np.empty((0, 3))
-    gy: np.array = np.empty((0, 3))
-    gz: np.array = np.empty((0, 3))
+    gx: np.array = field(default_factory=lambda: np.empty((0, 3)))
+    gy: np.array = field(default_factory=lambda: np.empty((0, 3)))
+    gz: np.array = field(default_factory=lambda: np.empty((0, 3)))
 
 
 @dataclass
