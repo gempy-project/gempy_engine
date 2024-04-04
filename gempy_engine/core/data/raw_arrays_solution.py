@@ -1,4 +1,4 @@
-﻿from dataclasses import dataclass
+﻿from dataclasses import dataclass, field
 from typing import Optional
 
 import numpy as np
@@ -27,16 +27,16 @@ class RawArraysSolution:
     # endregion
 
     # region Regular Grid
-    lith_block: np.ndarray = np.empty(0)
-    fault_block: np.ndarray = np.empty(0)
-    litho_faults_block: np.ndarray = np.empty(0)
+    lith_block: np.ndarray = field(default_factory=lambda: np.empty(0))
+    fault_block: np.ndarray = field(default_factory=lambda: np.empty(0))
+    litho_faults_block: np.ndarray = field(default_factory=lambda: np.empty(0))
 
-    scalar_field_matrix: np.ndarray = np.empty(0)
-    block_matrix: np.ndarray = np.empty(0)
-    mask_matrix: np.ndarray = np.empty(0)
-    mask_matrix_squeezed: np.ndarray = np.empty(0)
-    values_matrix: np.ndarray = np.empty(0)
-    gradient: np.ndarray = np.empty(0)
+    scalar_field_matrix: np.ndarray = field(default_factory=lambda: np.empty(0))
+    block_matrix: np.ndarray = field(default_factory=lambda: np.empty(0))
+    mask_matrix: np.ndarray = field(default_factory=lambda: np.empty(0))
+    mask_matrix_squeezed: np.ndarray = field(default_factory=lambda: np.empty(0))
+    values_matrix: np.ndarray = field(default_factory=lambda: np.empty(0))
+    gradient: np.ndarray = field(default_factory=lambda: np.empty(0))
     # endregion
 
     # region other grids
@@ -51,7 +51,7 @@ class RawArraysSolution:
     # endregion
 
     # region Mesh
-    vertices: list[np.ndarray] = np.empty((0, 3))
+    vertices: list[np.ndarray] = field(default_factory=lambda: np.empty((0, 3)))
     edges: list[np.ndarray] = None
     # endregion
 
