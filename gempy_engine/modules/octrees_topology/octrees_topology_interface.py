@@ -1,9 +1,10 @@
-import enum
-from typing import List, Tuple, Optional
+from typing import List, Optional
 
 import numpy as np
 
 from gempy_engine.core.data.interp_output import InterpOutput
+from gempy_engine.core.data.output.blocks_value_type import ValueType
+
 from ._octree_internals import compute_next_octree_locations
 from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.core.data.engine_grid import EngineGrid
@@ -12,17 +13,6 @@ from gempy_engine.core.data.engine_grid import EngineGrid
 # TODO: [ ] Check if fortran order speeds up this function
 # TODO: Substitute numpy for b.tfnp
 # TODO: Remove all stack to be able to compile TF
-
-class ValueType(enum.Enum):
-    ids = enum.auto()
-    faults_block = enum.auto()
-    litho_faults_block = enum.auto()
-    
-    scalar = enum.auto()
-    
-    squeeze_mask = enum.auto()
-    mask_component = enum.auto()
-    values_block = enum.auto()
 
 
 def get_next_octree_grid(prev_octree: OctreeLevel, compute_topology=False, **kwargs) -> EngineGrid:
@@ -147,21 +137,5 @@ def get_regular_grid_value_for_level(octree_list: List[OctreeLevel], level: Opti
 
 def _get_block_from_value_type(root: OctreeLevel, scalar_n: int, value_type: ValueType):
     element_output: InterpOutput = root.outputs_centers[scalar_n]
-    match value_type:
-        case ValueType.ids:
-            block = element_output.final_block
-        case ValueType.faults_block:
-            block = element_output.faults_block
-        case ValueType.litho_faults_block:
-            block = element_output.litho_faults_ids
-        case ValueType.values_block:
-            block = element_output.values_block[0]
-        case ValueType.scalar:
-            block = element_output.exported_fields.scalar_field
-        case ValueType.squeeze_mask:
-            block = element_output.squeezed_mask_array
-        case ValueType.mask_component:
-            block = element_output.mask_components
-        case _:
-            raise ValueError("ValueType not supported.")
-    return block[element_output.grid.regular_grid_slice]  # * We need to slice the regular grid to get the correct shape
+    block = element_output.get_block_from_value_type(value_type, element_output.grid.octree_grid_slice)
+    return block

@@ -26,7 +26,7 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
     gz = output.exported_fields.gz_field
     print(output.weights)
 
-    ids_block = output.ids_block_regular_grid
+    ids_block = output.ids_block_octree_grid
 
     if save_sol:
         np.save(dir_name + "/solutions/zx", Z_x)

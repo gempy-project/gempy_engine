@@ -6,7 +6,7 @@ from gempy_engine.core.data.kernel_classes.faults import FaultsData
 from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.core.data.options import MeshExtractionMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
-from gempy_engine.modules.octrees_topology.octrees_topology_interface import ValueType
+from gempy_engine.core.data.output.blocks_value_type import ValueType
 
 from gempy_engine.plugins.plotting import helper_functions_pyvista
 from tests.conftest import plot_pyvista

@@ -68,7 +68,7 @@ class EngineGrid:
 
 
     @property
-    def regular_grid_slice(self) -> slice:
+    def octree_grid_slice(self) -> slice:
         return slice(
             0,
             len(self.octree_grid) if self.octree_grid is not None else 0

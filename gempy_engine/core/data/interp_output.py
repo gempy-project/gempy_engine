@@ -6,6 +6,7 @@ import numpy as np
 
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_structs import CombinedScalarFieldsOutput
+from gempy_engine.core.data.output.blocks_value_type import ValueType
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 
 
@@ -87,8 +88,12 @@ class InterpOutput:
         return BackendTensor.t.rint(self.block[self.grid.geophysics_grid_slice])
 
     @property
-    def ids_block_regular_grid(self):
-        return np.rint(self.block[self.grid.regular_grid_slice].reshape(self.grid.octree_grid_shape.tolist()))
+    def ids_block_octree_grid(self):
+        return np.rint(self.block[self.grid.octree_grid_slice].reshape(self.grid.octree_grid_shape.tolist()))
+    
+    @property
+    def ids_block_dense_grid(self):
+        return np.rint(self.block[self.grid.dense_grid_slice].reshape(self.grid.dense_grid_shape.tolist()))
 
     @property
     def ids_custom_grid(self):
@@ -96,12 +101,12 @@ class InterpOutput:
 
     @property
     def ids_block(self) -> np.ndarray:
-        return np.rint(self.block[self.grid.regular_grid_slice])
+        return np.rint(self.block[self.grid.octree_grid_slice])
 
     @ids_block.setter
     def ids_block(self, value):  # ! This is just used for testing or other weird stuff
         warnings.warn("This is just used for testing or other weird stuff")
-        self.block[self.grid.regular_grid_slice] = value
+        self.block[self.grid.octree_grid_slice] = value
 
     @property
     def block(self):
@@ -124,3 +129,23 @@ class InterpOutput:
         # Generate the unique IDs
         unique_ids = litho_ids + faults_ids * multiplier
         return unique_ids
+    
+    def get_block_from_value_type(self, value_type: ValueType, slice_: slice):
+        match value_type:
+            case ValueType.ids:
+                block = self.final_block
+            case ValueType.faults_block:
+                block = self.faults_block
+            case ValueType.litho_faults_block:
+                block = self.litho_faults_ids
+            case ValueType.values_block:
+                block = self.values_block[0]
+            case ValueType.scalar:
+                block = self.exported_fields.scalar_field
+            case ValueType.squeeze_mask:
+                block = self.squeezed_mask_array
+            case ValueType.mask_component:
+                block = self.mask_components
+            case _:
+                raise ValueError("ValueType not supported.")
+        return block[slice_]

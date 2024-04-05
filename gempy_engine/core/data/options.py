@@ -195,7 +195,11 @@ class InterpolationOptions:
     @property
     def number_octree_levels(self):
         # Return whatever is bigger between the number of octree levels and the number of octree levels for surfaces
-        return max(self._number_octree_levels, self._number_octree_levels_surface)
+        if self.mesh_extraction:
+            return max(self._number_octree_levels, self._number_octree_levels_surface)
+        else:
+            return self._number_octree_levels
+        
     
     @property
     def compute_corners(self):

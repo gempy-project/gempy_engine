@@ -7,7 +7,8 @@ from gempy_engine.core.data.interpolation_input import InterpolationInput
 import matplotlib.pyplot as plt
 
 from gempy_engine.core.data.octree_level import OctreeLevel
-from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level, ValueType
+from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
+from gempy_engine.core.data.output.blocks_value_type import ValueType
 
 
 def plot_2d_scalar_y_direction(interpolation_input: InterpolationInput, Z_x, grid: RegularGrid = None):
