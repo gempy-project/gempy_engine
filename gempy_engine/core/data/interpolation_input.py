@@ -123,6 +123,7 @@ class InterpolationInput:
                                 transformed[:, 2].min(), transformed[:, 2].max()])
 
         # Initialize all variables to None
+        octree_grid: Optional[RegularGrid] = None
         regular_grid: Optional[RegularGrid] = None
         custom_values: Optional[GenericGrid] = None
         topography_values: Optional[GenericGrid] = None
@@ -150,9 +151,16 @@ class InterpolationInput:
                 radius=transform.scale_points(np.atleast_2d(grid.centered_grid.radius))[0],
                 resolution=grid.centered_grid.resolution
             )
+            
+        if grid.active_grids_bool[5] and grid.octree_grid is not None:
+            octree_grid = RegularGrid(
+                extent=new_extents,
+                regular_grid_shape=interpolation_resolution,
+            )
                 
-        grid: EngineGrid = EngineGrid( # * Here we convert the GemPy grid to the
-            octree_grid=regular_grid,
+        grid: EngineGrid = EngineGrid(  # * Here we convert the GemPy grid to the
+            octree_grid=octree_grid,
+            dense_grid=regular_grid,
             topography=topography_values,
             sections=section_values,
             custom_grid=custom_values,
