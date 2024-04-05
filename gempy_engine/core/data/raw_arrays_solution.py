@@ -15,17 +15,12 @@ from gempy_engine.core.data.output.blocks_value_type import ValueType
 from gempy_engine.optional_dependencies import require_pandas, require_subsurface
 
 
+
 @dataclass(init=True)
 class RawArraysSolution:
-    # region Input data results
-    # ? Do I need these fields?
-    # weights_vector: np.ndarray
-    # scalar_field_at_surface_points: np.ndarray
-    # block_at_surface_points: np.ndarray
-    # mask_at_surface_points: np.ndarray
-    # values_at_surface_points: np.ndarray
-
-    # endregion
+    class BlockSolutionType(enum.Enum):
+        OCTREE = 0
+        DENSE_GRID = 1
 
     # region Regular Grid
     lith_block: np.ndarray = field(default_factory=lambda: np.empty(0))
@@ -65,7 +60,7 @@ class RawArraysSolution:
     # ? TODO: This could be just the init
     @classmethod
     def from_gempy_engine_solutions(cls, octrees_output: list[OctreeLevel], meshes: list[DualContouringMesh],
-                                    fw_gravity: Optional[np.ndarray] = None) -> "RawArraysSolution":
+                                    block_solution_type: BlockSolutionType) -> "RawArraysSolution":
         raw_arrays_solution = cls()
 
         first_level_octree: OctreeLevel = octrees_output[0]
@@ -76,21 +71,11 @@ class RawArraysSolution:
         raw_arrays_solution._set_scalar_field_at_surface_points(first_level_octree)
 
         # Region Blocks
-
-        # TODO: Decide here if I want to use the octree output or the dense grid
-        class BlockSolutionType(enum.Enum):
-            OCTREE = 0
-            DENSE_GRID = 1
-
-        # if there is only one octree level use dense
-        # TODO: Make to instances of raw arrays
-        block_solution_type = BlockSolutionType.DENSE_GRID
-
         match block_solution_type:
-            case BlockSolutionType.OCTREE:
-                cls.fill_block_solutions_with_octree_output(octrees_output, raw_arrays_solution)
-            case BlockSolutionType.DENSE_GRID:
-                cls.fill_block_solutions_with_dense_grid(stacks_output, raw_arrays_solution)
+            case cls.BlockSolutionType.OCTREE:
+                _fill_block_solutions_with_octree_output(octrees_output, raw_arrays_solution)
+            case cls.BlockSolutionType.DENSE_GRID:
+                _fill_block_solutions_with_dense_grid(stacks_output, raw_arrays_solution)
 
         # Endregion
 
@@ -111,92 +96,6 @@ class RawArraysSolution:
         # Endregion
         return raw_arrays_solution
 
-    @classmethod
-    def fill_block_solutions_with_dense_grid(cls, stacks_output: list[InterpOutput], raw_arrays_solution: "RawArraysSolution"):
-        # Region Local Functions
-        def ___get_regular_grid_values_for_all_structural_groups(stacks_output: list[InterpOutput], scalar_type: ValueType):
-            temp_list = []
-            for stacks_output in stacks_output:
-                dense_values_from_dense_grid = stacks_output.get_block_from_value_type(
-                    value_type=scalar_type,
-                    slice_=stacks_output.grid.dense_grid_slice
-                )
-                temp_list.append(dense_values_from_dense_grid)
-            scalar_field_stacked = np.vstack(temp_list)
-            return scalar_field_stacked
-
-        # Endregion
-
-
-        collapsed_output = stacks_output[-1]
-        
-        raw_arrays_solution.block_matrix = ___get_regular_grid_values_for_all_structural_groups(stacks_output, ValueType.values_block)
-        raw_arrays_solution.fault_block = collapsed_output.get_block_from_value_type(ValueType.faults_block, slice_=collapsed_output.grid.dense_grid_slice).astype("int8").ravel()
-        raw_arrays_solution.litho_faults_block = collapsed_output.get_block_from_value_type(ValueType.litho_faults_block, slice_=collapsed_output.grid.dense_grid_slice).astype("int32").ravel()
-        raw_arrays_solution.scalar_field_matrix = ___get_regular_grid_values_for_all_structural_groups(stacks_output, ValueType.scalar)
-        raw_arrays_solution.mask_matrix = ___get_regular_grid_values_for_all_structural_groups(stacks_output, ValueType.mask_component)
-        raw_arrays_solution.mask_matrix_squeezed = ___get_regular_grid_values_for_all_structural_groups(stacks_output, ValueType.squeeze_mask)
-        
-        lith_block_temp = collapsed_output.get_block_from_value_type(ValueType.ids, slice_=collapsed_output.grid.dense_grid_slice).astype("int8").ravel()
-        lith_block_temp[lith_block_temp == 0] = lith_block_temp.max() + 1
-        raw_arrays_solution.lith_block = lith_block_temp
-            
-
-    @classmethod
-    def fill_block_solutions_with_octree_output(cls, octrees_output, raw_arrays_solution: "RawArraysSolution"):
-
-        # Region Local Functions
-        def ___get_regular_grid_values_for_all_structural_groups(octree_output: list[OctreeLevel], scalar_type: ValueType):
-            temp_list = []
-            for i in range(octree_output[0].number_of_outputs):
-                dense_valuse_from_octree: np.ndarray = get_regular_grid_value_for_level(
-                    octree_list=octree_output,
-                    level=None,
-                    value_type=scalar_type,
-                    scalar_n=i
-                ).ravel()
-                temp_list.append(dense_valuse_from_octree)
-            scalar_field_stacked = np.vstack(temp_list)
-            return scalar_field_stacked
-
-        # Endregion
-
-        raw_arrays_solution.block_matrix = ___get_regular_grid_values_for_all_structural_groups(
-            octree_output=octrees_output,
-            scalar_type=ValueType.values_block
-        )
-        raw_arrays_solution.fault_block = get_regular_grid_value_for_level(
-            octree_list=octrees_output,
-            level=None,
-            value_type=ValueType.faults_block
-        ).astype("int8").ravel()
-        raw_arrays_solution.litho_faults_block = get_regular_grid_value_for_level(
-            octree_list=octrees_output,
-            level=None,
-            value_type=ValueType.litho_faults_block
-        ).astype("int32").ravel()
-        raw_arrays_solution.scalar_field_matrix = ___get_regular_grid_values_for_all_structural_groups(
-            octree_output=octrees_output,
-            scalar_type=ValueType.scalar
-        )
-        raw_arrays_solution.mask_matrix = ___get_regular_grid_values_for_all_structural_groups(
-            octree_output=octrees_output,
-            scalar_type=ValueType.mask_component
-        )
-        raw_arrays_solution.mask_matrix_squeezed = ___get_regular_grid_values_for_all_structural_groups(
-            octree_output=octrees_output,
-            scalar_type=ValueType.squeeze_mask
-        )
-
-        lith_block_temp = get_regular_grid_value_for_level(
-            octree_list=octrees_output,
-            level=None,
-            value_type=ValueType.ids
-        ).astype("int8").ravel()
-        lith_block_temp[lith_block_temp == 0] = lith_block_temp.max() + 1  # Move basement from first to last
-        raw_arrays_solution.lith_block = lith_block_temp
-
-    # ? Should all these arrays being properties better?
 
     def _set_scalar_field_at_surface_points(self, octree_output: OctreeLevel):
         temp_list = []
@@ -228,3 +127,88 @@ class RawArraysSolution:
         )
 
         return meshes
+
+
+def _fill_block_solutions_with_octree_output(octrees_output, raw_arrays_solution: "RawArraysSolution"):
+
+    # Region Local Functions
+    def ___get_regular_grid_values_for_all_structural_groups(octree_output: list[OctreeLevel], scalar_type: ValueType):
+        temp_list = []
+        for i in range(octree_output[0].number_of_outputs):
+            dense_valuse_from_octree: np.ndarray = get_regular_grid_value_for_level(
+                octree_list=octree_output,
+                level=None,
+                value_type=scalar_type,
+                scalar_n=i
+            ).ravel()
+            temp_list.append(dense_valuse_from_octree)
+        scalar_field_stacked = np.vstack(temp_list)
+        return scalar_field_stacked
+
+    # Endregion
+
+    raw_arrays_solution.block_matrix = ___get_regular_grid_values_for_all_structural_groups(
+        octree_output=octrees_output,
+        scalar_type=ValueType.values_block
+    )
+    raw_arrays_solution.fault_block = get_regular_grid_value_for_level(
+        octree_list=octrees_output,
+        level=None,
+        value_type=ValueType.faults_block
+    ).astype("int8").ravel()
+    raw_arrays_solution.litho_faults_block = get_regular_grid_value_for_level(
+        octree_list=octrees_output,
+        level=None,
+        value_type=ValueType.litho_faults_block
+    ).astype("int32").ravel()
+    raw_arrays_solution.scalar_field_matrix = ___get_regular_grid_values_for_all_structural_groups(
+        octree_output=octrees_output,
+        scalar_type=ValueType.scalar
+    )
+    raw_arrays_solution.mask_matrix = ___get_regular_grid_values_for_all_structural_groups(
+        octree_output=octrees_output,
+        scalar_type=ValueType.mask_component
+    )
+    raw_arrays_solution.mask_matrix_squeezed = ___get_regular_grid_values_for_all_structural_groups(
+        octree_output=octrees_output,
+        scalar_type=ValueType.squeeze_mask
+    )
+
+    lith_block_temp = get_regular_grid_value_for_level(
+        octree_list=octrees_output,
+        level=None,
+        value_type=ValueType.ids
+    ).astype("int8").ravel()
+    lith_block_temp[lith_block_temp == 0] = lith_block_temp.max() + 1  # Move basement from first to last
+    raw_arrays_solution.lith_block = lith_block_temp
+
+
+def _fill_block_solutions_with_dense_grid(stacks_output: list[InterpOutput], raw_arrays_solution: "RawArraysSolution"):
+    # Region Local Functions
+    def ___get_regular_grid_values_for_all_structural_groups(stacks_output: list[InterpOutput], scalar_type: ValueType):
+        temp_list = []
+        for stacks_output in stacks_output:
+            dense_values_from_dense_grid = stacks_output.get_block_from_value_type(
+                value_type=scalar_type,
+                slice_=stacks_output.grid.dense_grid_slice
+            )
+            temp_list.append(dense_values_from_dense_grid)
+        scalar_field_stacked = np.vstack(temp_list)
+        return scalar_field_stacked
+
+    # Endregion
+
+    collapsed_output = stacks_output[-1]
+
+    raw_arrays_solution.block_matrix = ___get_regular_grid_values_for_all_structural_groups(stacks_output, ValueType.values_block)
+    raw_arrays_solution.fault_block = collapsed_output.get_block_from_value_type(ValueType.faults_block, slice_=collapsed_output.grid.dense_grid_slice).astype("int8").ravel()
+    raw_arrays_solution.litho_faults_block = collapsed_output.get_block_from_value_type(ValueType.litho_faults_block, slice_=collapsed_output.grid.dense_grid_slice).astype("int32").ravel()
+    raw_arrays_solution.scalar_field_matrix = ___get_regular_grid_values_for_all_structural_groups(stacks_output, ValueType.scalar)
+    raw_arrays_solution.mask_matrix = ___get_regular_grid_values_for_all_structural_groups(stacks_output, ValueType.mask_component)
+    raw_arrays_solution.mask_matrix_squeezed = ___get_regular_grid_values_for_all_structural_groups(stacks_output, ValueType.squeeze_mask)
+
+    lith_block_temp = collapsed_output.get_block_from_value_type(ValueType.ids, slice_=collapsed_output.grid.dense_grid_slice).astype("int8").ravel()
+    lith_block_temp[lith_block_temp == 0] = lith_block_temp.max() + 1
+    raw_arrays_solution.lith_block = lith_block_temp
+
+

@@ -1,5 +1,5 @@
 from dataclasses import field
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -15,7 +15,7 @@ class Solutions:
     dc_meshes: List[DualContouringMesh]
     scalar_field_at_surface_points: np.ndarray = np.empty(0)
     _ordered_elements: List[np.ndarray] = []
-    _raw_arrays: RawArraysSolution = field(init=False)
+    _raw_arrays: Optional[RawArraysSolution] = field(init=False)
     # ------
     gravity: np.ndarray = None
     magnetics: np.ndarray = None
@@ -33,7 +33,7 @@ class Solutions:
             self._raw_arrays = RawArraysSolution.from_gempy_engine_solutions(
                 octrees_output=octrees_output,
                 meshes=dc_meshes,
-                fw_gravity=fw_gravity
+                block_solution_type=RawArraysSolution.BlockSolutionType.DENSE_GRID
             )
         else:
             self._raw_arrays = None
@@ -49,7 +49,7 @@ class Solutions:
     #     return f"{self.__class__.__name__}({self.octrees_output})"
 
     @property
-    def raw_arrays(self):
+    def raw_arrays(self) -> RawArraysSolution:
         return self._raw_arrays
 
     def meshes_to_unstruct(self) -> "subsurface.UnstructuredData":
