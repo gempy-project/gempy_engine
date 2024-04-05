@@ -145,15 +145,16 @@ class InterpolationInput:
                 radius=transform.scale_points(np.atleast_2d(grid.centered_grid.radius))[0],
                 resolution=grid.centered_grid.resolution
             )
-            
         if grid.active_grids_bool[5] and grid.octree_grid is not None:
+            raise NotImplementedError("Passing other than the default initial octree grid is not implemented yet.")
+            octree_grid = grid.octree_grid
+        else:
             octree_grid = RegularGrid(
                 extent=new_extents,
                 regular_grid_shape=np.array([2, 2, 2])
             )
-                
         grid: EngineGrid = EngineGrid(  # * Here we convert the GemPy grid to the
-            octree_grid=regular_grid, # BUG: Adapt the engine to deal with this
+            octree_grid=octree_grid,  # BUG: Adapt the engine to deal with this
             dense_grid=regular_grid,
             topography=topography_values,
             sections=section_values,
@@ -162,7 +163,7 @@ class InterpolationInput:
         )
 
         # endregion
-        
+
         interpolation_input: InterpolationInput = cls(
             surface_points=surface_points,
             orientations=orientations,

@@ -101,7 +101,7 @@ class InterpolationOptions:
     # @off
     kernel_options                 : KernelOptions                = None  # * This is the compression of the fields above and the way to go in the future
 
-    number_octree_levels           : int                          = 1
+    _number_octree_levels           : int                          = 1
     current_octree_level           : int                          = 0  # * Make this a read only property 
 
     compute_scalar_gradient        : bool                         = False
@@ -134,7 +134,7 @@ class InterpolationOptions:
             compute_condition_number  : bool                             = False,
             
     ):
-        self.number_octree_levels = number_octree_levels
+        self._number_octree_levels = number_octree_levels
         
         self.kernel_options = KernelOptions(
             range                      = range,
@@ -192,6 +192,11 @@ class InterpolationOptions:
             else:
                 warnings.warn(f"{key} is not a recognized attribute and will be ignored.")
 
+    @property
+    def number_octree_levels(self):
+        # Return whatever is bigger between the number of octree levels and the number of octree levels for surfaces
+        return max(self._number_octree_levels, self._number_octree_levels_surface)
+    
     @property
     def compute_corners(self):
         is_not_last_octree = (self.is_last_octree_level is False)
@@ -260,10 +265,12 @@ class InterpolationOptions:
     
     @property
     def number_octree_levels_surface(self):
-        if self._number_octree_levels_surface >= self.number_octree_levels -1:
-            return self.number_octree_levels 
-        else:
-            return self._number_octree_levels_surface
+        # if self._number_octree_levels_surface >= self.number_octree_levels -1:
+        #     return self.number_octree_levels 
+        # else:
+        #     return self._number_octree_levels_surface
+        # ? Should we make this just a property
+        return self._number_octree_levels_surface
         
     @number_octree_levels_surface.setter
     def number_octree_levels_surface(self, value):
