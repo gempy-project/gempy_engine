@@ -92,7 +92,7 @@ class InterpolationInput:
 
     @classmethod
     def from_structural_frame(cls, structural_frame: "gempy.StructuralFrame", grid: "gempy.EngineGrid",
-                              transform: "gempy.Transfrom", octrees: bool) -> "InterpolationInput":
+                              transform: "gempy.Transfrom") -> "InterpolationInput":
         _legacy_factor = 0
 
         if LEGACY_COORDS := False:
@@ -108,16 +108,10 @@ class InterpolationInput:
             dip_gradients=transform.transform_gradient(structural_frame.orientations.grads),
             nugget_effect_grad=structural_frame.orientations.nugget
         )
-        
-        # TODO: if octrees we should deactivate the regular grid resolution?
-        if octrees:
-            interpolation_resolution = np.array([2, 2, 2])
-        else:
-            interpolation_resolution = grid.octree_grid.resolution
 
         # region Transforming the grid
 
-        transformed = transform.apply(grid.octree_grid.bounding_box)
+        transformed = transform.apply(grid.regular_grid.bounding_box)  # ? isn't this making the regular grid not optional?
         new_extents = np.array([transformed[:, 0].min(), transformed[:, 0].max(),
                                 transformed[:, 1].min(), transformed[:, 1].max(),
                                 transformed[:, 2].min(), transformed[:, 2].max()])
@@ -133,7 +127,7 @@ class InterpolationInput:
         if grid.active_grids_bool[0]:
             regular_grid = RegularGrid(
                 extent=new_extents,
-                regular_grid_shape=interpolation_resolution,
+                regular_grid_shape=grid.regular_grid.resolution
             )
 
         if grid.active_grids_bool[1] and grid.custom_grid is not None:
@@ -155,11 +149,11 @@ class InterpolationInput:
         if grid.active_grids_bool[5] and grid.octree_grid is not None:
             octree_grid = RegularGrid(
                 extent=new_extents,
-                regular_grid_shape=interpolation_resolution,
+                regular_grid_shape=np.array([2, 2, 2])
             )
                 
         grid: EngineGrid = EngineGrid(  # * Here we convert the GemPy grid to the
-            octree_grid=octree_grid,
+            octree_grid=regular_grid, # BUG: Adapt the engine to deal with this
             dense_grid=regular_grid,
             topography=topography_values,
             sections=section_values,
