@@ -279,7 +279,7 @@ class InterpolationOptions:
     @number_octree_levels_surface.setter
     def number_octree_levels_surface(self, value):
         # Check value is between 1 and number_octree_levels
-        if not 1 <= value <= self.number_octree_levels:
-            raise ValueError("number_octree_levels_surface must be between 1 and number_octree_levels")
+        if not 1 <= value: 
+            raise ValueError("number_octree_levels_surface must be at least 1")
         self._number_octree_levels_surface = value
     
