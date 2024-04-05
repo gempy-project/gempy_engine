@@ -30,6 +30,7 @@ class Solutions:
         self._set_scalar_field_at_surface_points_and_elements_order(octrees_output)
             
         if SET_RAW_ARRAYS_IN_SOLUTION and octrees_output[0].grid_centers.octree_grid is not None:  # * This can add an unnecessary overhead
+            # TODO: Trying to guess if is dense or octree
             self._raw_arrays = RawArraysSolution.from_gempy_engine_solutions(
                 octrees_output=octrees_output,
                 meshes=dc_meshes,
