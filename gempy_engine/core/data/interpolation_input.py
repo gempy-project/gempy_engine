@@ -7,7 +7,7 @@ import numpy as np
 from . import SurfacePoints, Orientations
 from gempy_engine.core.data.generic_grid import GenericGrid
 from gempy_engine.core.data.centered_grid import CenteredGrid
-from .grid import Grid
+from .enginegrid import EngineGrid
 from .regular_grid import RegularGrid
 from .stack_relation_type import StackRelationType
 from .stacks_structure import StacksStructure
@@ -20,7 +20,7 @@ class InterpolationInput:
     # @ off
     surface_points: SurfacePoints
     orientations: Orientations
-    grid: Grid
+    grid: EngineGrid
 
     _unit_values: Optional[np.ndarray] = None
     segmentation_function: Optional[callable] = None  # * From scalar field to values
@@ -34,7 +34,7 @@ class InterpolationInput:
 
     # endregion
 
-    def __init__(self, surface_points: SurfacePoints, orientations: Orientations, grid: Grid,
+    def __init__(self, surface_points: SurfacePoints, orientations: Orientations, grid: EngineGrid,
                  unit_values: Optional[np.ndarray] = None, segmentation_function: Optional[callable] = None,
                  stack_relation: StackRelationType = StackRelationType.ERODE):
         self.surface_points = surface_points
@@ -91,7 +91,7 @@ class InterpolationInput:
         )
 
     @classmethod
-    def from_structural_frame(cls, structural_frame: "gempy.StructuralFrame", grid: "gempy.Grid",
+    def from_structural_frame(cls, structural_frame: "gempy.StructuralFrame", grid: "gempy.EngineGrid",
                               transform: "gempy.Transfrom", octrees: bool) -> "InterpolationInput":
         _legacy_factor = 0
 
@@ -113,11 +113,11 @@ class InterpolationInput:
         if octrees:
             interpolation_resolution = np.array([2, 2, 2])
         else:
-            interpolation_resolution = grid.regular_grid.resolution
+            interpolation_resolution = grid.octree_grid.resolution
 
         # region Transforming the grid
 
-        transformed = transform.apply(grid.regular_grid.bounding_box)
+        transformed = transform.apply(grid.octree_grid.bounding_box)
         new_extents = np.array([transformed[:, 0].min(), transformed[:, 0].max(),
                                 transformed[:, 1].min(), transformed[:, 1].max(),
                                 transformed[:, 2].min(), transformed[:, 2].max()])
@@ -151,8 +151,8 @@ class InterpolationInput:
                 resolution=grid.centered_grid.resolution
             )
                 
-        grid: Grid = Grid(
-            regular_grid=regular_grid,
+        grid: EngineGrid = EngineGrid( # * Here we convert the GemPy grid to the
+            octree_grid=regular_grid,
             topography=topography_values,
             sections=section_values,
             custom_grid=custom_values,

@@ -4,12 +4,12 @@ from typing import List
 from gempy_engine.core.data.octree_level import OctreeLevel
 import numpy as np
 
-from gempy_engine.core.data.grid import Grid
+from gempy_engine.core.data.enginegrid import EngineGrid
 from gempy_engine.core.data.regular_grid import RegularGrid
 from gempy_engine.modules.octrees_topology._octree_common import _generate_next_level_centers
 
 
-def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=False) -> Grid:
+def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=False) -> EngineGrid:
     list_ixd_select = []
 
     def _mark_voxel(uv_8):
@@ -45,13 +45,13 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, compute_topology=Fal
         prev_octree.edges_id, prev_octree.count_edges = _calculate_topology(shift_select_xyz, prev_octree.id_block)
 
     # New Octree
-    xyz_anchor = prev_octree.grid_centers.regular_grid.values[voxel_select]
+    xyz_anchor = prev_octree.grid_centers.octree_grid.values[voxel_select]
     xyz_coords, bool_idx = _generate_next_level_centers(xyz_anchor, dxdydz, level=1)
 
-    grid_next_centers = Grid(
-        regular_grid=RegularGrid.from_octree_level(
+    grid_next_centers = EngineGrid(
+        octree_grid=RegularGrid.from_octree_level(
             xyz_coords_octree=xyz_coords,
-            previous_regular_grid=prev_octree.grid_centers.regular_grid,
+            previous_regular_grid=prev_octree.grid_centers.octree_grid,
             active_cells=voxel_select,
             left_right=bool_idx
         ),

@@ -7,7 +7,7 @@ from ...core.data.regular_grid import RegularGrid
 from ...core.data.options import InterpolationOptions
 from ...core.data.octree_level import OctreeLevel
 from ...core.data.interp_output import InterpOutput
-from ...core.data.grid import Grid
+from ...core.data.enginegrid import EngineGrid
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
 
@@ -28,10 +28,10 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
     output_0_centers: List[InterpOutput] = interpolate_all_fields(temp_interpolation_input, options, data_shape)  # interpolate - centers
 
     # * Interpolate - corners
-    grid_0_centers: Grid = temp_interpolation_input.grid  # ? This could be moved to the next section
+    grid_0_centers: EngineGrid = temp_interpolation_input.grid  # ? This could be moved to the next section
     if options.compute_corners:
-        grid_0_corners = Grid.from_xyz_coords(
-            xyz_coords=_generate_corners(regular_grid=grid_0_centers.regular_grid)
+        grid_0_corners = EngineGrid.from_xyz_coords(
+            xyz_coords=_generate_corners(regular_grid=grid_0_centers.octree_grid)
         )
         temp_interpolation_input.grid = grid_0_corners  # * Prepare grid for next interpolation
         output_0_corners: List[InterpOutput] = interpolate_all_fields(temp_interpolation_input, options, data_shape)  # * This is unnecessary for the last level except for Dual contouring

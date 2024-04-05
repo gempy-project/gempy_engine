@@ -37,8 +37,8 @@ def get_left_right_array(octree_list: list[OctreeLevel]) -> np.ndarray:
         # * Not only that, the current implementation only works with pure octree starting at [2,2,2]
         raise ValueError("Octree list must have more than one level")
 
-    voxel_select_all = [octree_iter.grid_centers.regular_grid.active_cells for octree_iter in octree_list[1:]]
-    left_right_all = [octree_iter.grid_centers.regular_grid.left_right for octree_iter in octree_list[1:]]
+    voxel_select_all = [octree_iter.grid_centers.octree_grid.active_cells for octree_iter in octree_list[1:]]
+    left_right_all = [octree_iter.grid_centers.octree_grid.left_right for octree_iter in octree_list[1:]]
 
     idx_root_x = np.zeros(8, dtype=bool)
     idx_root_x[4:] = True

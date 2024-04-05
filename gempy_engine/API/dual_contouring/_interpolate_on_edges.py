@@ -6,7 +6,7 @@ from ..interp_single.interp_features import interpolate_all_fields_no_octree
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.generic_grid import GenericGrid
-from ...core.data.grid import Grid
+from ...core.data.enginegrid import EngineGrid
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput
@@ -28,7 +28,7 @@ def interpolate_on_edges_for_dual_contouring(
     # region define location where we need to interpolate the gradients for dual contouring
     output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
     intersection_xyz, valid_edges = _get_intersection_on_edges(octree_leaves, output_corners, mask)
-    interpolation_input.grid = Grid(
+    interpolation_input.grid = EngineGrid(
         custom_grid=GenericGrid(values=intersection_xyz)
     )
     # endregion
@@ -41,8 +41,8 @@ def interpolate_on_edges_for_dual_contouring(
     dc_data = DualContouringData(
         xyz_on_edge=intersection_xyz,
         valid_edges=valid_edges,
-        xyz_on_centers=octree_leaves.grid_centers.regular_grid.values if mask is None else octree_leaves.grid_centers.regular_grid.values[mask],
-        dxdydz=octree_leaves.grid_centers.dxdydz,
+        xyz_on_centers=octree_leaves.grid_centers.octree_grid.values if mask is None else octree_leaves.grid_centers.octree_grid.values[mask],
+        dxdydz=octree_leaves.grid_centers.octree_dxdydz,
         exported_fields_on_edges=output_on_edges[n_scalar_field].exported_fields,
         n_surfaces_to_export=output_corners.scalar_field_at_sp.shape[0],
         tree_depth=options.number_octree_levels,

@@ -10,7 +10,7 @@ from ._octree_generation import interpolate_on_octree
 from ...core import data
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
-from ...core.data.grid import Grid
+from ...core.data.enginegrid import EngineGrid
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput
@@ -32,7 +32,7 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
         
         if options.is_last_octree_level is False:
             # * This is only a Grid with a Regular grid
-            grid_1_centers: Grid = get_next_octree_grid(
+            grid_1_centers: EngineGrid = get_next_octree_grid(
                 prev_octree=next_octree,
                 compute_topology=False,
                 debug=False

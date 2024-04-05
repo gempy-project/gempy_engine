@@ -1,7 +1,7 @@
 ﻿import sys
 import logging
 
-from gempy_engine.core.data.grid import Grid
+from gempy_engine.core.data.enginegrid import EngineGrid
 from core.data.regular_grid import RegularGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
@@ -35,7 +35,7 @@ def process_input(gempy_input: GemPyInput, logger: logging.Logger) -> (InputData
     
     logger.debug("Input grid:", gempy_input.interpolation_input.grid)
     
-    gempy_input.interpolation_input.grid = Grid.from_regular_grid(
+    gempy_input.interpolation_input.grid = EngineGrid.from_regular_grid(
         regular_grid=RegularGrid.from_schema(gempy_input.interpolation_input.grid)
     )
     interpolation_input: InterpolationInput = InterpolationInput.from_schema(gempy_input.interpolation_input)

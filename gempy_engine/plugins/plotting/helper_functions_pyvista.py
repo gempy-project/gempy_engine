@@ -15,8 +15,8 @@ except ImportError:
 def plot_octree_pyvista(p: pv.Plotter, octree_list: List[OctreeLevel], n_octree: int):
     n = n_octree
 
-    shape = octree_list[n].grid_centers.regular_grid_shape
-    regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
+    shape = octree_list[n].grid_centers.octree_grid_shape
+    regular_grid_values = octree_list[n].grid_centers.octree_grid.values_vtk_format
     regular_grid_scalar = get_regular_grid_value_for_level(octree_list, n)
 
     grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T
@@ -64,11 +64,11 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
     # Plot Regular grid Octree
     if octree_list is not None:
         n = len(octree_list) - 1
-        regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
+        regular_grid_values = octree_list[n].grid_centers.octree_grid.values_vtk_format
         regular_grid_scalar = get_regular_grid_value_for_level(octree_list, n)
         print("regular_grid_scalar.shape", regular_grid_scalar.shape)
         
-        shape = octree_list[n].grid_centers.regular_grid_shape
+        shape = octree_list[n].grid_centers.octree_grid_shape
         grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T
         regular_grid_mesh = pv.StructuredGrid(*grid_3d)
         if scalar is None:

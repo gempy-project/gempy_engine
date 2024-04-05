@@ -4,15 +4,15 @@ from typing import List, Optional
 
 import numpy as np
 
-from gempy_engine.core.data.grid import Grid
+from gempy_engine.core.data.enginegrid import EngineGrid
 from gempy_engine.core.data.interp_output import InterpOutput
 
 
 @dataclass(init=True)
 class OctreeLevel:
     # Input
-    grid_centers: Grid
-    grid_corners: Optional[Grid]
+    grid_centers: EngineGrid
+    grid_corners: Optional[EngineGrid]
     outputs_centers: list[InterpOutput]  #: List of output (one per stack)
     outputs_corners: list[InterpOutput]
 
@@ -29,7 +29,7 @@ class OctreeLevel:
 
     @property
     def dxdydz(self):
-        return self.grid_centers.dxdydz
+        return self.grid_centers.octree_dxdydz
 
     @property
     def output_centers(self):  # * Alias

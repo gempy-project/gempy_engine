@@ -6,7 +6,7 @@ import numpy as np
 from gempy_engine.core.data.interp_output import InterpOutput
 from ._octree_internals import compute_next_octree_locations
 from gempy_engine.core.data.octree_level import OctreeLevel
-from gempy_engine.core.data.grid import Grid
+from gempy_engine.core.data.enginegrid import EngineGrid
 
 
 # TODO: [ ] Check if fortran order speeds up this function
@@ -25,7 +25,7 @@ class ValueType(enum.Enum):
     values_block = enum.auto()
 
 
-def get_next_octree_grid(prev_octree: OctreeLevel, compute_topology=False, **kwargs) -> Grid:
+def get_next_octree_grid(prev_octree: OctreeLevel, compute_topology=False, **kwargs) -> EngineGrid:
     return compute_next_octree_locations(prev_octree, compute_topology)
 
 
@@ -87,7 +87,7 @@ def get_regular_grid_value_for_level(octree_list: List[OctreeLevel], level: Opti
     # Octree - Level 0
     root: OctreeLevel = octree_list[0]
 
-    regular_grid_shape = root.grid_centers.regular_grid_shape
+    regular_grid_shape = root.grid_centers.octree_grid_shape
 
     block = _get_block_from_value_type(root, scalar_n, value_type)
     
@@ -112,10 +112,10 @@ def get_regular_grid_value_for_level(octree_list: List[OctreeLevel], level: Opti
     # Octree - Level n
     for e, octree in enumerate(octree_list[1:level + 1]):
         n_rep = (level - e)
-        active_cells: np.ndarray = octree.grid_centers.regular_grid.active_cells
+        active_cells: np.ndarray = octree.grid_centers.octree_grid.active_cells
 
         local_active_cells: np.ndarray = np.where(active_cells)[0]
-        shape: np.ndarray = octree.grid_centers.regular_grid_shape
+        shape: np.ndarray = octree.grid_centers.octree_grid_shape
         oct: np.ndarray = calculate_oct(shape, n_rep)
 
         block = _get_block_from_value_type(octree, scalar_n, value_type)
