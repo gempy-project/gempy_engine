@@ -5,6 +5,7 @@ from dataclasses import dataclass, asdict
 import gempy_engine.config
 from gempy_engine.core.data.kernel_classes.solvers import Solvers
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
+from gempy_engine.core.data.raw_arrays_solution import RawArraysSolution
 
 
 class MeshExtractionMaskingOptions(enum.Enum):
@@ -102,7 +103,8 @@ class InterpolationOptions:
     kernel_options                 : KernelOptions                = None  # * This is the compression of the fields above and the way to go in the future
 
     _number_octree_levels           : int                          = 1
-    current_octree_level           : int                          = 0  # * Make this a read only property 
+    current_octree_level            : int                          = 0  # * Make this a read only property 
+    block_solutions_type: RawArraysSolution.BlockSolutionType = RawArraysSolution.BlockSolutionType.DENSE_GRID
 
     compute_scalar_gradient        : bool                         = False
 
@@ -199,6 +201,13 @@ class InterpolationOptions:
             return max(self._number_octree_levels, self._number_octree_levels_surface)
         else:
             return self._number_octree_levels
+    
+    @number_octree_levels.setter
+    def number_octree_levels(self, value):
+        # Check value is at least 1
+        if not 1 <= value:
+            raise ValueError("number_octree_levels must be at least 1")
+        self._number_octree_levels = value
         
     
     @property
