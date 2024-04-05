@@ -7,7 +7,7 @@ import numpy as np
 from . import SurfacePoints, Orientations
 from gempy_engine.core.data.generic_grid import GenericGrid
 from gempy_engine.core.data.centered_grid import CenteredGrid
-from .enginegrid import EngineGrid
+from .engine_grid import EngineGrid
 from .regular_grid import RegularGrid
 from .stack_relation_type import StackRelationType
 from .stacks_structure import StacksStructure

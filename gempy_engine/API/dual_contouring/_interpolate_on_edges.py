@@ -6,7 +6,7 @@ from ..interp_single.interp_features import interpolate_all_fields_no_octree
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.generic_grid import GenericGrid
-from ...core.data.enginegrid import EngineGrid
+from ...core.data.engine_grid import EngineGrid
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput

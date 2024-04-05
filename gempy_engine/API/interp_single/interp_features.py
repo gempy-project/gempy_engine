@@ -10,7 +10,7 @@ from ._octree_generation import interpolate_on_octree
 from ...core import data
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
-from ...core.data.enginegrid import EngineGrid
+from ...core.data.engine_grid import EngineGrid
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput

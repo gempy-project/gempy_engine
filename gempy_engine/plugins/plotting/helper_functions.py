@@ -1,6 +1,6 @@
 import numpy as np
 
-from gempy_engine.core.data.enginegrid import EngineGrid
+from gempy_engine.core.data.engine_grid import EngineGrid
 from gempy_engine.core.data.regular_grid import RegularGrid
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput

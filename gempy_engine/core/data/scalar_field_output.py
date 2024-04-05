@@ -6,7 +6,7 @@ import numpy as np
 
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_fields import ExportedFields
-from gempy_engine.core.data.enginegrid import EngineGrid
+from gempy_engine.core.data.engine_grid import EngineGrid
 from gempy_engine.core.data.stack_relation_type import StackRelationType
 
 

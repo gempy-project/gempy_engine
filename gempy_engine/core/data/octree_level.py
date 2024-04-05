@@ -4,7 +4,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from gempy_engine.core.data.enginegrid import EngineGrid
+from gempy_engine.core.data.engine_grid import EngineGrid
 from gempy_engine.core.data.interp_output import InterpOutput
 
 

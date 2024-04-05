@@ -7,7 +7,7 @@ from ...core.data.regular_grid import RegularGrid
 from ...core.data.options import InterpolationOptions
 from ...core.data.octree_level import OctreeLevel
 from ...core.data.interp_output import InterpOutput
-from ...core.data.enginegrid import EngineGrid
+from ...core.data.engine_grid import EngineGrid
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
 

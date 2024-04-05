@@ -6,7 +6,7 @@ import numpy as np
 from gempy_engine.core.data.interp_output import InterpOutput
 from ._octree_internals import compute_next_octree_locations
 from gempy_engine.core.data.octree_level import OctreeLevel
-from gempy_engine.core.data.enginegrid import EngineGrid
+from gempy_engine.core.data.engine_grid import EngineGrid
 
 
 # TODO: [ ] Check if fortran order speeds up this function
