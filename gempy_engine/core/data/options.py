@@ -104,7 +104,7 @@ class InterpolationOptions:
 
     _number_octree_levels           : int                          = 1
     current_octree_level            : int                          = 0  # * Make this a read only property 
-    block_solutions_type: RawArraysSolution.BlockSolutionType = RawArraysSolution.BlockSolutionType.DENSE_GRID
+    block_solutions_type: RawArraysSolution.BlockSolutionType = RawArraysSolution.BlockSolutionType.OCTREE
 
     compute_scalar_gradient        : bool                         = False
 

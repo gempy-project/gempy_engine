@@ -61,7 +61,8 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
     solutions = Solutions(
         octrees_output=output,
         dc_meshes=meshes,
-        fw_gravity=gravity
+        fw_gravity=gravity,
+        block_solution_type=options.block_solutions_type
     )
 
     if options.debug:

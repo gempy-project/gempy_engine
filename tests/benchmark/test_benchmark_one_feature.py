@@ -25,7 +25,7 @@ def test_one_feature_numpy(moureze_model, benchmark):
     if options.number_octree_levels > 3:
         pytest.skip("Too many octree levels, too slow")
 
-    BackendTensor.change_backend(
+    BackendTensor._change_backend(
         engine_backend=AvailableBackends.numpy,
         use_gpu=False,
         pykeops_enabled=False

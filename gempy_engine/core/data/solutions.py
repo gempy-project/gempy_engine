@@ -22,7 +22,8 @@ class Solutions:
 
     debug_input_data: dict = {}
 
-    def __init__(self, octrees_output: List[OctreeLevel], dc_meshes: List[DualContouringMesh] = None, fw_gravity: np.ndarray = None):
+    def __init__(self, octrees_output: List[OctreeLevel], dc_meshes: List[DualContouringMesh] = None, fw_gravity: np.ndarray = None,
+                 block_solution_type: RawArraysSolution.BlockSolutionType = RawArraysSolution.BlockSolutionType.OCTREE):
         self.octrees_output = octrees_output
         self.dc_meshes = dc_meshes
         self.gravity = fw_gravity
@@ -34,7 +35,7 @@ class Solutions:
             self._raw_arrays = RawArraysSolution.from_gempy_engine_solutions(
                 octrees_output=octrees_output,
                 meshes=dc_meshes,
-                block_solution_type=RawArraysSolution.BlockSolutionType.DENSE_GRID
+                block_solution_type=block_solution_type
             )
         else:
             self._raw_arrays = None

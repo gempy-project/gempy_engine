@@ -17,9 +17,9 @@ from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 
 params = {
-    "VeryFewInputOctLvl3"         : pytest.param((16, 3, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(False, reason="Manually skip")),
+    "VeryFewInputOctLvl3"         : pytest.param((16, 3, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(True, reason="Manually skip")),
     "VeryFewInputOctLvl3_SCIPY_GC": pytest.param((16, 3, Solvers.SCIPY_CG, 100), marks=pytest.mark.skipif(True, reason="Manually skip")),
-    "FewInputOctLvl2"             : pytest.param((8, 2, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(True, reason="Manually skip")),
+    "FewInputOctLvl2"             : pytest.param((8, 2, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(False, reason="Manually skip")),
     "FewInputOctLvl3"             : pytest.param((8, 3, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(True, reason="Manually skip")),
     "FewInputOctLvl4"             : pytest.param((8, 4, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(True, reason="Manually skip")),
     "FewInputOctLvl5"             : pytest.param((8, 5, Solvers.DEFAULT, 100), marks=pytest.mark.skipif(True, reason="Manually skip")),
@@ -45,6 +45,7 @@ def moureze_model(request, tests_root) -> Tuple[InterpolationInput, Interpolatio
 
 def moureze_model_factory(path_to_root: str, pick_every=8, octree_lvls=3, solver: Solvers = Solvers.DEFAULT, nugget=0.1) \
         -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
+    
     # region: Pull data from cloud
     Moureze_points = pd.read_csv(
         filepath_or_buffer=os.path.join(path_to_root, "data", "Moureze_Points.csv"),
@@ -108,6 +109,8 @@ def moureze_model_factory(path_to_root: str, pick_every=8, octree_lvls=3, solver
         kernel_function=AvailableKernelFunctions.cubic,
         uni_degree=0,
     )
+    
+    interpolation_options.number_octree_levels_surface = octree_lvls # * For now we set the same octree levels for dual contouring
 
     # TODO: Add solver parameter
     interpolation_options.kernel_options.kernel_solver = solver
