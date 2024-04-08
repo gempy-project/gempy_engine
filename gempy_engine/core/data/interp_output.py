@@ -89,19 +89,19 @@ class InterpOutput:
 
     @property
     def ids_block_octree_grid(self):
-        return np.rint(self.block[self.grid.octree_grid_slice].reshape(self.grid.octree_grid_shape.tolist()))
+        return BackendTensor.t.rint(self.block[self.grid.octree_grid_slice].reshape(self.grid.octree_grid_shape.tolist()))
     
     @property
     def ids_block_dense_grid(self):
-        return np.rint(self.block[self.grid.dense_grid_slice].reshape(self.grid.dense_grid_shape.tolist()))
+        return BackendTensor.t.rint(self.block[self.grid.dense_grid_slice].reshape(self.grid.dense_grid_shape.tolist()))
 
     @property
     def ids_custom_grid(self):
-        return np.rint(self.block[self.grid.custom_grid_slice])
+        return BackendTensor.t.rint(self.block[self.grid.custom_grid_slice])
 
     @property
     def ids_block(self) -> np.ndarray:
-        return np.rint(self.block[self.grid.octree_grid_slice])
+        return BackendTensor.t.rint(self.block[self.grid.octree_grid_slice])
 
     @ids_block.setter
     def ids_block(self, value):  # ! This is just used for testing or other weird stuff
