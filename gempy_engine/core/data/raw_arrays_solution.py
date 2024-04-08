@@ -74,15 +74,16 @@ class RawArraysSolution:
         match block_solution_type:
             case cls.BlockSolutionType.OCTREE:
                 _fill_block_solutions_with_octree_output(octrees_output, raw_arrays_solution)
+                raw_arrays_solution.dense_ids = BackendTensor.t.to_numpy(collapsed_output.ids_block_octree_grid)
             case cls.BlockSolutionType.DENSE_GRID:
                 _fill_block_solutions_with_dense_grid(stacks_output, raw_arrays_solution)
+                raw_arrays_solution.dense_ids = BackendTensor.t.to_numpy(collapsed_output.ids_block_dense_grid)
 
         # Endregion
 
         # Region Grids
 
         # TODO: Make this more clever to account for the fact that we can have more than one scalar field
-        raw_arrays_solution.dense_ids = BackendTensor.t.to_numpy(collapsed_output.ids_block_dense_grid)
         raw_arrays_solution.geological_map = BackendTensor.t.to_numpy(collapsed_output.geological_map)
         raw_arrays_solution.sections = BackendTensor.t.to_numpy(collapsed_output.sections)
         raw_arrays_solution.custom = BackendTensor.t.to_numpy(collapsed_output.custom_grid_values)
