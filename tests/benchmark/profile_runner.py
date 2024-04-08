@@ -2,6 +2,7 @@
 Most of the profiles required to trigger it directly from the command line. This module helps to run benchmark
 models together with a profiler.  
 """
+import os
 # ! This script is NOT meant to be used for benchmarking. This is for attomic profiling of a single model.
 # * Open settings in pycharm -> Terminal and add as Environment variable: PYTHONPATH=/WorkSSD/PythonProjects/gempy_engine
 
@@ -16,19 +17,24 @@ from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.solutions import Solutions
 
 from tests.fixtures.heavy_models import moureze_model_factory
-from tests.conftest import plot_pyvista
+from tests.conftest import plot_pyvista 
 
 
 def profile_moureze_model():
-    BackendTensor.change_backend(
+    BackendTensor._change_backend(
         engine_backend=AvailableBackends.numpy,
-        use_gpu=True,
-        pykeops_enabled=True
+        use_gpu=False,
+        pykeops_enabled=False
     )
 
-    model = moureze_model_factory(pick_every=8, octree_lvls=6)
+    model = moureze_model_factory(
+        pick_every=8,
+        octree_lvls=3,
+        path_to_root=f"{os.path.dirname(os.path.abspath(__file__))}/../"
+    )
     model[1].dual_contouring_fancy = True  # ! This is the Opt3
     _run_model(model)
+    print("Done")
 
 
 def _run_model(model: Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]):

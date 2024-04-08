@@ -1,9 +1,15 @@
+## Memory Profiling
+### New way
+Use pycharm line profiler. Check out `gempy_profiler_decorator`
+
+### Old way
 To profile memory using the `memory-profiler` package, run the following command:
 ```
 python -m memory_profiler benchmark.py
 mprof run <executable>
 mprof plot
 ``` 
+
 
 
 ## Pytest-Benchmark
