@@ -46,9 +46,6 @@ class Solutions:
     def _repr_html_(self):
         return f"<b>Solutions:</b> {len(self.octrees_output)} Octree Levels, {len(self.dc_meshes)} DualContouringMeshes"
 
-    # def __repr__(self):
-    #     return f"{self.__class__.__name__}({self.octrees_output})"
-
     @property
     def raw_arrays(self) -> RawArraysSolution:
         return self._raw_arrays
