@@ -4,7 +4,7 @@ from typing import Union, List
 import numpy as np
 
 from ..backend_tensor import BackendTensor
-from ..utils import _check_and_convert_list_to_array
+from ..utils import _check_and_convert_list_to_array, cast_type_inplace
 from .kernel_classes.server.input_parser import GridSchema
 
 
@@ -26,7 +26,9 @@ class RegularGrid:
         self.extent = _check_and_convert_list_to_array(self.extent) + 1e-6  # * This to avoid some errors evaluating in 0 (e.g. bias in dual contouring)
 
         self.values = self._create_regular_grid(self.extent, self.regular_grid_shape)
-        self.original_values = self.values.copy()
+
+        cast_type_inplace(self, requires_grad=True) # TODO: This has to be grabbed from options
+        self.original_values = BackendTensor.tfnp.copy(self.values)
         
 
     @classmethod

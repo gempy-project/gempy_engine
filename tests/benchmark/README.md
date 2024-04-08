@@ -1,8 +1,13 @@
 ## Memory Profiling
-### New way
-Use pycharm line profiler. Check out `gempy_profiler_decorator`
 
-### Old way
+### Best by far: memray
+
+### Scalene Profiling
+The only thing I have been able to run consistenly is with the arg profile only
+
+`scalene --profile-all --profile-only model,interp,octree,scalar_field,solver_interface,kernel,vectors profile_runner.py`
+
+### Memory profiler
 To profile memory using the `memory-profiler` package, run the following command:
 ```
 python -m memory_profiler benchmark.py
@@ -10,8 +15,7 @@ mprof run <executable>
 mprof plot
 ``` 
 
-
-
+# Performance
 ## Pytest-Benchmark
 
 ### Run benchmark
@@ -23,6 +27,9 @@ mprof plot
 `pytest-benchmark compare 0001 0002`
 
 
+### Line profiler is cool 
+Use pycharm line profiler. Check out `gempy_profiler_decorator`
+- Does not work in wsl2
 
 ### List of optimizations
 The base octree level is 3. Otherwise, is specified in the name of the file. 
@@ -33,13 +40,6 @@ The base octree level is 3. Otherwise, is specified in the name of the file.
 - [ ] Opt4: fancy triangulation in gpu
   (after profiling)
 - [ ] Opt5 dtype
-
-
-
-### Scalene Profiling
-The only thing I have been able to run consistenly is with the arg profile only
-
-`scalene --profile-all --profile-only model,interp,octree,scalar_field,solver_interface,kernel,vectors profile_runner.py`  
 
 
 ### Notes:

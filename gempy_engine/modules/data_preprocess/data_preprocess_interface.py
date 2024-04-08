@@ -5,8 +5,7 @@ from numpy import ndarray
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.data import SurfacePoints, Orientations, SurfacePointsInternals, TensorsStructure, OrientationsInternals
 import numpy as np
-from gempy_engine.core.backend_tensor import BackendTensor as bt
-
+from gempy_engine.core.backend_tensor import BackendTensor as bt, BackendTensor
 
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
 
@@ -20,6 +19,7 @@ def prepare_orientations(orientations: Orientations) -> OrientationsInternals:
 
 
 def prepare_grid(grid: np.ndarray, surface_points: SurfacePoints) -> np.ndarray:
+    # grid = grid.astype(BackendTensor.dtype)
     concat = bt.tfnp.concatenate([grid, surface_points.sp_coords])
     return concat
 

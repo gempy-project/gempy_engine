@@ -18,7 +18,7 @@ from ...core.data.interpolation_input import InterpolationInput
 from ...core.utils import gempy_profiler_decorator
 
 
-#@gempy_profiler_decorator
+@gempy_profiler_decorator
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                   data_descriptor: InputDataDescriptor, *, geophysics_input: Optional[GeophysicsInput] = None) -> Solutions:
     WeightsBuffer.clean()
