@@ -7,10 +7,11 @@ import os
 
 from gempy_engine.core.data import TensorsStructure, InterpolationOptions, SurfacePoints, \
     Orientations
+from gempy_engine.core.data.engine_grid import EngineGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+from gempy_engine.core.data.regular_grid import RegularGrid
 from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
-from gempy_engine.core.data.grid import RegularGrid, Grid
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.plugins.plotting.helper_functions import calculate_gradient
@@ -54,7 +55,7 @@ def unconformity() -> Tuple[InterpolationInput, InterpolationOptions, InputDataD
 
     regular_grid = RegularGrid(extent, resolution)
 
-    grid = Grid(regular_grid=regular_grid)
+    grid = EngineGrid(octree_grid=regular_grid)
 
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)

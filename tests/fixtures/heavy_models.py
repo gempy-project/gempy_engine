@@ -7,9 +7,10 @@ import pandas as pd
 
 import tests.conftest
 from gempy_engine.core.data import InterpolationOptions, SurfacePoints, Orientations, SurfacePointsInternals, OrientationsInternals, TensorsStructure
-from gempy_engine.core.data.grid import Grid, RegularGrid
+from gempy_engine.core.data.engine_grid import EngineGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.kernel_classes.solvers import Solvers
+from gempy_engine.core.data.regular_grid import RegularGrid
 from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
@@ -91,7 +92,7 @@ def moureze_model_factory(path_to_root: str, pick_every=8, octree_lvls=3, solver
         extent=extent,
         regular_grid_shape=[2, 2, 2]
     )
-    grid: Grid = Grid.from_regular_grid(regular_grid)
+    grid: EngineGrid = EngineGrid.from_regular_grid(regular_grid)
     interpolation_input: InterpolationInput = InterpolationInput(
         surface_points=surface_points,
         orientations=orientations,

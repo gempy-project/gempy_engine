@@ -2,8 +2,8 @@ import dataclasses
 
 import pytest
 import numpy as np
-
-from gempy_engine.core.data.grid import RegularGrid, Grid
+from gempy_engine.core.data.engine_grid import EngineGrid
+from gempy_engine.core.data.regular_grid import RegularGrid
 
 
 def simple_grid_2d_f():
@@ -26,7 +26,7 @@ def simple_grid_3d_more_points_grid():
     extent = [0.25, .75, 0.25, .75, 0.25, .75]
 
     regular_grid = RegularGrid(extent, resolution)
-    grid = Grid.from_regular_grid(regular_grid)
+    grid = EngineGrid.from_regular_grid(regular_grid)
     return grid
 
 
@@ -36,5 +36,5 @@ def simple_grid_3d_octree():
     extent = [0.25, .75, 0.25, .75, 0.25, .75]
 
     regular_grid = RegularGrid(extent, resolution)
-    grid = Grid.from_regular_grid(regular_grid)
+    grid = EngineGrid.from_regular_grid(regular_grid)
     return dataclasses.replace(grid)

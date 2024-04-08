@@ -5,8 +5,9 @@ import pandas as pd
 import pytest
 
 from gempy_engine.core.data import SurfacePoints, Orientations, InterpolationOptions, TensorsStructure
-from gempy_engine.core.data.grid import RegularGrid, Grid
+from gempy_engine.core.data.engine_grid import EngineGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+from gempy_engine.core.data.regular_grid import RegularGrid
 from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
@@ -39,7 +40,7 @@ def one_fault_model():
     resolution = [2, 2, 2]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid: RegularGrid = RegularGrid(extent, resolution)
-    grid: Grid = Grid(regular_grid=regular_grid)
+    grid: EngineGrid = EngineGrid(octree_grid=regular_grid)
 
     interpolation_input: InterpolationInput = InterpolationInput(
         surface_points=spi,
@@ -109,7 +110,7 @@ def one_finite_fault_model():
     resolution = [4, 4, 4]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
-    grid = Grid(regular_grid.values, regular_grid=regular_grid)
+    grid = EngineGrid(regular_grid.values, regular_grid=regular_grid)
 
     interpolation_input = InterpolationInput(spi, ori, grid, ids)
     # endregion
@@ -176,7 +177,7 @@ def graben_fault_model():
     resolution = [2, 2, 2]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
-    grid = Grid(regular_grid=regular_grid)
+    grid = EngineGrid(octree_grid=regular_grid)
 
     interpolation_input = InterpolationInput(spi, ori, grid, ids)
     # endregion

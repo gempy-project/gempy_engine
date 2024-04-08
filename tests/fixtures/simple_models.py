@@ -8,8 +8,9 @@ import pandas as pd
 
 from gempy_engine.API.interp_single._interp_scalar_field import _solve_interpolation, _evaluate_sys_eq
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
-from gempy_engine.core.data.grid import RegularGrid, Grid
+from gempy_engine.core.data.engine_grid import EngineGrid
 from gempy_engine.core.data.interpolation_functions import InterpolationFunctions, CustomInterpolationFunctions
+from gempy_engine.core.data.regular_grid import RegularGrid
 from gempy_engine.plugins.plotting.helper_functions import calculate_gradient
 
 import pytest
@@ -136,7 +137,7 @@ def simple_model_interpolation_input_factory():
     extent = [0.25, .75, 0.25, .75, 0.25, .75]
 
     regular_grid = RegularGrid(extent, resolution)
-    grid_0_centers = Grid.from_regular_grid(regular_grid)
+    grid_0_centers = EngineGrid.from_regular_grid(regular_grid)
     
     dip_positions = np.array([
         [0.25010, 0.50010, 0.54177],
@@ -395,7 +396,7 @@ def unconformity_complex_factory():
     resolution = [15, 2, 15]
     extent = [0, 10., 0, 2., 0, 5.]
     regular_grid = RegularGrid(extent, resolution)
-    grid = Grid(regular_grid=regular_grid)
+    grid = EngineGrid(octree_grid=regular_grid)
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)
     ids = np.array([0, 1, 2, 3, 4, 5])
@@ -409,7 +410,7 @@ def unconformity_complex_implicit():
     extent = [0, 10., 0, 2., 0, 5.]
 
     regular_grid = RegularGrid(extent, resolution)
-    grid = Grid(regular_grid=regular_grid)
+    grid = EngineGrid(octree_grid=regular_grid)
 
     orientations = pd.read_csv(data_path + "05_toy_fold_unconformity_orientations.csv")
     sp = pd.read_csv(data_path + "05_toy_fold_unconformity_interfaces.csv")
@@ -488,7 +489,7 @@ def unconformity_complex_one_layer():
 
     regular_grid = RegularGrid(extent, resolution)
 
-    grid = Grid(regular_grid=regular_grid)
+    grid = EngineGrid(octree_grid=regular_grid)
 
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)
