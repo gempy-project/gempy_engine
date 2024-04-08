@@ -3,6 +3,7 @@ from typing import Sequence, Union
 
 import numpy as np
 
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.utils import cast_type_inplace
 
 
@@ -21,10 +22,9 @@ class CenteredGrid:
 
     def __post_init__(self):
         self.centers = np.atleast_2d(self.centers)
-        
+
         assert self.centers.shape[1] == 3, 'Centers must be a numpy array of shape (n, 3) that contains the coordinates XYZ'
 
-        cast_type_inplace(self, requires_grad=True) # TODO: This has to be grabbed from options
         self.update_kernels(self.resolution, self.radius)
 
     def update_kernels(self, grid_resolution, scaling_factor, base_spacing=0.01, z_axis_shift=0.05, z_axis_scale=1.2) -> None:
@@ -42,13 +42,13 @@ class CenteredGrid:
             None
         """
         self.kernel_grid_centers, self.left_voxel_edges, self.right_voxel_edges = (
-            self.create_irregular_grid_kernel(
-                grid_resolution=grid_resolution,
-                scaling_factor=scaling_factor,
-                base_spacing=base_spacing,
-                z_axis_shift=z_axis_shift,
-                z_axis_scale=z_axis_scale
-            )
+                self.create_irregular_grid_kernel(
+                    grid_resolution=grid_resolution,
+                    scaling_factor=scaling_factor,
+                    base_spacing=base_spacing,
+                    z_axis_shift=z_axis_shift,
+                    z_axis_scale=z_axis_scale
+                )
         )
 
     @property

@@ -176,7 +176,8 @@ class BackendTensor:
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
             if isinstance(array_like, torch.Tensor):
-                return array_like
+                if dtype is None: return array_like
+                else: return array_like.type(dtype)
             else:
                 return torch.tensor(array_like, dtype=dtype)
 
@@ -205,6 +206,7 @@ class BackendTensor:
         cls.tfnp.copy = lambda tensor: tensor.clone()
         cls.tfnp.concatenate = _concatenate
         cls.tfnp.transpose = _transpose
+        cls.tfnp.geomspace = lambda start, stop, step: torch.logspace(start, stop, step, base=10)
 
     @classmethod
     def _wrap_pykeops_functions_(cls):

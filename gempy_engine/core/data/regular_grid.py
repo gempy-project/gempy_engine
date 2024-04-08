@@ -27,8 +27,7 @@ class RegularGrid:
 
         self.values = self._create_regular_grid(self.extent, self.regular_grid_shape)
 
-        cast_type_inplace(self, requires_grad=True) # TODO: This has to be grabbed from options
-        self.original_values = BackendTensor.tfnp.copy(self.values)
+        self.original_values = self.values.copy()
         
 
     @classmethod

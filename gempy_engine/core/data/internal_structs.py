@@ -22,9 +22,7 @@ class SolverInput(object):
                  xyz_to_interpolate=None, fault_internal=None):
         self.sp_internal = sp_internal
         self.ori_internal = ori_internal
-        # ? DEP: Moved to preparation
-        # if xyz_to_interpolate is not None:
-        #     self.xyz_to_interpolate = xyz_to_interpolate.astype(BackendTensor.dtype)
+    
         self.xyz_to_interpolate = xyz_to_interpolate
         self._fault_internal = fault_internal
 

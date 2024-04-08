@@ -19,7 +19,7 @@ def prepare_orientations(orientations: Orientations) -> OrientationsInternals:
 
 
 def prepare_grid(grid: np.ndarray, surface_points: SurfacePoints) -> np.ndarray:
-    # grid = grid.astype(BackendTensor.dtype)
+    grid = BackendTensor.t.array(grid, dtype=BackendTensor.dtype)
     concat = bt.tfnp.concatenate([grid, surface_points.sp_coords])
     return concat
 
