@@ -145,7 +145,7 @@ def _compute_all_kernel_terms(range_: int, kernel_functions: KernelFunction, r_r
 
 
 class DistancesBuffer:
-    last_internal_distances_matrices = None
+    last_internal_distances_matrices: InternalDistancesMatrices = None
 
 
 # noinspection DuplicatedCode
@@ -203,14 +203,21 @@ def _compute_distances_using_cache(cs, last_internal_distances_matrices: Interna
     # endregion
 
     new_distance_matrices = InternalDistancesMatrices(
-        dif_ref_ref=dif_ref_ref, dif_rest_rest=dif_rest_rest,
-        hu=hu, hv=hv,
-        huv_ref=huv_ref, huv_rest=huv_rest,
+        dif_ref_ref=dif_ref_ref,
+        dif_rest_rest=dif_rest_rest,
+        hu=hu,
+        hv=hv,
+        huv_ref=huv_ref,
+        huv_rest=huv_rest,
         perp_matrix=perp_matrix,
-        r_ref_ref=r_ref_ref, r_ref_rest=r_ref_rest,
-        r_rest_ref=r_rest_ref, r_rest_rest=r_rest_rest,
-        hu_ref=hu_ref, hu_rest=hu_rest,
-        hu_ref_grad=hu_ref_grad, hu_rest_grad=hu_rest_grad,
+        r_ref_ref=r_ref_ref,
+        r_ref_rest=r_ref_rest,
+        r_rest_ref=r_rest_ref,
+        r_rest_rest=r_rest_rest,
+        hu_ref=hu_ref,
+        hu_rest=hu_rest,
+        hu_ref_grad=hu_ref_grad,
+        hu_rest_grad=hu_rest_grad,
     )
 
     return new_distance_matrices
@@ -251,21 +258,19 @@ def _compute_distances_new(cs: CartesianSelector, ori_sp_matrices, square_distan
     new_distance_matrices = InternalDistancesMatrices(
         dif_ref_ref=dif_ref_ref,
         dif_rest_rest=dif_rest_rest,
-        hu=hu,
-        hv=hv,
+        hu=hu, # used for grads
+        hv=hv, # used for grads
         huv_ref=huv_ref,
         huv_rest=huv_rest,
         perp_matrix=perp_matrix,
-        r_ref_ref=r_ref_ref,
-        r_ref_rest=r_ref_rest,
-        r_rest_ref=r_rest_ref,
-        r_rest_rest=r_rest_rest,
-        hu_ref=hu_ref,
+        r_ref_ref=r_ref_ref,  # used
+        r_ref_rest=r_ref_rest, # used
+        r_rest_ref=r_rest_ref, # used
+        r_rest_rest=r_rest_rest, # used
+        hu_ref=hu_ref, # used for normal scalar
         hu_rest=hu_rest,
-        hu_ref_grad=None,
+        hu_ref_grad=None,  # * These are set on the compute_from_cache because we assume that we have already computed the rest at least once
         hu_rest_grad=None,
-        #    hu_ref_sum = hu_ref_sum   , hu_rest_sum = hu_rest_sum,
-        # @on
     )
     return new_distance_matrices
 
