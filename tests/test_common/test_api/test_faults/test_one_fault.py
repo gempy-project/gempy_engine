@@ -8,6 +8,7 @@ from gempy_engine.core.data import InterpolationOptions, TensorsStructure
 from gempy_engine.core.data.custom_segmentation_functions import ellipsoid_3d_factory, _implicit_3d_ellipsoid_to_slope
 from gempy_engine.core.data.engine_grid import  RegularGrid, EngineGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.faults import FaultsData
 from gempy_engine.core.data.octree_level import OctreeLevel
@@ -183,21 +184,25 @@ def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
     rescaling_factor = 240
     resolution = np.array([20, 4, 20])
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
-    regular_grid = RegularGrid(extent, resolution)
-    grid = EngineGrid(octree_grid=regular_grid)
+    dense_grid = RegularGrid(extent, resolution)
+    grid = EngineGrid(
+        octree_grid=RegularGrid(extent, np.array([2, 2, 2])),
+        dense_grid=dense_grid
+    )
     interpolation_input.grid = grid
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     fault_mesh = solutions.dc_meshes[0]
 
-    regular_grid = solutions.octrees_output[-1].outputs_centers[0].grid.regular_grid
-    resolution = regular_grid.resolution
+    centers_: InterpOutput = solutions.octrees_output[0].outputs_centers[0]
+    dense_grid = centers_.grid.dense_grid
+    resolution = dense_grid.resolution
 
     radius = np.array([1, 1, 2])
     from gempy_engine.core.backend_tensor import BackendTensor
     scalar = _implicit_3d_ellipsoid_to_slope(  # * This paints the 3d regular grid
-        xyz=BackendTensor.t.array(regular_grid.values),
+        xyz=BackendTensor.t.array(dense_grid.values),
         center=np.array([0, 0, 0]),
         radius=radius
     )
@@ -210,7 +215,7 @@ def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
     if plot_pyvista or False:
         import pyvista as pv
         p = pv.Plotter()
-        regular_grid_values = regular_grid.values_vtk_format
+        regular_grid_values = dense_grid.values_vtk_format
 
         grid_3d = regular_grid_values.reshape(*(resolution + 1), 3).T
         regular_grid_mesh = pv.StructuredGrid(*grid_3d)
