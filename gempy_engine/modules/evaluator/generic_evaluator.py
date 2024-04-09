@@ -53,13 +53,13 @@ def _eval_on(solver_input, weights, options, slice_array: slice = None):
     gy_field: Optional[np.ndarray] = None
     gz_field: Optional[np.ndarray] = None
     if options.compute_scalar_gradient is True:
-        eval_gx_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=0)
-        eval_gy_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=1)
+        eval_gx_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=0, slice_array=slice_array)
+        eval_gy_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=1, slice_array=slice_array)
         gx_field = (eval_gx_kernel.T @ weights).reshape(-1)
         gy_field = (eval_gy_kernel.T @ weights).reshape(-1)
 
         if options.number_dimensions == 3:
-            eval_gz_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=2)
+            eval_gz_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=2, slice_array=slice_array)
             gz_field = (eval_gz_kernel.T @ weights).reshape(-1)
         elif options.number_dimensions == 2:
             gz_field = None
