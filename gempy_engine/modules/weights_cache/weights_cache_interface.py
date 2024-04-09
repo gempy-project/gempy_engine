@@ -86,7 +86,12 @@ class WeightCache:
         disk_path = WeightCache._disk_cache_path(key)
         if os.path.exists(disk_path):
             with open(disk_path, 'rb') as f:
-                weights = pickle.load(f)
+                try:
+                    weights = pickle.load(f)
+                except ModuleNotFoundError:
+                    # Handle case where the module has been renamed
+                    # and the pickled object cannot be loaded
+                    return None
                 # Optionally cache in memory again
                 WeightCache.memory_cache[key] = weights
                 return weights
