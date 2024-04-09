@@ -59,8 +59,11 @@ def interpolate_single_field(interpolation_input: InterpolationInput, options: d
                              data_shape: gempy_engine.core.data.tensors_structure.TensorsStructure) -> InterpOutput:  # * Only For testing
 
     grid = interpolation_input.grid
-    solver_input = input_preprocess(data_shape, interpolation_input)
-    weights, exported_fields = interpolate_scalar_field(solver_input, options)
+    weights, exported_fields = interpolate_scalar_field(
+        solver_input=(input_preprocess(data_shape, interpolation_input)),
+        options=options,
+        stack_number=0
+    )
 
     exported_fields.set_structure_values(
         reference_sp_position=data_shape.reference_sp_position,
