@@ -1,10 +1,14 @@
+-r requirements/optional-requirements.txt
+
 matplotlib
 pandas
 pytest
+
+pytest-benchmark
+pytest-approvaltests
+
 
 # For better visualization of the test results:
 # pyvista
 # scikit image
 
-pytest-benchmark
-pytest-approvaltests

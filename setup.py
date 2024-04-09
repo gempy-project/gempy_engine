@@ -1,4 +1,6 @@
-﻿from setuptools import setup, find_packages
+﻿from os import path
+
+from setuptools import setup, find_packages
 
 version = "2023.2.0b1"
 
@@ -23,18 +25,24 @@ setup(
     packages=find_packages(),
     license='EUPL-1.2',
     classifiers=[
-        "Development Status :: 3 - Alpha",
-        "Intended Audience :: Developers",
-        "License :: OSI Approved :: European Union Public Licence 1.2 (EUPL 1.2)",
-        "Operating System :: OS Independent",
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.10",
+            "Development Status :: 3 - Alpha",
+            "Intended Audience :: Developers",
+            "License :: OSI Approved :: European Union Public Licence 1.2 (EUPL 1.2)",
+            "Operating System :: OS Independent",
+            "Programming Language :: Python :: 3",
+            "Programming Language :: Python :: 3.10",
     ],
     python_requires=">=3.10",
-    install_requires=read_requirements("requirements.txt"),
+    install_requires=read_requirements("requirements/requirements.txt"),
     extras_require={
-        "dev": read_requirements("dev-requirements.txt"),
-        "opt": read_requirements("optional-requirements.txt"),
-        "server": read_requirements("server-requirements.txt")
-    }
+            "dev"   : read_requirements("requirements/dev-requirements.txt"),
+            "opt"   : read_requirements("requirements/optional-requirements.txt"),
+            "server": read_requirements("requirements/server-requirements.txt")
+    },
+    use_scm_version={
+            "root"            : ".",
+            "relative_to"     : __file__,
+            "write_to"        : path.join("gempy_engine", "_version.py"),
+            "fallback_version": "3.0.0"
+    },
 )

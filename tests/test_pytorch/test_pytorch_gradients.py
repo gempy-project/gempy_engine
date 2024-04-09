@@ -4,7 +4,7 @@ from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data import SurfacePoints, Orientations, TensorsStructure
-from gempy_engine.core.data.grid import Grid
+from gempy_engine.core.data.engine_grid import EngineGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
@@ -32,13 +32,17 @@ import torch
 import numpy as np
 
 
+# skip test if torch is not installed
+pytestmark = pytest.mark.skipif(not TEST_SPEED, reason="Only for speed testing")
+
+
 # This is a mock function to represent the unknown behavior of the classes and functions.
 def simple_model_interpolation_input_TORCH():
     resolution = [2, 2, 3]
     extent = [0.25, .75, 0.25, .75, 0.25, .75]
 
     regular_grid = RegularGrid(extent, resolution)
-    grid_0_centers = Grid.from_regular_grid(regular_grid)
+    grid_0_centers = EngineGrid.from_regular_grid(regular_grid)
 
     dip_positions = torch.tensor([
         [0.25010, 0.50010, 0.54177],

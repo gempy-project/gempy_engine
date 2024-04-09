@@ -1,0 +1,6 @@
+-r requirements/optional-requirements.txt
+
+fastapi
+uvicorn[standard]
+subsurface
+pandas
