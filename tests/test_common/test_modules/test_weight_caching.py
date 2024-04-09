@@ -33,26 +33,3 @@ def test_load_weights():
 
     retrieved_weights = WeightCache.load_weights(weights_key)
     print(retrieved_weights)
-
-
-def test_vector_quantizing():
-    from sklearn.cluster import KMeans
-    import numpy as np
-
-    # Example: Quantizing a set of 2D vectors (can be adapted for higher dimensions)
-    data = np.random.rand(10000, 1)  # 100 2D vectors
-
-    # Train KMeans to find centroids
-    n_clusters = 10  # Number of centroids (tune this based on your data)
-    kmeans = KMeans(n_clusters=n_clusters)
-    kmeans.fit(data)
-
-    # Quantize data
-    quantized = kmeans.predict(data)  # Each vector in 'data' is now represented by a cluster index
-
-    # Retrieving the centroids
-    centroids = kmeans.cluster_centers_
-
-    # Example: Using centroids for reconstruction
-    reconstructed_data = centroids[quantized]
-    pass

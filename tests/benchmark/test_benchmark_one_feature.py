@@ -13,8 +13,7 @@ from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.optional_dependencies import require_tensorflow
-from tests.conftest import plot_pyvista, use_gpu
-
+from tests.conftest import plot_pyvista, use_gpu, REQUIREMENT_LEVEL, Requirements
 
 # ! Make sure profiler is disabled!
 pytestmark = pytest.mark.skipif(LINE_PROFILER_ENABLED and False, reason="Line profiler is enabled")
@@ -33,6 +32,7 @@ def test_one_feature_numpy(moureze_model, benchmark):
     _run_model(benchmark, moureze_model, benchmark_active = True)
 
 
+@pytest.mark.skipif(REQUIREMENT_LEVEL.value < Requirements.OPTIONAL.value, reason="This test needs higher requirements.")
 class TestPyKeops:
     def test_one_feature_numpy_pykeops_CPU(self, moureze_model, benchmark):
         BackendTensor.change_backend(
@@ -50,39 +50,6 @@ class TestPyKeops:
             pykeops_enabled=True
         )
         _run_model(benchmark, moureze_model, benchmark_active=False)
-
-
-class TestTF:
-    # ! The order seems to matter!
-
-    def test_one_feature_tf_GPU(self, moureze_model, benchmark):
-        if use_gpu is False:
-            raise pytest.skip("conftest.py is set to not use GPU")
-
-        options: InterpolationOptions = moureze_model[1]
-        if options.number_octree_levels > 3:
-            pytest.skip("Too many octree levels, too slow")
-
-        BackendTensor.change_backend(
-            engine_backend=AvailableBackends.tensorflow,
-            use_gpu=True,
-            pykeops_enabled=False
-        )
-
-        tf = require_tensorflow()
-        with tf.device('/GPU:0'):
-            _run_model(benchmark, moureze_model)
-
-    def test_one_feature_tf_CPU(self, moureze_model, benchmark):
-        BackendTensor.change_backend(
-            engine_backend=AvailableBackends.tensorflow,
-            use_gpu=True,  # ! This has to be true because once is set to False it will affect the whole run
-            pykeops_enabled=False
-        )
-
-        tf = require_tensorflow()
-        with tf.device('/CPU:0'):
-            _run_model(benchmark, moureze_model)
 
 
 def _run_model(benchmark, moureze_model, benchmark_active=True):

@@ -624,10 +624,10 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
         p.add_mesh(mesh, opacity=.8, silhouette=True)
 
     # Plot Regular grid Octree
-    regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
+    regular_grid_values = octree_list[n].grid_centers.octree_grid.values_vtk_format
     regular_grid_scalar = get_regular_grid_value_for_level(octree_list, n)
 
-    shape = octree_list[n].grid_centers.regular_grid_shape
+    shape = octree_list[n].grid_centers.octree_grid_shape
     grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T
     regular_grid_mesh = pv.StructuredGrid(*grid_3d)
     regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
@@ -668,17 +668,15 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
 
 
 def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_points, weights):
-    surface_points = simple_model[0]
-    orientations = simple_model[1]
-    options = simple_model[2]
-    shape: InputDataDescriptor = simple_model[3]
+    raise NotImplementedError("This is broken since a while")
+    interpolation_input = simple_model[0]
+    options = simple_model[1]
+    shape: InputDataDescriptor = simple_model[2]
 
-    interpolation_input = InterpolationInput(surface_points, orientations, grid, ids)
-
-    from gempy_engine.core.data.grid import EngineGrid, RegularGrid
+    from gempy_engine.core.data.engine_grid import EngineGrid, RegularGrid
 
     # region interpolate high res grid
-    grid_high_res = EngineGrid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
+    grid_high_res:EngineGrid = EngineGrid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
     interpolation_input.grid = grid_high_res
     input1: SolverInput = input_preprocess(shape.tensors_structure, interpolation_input)
     exported_fields_high_res = _evaluate_sys_eq(input1, weights, options)
@@ -695,12 +693,13 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
 
     from skimage.measure import marching_cubes
     import pyvista as pv
+    spacing = np.array(dxdydz)/8
     vert, edges, _, _ = marching_cubes(
-        scalar_high_res.scalar_field.reshape(resolution),
-        scalar_at_surface_points[0],
-        spacing=dxdydz
+        volume=(scalar_high_res.scalar_field[:-8].reshape(resolution)),
+        level=scalar_at_surface_points[0],
+        spacing=spacing
     )
-    loc_0 = np.array([0.25, .25, .25]) + np.array(dxdydz) / 2
+    loc_0 = np.array([0.25, .25, .25]) + np.array(spacing) / 2
     vert += np.array(loc_0).reshape(1, 3)
     mesh = pv.PolyData(vert, np.insert(edges, 0, 3, axis=1).ravel())
     return mesh

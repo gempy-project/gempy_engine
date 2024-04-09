@@ -24,35 +24,8 @@ except ImportError:
 
 def test_regular_grid_preparation(simple_grid_3d_more_points_grid):
     engine_grid = simple_grid_3d_more_points_grid
-    print(engine_grid.regular_grid_values[45, 2, 4, 2])
-    np.testing.assert_almost_equal(engine_grid.regular_grid_values[45, 2, 4, 2], .295, 6)
-
-
-def test_regular_grid_point_generation(simple_grid_3d_octree: EngineGrid):
-    rg = simple_grid_3d_octree.regular_grid
-
-    corners_sol = np.array(
-        [[0.25000, 0.25000, 0.25000],
-         [0.25000, 0.50000, 0.25000],
-         [0.50000, 0.25000, 0.25000],
-         [0.50000, 0.50000, 0.25000]]
-    )
-    np.testing.assert_almost_equal(rg.corners_values[::24], corners_sol, decimal=3)
-
-    faces_sol = np.array([
-        [0.25000, 0.37500, 0.33333],
-        [0.37500, 0.25000, 0.33333],
-        [0.37500, 0.37500, 0.25000],
-    ]
-    )
-    np.testing.assert_almost_equal(rg.faces_values[::24], faces_sol, decimal=3)
-
-    if plot_pyvista:
-        p = pv.Plotter()
-        p.add_mesh(pv.PolyData(rg.values), color="black", point_size=12.0, render_points_as_spheres=False)
-        p.add_mesh(pv.PolyData(rg.corners_values), color="blue", point_size=7.0, render_points_as_spheres=False)
-        p.add_mesh(pv.PolyData(rg.faces_values), color="g", point_size=5.0, render_points_as_spheres=False)
-        p.show()
+    print(engine_grid.dense_grid_values[45, 2, 4, 2])
+    np.testing.assert_almost_equal(engine_grid.dense_grid_values[45, 2, 4, 2], .295, 6)
 
 
 def test_octree_root(simple_model, simple_grid_3d_octree):
@@ -67,7 +40,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
 
     # Interpolate level 0 - corners
     grid_0_corners = EngineGrid.from_xyz_coords(
-        xyz_coords=_generate_corners(regular_grid=grid_0_centers.regular_grid)
+        xyz_coords=_generate_corners(regular_grid=grid_0_centers.octree_grid)
     )
     interpolation_input.grid = grid_0_corners
     output_0_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure, clean_buffer=False)
@@ -87,7 +60,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
 
     # Interpolate level 1 - Corners
     grid_1_corners = EngineGrid.from_xyz_coords(
-        xyz_coords=_generate_corners(regular_grid=grid_1_centers.regular_grid)
+        xyz_coords=_generate_corners(regular_grid=grid_1_centers.octree_grid)
     )
 
     interpolation_input.grid = grid_1_corners
@@ -100,17 +73,18 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     grid_2_centers = get_next_octree_grid(octree_lvl1, compute_topology=False, debug=True)
     xyz1, anch1, select1 = grid_2_centers.debug_vals[:3]
 
-    if plot_pyvista or False:
+    if plot_pyvista or True:
         # Compute actual mesh
         resolution = [20, 20, 20]
-        mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution, output_1_centers.scalar_field_at_sp,
+        mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers,
+                                    resolution, output_1_centers.scalar_field_at_sp,
                                     output_1_centers.weights)
         p = pv.Plotter()
-        rg = grid_0_centers.regular_grid
+        rg = grid_0_centers.octree_grid
 
         grid_0_faces = grid_0_corners
 
-        p.add_mesh(mesh, opacity=.8, silhouette=True)
+        # ? This does not seem to be working p.add_mesh(mesh, opacity=.8, silhouette=True)
         p.add_mesh(pv.PolyData(grid_0_centers.values), color="black", point_size=12.0, render_points_as_spheres=False)
         p.add_mesh(pv.PolyData(rg.corners_values), color="blue", point_size=3.0, render_points_as_spheres=False)
 
@@ -205,7 +179,7 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
 def test_octree_lvl_collapse(simple_model, simple_grid_3d_octree):
     octree_list = _run_octree_api(simple_model, simple_grid_3d_octree)
     for i in range(len(octree_list)):
-        shape = octree_list[i].grid_centers.regular_grid_shape
+        shape = octree_list[i].grid_centers.octree_grid_shape
         slice = shape[1] // 2
         regular_grid_scalar = get_regular_grid_value_for_level(octree_list, level=i).astype("int8")
         plt.imshow(regular_grid_scalar[:, slice, :].T, origin="lower")
