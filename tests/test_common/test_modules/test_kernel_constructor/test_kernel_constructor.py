@@ -4,6 +4,7 @@ from approvaltests import Options
 from approvaltests.approvals import verify
 from approvaltests.namer import NamerFactory
 
+from conftest import Requirements, REQUIREMENT_LEVEL
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
@@ -80,11 +81,9 @@ def test_eval_kernel(simple_model_2, simple_grid_2d):
     print(export_gradient_)
 
 
-pykeops_enabled = True
-
-
-# TODO: (bug) When running test_covariance_spline_kernel the running the class test breaks for some weird state change
-@pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="These tests only makes sense for numpy backend and PyKEOPS")
+backendNOTNumpyOrNotEnoughRequirementsInstalled = (BackendTensor.engine_backend != AvailableBackends.numpy and
+                                                   REQUIREMENT_LEVEL.value < Requirements.OPTIONAL.value)
+@pytest.mark.skipif(backendNOTNumpyOrNotEnoughRequirementsInstalled, reason="These tests only makes sense for numpy backend and PyKEOPS")
 class TestPykeopsNumPyEqual():
 
     @pytest.fixture(scope="class")
@@ -198,7 +197,7 @@ class TestPykeopsNumPyEqual():
         c_n_sum = c_n.sum(0).reshape(-1, 1)
 
         # pykeops
-        BackendTensor._change_backend(AvailableBackends.numpy, pykeops_enabled=pykeops_enabled)
+        BackendTensor._change_backend(AvailableBackends.numpy, pykeops_enabled=True)
         kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
         c_k = cov_func(kernel_data, options, item=item)
         c_k_sum = c_n.sum(0).reshape(-1, 1)
