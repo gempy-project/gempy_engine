@@ -81,7 +81,7 @@ def test_eval_kernel(simple_model_2, simple_grid_2d):
     print(export_gradient_)
 
 
-backendNOTNumpyOrNotEnoughRequirementsInstalled = (BackendTensor.engine_backend != AvailableBackends.numpy and
+backendNOTNumpyOrNotEnoughRequirementsInstalled = (BackendTensor.engine_backend != AvailableBackends.numpy or
                                                    REQUIREMENT_LEVEL.value < Requirements.OPTIONAL.value)
 @pytest.mark.skipif(backendNOTNumpyOrNotEnoughRequirementsInstalled, reason="These tests only makes sense for numpy backend and PyKEOPS")
 class TestPykeopsNumPyEqual():
