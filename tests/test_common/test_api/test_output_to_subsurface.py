@@ -12,7 +12,7 @@ try:
 except ImportError:
     plot_pyvista = False
 
-pytest.mark.skipif(REQUIREMENT_LEVEL.value < Requirements.OPTIONAL.value, reason="This test needs higher requirements.")
+pytestmark = pytest.mark.skipif(REQUIREMENT_LEVEL.value < Requirements.OPTIONAL.value, reason="This test needs higher requirements.")
 
 def test_output_to_subsurface(simple_model_interpolation_input, n_oct_levels=3):
     import subsurface

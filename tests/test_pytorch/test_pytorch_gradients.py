@@ -15,7 +15,7 @@ from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from ..conftest import plot_pyvista, TEST_SPEED, REQUIREMENT_LEVEL, Requirements
 
-pytest.mark.skipif(REQUIREMENT_LEVEL.value < Requirements.OPTIONAL.value, reason="This test needs higher requirements.")
+pytestmark = pytest.mark.skipif(REQUIREMENT_LEVEL.value < Requirements.OPTIONAL.value, reason="This test needs higher requirements.")
 
 try:
     # noinspection PyUnresolvedReferences
