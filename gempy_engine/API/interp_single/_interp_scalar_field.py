@@ -51,10 +51,20 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
 
     match weights_cached:
         case None:
-            weights = _solve_and_store_weights(solver_input, options.kernel_options, weights_key, weights_hash)
+            weights = _solve_and_store_weights(
+                solver_input=solver_input,
+                kernel_options=options.kernel_options,
+                weights_key=weights_key,
+                weights_hash=weights_hash
+            )
         case _ if weights_cached["hash"] != weights_hash:
             solver_input.weights_x0 = weights_cached["weights"]
-            weights = _solve_and_store_weights(solver_input, options.kernel_options, weights_key, weights_hash)
+            weights = _solve_and_store_weights(
+                solver_input=solver_input,
+                kernel_options=options.kernel_options,
+                weights_key=weights_key,
+                weights_hash=weights_hash
+            )
         case _ if weights_cached["hash"] == weights_hash:
             weights = weights_cached["weights"]
         case _:
