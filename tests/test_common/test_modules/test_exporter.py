@@ -75,7 +75,7 @@ def test_export_simple_model_low_res(plot=True):
     options.compute_scalar_gradient = True
     
     output: InterpOutput = interpolate_single_field(interpolation_input, options, structure.tensors_structure)
-    Z_x = output.exported_fields.scalar_field
+    Z_x = output.exported_fields_dense_grid.scalar_field
     # ids_block = output.ids_block
     gx = output.exported_fields.gx_field
     gy = output.exported_fields.gy_field
@@ -108,11 +108,12 @@ def test_export_3_layers(simple_model_3_layers_high_res, plot=True):
     interpolation_input, options, structure = simple_model_3_layers_high_res
     options.compute_scalar_gradient = True
     output: InterpOutput = interpolate_single_field(interpolation_input, options, structure.tensors_structure)
-    Z_x = output.exported_fields.scalar_field
+
+    Z_x = output.exported_fields_dense_grid.scalar_field
     
-    gx = output.exported_fields.gx_field
-    gy = output.exported_fields.gy_field
-    gz = output.exported_fields.gz_field
+    gx = output.exported_fields_dense_grid.gx_field
+    gy = output.exported_fields_dense_grid.gy_field
+    gz = output.exported_fields_dense_grid.gz_field
 
     if plot:
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn",
@@ -146,7 +147,7 @@ def test_final_exported_fields_one_layer(unconformity_complex_one_layer):
     outputs: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)
 
     xyz_lvl0 = interpolation_input.grid.values
-    resolution = interpolation_input.grid.regular_grid.resolution
+    resolution = interpolation_input.grid.octree_grid.resolution
 
     if True:
         plt.quiver(xyz_lvl0[:, 0], xyz_lvl0[:, 2],
@@ -155,7 +156,7 @@ def test_final_exported_fields_one_layer(unconformity_complex_one_layer):
                    pivot="tail",
                    color='green', alpha=.6, )
 
-        grid = interpolation_input.grid.regular_grid
+        grid = interpolation_input.grid.octree_grid
         from gempy_engine.core.backend_tensor import BackendTensor
         plot_block(
             BackendTensor.t.to_numpy(outputs[0].final_exported_fields._scalar_field),

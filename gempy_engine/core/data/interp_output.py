@@ -40,8 +40,8 @@ class InterpOutput:
         return self.scalar_fields.scalar_field_at_sp
 
     @property
-    def exported_fields_regular_grid(self):
-        return self.scalar_fields.exported_fields_regular_grid
+    def exported_fields_dense_grid(self):
+        return self.scalar_fields.exported_fields_dense_grid
 
     @property
     def values_block_regular_grid(self):
