@@ -22,8 +22,9 @@ class EngineGrid:
     geophysics_grid: Optional[CenteredGrid] = None  # TODO: Not implemented this probably will need something different that the generic grid?
 
     debug_vals = None
+
     # ? Should we add the number of octrees here instead of the general options
-    
+
     def __init__(self, octree_grid: Optional[RegularGrid] = None, dense_grid: Optional[RegularGrid] = None,
                  custom_grid: Optional[GenericGrid] = None, topography: Optional[GenericGrid] = None,
                  sections: Optional[GenericGrid] = None, geophysics_grid: Optional[CenteredGrid] = None):
@@ -33,15 +34,18 @@ class EngineGrid:
         self.topography = topography
         self.sections = sections
         self.geophysics_grid = geophysics_grid
-    
+
     @classmethod
     def from_xyz_coords(cls, xyz_coords: ndarray) -> "EngineGrid":
         return cls(custom_grid=GenericGrid(values=xyz_coords))
 
     @classmethod
     def from_regular_grid(cls, regular_grid: RegularGrid) -> "EngineGrid":
-        return cls(octree_grid=regular_grid)
-    
+        return cls(
+            dense_grid=regular_grid,
+            octree_grid=RegularGrid(regular_grid.extent, np.array([2, 2, 2]))
+        )
+
     @property
     def values(self) -> np.ndarray:
         """Collect values from all associated grids."""
@@ -59,12 +63,11 @@ class EngineGrid:
             values.append(self.sections.values)
         if self.geophysics_grid is not None:
             values.append(self.geophysics_grid.values)
-        
+
         values_array = BackendTensor.t.concatenate(values, dtype=BackendTensor.dtype)
         values_array = BackendTensor.t.array(values_array)
-        
-        return values_array
 
+        return values_array
 
     @property
     def octree_grid_slice(self) -> slice:
@@ -80,7 +83,7 @@ class EngineGrid:
             start,
             start + len(self.dense_grid) if self.dense_grid is not None else start
         )
-    
+
     @property
     def custom_grid_slice(self) -> slice:
         start = len(self.dense_grid) if self.dense_grid is not None else 0
@@ -120,7 +123,7 @@ class EngineGrid:
     @property
     def octree_grid_values(self) -> np.ndarray:  # shape(nx, ny, nz, 3)
         return self.octree_grid.values.reshape(*self.octree_grid_shape, 3)
-    
+
     @property
     def dense_grid_values(self) -> np.ndarray:
         return self.dense_grid.values.reshape(*self.octree_grid_shape, 3)
@@ -144,7 +147,7 @@ class EngineGrid:
     @property
     def octree_grid_shape(self) -> ndarray | list:
         return self.octree_grid.regular_grid_shape
-    
+
     @property
     def dense_grid_shape(self) -> ndarray | list:
         return self.dense_grid.regular_grid_shape
