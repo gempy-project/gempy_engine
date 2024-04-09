@@ -7,6 +7,8 @@ from ...core.backend_tensor import BackendTensor
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import SolverInput
 from ...core.data.options import KernelOptions, InterpolationOptions
+from ...modules.evaluator.generic_evaluator import generic_evaluator
+from ...modules.evaluator.symbolic_evaluator import symbolic_evaluator
 
 from ...modules.kernel_constructor import kernel_constructor_interface as kernel_constructor
 from ...modules.solver import solver_interface
@@ -34,16 +36,16 @@ class WeightsBuffer:
 
 def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions, stack_number: int) -> Tuple[np.ndarray, ExportedFields]:
     # region Solver
-    
+
     weights_key = f"{options._model_name}.{stack_number}"
     weights_cached: Optional[dict] = WeightCache.load_weights(weights_key)
     weights_hash = generate_cache_key(
         name="",
         parameters={
-            "surface_points": solver_input.sp_internal,
-            "orientations": solver_input.ori_internal,
-            "fault_internal": solver_input._fault_internal.fault_values_on_sp,
-            "kernel_options": options.kernel_options
+                "surface_points": solver_input.sp_internal,
+                "orientations"  : solver_input.ori_internal,
+                "fault_internal": solver_input._fault_internal.fault_values_on_sp,
+                "kernel_options": options.kernel_options
         }
     )
 
@@ -57,7 +59,7 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
             weights = weights_cached["weights"]
         case _:
             raise ValueError("Something went wrong with the cache")
-  
+
     # endregion
 
     exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options)
@@ -70,11 +72,12 @@ def _solve_and_store_weights(solver_input, kernel_options, weights_key, weights_
     WeightCache.store_weights(file_name=weights_key, hash=weights_hash, weights=weights)
     return weights
 
+
 def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOptions) -> np.ndarray:
     A_matrix = kernel_constructor.yield_covariance(interp_input, kernel_options)
     b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
 
-    if kernel_options.optimizing_condition_number:  
+    if kernel_options.optimizing_condition_number:
         _optimize_nuggets_against_condition_number(A_matrix, interp_input, kernel_options)
 
     # TODO: Smooth should be taken from options
@@ -117,55 +120,11 @@ def _optimize_nuggets_against_condition_number(A_matrix, interp_input, kernel_op
 
 def _evaluate_sys_eq(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions) -> ExportedFields:
     compute_gradient: bool = options.compute_scalar_gradient
-
     eval_kernel = kernel_constructor.yield_evaluation_kernel(solver_input, options.kernel_options)
 
     if BackendTensor.pykeops_enabled is True and BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
-        if solver_input.xyz_to_interpolate.flags['C_CONTIGUOUS'] is False:  # ! This is not working with TF yet
-            print("xyz is not C_CONTIGUOUS")
-
-        from pykeops.numpy import LazyTensor
-        # ! Seems not to make any difference but we need this if we want to change the backend
-        # ! We need to benchmark GPU vs CPU with more input
-        backend_string = BackendTensor.get_backend_string()
-        scalar_field = (eval_kernel.T * LazyTensor(np.asfortranarray(weights), axis=1)).sum(axis=1, backend=backend_string).reshape(-1)
-
-        if compute_gradient is True:
-            eval_gx_kernel = kernel_constructor.yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=0)
-            eval_gy_kernel = kernel_constructor.yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=1)
-
-            gx_field = (eval_gx_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend=backend_string).reshape(-1)
-            gy_field = (eval_gy_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend=backend_string).reshape(-1)
-
-            if options.number_dimensions == 3:
-                eval_gz_kernel = kernel_constructor.yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=2)
-                gz_field = (eval_gz_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend=backend_string).reshape(-1)
-            elif options.number_dimensions == 2:
-                gz_field = None
-            else:
-                raise ValueError("Number of dimensions have to be 2 or 3")
-
-            exported_fields = ExportedFields(scalar_field, gx_field, gy_field, gz_field)
-        else:
-            exported_fields = ExportedFields(scalar_field, None, None, None)
+        exported_fields = symbolic_evaluator(compute_gradient, eval_kernel, options, solver_input, weights)
     else:
-        scalar_field = (eval_kernel.T @ weights).reshape(-1)
-
-        if compute_gradient is True:
-            eval_gx_kernel = kernel_constructor.yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=0)
-            eval_gy_kernel = kernel_constructor.yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=1)
-            gx_field = (eval_gx_kernel.T @ weights).reshape(-1)
-            gy_field = (eval_gy_kernel.T @ weights).reshape(-1)
-
-            if options.number_dimensions == 3:
-                eval_gz_kernel = kernel_constructor.yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=2)
-                gz_field = (eval_gz_kernel.T @ weights).reshape(-1)
-            elif options.number_dimensions == 2:
-                gz_field = None
-            else:
-                raise ValueError("Number of dimensions have to be 2 or 3")
-            exported_fields = ExportedFields(scalar_field, gx_field, gy_field, gz_field)
-        else:
-            exported_fields = ExportedFields(scalar_field, None, None, None)
+        exported_fields = generic_evaluator(compute_gradient, eval_kernel, options, solver_input, weights)
 
     return exported_fields
