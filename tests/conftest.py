@@ -45,8 +45,9 @@ class Requirements(enum.Enum):
     OPTIONAL = 1
     DEV = 2
 
-TEST_SPEED = TestSpeed.MINUTES  # * Use seconds for compile errors, minutes before pushing and hours before release
 
+TEST_SPEED = TestSpeed.MINUTES  # * Use seconds for compile errors, minutes before pushing and hours before release
+REQUIREMENT_LEVEL = Requirements.CORE  # * Use CORE for mandatory tests, OPTIONAL for optional tests and DEV for development tests
 
 
 @pytest.fixture(scope='session', autouse=True)
