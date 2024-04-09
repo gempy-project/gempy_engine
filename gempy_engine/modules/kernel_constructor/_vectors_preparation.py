@@ -61,10 +61,16 @@ def cov_vectors_preparation(interp_input: SolverInput, kernel_options: KernelOpt
     )
 
 
-def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: KernelOptions, axis: int = None) -> KernelInput:
+def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: KernelOptions, 
+                                    axis: Optional[int] = None, slice_array = None) -> KernelInput:
     sp_: SurfacePointsInternals = interp_input.sp_internal
     ori_: OrientationsInternals = interp_input.ori_internal
-    grid: np.ndarray = interp_input.xyz_to_interpolate
+    
+    # if is none just get the whole array
+    if slice_array is not None:
+        grid: np.ndarray = interp_input.xyz_to_interpolate[slice_array]
+    else:
+        grid: np.ndarray = interp_input.xyz_to_interpolate
 
     faults_vals: FaultsData = interp_input.fault_internal
     options: KernelOptions = kernel_options

@@ -119,12 +119,9 @@ def _optimize_nuggets_against_condition_number(A_matrix, interp_input, kernel_op
 
 
 def _evaluate_sys_eq(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions) -> ExportedFields:
-    compute_gradient: bool = options.compute_scalar_gradient
-    eval_kernel = kernel_constructor.yield_evaluation_kernel(solver_input, options.kernel_options)
-
     if BackendTensor.pykeops_enabled is True and BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
-        exported_fields = symbolic_evaluator(compute_gradient, eval_kernel, options, solver_input, weights)
+        exported_fields = symbolic_evaluator(solver_input, weights, options)
     else:
-        exported_fields = generic_evaluator(compute_gradient, eval_kernel, options, solver_input, weights)
+        exported_fields = generic_evaluator(solver_input, weights, options)
 
     return exported_fields

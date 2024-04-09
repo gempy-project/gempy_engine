@@ -115,7 +115,8 @@ class InterpolationOptions:
     debug                          : bool                         = gempy_engine.config.DEBUG_MODE
     debug_water_tight              : bool                         = False
 
-    sigmoid_slope                  : int                          = 50000
+    sigmoid_slope                  : int                          = 50_000
+    evaluation_chunk_size          : int                          = 50_000
     _number_octree_levels_surface  : int                          = 4
     
     _model_name                    : str                          = None # : Model name for the cache
