@@ -6,6 +6,7 @@ import numpy as np
 
 @dataclass(init=True)
 class ExportedFields:
+    # TODO: Add proper constructor
     _scalar_field: Optional[np.ndarray]
     _gx_field: Optional[np.ndarray] = None
     _gy_field: Optional[np.ndarray] = None
@@ -36,6 +37,8 @@ class ExportedFields:
     
     @property
     def grid_size(self) -> int:
+        if self._grid_size is None:
+            raise ValueError("The grid size has not been set")
         return self._grid_size
     
     @property
@@ -43,7 +46,7 @@ class ExportedFields:
         if self.scalar_field_at_fault_shell is not None:  # * For now this has priority over everything else
             return self.scalar_field_at_fault_shell
         elif self._scalar_field_at_surface_points is None:
-            scalar_field_at_all_sp = self._scalar_field[self._grid_size:]
+            scalar_field_at_all_sp = self._scalar_field[self.grid_size:]
             scalar_field_at_feature_sp = scalar_field_at_all_sp[self._slice_feature]
             scalar_field_at_one_point_per_surface = scalar_field_at_feature_sp[self.npf]
             return scalar_field_at_one_point_per_surface

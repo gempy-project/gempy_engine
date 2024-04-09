@@ -7,7 +7,9 @@ import numpy as np
 from gempy_engine.core.data.exported_fields import ExportedFields
 
 
-def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray, sigmoid_slope: float) -> np.ndarray:
+def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
+                             sigmoid_slope: float) -> np.ndarray:
+    
     Z_x: np.ndarray = exported_fields.scalar_field_everywhere
     scalar_value_at_sp: np.ndarray = exported_fields.scalar_field_at_surface_points
 
