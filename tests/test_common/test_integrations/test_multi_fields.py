@@ -8,7 +8,7 @@ from gempy_engine.API.interp_single._octree_generation import _generate_corners
 from gempy_engine.API.interp_single.interp_features import interpolate_n_octree_levels
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data import TensorsStructure
-from gempy_engine.core.data.grid import Grid
+from gempy_engine.core.data.engine_grid import EngineGrid 
 from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
@@ -78,7 +78,7 @@ def test_mask_arrays(unconformity_complex):
 
     grid_0_centers = interpolation_input.grid
 
-    grid_0_corners = Grid.from_xyz_coords(
+    grid_0_corners = EngineGrid.from_xyz_coords(
         xyz_coords=_generate_corners(regular_grid=grid_0_centers.regular_grid)
     )
     interpolation_input.grid = grid_0_corners

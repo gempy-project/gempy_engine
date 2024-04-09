@@ -6,7 +6,7 @@ from gempy_engine import compute_model
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.core.data import InterpolationOptions, TensorsStructure
 from gempy_engine.core.data.custom_segmentation_functions import ellipsoid_3d_factory, _implicit_3d_ellipsoid_to_slope
-from gempy_engine.core.data.grid import RegularGrid, Grid
+from gempy_engine.core.data.engine_grid import  RegularGrid, EngineGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.faults import FaultsData
@@ -116,7 +116,7 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=1):
     resolution = np.array([20, 20, 20])
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
-    grid = Grid(regular_grid=regular_grid)
+    grid = EngineGrid(octree_grid=regular_grid)
     interpolation_input.grid = grid
     options.number_octree_levels = n_oct_levels
 
@@ -182,7 +182,7 @@ def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
     resolution = np.array([20, 4, 20])
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
-    grid = Grid(regular_grid=regular_grid)
+    grid = EngineGrid(octree_grid=regular_grid)
     interpolation_input.grid = grid
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)

@@ -1,9 +1,9 @@
 import numpy as np
-import subsurface
+import pytest
 
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
-from ...conftest import plot_pyvista
+from ...conftest import plot_pyvista, REQUIREMENT_LEVEL, Requirements
 
 try:
     # noinspection PyUnresolvedReferences
@@ -12,8 +12,10 @@ try:
 except ImportError:
     plot_pyvista = False
 
+pytest.mark.skipif(REQUIREMENT_LEVEL.value < Requirements.OPTIONAL.value, reason="This test needs higher requirements.")
 
 def test_output_to_subsurface(simple_model_interpolation_input, n_oct_levels=3):
+    import subsurface
     interpolation_input, options, structure = simple_model_interpolation_input
     print(interpolation_input)
 

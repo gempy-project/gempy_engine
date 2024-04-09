@@ -10,7 +10,7 @@ from gempy_engine.API.interp_single._multi_scalar_field_manager import interpola
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.core.data.grid import Grid, RegularGrid
+from gempy_engine.core.data.engine_grid import EngineGrid, RegularGrid
 import numpy as np
 import os
 
@@ -56,7 +56,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     last_octree_level: OctreeLevel = octree_list[-1]
 
     intersection_xyz, valid_edges = _get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
-    interpolation_input.grid = Grid.from_xyz_coords(intersection_xyz)
+    interpolation_input.grid = EngineGrid.from_xyz_coords(intersection_xyz)
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
 
     dc_data = DualContouringData(
@@ -103,7 +103,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
         extent = [0.25, .75, 0.25, .75, 0.25, .75]
 
         regular_grid = RegularGrid(extent, resolution)
-        grid = Grid.from_regular_grid(regular_grid)
+        grid = EngineGrid.from_regular_grid(regular_grid)
         return dataclasses.replace(grid)
 
     # region Test find_intersection_on_edge
@@ -125,7 +125,7 @@ def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3
         output_corners=octree_level_for_surface.outputs_corners[0]
     )
     
-    interpolation_input.grid = Grid.from_xyz_coords(intersection_xyz)
+    interpolation_input.grid = EngineGrid.from_xyz_coords(intersection_xyz)
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
 
     dc_data = DualContouringData(
@@ -236,7 +236,7 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
     last_octree_level: OctreeLevel = octree_list[-1]
 
     intersection_xyz, valid_edges = _get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
-    interpolation_input.grid = Grid.from_xyz_coords(intersection_xyz)
+    interpolation_input.grid = EngineGrid.from_xyz_coords(intersection_xyz)
 
     output_on_edges = interp.interpolate_single_field(interpolation_input, options, data_shape.tensors_structure)
 
@@ -291,7 +291,7 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
 
     # region Get Normals
 
-    interpolation_input.grid = Grid.from_xyz_coords(xyz_on_edge)
+    interpolation_input.grid = EngineGrid.from_xyz_coords(xyz_on_edge)
     output_on_edges = interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure)
 
     gradients = np.stack(
@@ -405,7 +405,7 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     # endregion
 
     # region Get Normals
-    interpolation_input.grid = Grid.from_xyz_coords(xyz_on_edge)
+    interpolation_input.grid = EngineGrid.from_xyz_coords(xyz_on_edge)
     output_on_edges = interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure)
     # stack gradients output_on_edges.exported_fields.gx_field
     gradients = np.stack(
@@ -520,7 +520,7 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
 
     # region Get Normals
 
-    interpolation_input.grid = Grid.from_xyz_coords(xyz_on_edge)
+    interpolation_input.grid = EngineGrid.from_xyz_coords(xyz_on_edge)
     output_on_edges = interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure)
 
     gradients = np.stack(
@@ -671,10 +671,10 @@ def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_
 
     interpolation_input = InterpolationInput(surface_points, orientations, grid, ids)
 
-    from gempy_engine.core.data.grid import Grid, RegularGrid
+    from gempy_engine.core.data.grid import EngineGrid, RegularGrid
 
     # region interpolate high res grid
-    grid_high_res = Grid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
+    grid_high_res = EngineGrid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
     interpolation_input.grid = grid_high_res
     input1: SolverInput = input_preprocess(shape.tensors_structure, interpolation_input)
     exported_fields_high_res = _evaluate_sys_eq(input1, weights, options)

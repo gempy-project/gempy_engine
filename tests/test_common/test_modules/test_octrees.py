@@ -1,18 +1,13 @@
-import os
-
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import pytest
 
 import gempy_engine.API.interp_single.interp_features as interp
-from gempy_engine.API.interp_single._interp_scalar_field import _evaluate_sys_eq
 from gempy_engine.API.interp_single._octree_generation import _generate_corners
-from gempy_engine.core.data.grid import Grid, RegularGrid
-from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
-from gempy_engine.core.data.internal_structs import SolverInput
+from gempy_engine.core.data.engine_grid import EngineGrid
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.octree_level import OctreeLevel
-from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_next_octree_grid, \
     get_regular_grid_value_for_level
 from .test_dual import _compute_actual_mesh
@@ -33,7 +28,7 @@ def test_regular_grid_preparation(simple_grid_3d_more_points_grid):
     np.testing.assert_almost_equal(engine_grid.regular_grid_values[45, 2, 4, 2], .295, 6)
 
 
-def test_regular_grid_point_generation(simple_grid_3d_octree: Grid):
+def test_regular_grid_point_generation(simple_grid_3d_octree: EngineGrid):
     rg = simple_grid_3d_octree.regular_grid
 
     corners_sol = np.array(
@@ -71,7 +66,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     output_0_centers = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure)
 
     # Interpolate level 0 - corners
-    grid_0_corners = Grid.from_xyz_coords(
+    grid_0_corners = EngineGrid.from_xyz_coords(
         xyz_coords=_generate_corners(regular_grid=grid_0_centers.regular_grid)
     )
     interpolation_input.grid = grid_0_corners
@@ -91,7 +86,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
                                                       clean_buffer=False)
 
     # Interpolate level 1 - Corners
-    grid_1_corners = Grid.from_xyz_coords(
+    grid_1_corners = EngineGrid.from_xyz_coords(
         xyz_coords=_generate_corners(regular_grid=grid_1_centers.regular_grid)
     )
 

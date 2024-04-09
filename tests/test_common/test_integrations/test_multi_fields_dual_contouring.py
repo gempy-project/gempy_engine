@@ -1,7 +1,7 @@
 import pytest
 
 from gempy_engine import compute_model
-from gempy_engine.core.data.grid import RegularGrid, Grid
+from gempy_engine.core.data.engine_grid  import RegularGrid, EngineGrid
 from gempy_engine.core.data.options import MeshExtractionMaskingOptions
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.plugins.plotting import helper_functions_pyvista
@@ -76,7 +76,7 @@ def _run_model_for_FANCY_dual_contouring(dual_contouring_option, n_oct_levels, u
     options.mesh_extraction_masking_options = dual_contouring_option
     options.dual_contouring_fancy = True
     regular_grid = RegularGrid(extent=[0, 10., 0, 2., 0, 5.], regular_grid_shape=[2, 2, 2])
-    grid = Grid(regular_grid=regular_grid)
+    grid = EngineGrid(regular_grid=regular_grid)
     interpolation_input.grid = grid
     solutions: Solutions = compute_model(interpolation_input, options, structure)
     if plot_pyvista or False:
