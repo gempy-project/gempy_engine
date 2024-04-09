@@ -41,6 +41,7 @@ def test_dual_contouring_multiple_independent_fields_intersect_raw(n_oct_levels=
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_dual_contouring_multiple_independent_fields_intersect_RAW_fancy_triangulation(
         unconformity_complex, n_oct_levels=5):
+    
     _run_model_for_FANCY_dual_contouring(
         dual_contouring_option=MeshExtractionMaskingOptions.RAW,
         n_oct_levels=n_oct_levels,
@@ -76,7 +77,7 @@ def _run_model_for_FANCY_dual_contouring(dual_contouring_option, n_oct_levels, u
     options.mesh_extraction_masking_options = dual_contouring_option
     options.dual_contouring_fancy = True
     regular_grid = RegularGrid(extent=[0, 10., 0, 2., 0, 5.], regular_grid_shape=[2, 2, 2])
-    grid = EngineGrid(regular_grid=regular_grid)
+    grid = EngineGrid(octree_grid=regular_grid)
     interpolation_input.grid = grid
     solutions: Solutions = compute_model(interpolation_input, options, structure)
     if plot_pyvista or False:

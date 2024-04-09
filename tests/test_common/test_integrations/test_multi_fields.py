@@ -74,12 +74,12 @@ def test_compute_mask_components_all_erode(unconformity_complex):
 def test_mask_arrays(unconformity_complex):
     interpolation_input, options, structure = copy.deepcopy(unconformity_complex)
     outputs: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)
-    grid = interpolation_input.grid.regular_grid
+    grid = interpolation_input.grid.octree_grid
 
     grid_0_centers = interpolation_input.grid
 
     grid_0_corners = EngineGrid.from_xyz_coords(
-        xyz_coords=_generate_corners(regular_grid=grid_0_centers.regular_grid)
+        xyz_coords=_generate_corners(regular_grid=grid_0_centers.octree_grid)
     )
     interpolation_input.grid = grid_0_corners
 
@@ -117,7 +117,7 @@ def test_final_block(unconformity_complex):
     outputs: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)
 
     if plot_pyvista or True:
-        grid = interpolation_input.grid.regular_grid
+        grid = interpolation_input.grid.octree_grid
         plot_block(
             BackendTensor.t.to_numpy(outputs[0].final_block),
             grid)
