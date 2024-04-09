@@ -20,13 +20,13 @@ dir_name = os.path.dirname(__file__)
 
 def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=False):
     output = simple_model_values_block_output
-    Z_x = output.exported_fields.scalar_field
-    gx = output.exported_fields.gx_field
-    gy = output.exported_fields.gy_field
-    gz = output.exported_fields.gz_field
+    Z_x = output.exported_fields_dense_grid.scalar_field
+    gx = output.exported_fields_dense_grid.gx_field
+    gy = output.exported_fields_dense_grid.gy_field
+    gz = output.exported_fields_dense_grid.gz_field
     print(output.weights)
 
-    ids_block = output.ids_block_octree_grid
+    ids_block = output.ids_block_dense_grid
 
     if save_sol:
         np.save(dir_name + "/solutions/zx", Z_x)
@@ -45,15 +45,13 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
     if plot:
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn", extent=(.25, .75, .25, .75))
 
-        xyz = output.grid.values
+        xyz = output.grid.dense_grid_values.reshape(-1,3)
         every = 10
         plt.quiver(xyz[::every, 0], xyz[::every, 2], gx[::every], gz[::every], scale=50)
 
         plt.show()
 
         plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn", extent=(.25, .75, .25, .75))
-
-        xyz = output.grid.values
         every = 1
         plt.quiver(xyz[::every, 0], xyz[::every, 2], gx[::every], gz[::every], scale=80)
 

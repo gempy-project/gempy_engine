@@ -89,11 +89,11 @@ class InterpOutput:
 
     @property
     def ids_block_octree_grid(self):
-        return BackendTensor.t.rint(self.block[self.grid.octree_grid_slice].reshape(self.grid.octree_grid_shape.tolist()))
+        return BackendTensor.t.rint(self.block[:, self.grid.octree_grid_slice].reshape(self.grid.octree_grid_shape.tolist()))
     
     @property
     def ids_block_dense_grid(self):
-        return BackendTensor.t.rint(self.block[self.grid.dense_grid_slice].reshape(self.grid.dense_grid_shape.tolist()))
+        return BackendTensor.t.rint(self.block[:, self.grid.dense_grid_slice].reshape(self.grid.dense_grid_shape.tolist()))
 
     @property
     def ids_custom_grid(self):

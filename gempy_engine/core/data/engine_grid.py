@@ -126,7 +126,7 @@ class EngineGrid:
 
     @property
     def dense_grid_values(self) -> np.ndarray:
-        return self.dense_grid.values.reshape(*self.octree_grid_shape, 3)
+        return self.dense_grid.values.reshape(*self.dense_grid_shape, 3)
 
     @property
     def custom_grid_values(self) -> np.ndarray:
