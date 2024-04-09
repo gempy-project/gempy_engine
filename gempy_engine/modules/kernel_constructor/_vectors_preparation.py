@@ -93,7 +93,10 @@ def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: K
     # Faults
     fault_drift: Optional[FaultDrift]
     if matrices_sizes.faults_size > 0:
-        faults_val_on_grid: np.ndarray = faults_vals.fault_values_everywhere
+        if slice_array is not None:
+            faults_val_on_grid: np.ndarray = faults_vals.fault_values_everywhere[:, slice_array]
+        else:
+            faults_val_on_grid = faults_vals.fault_values_everywhere
         fault_drift = _assembly_fault_grid_tensors(faults_val_on_grid, options, faults_vals, matrices_sizes.ori_size)
     else:
         fault_drift = None

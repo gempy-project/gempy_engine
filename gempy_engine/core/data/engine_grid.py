@@ -27,7 +27,6 @@ class EngineGrid:
     def __init__(self, octree_grid: Optional[RegularGrid] = None, dense_grid: Optional[RegularGrid] = None,
                  custom_grid: Optional[GenericGrid] = None, topography: Optional[GenericGrid] = None,
                  sections: Optional[GenericGrid] = None, geophysics_grid: Optional[CenteredGrid] = None):
-        
         self.octree_grid = octree_grid
         self.dense_grid = dense_grid
         self.custom_grid = custom_grid

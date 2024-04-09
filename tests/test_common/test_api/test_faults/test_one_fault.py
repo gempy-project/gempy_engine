@@ -105,7 +105,7 @@ def test_one_fault_model_thickness(one_fault_model, n_oct_levels=2):
         )
 
 
-def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=1):
+def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=4):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -115,13 +115,15 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=1):
     rescaling_factor = 240
     resolution = np.array([20, 20, 20])
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
-    regular_grid = RegularGrid(extent, resolution)
-    grid = EngineGrid(octree_grid=regular_grid)
+    grid = EngineGrid(
+        dense_grid=(RegularGrid(extent, resolution)),
+        octree_grid=RegularGrid(extent, np.array([2,2,2]))
+    )
     interpolation_input.grid = grid
     options.number_octree_levels = n_oct_levels
 
     options.compute_scalar_gradient = False
-    options.dual_contouring = True
+    options.mesh_extraction = True
     options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
 
     # region finite fault

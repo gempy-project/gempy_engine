@@ -51,6 +51,9 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
 
     meshes: Optional[list[DualContouringMesh]] = None
     if options.mesh_extraction:
+        if interpolation_input.grid.octree_grid is None:
+            raise ValueError("Octree grid must be defined to extract the mesh")
+        
         meshes: list[DualContouringMesh] = dual_contouring_multi_scalar(
             data_descriptor=data_descriptor,
             interpolation_input=interpolation_input,

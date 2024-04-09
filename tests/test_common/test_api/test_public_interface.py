@@ -1,6 +1,7 @@
 import numpy as np
 
 from gempy_engine.API.model.model_api import compute_model
+from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data import InterpolationOptions, SurfacePoints, Orientations, TensorsStructure
 from gempy_engine.core.data.engine_grid import EngineGrid, RegularGrid
@@ -94,14 +95,14 @@ def test_public_interface_simplest_model():
         structure=input_data_descriptor
     )
     
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, interpolation_options.number_octree_levels - 1)
         plot_dc_meshes(p, solutions.dc_meshes[0])
         surface_points_to_plot = interpolation_input.surface_points.sp_coords
         # If they are torch tensors convert to numpy
-        if isinstance(surface_points_to_plot, BackendTensor.t.Tensor):
+        if BackendTensor.engine_backend == AvailableBackends.PYTORCH and isinstance(surface_points_to_plot, BackendTensor.t.Tensor):
             surface_points_to_plot = BackendTensor.t.to_numpy(surface_points_to_plot)
             
         plot_points(p, surface_points_to_plot)
