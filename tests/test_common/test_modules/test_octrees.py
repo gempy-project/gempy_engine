@@ -73,12 +73,9 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     grid_2_centers = get_next_octree_grid(octree_lvl1, compute_topology=False, debug=True)
     xyz1, anch1, select1 = grid_2_centers.debug_vals[:3]
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         # Compute actual mesh
         resolution = [20, 20, 20]
-        mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers,
-                                    resolution, output_1_centers.scalar_field_at_sp,
-                                    output_1_centers.weights)
         p = pv.Plotter()
         rg = grid_0_centers.octree_grid
 
