@@ -21,25 +21,27 @@ def generic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: I
     n_chunks = int(np.ceil(grid_size / max_size))
     chunk_size = int(np.ceil(grid_size / n_chunks))
     for i in range(n_chunks):
-        
         slice_array = slice(i * chunk_size, (i + 1) * chunk_size)
         scalar_field_chunk, gx_field_chunk, gy_field_chunk, gz_field_chunk = _eval_on(
-            solver_input=solver_input, 
-            weights=weights, 
-            options=options, 
+            solver_input=solver_input,
+            weights=weights,
+            options=options,
             slice_array=slice_array
         )
-        
+
         scalar_field[slice_array] = scalar_field_chunk
         if gradient is True:
             if i == 0:
                 gx_field = np.zeros(grid_size, dtype=weights.dtype)
                 gy_field = np.zeros(grid_size, dtype=weights.dtype)
                 gz_field = np.zeros(grid_size, dtype=weights.dtype)
-                
+
             gx_field[slice_array] = gx_field_chunk
             gy_field[slice_array] = gy_field_chunk
             gz_field[slice_array] = gz_field_chunk
+
+    if n_chunks > 5:
+        print(f"Chunking done: {n_chunks} chunks")
 
     return ExportedFields(scalar_field, gx_field, gy_field, gz_field)
 
