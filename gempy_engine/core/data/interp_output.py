@@ -4,6 +4,7 @@ from typing import Optional
 
 import numpy as np
 
+from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_structs import CombinedScalarFieldsOutput
 from gempy_engine.core.data.output.blocks_value_type import ValueType
@@ -150,4 +151,9 @@ class InterpOutput:
                 block = self.mask_components
             case _:
                 raise ValueError("ValueType not supported.")
+        
+        match (BackendTensor.engine_backend):
+            case AvailableBackends.PYTORCH:
+                block = block.detach().numpy()
+
         return block[slice_]

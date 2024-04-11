@@ -28,6 +28,7 @@ def prepare_faults(faults_values_on_sp: np.ndarray, tensors_structure: TensorsSt
     
     partitions_bool = tensors_structure.partitions_bool
     number_repetitions = bt.t.array(tensors_structure.number_of_points_per_surface - 1)
+    faults_values_on_sp = bt.t.array(faults_values_on_sp, dtype=BackendTensor.dtype)
 
     ref_points = faults_values_on_sp[:, partitions_bool]
 
