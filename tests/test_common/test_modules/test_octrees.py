@@ -42,7 +42,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     grid_0_corners = EngineGrid.from_xyz_coords(
         xyz_coords=_generate_corners(regular_grid=grid_0_centers.octree_grid)
     )
-    interpolation_input.grid = grid_0_corners
+    interpolation_input.set_temp_grid(grid_0_corners)
     output_0_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure, clean_buffer=False)
 
     # Create octree level 0
@@ -54,7 +54,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
 
     # Level 1
 
-    interpolation_input.grid = grid_1_centers
+    interpolation_input.set_temp_grid(grid_1_centers)
     output_1_centers = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure,
                                                       clean_buffer=False)
 
@@ -63,7 +63,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
         xyz_coords=_generate_corners(regular_grid=grid_1_centers.octree_grid)
     )
 
-    interpolation_input.grid = grid_1_corners
+    interpolation_input.set_temp_grid(grid_1_corners)
     output_1_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure,
                                                       clean_buffer=False)
 

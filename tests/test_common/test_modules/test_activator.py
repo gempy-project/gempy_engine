@@ -58,7 +58,7 @@ def test_activator_3_layers(simple_model_3_layers, simple_grid_3d_more_points_gr
     options = simple_model_3_layers[1]
     data_shape = simple_model_3_layers[2].tensors_structure
     grid = dataclasses.replace(simple_grid_3d_more_points_grid)
-    interpolation_input.grid = grid
+    interpolation_input.set_temp_grid(grid)
     
     ids = np.array([1, 2, 3, 4])
 

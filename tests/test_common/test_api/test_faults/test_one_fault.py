@@ -120,7 +120,7 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=4):
         dense_grid=(RegularGrid(extent, resolution)),
         octree_grid=RegularGrid(extent, np.array([2,2,2]))
     )
-    interpolation_input.grid = grid
+    interpolation_input.set_temp_grid(grid)
     options.number_octree_levels = n_oct_levels
 
     options.compute_scalar_gradient = False
@@ -189,7 +189,7 @@ def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
         octree_grid=RegularGrid(extent, np.array([2, 2, 2])),
         dense_grid=dense_grid
     )
-    interpolation_input.grid = grid
+    interpolation_input.set_temp_grid(grid)
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 

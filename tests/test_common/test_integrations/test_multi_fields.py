@@ -81,7 +81,7 @@ def test_mask_arrays(unconformity_complex):
     grid_0_corners = EngineGrid.from_xyz_coords(
         xyz_coords=_generate_corners(regular_grid=grid_0_centers.octree_grid)
     )
-    interpolation_input.grid = grid_0_corners
+    interpolation_input.set_temp_grid(grid_0_corners)
 
     output_0_corners: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, structure)  # TODO: This is unnecessary for the last level except for Dual contouring
 
