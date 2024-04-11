@@ -68,7 +68,8 @@ class InterpolationInput:
 
         grid = all_interpolation_input.grid
 
-        ii_subset = cls(
+        # * (miguel 24) This interpolation input goes on the InterpOutput so we are not computing its gradients
+        ii_subset: InterpolationInput = cls(
             surface_points=sp,
             orientations=o,
             grid=grid,

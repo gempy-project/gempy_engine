@@ -3,6 +3,7 @@ from typing import List, Optional
 
 from ...core.backend_tensor import BackendTensor
 from ...config import COMPUTE_GRADIENTS, AvailableBackends
+from ...core.data.generic_grid import GenericGrid
 from ...core.data.regular_grid import RegularGrid
 from ...core.data.options import InterpolationOptions
 from ...core.data.octree_level import OctreeLevel
@@ -32,8 +33,12 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
         grid_0_corners: Optional[EngineGrid] = EngineGrid.from_xyz_coords(
             xyz_coords=_generate_corners(regular_grid=grid_0_centers.octree_grid)
         )
+        
+        # ! Here we need to swap the grid temporarily but it is
+        # ! important to set up the og grid back for the gradients
         temp_interpolation_input.grid = grid_0_corners  # * Prepare grid for next interpolation
         output_0_corners: List[InterpOutput] = interpolate_all_fields(temp_interpolation_input, options, data_shape)  # * This is unnecessary for the last level except for Dual contouring
+        temp_interpolation_input.grid = grid_0_centers  # * Set grid back
     else:
         output_0_corners = []
         grid_0_corners = None

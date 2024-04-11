@@ -23,7 +23,6 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
                   data_descriptor: InputDataDescriptor, *, geophysics_input: Optional[GeophysicsInput] = None) -> Solutions:
     WeightsBuffer.clean()
 
-    # TODO: Make sure if this works with TF
     # ! If we inline this it seems the deepcopy does not work
     if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and COMPUTE_GRADIENTS is False:
         interpolation_input = copy.deepcopy(interpolation_input)
