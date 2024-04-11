@@ -1,5 +1,54 @@
 import torch
-from ...core.backend_tensor import BackendTensor as bt
+from ...core.backend_tensor import BackendTensor as bt, BackendTensor
+
+
+'''
+The idea of this activation is to apply a Hard Sigmoid activation function but ideally only 
+to the gradient part of the function, while we keep a harder gradient to the actual values.
+
+Definitely needs more thought and testing.
+'''
+
+
+def activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp, sigmoid_slope):
+    element_0 = bt.t.array([0], dtype=BackendTensor.dtype_obj)
+
+    min_Z_x = BackendTensor.t.min(Z_x, axis=0).reshape(-1)  # ? Is this as good as it gets?
+    max_Z_x = BackendTensor.t.max(Z_x, axis=0).reshape(-1)  # ? Is this as good as it gets?
+
+    # Add 5%
+    min_Z_x = min_Z_x - 0.5 * (max_Z_x - min_Z_x)
+    max_Z_x = max_Z_x + 0.5 * (max_Z_x - min_Z_x)
+
+    drift_0_v = bt.tfnp.concatenate([min_Z_x, scalar_value_at_sp])
+    drift_1_v = bt.tfnp.concatenate([scalar_value_at_sp, max_Z_x])
+
+    ids = bt.t.array(ids, dtype="int32")
+    scalar_0_v = bt.t.copy(ids)
+    scalar_0_v[0] = 0
+
+    ids = bt.t.flip(ids, (0,))
+    # * Iterate over surface
+    sigm = bt.t.zeros((1, Z_x.shape[0]), dtype=BackendTensor.dtype_obj)
+
+    for i in range(len(ids) - 1):
+        a = (drift_0_v[i] + drift_1_v[i]) / 2
+        b = (drift_0_v[i + 1] + drift_1_v[i + 1]) / 2
+        if False:
+            sigm += HardSigmoid.apply(
+                Z_x,
+                a,
+                b,
+                ids[i]
+            )
+        else:
+            sigm += _baseHardSigmoid(
+                Z_x,
+                a,
+                b,
+                ids[i]
+            )
+    return sigm.reshape(1, -1)
 
 
 class HardSigmoidModified2(torch.autograd.Function):
@@ -9,13 +58,13 @@ class HardSigmoidModified2(torch.autograd.Function):
         ctx.bounds = (a, b)
         ctx.id = id
         output = bt.t.zeros_like(input)
-        # slope_up = -1 / (b - a)
+        slope_up = -1 / (b - a)
         # 
         # # For x in the range [a, b]
         b_ = (input > a) & (input <= b)
-        # pos = slope_up * (input[b_] - a)
+        pos = slope_up * (input[b_] - a)
 
-        output[b_] = id #+ pos
+        output[b_] = bt.t.round(id + pos)
 
         return output
 
@@ -23,13 +72,13 @@ class HardSigmoidModified2(torch.autograd.Function):
     def backward(ctx, grad_output):
         input = ctx.saved_tensors[0]
         a, b = ctx.bounds
-        slope_up = 1 / (b - a)
+        slope_up = - 1 / (b - a)
 
         b_ = (input > a) & (input <= b)
 
         grad_input = grad_output.clone()
         # Apply gradient only within the range [a, b]
-        grad_input[b_] = grad_input[b_] * slope_up
+        grad_input[b_] = grad_input[b_] + slope_up
 
         return grad_input, None, None, None
 
@@ -100,7 +149,7 @@ class HardSigmoid(torch.autograd.Function):
         grad_input[input < a] = 0
         grad_input[input > b] = 0
         grad_input[(input >= a) & (input <= b)] = 1 / (b - a)
-        return grad_input, None, None
+        return grad_input, None, None, None
 
 
 class CustomSigmoidFunction(torch.autograd.Function):
@@ -125,3 +174,14 @@ class CustomSigmoidFunction(torch.autograd.Function):
         # grad_input = torch.nan_to_num(grad_output)  # Replace NaNs with zeros
         # Do the actual gradient computation here
         return grad_output, None, None, None, None, None, None
+
+
+
+def _baseHardSigmoid(Z_x, a, b, id):
+    output = bt.t.zeros_like(Z_x)
+    slope_up = -1 / (b - a)
+    # For x in the range [a, b]
+    b_ = (Z_x > a) & (Z_x <= b)
+    pos = slope_up * (Z_x[b_] - a)
+    output[b_] = id + 0.5 + pos
+    return output

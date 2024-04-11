@@ -12,9 +12,10 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
     Z_x: np.ndarray = exported_fields.scalar_field_everywhere
     scalar_value_at_sp: np.ndarray = exported_fields.scalar_field_at_surface_points
 
-    if LEGACY := False:
+    if LEGACY := True:
         sigm = activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slope)
     else:
+        from .torch_activation import activate_formation_block_from_args_hard_sigmoid
         sigm = activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp, sigmoid_slope)
 
     return sigm
@@ -58,55 +59,3 @@ def activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slo
     for i in range(len(ids)):
         sigm += _compute_sigmoid(Z_x, scalar_0_v[i], scalar_1_v[i], drift_0_v[i], drift_1_v[i], ids[i], sigmoid_slope)
     return sigm
-
-
-def activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp, sigmoid_slope):
-    element_0 = bt.t.array([0], dtype=BackendTensor.dtype_obj)
-
-    min_Z_x = BackendTensor.t.min(Z_x, axis=0).reshape(-1)  # ? Is this as good as it gets?
-    max_Z_x = BackendTensor.t.max(Z_x, axis=0).reshape(-1)  # ? Is this as good as it gets?
-
-    # Add 5%
-    min_Z_x = min_Z_x - 0.5 * (max_Z_x - min_Z_x)
-    max_Z_x = max_Z_x + 0.5 * (max_Z_x - min_Z_x)
-
-    drift_0_v = bt.tfnp.concatenate([min_Z_x, scalar_value_at_sp])
-    drift_1_v = bt.tfnp.concatenate([scalar_value_at_sp, max_Z_x])
-
-    ids = bt.t.array(ids, dtype="int32")
-    scalar_0_v = bt.t.copy(ids)
-    scalar_0_v[0] = 0
-
-    ids = bt.t.flip(ids, (0,))
-    # * Iterate over surface
-    sigm = bt.t.zeros((1, Z_x.shape[0]), dtype=BackendTensor.dtype_obj)
-
-    for i in range(len(ids) - 1):
-        a = (drift_0_v[i] + drift_1_v[i]) / 2
-        b = (drift_0_v[i + 1] + drift_1_v[i + 1]) / 2
-        if True:
-            from .torch_activation import HardSigmoidModified2
-            sigm += HardSigmoidModified2.apply(
-                Z_x,
-                a,
-                b,
-                ids[i]
-            )
-        else:
-            sigm += _baseHardSigmoid(
-                Z_x,
-                a,
-                b,
-                ids[i]
-            )
-    return sigm.reshape(1, -1)
-
-
-def _baseHardSigmoid(Z_x, a, b, id):
-    output = bt.t.zeros_like(Z_x)
-    slope_up = -1 / (b - a)
-    # For x in the range [a, b]
-    b_ = (Z_x > a) & (Z_x <= b)
-    pos = slope_up * (Z_x[b_] - a)
-    output[b_] = id + 0.5 + pos
-    return output
