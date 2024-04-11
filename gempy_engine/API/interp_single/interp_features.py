@@ -37,9 +37,10 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
                 compute_topology=False,
                 debug=False
             )
-            interpolation_input.grid = grid_1_centers
+            interpolation_input.set_temp_grid(grid_1_centers)
         octree_list.append(next_octree)
 
+    interpolation_input.set_grid_to_original()
     return octree_list
 
 

@@ -20,7 +20,23 @@ class InterpolationInput:
     # @ off
     surface_points: SurfacePoints
     orientations: Orientations
-    grid: EngineGrid
+    _original_grid: EngineGrid
+    
+    @property
+    def original_grid(self):
+        return self._original_grid
+    
+    def set_grid_to_original(self):
+        self._grid = self._original_grid
+
+
+    _grid: EngineGrid
+    @property
+    def grid(self):
+        return self._grid
+    
+    def set_temp_grid(self, value):
+        self._grid = value
 
     _unit_values: Optional[np.ndarray] = None
     segmentation_function: Optional[callable] = None  # * From scalar field to values
@@ -38,7 +54,8 @@ class InterpolationInput:
                  unit_values: Optional[np.ndarray] = None, segmentation_function: Optional[callable] = None,
                  stack_relation: StackRelationType = StackRelationType.ERODE):
         self.surface_points = surface_points
-        self.grid = grid
+        self._original_grid = grid
+        self._grid = grid
         self.orientations = orientations
         self.unit_values = unit_values
         self.segmentation_function = segmentation_function

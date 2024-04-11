@@ -36,9 +36,9 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
         
         # ! Here we need to swap the grid temporarily but it is
         # ! important to set up the og grid back for the gradients
-        temp_interpolation_input.grid = grid_0_corners  # * Prepare grid for next interpolation
+        temp_interpolation_input.set_temp_grid(grid_0_corners)  # * Prepare grid for next interpolation
         output_0_corners: List[InterpOutput] = interpolate_all_fields(temp_interpolation_input, options, data_shape)  # * This is unnecessary for the last level except for Dual contouring
-        temp_interpolation_input.grid = grid_0_centers  # * Set grid back
+        temp_interpolation_input.set_grid_to_original()
     else:
         output_0_corners = []
         grid_0_corners = None

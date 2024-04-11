@@ -28,14 +28,13 @@ def interpolate_on_edges_for_dual_contouring(
     # region define location where we need to interpolate the gradients for dual contouring
     output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
     intersection_xyz, valid_edges = _get_intersection_on_edges(octree_leaves, output_corners, mask)
-    interpolation_input.grid = EngineGrid(
-        custom_grid=GenericGrid(values=intersection_xyz)
-    )
+    interpolation_input.set_temp_grid(EngineGrid(custom_grid=GenericGrid(values=intersection_xyz)))
     # endregion
 
     # ! (@miguel 21 June) I think by definition in the function `interpolate_all_fields_no_octree`
     # ! we just need to interpolate up to the n_scalar_field, but I am not sure about this. I need to test it
     output_on_edges: List[InterpOutput] = interpolate_all_fields_no_octree(interpolation_input, options, data_descriptor)  # ! This has to be done with buffer weights otherwise is a waste
+    interpolation_input.set_grid_to_original()
 
     # * We need this general way because for example for fault we extract two surfaces from one surface input
     dc_data = DualContouringData(
