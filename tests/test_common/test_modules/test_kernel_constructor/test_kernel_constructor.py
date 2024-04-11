@@ -57,9 +57,9 @@ def test_b_vector(simple_model_2):
     ori_internals = orientations_preprocess(orientations)
 
     b_vec = yield_b_vector(ori_internals, 9)
-
+    
     verify(
-        data=b_vec,
+        data= BackendTensor.t.to_numpy(b_vec),
         options=NamerFactory.with_parameters().with_comparator(ArrayComparator())
     )
 

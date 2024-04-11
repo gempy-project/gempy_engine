@@ -23,12 +23,10 @@ def test_one_feature_numpy(moureze_model, benchmark):
     options: InterpolationOptions = moureze_model[1]
     if options.number_octree_levels > 3:
         pytest.skip("Too many octree levels, too slow")
+    
+    if BackendTensor.engine_backend != AvailableBackends.numpy:
+        pytest.skip("NumPy backend is not set")
 
-    BackendTensor._change_backend(
-        engine_backend=AvailableBackends.numpy,
-        use_gpu=False,
-        pykeops_enabled=False
-    )
     _run_model(benchmark, moureze_model, benchmark_active = True)
 
 
