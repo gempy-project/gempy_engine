@@ -1,6 +1,7 @@
 import numpy as np
 from typing import Optional
 
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.exported_fields import ExportedFields
 from gempy_engine.core.data.internal_structs import SolverInput
@@ -9,8 +10,7 @@ from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import
 
 def generic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions) -> ExportedFields:
     grid_size = solver_input.xyz_to_interpolate.shape[0]
-    matrix_size = grid_size * weights.size
-    scalar_field: np.ndarray = np.zeros(grid_size, dtype=weights.dtype)
+    scalar_field: np.ndarray = BackendTensor.t.zeros(grid_size, dtype=weights.dtype)
     gx_field: Optional[np.ndarray] = None
     gy_field: Optional[np.ndarray] = None
     gz_field: Optional[np.ndarray] = None
@@ -32,9 +32,9 @@ def generic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: I
         scalar_field[slice_array] = scalar_field_chunk
         if gradient is True:
             if i == 0:
-                gx_field = np.zeros(grid_size, dtype=weights.dtype)
-                gy_field = np.zeros(grid_size, dtype=weights.dtype)
-                gz_field = np.zeros(grid_size, dtype=weights.dtype)
+                gx_field = BackendTensor.t.zeros(grid_size, dtype=weights.dtype)
+                gy_field = BackendTensor.t.zeros(grid_size, dtype=weights.dtype)
+                gz_field = BackendTensor.t.zeros(grid_size, dtype=weights.dtype)
 
             gx_field[slice_array] = gx_field_chunk
             gy_field[slice_array] = gy_field_chunk
