@@ -35,9 +35,13 @@ def simple_grid_3d_more_points_grid():
 
 @pytest.fixture(scope="session")
 def simple_grid_3d_octree():
-    resolution = [2, 2, 3]
-    extent = [0.25, .75, 0.25, .75, 0.25, .75]
+    grid = _gen_grid()
+    return grid
 
+
+def _gen_grid():
+    resolution = [2, 2, 2]
+    extent = [0.25, .75, 0.25, .75, 0.25, .75]
     regular_grid = RegularGrid(extent, resolution)
     grid = EngineGrid.from_regular_grid(regular_grid)
-    return dataclasses.replace(grid)
+    return grid

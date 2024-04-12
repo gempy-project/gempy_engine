@@ -234,6 +234,7 @@ def test_compute_dual_contouring_complex(unconformity_complex_one_layer, n_oct_l
 def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_grid_3d_octree):
     # region Test find_intersection_on_edge
     interpolation_input, options, data_shape = simple_model_3_layers
+    interpolation_input.surface_points.__post_init__()  # ! This is a weird hack to be able to run all the tests at the same time. I have no idea why the change of backend does not work with this specific case
     options.compute_scalar_gradient = True
 
     ids = np.array([1, 2, 3, 4])
