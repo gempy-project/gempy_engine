@@ -7,6 +7,9 @@ The idea of this activation is to apply a Hard Sigmoid activation function but i
 to the gradient part of the function, while we keep a harder gradient to the actual values.
 
 Definitely needs more thought and testing.
+
+Here is the torch implementation https://pytorch.org/docs/stable/_modules/torch/nn/modules/activation.html#Hardsigmoid
+
 '''
 
 
