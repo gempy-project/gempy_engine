@@ -15,12 +15,12 @@ class AvailableBackends(Flag):
 # ! Careful what we commit here!
 DEBUG_MODE = True
 OPTIMIZE_MEMORY = True
-DEFAULT_BACKEND = AvailableBackends.numpy
+DEFAULT_BACKEND = AvailableBackends.PYTORCH
 DEFAULT_PYKEOPS = False
 DEFAULT_TENSOR_DTYPE = 'float64'
-LINE_PROFILER_ENABLED = True
+LINE_PROFILER_ENABLED = False
 SET_RAW_ARRAYS_IN_SOLUTION = True
-NOT_MAKE_INPUT_DEEP_COPY = True 
+NOT_MAKE_INPUT_DEEP_COPY = False 
 
 is_numpy_installed = find_spec("numpy") is not None
 is_tensorflow_installed = find_spec("tensorflow") is not None
