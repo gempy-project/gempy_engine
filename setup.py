@@ -2,12 +2,24 @@
 
 from setuptools import setup, find_packages
 
-version = "2023.2.0b1"
-
 
 def read_requirements(file_name):
+    requirements = []
     with open(file_name, "r", encoding="utf-8") as f:
-        return [line.strip() for line in f.readlines()]
+        for line in f:
+            # Strip whitespace and ignore comments
+            line = line.strip()
+            if line.startswith("#") or not line:
+                continue
+
+            # Handle -r directive
+            if line.startswith("-r "):
+                referenced_file = line.split()[1]  # Extract the file name
+                requirements.extend(read_requirements(referenced_file))  # Recursively read referenced file
+            else:
+                requirements.append(line)
+
+    return requirements
 
 
 with open("README.md", "r", encoding="utf-8") as fh:
@@ -15,14 +27,14 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="gempy_engine",
-    version=version,
+    # version=version,
     author="Miguel de la Varga",
     author_email="miguel@terranigma-solutions.com",
     description="A Python package for GemPy",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/gempy-project/gempy_engine",
-    packages=find_packages(),
+    packages=find_packages(exclude=('test', 'docs', 'examples')),
     license='EUPL-1.2',
     classifiers=[
             "Development Status :: 3 - Alpha",
@@ -39,6 +51,7 @@ setup(
             "opt"   : read_requirements("requirements/optional-requirements.txt"),
             "server": read_requirements("requirements/server-requirements.txt")
     },
+    setup_requires=['setuptools_scm'],
     use_scm_version={
             "root"            : ".",
             "relative_to"     : __file__,
