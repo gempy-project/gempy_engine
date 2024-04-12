@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.modules.kernel_constructor._vectors_preparation import \
     evaluation_vectors_preparations
@@ -36,6 +37,7 @@ def test_scalar_field_export(simple_model_2_internals, simple_grid_2d):
     sp_internal, ori_internal, options = simple_model_2_internals
 
     # noinspection PyTypeChecker
+    simple_grid_2d = BackendTensor.t.array(simple_grid_2d)
     solver_input = SolverInput(sp_internal, ori_internal, xyz_to_interpolate=simple_grid_2d, fault_internal=None)
     evp = evaluation_vectors_preparations(solver_input, options.kernel_options)
     print(evp)

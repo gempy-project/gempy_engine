@@ -48,7 +48,7 @@ def test_covariance_cubic_kernel(simple_model_2):
 
     parameters: Options = NamerFactory.with_parameters("axis=1").with_comparator(ArrayComparator())
     sol = BackendTensor.tfnp.sum(cov, axis=1, keepdims=True)
-    # verify(BackendTensor.t.to_numpy(sol), options=parameters)
+    
     verify(sol, options=parameters)
 
 
@@ -70,6 +70,7 @@ def test_eval_kernel(simple_model_2, simple_grid_2d):
     options = simple_model_2[2]
     input_data_descriptor: InputDataDescriptor = simple_model_2[3]
 
+    simple_grid_2d = BackendTensor.t.array(simple_grid_2d)
     sp_internals = surface_points_preprocess(surface_points, input_data_descriptor.tensors_structure)
     ori_internals = orientations_preprocess(orientations)
     solver_input = SolverInput(sp_internals, ori_internals, simple_grid_2d, None)

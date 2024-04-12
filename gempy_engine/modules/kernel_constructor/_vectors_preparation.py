@@ -196,6 +196,7 @@ def _assembly_drift_grid_tensors(grid: np.ndarray, options: KernelOptions, matri
     # region UG
     dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector = assembly_dips_ug_coords(ori_, options, matrices_size)
 
+
     grid_1 = BackendTensor.t.zeros_like(grid)
     grid_1[:, axis] = 1
 

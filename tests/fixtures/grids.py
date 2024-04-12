@@ -2,6 +2,8 @@ import dataclasses
 
 import pytest
 import numpy as np
+
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.engine_grid import EngineGrid
 from gempy_engine.core.data.regular_grid import RegularGrid
 
@@ -12,6 +14,7 @@ def simple_grid_2d_f():
     y = np.linspace(0, 5, ny)
     xv, yv = np.meshgrid(x, y)
     g = np.vstack((xv.ravel(), yv.ravel())).T
+    BackendTensor.t.array(g)
     return g
 
 

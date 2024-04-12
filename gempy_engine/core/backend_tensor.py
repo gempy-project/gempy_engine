@@ -163,7 +163,7 @@ class BackendTensor:
         from torch import sum, repeat_interleave
         import torch
 
-        def _sum(tensor, axis=None, dtype=None, keepdim=False):
+        def _sum(tensor, axis=None, dtype=None, keepdims=False):
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
 

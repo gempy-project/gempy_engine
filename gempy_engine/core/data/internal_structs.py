@@ -19,7 +19,7 @@ class SolverInput(object):
     debug = None
 
     def __init__(self, sp_internal: SurfacePointsInternals, ori_internal: OrientationsInternals,
-                 xyz_to_interpolate=None, fault_internal=None):
+                 xyz_to_interpolate: np.ndarray=None, fault_internal=None):
         self.sp_internal = sp_internal
         self.ori_internal = ori_internal
     
