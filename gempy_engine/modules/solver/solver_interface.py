@@ -13,7 +13,7 @@ global n_iters
 
 
 
-def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0, x0: Optional[BackendTensor.dtype_obj] = None) -> np.ndarray:
+def kernel_reduction(cov, b, kernel_options: KernelOptions, n_faults: int = 0, x0: Optional[np.ndarray] = None) -> np.ndarray:
     global n_iters
     n_iters = 0
     
