@@ -19,7 +19,7 @@ def get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_res
     cov_sp = _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options, ki.nugget_scalar,
                                      ki.nugget_grad.shape[1])  # TODO: Add nugget effect properly (individual) # cov_sp += np.eye(cov_sp.shape[0]) * .00000001
     cov_grad_sp = _get_cross_cov_grad_sp(dm, k_p_ref, k_p_rest, options)  # C
-
+    
     # Universal drift
     usp = _get_universal_sp_terms(ki, options)
     ug = _get_universal_gradient_terms(ki, options)
@@ -75,21 +75,20 @@ def _get_cov_grad(dm, k_a, k_p_ref, nugget):
 
 def _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options: KernelOptions, nugget_effect, grad_matrix_size):
     cov_surface_points = options.i_res * (k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref)
-    flipped_perp_matrix = ( dm.perp_matrix - 1 ) * -1
     
     if BackendTensor.pykeops_enabled is False: # Add nugget effect for ref and rest point
-        diag = BackendTensor.t.array(np.eye(cov_surface_points.shape[0], dtype=BackendTensor.dtype))
-        
+        cov_shape = cov_surface_points.shape[0]
         shape_sp_size = nugget_effect.shape[0]
-        if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
-            modified_diag = diag.clone()
-        else:
-            modified_diag = diag
+        
+        diag = BackendTensor.t.array(np.eye(cov_shape, dtype=BackendTensor.dtype))
+        # Nullify all the diagonal values that are not in the surface points block
+        modified_diag = BackendTensor.t.zeros((cov_shape, cov_shape), dtype=BackendTensor.dtype)
         modified_diag[
             grad_matrix_size:grad_matrix_size+shape_sp_size,
             grad_matrix_size:grad_matrix_size+shape_sp_size
-            ] *= nugget_effect
-        cov_surface_points += modified_diag * flipped_perp_matrix
+            ] = nugget_effect
+
+        cov_surface_points += modified_diag * diag  
     else:
         matrix_shape = k_rest_ref.shape[0]
         if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
@@ -108,6 +107,8 @@ def _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, 
         diag_i = LazyTensor(diag_[:, None])
         diag_j = LazyTensor(diag_[None, :])
         nugget_matrix = (((0.5 - (diag_i - diag_j) ** 2).step()) * nuggets_lazy)
+
+        flipped_perp_matrix = (dm.perp_matrix - 1) * -1
         cov_surface_points += nugget_matrix * flipped_perp_matrix
 
     return cov_surface_points
