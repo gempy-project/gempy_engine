@@ -21,12 +21,15 @@ class Solutions:
     magnetics: np.ndarray = None
 
     debug_input_data: dict = {}
+    
+    block_solution_type: RawArraysSolution.BlockSolutionType 
 
     def __init__(self, octrees_output: List[OctreeLevel], dc_meshes: List[DualContouringMesh] = None, fw_gravity: np.ndarray = None,
                  block_solution_type: RawArraysSolution.BlockSolutionType = RawArraysSolution.BlockSolutionType.OCTREE):
         self.octrees_output = octrees_output
         self.dc_meshes = dc_meshes
         self.gravity = fw_gravity
+        self.block_solution_type = block_solution_type
 
         self._set_scalar_field_at_surface_points_and_elements_order(octrees_output)
             
@@ -46,6 +49,20 @@ class Solutions:
 
     def _repr_html_(self):
         return f"<b>Solutions:</b> {len(self.octrees_output)} Octree Levels, {len(self.dc_meshes)} DualContouringMeshes"
+
+    @property
+    def block_solution_resolution(self) -> np.ndarray:
+        """Get the resolution of the block solution."""
+        grid_centers = self.octrees_output[-1].grid_centers
+        match self.block_solution_type:
+            case RawArraysSolution.BlockSolutionType.DENSE_GRID:
+                resolution = grid_centers.dense_grid.resolution
+            case RawArraysSolution.BlockSolutionType.OCTREE:
+                resolution = grid_centers.octree_grid.resolution
+            case _:
+                raise ValueError("Block solution type not recognized.")
+        
+        return resolution
 
     @property
     def raw_arrays(self) -> RawArraysSolution:
