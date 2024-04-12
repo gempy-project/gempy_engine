@@ -3,9 +3,10 @@ from typing import Union, Optional
 
 import numpy as np
 
-from gempy_engine.core.data.stacks_structure import StacksStructure
-from gempy_engine.core.data.kernel_classes.server.input_parser import SurfacePointsSchema
-from gempy_engine.core.utils import cast_type_inplace
+from .server.input_parser import SurfacePointsSchema
+from ..stacks_structure import StacksStructure
+from ...utils import cast_type_inplace
+from ...backend_tensor import BackendTensor
 from gempy_engine.modules.kernel_constructor._structs import tensor_types
 
 
@@ -20,7 +21,7 @@ class SurfacePoints:
     def __post_init__(self):
         if type(self.nugget_effect_scalar) is float or type(self.nugget_effect_scalar) is int:
             self.nugget_effect_scalar = np.ones(self.n_points) * self.nugget_effect_scalar
-        cast_type_inplace(self, requires_grad=True) # TODO: This has to be grabbed from options
+        cast_type_inplace(self, requires_grad=BackendTensor.COMPUTE_GRADS)  # TODO: This has to be grabbed from options
 
     @classmethod
     def from_schema(cls, schema: SurfacePointsSchema):

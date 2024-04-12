@@ -20,7 +20,7 @@ DEFAULT_PYKEOPS = False
 DEFAULT_TENSOR_DTYPE = 'float64'
 LINE_PROFILER_ENABLED = True
 SET_RAW_ARRAYS_IN_SOLUTION = True
-COMPUTE_GRADIENTS = False 
+MAKE_INPUT_DEEP_COPY = False 
 
 is_numpy_installed = find_spec("numpy") is not None
 is_tensorflow_installed = find_spec("tensorflow") is not None

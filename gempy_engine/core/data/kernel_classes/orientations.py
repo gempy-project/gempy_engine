@@ -21,7 +21,7 @@ class Orientations:
     def __post_init__(self):
         if type(self.nugget_effect_grad) is float or type(self.nugget_effect_grad) is int:
             self.nugget_effect_grad = np.ones(self.n_items) * self.nugget_effect_grad
-        cast_type_inplace(self, requires_grad=True) # TODO: This has to be grabbed from options
+        cast_type_inplace(self, requires_grad=BackendTensor.COMPUTE_GRADS) # TODO: This has to be grabbed from options
         
         
     def renormalize_gradients(self):

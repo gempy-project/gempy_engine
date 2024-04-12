@@ -27,6 +27,8 @@ class BackendTensor:
     tfnp: numpy  # Alias for the tensor backend pointer
     _: Any  # Alias for the tensor backend pointer
     t: numpy  # Alias for the tensor backend pointer
+    
+    COMPUTE_GRADS: bool = False
 
     @classmethod
     def get_backend_string(cls) -> str:

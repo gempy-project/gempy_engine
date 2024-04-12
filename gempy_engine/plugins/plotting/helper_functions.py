@@ -33,14 +33,19 @@ def plot_2d_scalar_y_direction(interpolation_input: InterpolationInput, Z_x, gri
 
 def plot_data(interpolation_input):
     xyz = interpolation_input.surface_points.sp_coords
+    from gempy_engine.core.backend_tensor import BackendTensor
+    xyz = BackendTensor.t.to_numpy(xyz)
     plt.plot(xyz[:, 0], xyz[:, 2], "o")
     plt.colorbar()
-    plt.quiver(interpolation_input.orientations.dip_positions[:, 0],
-               interpolation_input.orientations.dip_positions[:, 2],
-               interpolation_input.orientations.dip_gradients[:, 0],
-               interpolation_input.orientations.dip_gradients[:, 2],
-               scale=10
-               )
+    dip_positions = BackendTensor.t.to_numpy(interpolation_input.orientations.dip_positions)
+    dip_gradients = BackendTensor.t.to_numpy(interpolation_input.orientations.dip_gradients)
+    plt.quiver(
+        dip_positions[:, 0],
+        dip_positions[:, 2],
+        dip_gradients[:, 0],
+        dip_gradients[:, 2],
+        scale=10
+    )
 
 
 def calculate_gradient(dip, az, pol):
@@ -77,7 +82,6 @@ def plot_scalar_and_input_2d(foo, interpolation_input, outputs: list[OctreeLevel
 
 def plot_block_and_input_2d(stack_number, interpolation_input, outputs: list[OctreeLevel],
                             structure: StacksStructure, value_type=ValueType.ids):
-    
     from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 
     regular_grid_scalar = get_regular_grid_value_for_level(

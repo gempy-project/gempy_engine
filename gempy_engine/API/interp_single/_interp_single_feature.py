@@ -3,7 +3,7 @@ from typing import Optional, Callable
 
 import numpy as np
 
-from gempy_engine.config import AvailableBackends, COMPUTE_GRADIENTS
+from gempy_engine.config import AvailableBackends, MAKE_INPUT_DEEP_COPY
 from ...core.backend_tensor import BackendTensor
 from ._interp_scalar_field import interpolate_scalar_field
 from ...core.data import SurfacePoints, SurfacePointsInternals, Orientations, OrientationsInternals, TensorsStructure
@@ -27,7 +27,7 @@ def interpolate_feature(interpolation_input: InterpolationInput,
                         stack_number: Optional[int] = None,
                         clean_buffer: bool = True) -> ScalarFieldOutput:
     
-    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and COMPUTE_GRADIENTS is False:
+    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and MAKE_INPUT_DEEP_COPY is False:
         grid = copy.deepcopy(interpolation_input.grid)
     else:
         grid = interpolation_input.grid
