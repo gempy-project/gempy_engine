@@ -2,7 +2,7 @@ import copy
 from typing import List
 
 import gempy_engine.core.data.tensors_structure
-from gempy_engine.config import AvailableBackends, MAKE_INPUT_DEEP_COPY
+from gempy_engine.config import AvailableBackends, NOT_MAKE_INPUT_DEEP_COPY
 from . import _multi_scalar_field_manager as ms
 from ._interp_scalar_field import interpolate_scalar_field
 from ._interp_single_feature import interpolate_feature, input_preprocess
@@ -46,7 +46,7 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
 
 def interpolate_all_fields_no_octree(interpolation_input: InterpolationInput, options: InterpolationOptions,
                                      data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
-    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and MAKE_INPUT_DEEP_COPY is False:
+    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
         temp_interpolation_input = copy.deepcopy(interpolation_input)
     else:
         temp_interpolation_input = interpolation_input

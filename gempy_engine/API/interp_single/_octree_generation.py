@@ -2,7 +2,7 @@ import copy
 from typing import List, Optional
 
 from ...core.backend_tensor import BackendTensor
-from ...config import MAKE_INPUT_DEEP_COPY, AvailableBackends
+from ...config import NOT_MAKE_INPUT_DEEP_COPY, AvailableBackends
 from ...core.data.generic_grid import GenericGrid
 from ...core.data.regular_grid import RegularGrid
 from ...core.data.options import InterpolationOptions
@@ -19,7 +19,7 @@ import numpy as np
 
 def interpolate_on_octree(interpolation_input: InterpolationInput, options: InterpolationOptions,
                           data_shape: InputDataDescriptor) -> OctreeLevel:
-    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and MAKE_INPUT_DEEP_COPY is False:
+    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
         temp_interpolation_input = copy.deepcopy(interpolation_input)
     else:
         temp_interpolation_input = interpolation_input

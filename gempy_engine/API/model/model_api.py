@@ -2,7 +2,7 @@ import copy
 from typing import List, Optional
 
 from ...core.backend_tensor import BackendTensor
-from ...config import MAKE_INPUT_DEEP_COPY, AvailableBackends
+from ...config import NOT_MAKE_INPUT_DEEP_COPY, AvailableBackends
 from ...core.data.interp_output import InterpOutput
 from ...core.data.geophysics_input import GeophysicsInput
 from ...modules.geophysics.fw_gravity import compute_gravity
@@ -24,7 +24,7 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
     WeightsBuffer.clean()
 
     # ! If we inline this it seems the deepcopy does not work
-    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and MAKE_INPUT_DEEP_COPY is False:
+    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
         interpolation_input = copy.deepcopy(interpolation_input)
 
     output: list[OctreeLevel] = interpolate_n_octree_levels(
