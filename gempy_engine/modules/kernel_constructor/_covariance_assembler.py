@@ -82,7 +82,7 @@ def _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, 
         
         diag = BackendTensor.t.array(np.eye(cov_shape, dtype=BackendTensor.dtype))
         # Nullify all the diagonal values that are not in the surface points block
-        modified_diag = BackendTensor.t.zeros((cov_shape, cov_shape), dtype=BackendTensor.dtype)
+        modified_diag = BackendTensor.t.zeros((cov_shape, cov_shape), dtype=BackendTensor.dtype_obj)
         modified_diag[
             grad_matrix_size:grad_matrix_size+shape_sp_size,
             grad_matrix_size:grad_matrix_size+shape_sp_size
