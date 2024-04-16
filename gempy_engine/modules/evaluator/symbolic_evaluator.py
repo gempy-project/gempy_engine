@@ -11,7 +11,6 @@ from ..kernel_constructor.kernel_constructor_interface import yield_evaluation_g
 
 
 def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions):
-    from pykeops.numpy import LazyTensor
     
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy and solver_input.xyz_to_interpolate.flags['C_CONTIGUOUS'] is False:  # ! This is not working with TF yet
         print("xyz is not C_CONTIGUOUS")
@@ -21,9 +20,11 @@ def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: 
 
     eval_kernel = yield_evaluation_kernel(solver_input, options.kernel_options)
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
+        from pykeops.numpy import LazyTensor
         lazy_weights = LazyTensor(np.asfortranarray(weights), axis=1)
     else:
-        lazy_weights = weights
+        from pykeops.torch import LazyTensor
+        lazy_weights = LazyTensor(weights.view((-1, 1)), axis=1)
     scalar_field: np.ndarray = (eval_kernel.T * lazy_weights).sum(axis=1, backend=backend_string).reshape(-1)
     gx_field: Optional[np.ndarray] = None
     gy_field: Optional[np.ndarray] = None

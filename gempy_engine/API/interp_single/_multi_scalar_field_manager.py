@@ -97,11 +97,12 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
 
         # # * Modify the values for Fault stacks
         if interpolation_input_i.stack_relation is StackRelationType.FAULT:  # * This is also for faults!
-            all_stack_values_block[i, :] = _modify_faults_values_output(  # ! This is all_STACK_values_block (not all_scalar_fields_outputs)
+            values_output = _modify_faults_values_output(  # ! This is all_STACK_values_block (not all_scalar_fields_outputs)
                 fault_input=fault_input,
                 values_on_all_xyz=output.values_on_all_xyz,
                 xyz_to_interpolate=solver_input.xyz_to_interpolate
             )
+            all_stack_values_block[i, :] = values_output
 
     return all_scalar_fields_outputs
 
