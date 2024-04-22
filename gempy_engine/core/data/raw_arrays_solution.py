@@ -118,13 +118,17 @@ class RawArraysSolution:
             simplex_array += idx_max
             idx_max = simplex_array.max() + 1
 
-        id_array = [np.full(v.shape[0], i + 1) for i, v in enumerate(vertex)]
+        vertex_id_array = [np.full(v.shape[0], i + 1) for i, v in enumerate(vertex)]
+        cell_id_array = [np.full(v.shape[0], i + 1) for i, v in enumerate(simplex_list)]
 
-        concatenated_id_array = np.concatenate(id_array)
+        concatenated_id_array = np.concatenate(vertex_id_array)
+        concatenated_cell_id_array = np.concatenate(cell_id_array)
+        
         meshes: ss.UnstructuredData = ss.UnstructuredData.from_array(
             vertex=np.concatenate(vertex),
             cells=np.concatenate(simplex_list),
-            vertex_attr=pd.DataFrame({'id': concatenated_id_array})
+            vertex_attr=pd.DataFrame({'id': concatenated_id_array}),
+            cells_attr=pd.DataFrame({'id': concatenated_cell_id_array})
         )
 
         return meshes
