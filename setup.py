@@ -37,7 +37,7 @@ setup(
     packages=find_packages(exclude=('test', 'docs', 'examples')),
     license='EUPL-1.2',
     classifiers=[
-            "Development Status :: 5 - Stable",
+            "Development Status :: 5 - Production/Stable",
             "Intended Audience :: Developers",
             "License :: OSI Approved :: European Union Public Licence 1.2 (EUPL 1.2)",
             "Operating System :: OS Independent",
