@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Tuple
 
 import numpy as np
@@ -13,7 +13,7 @@ class ExportedFields:
     _gz_field: Optional[np.ndarray] = None
     
     _n_points_per_surface: Optional[np.ndarray] = None
-    _slice_feature: Optional[slice] = slice(None, None)  # Slice all the surface points
+    _slice_feature: Optional[slice] = field(default_factory=lambda: slice(None, None))  # Slice all the surface points
     _grid_size: Optional[int] = None
     
     _scalar_field_at_surface_points: Optional[np.ndarray] = None
