@@ -16,7 +16,7 @@ class SurfacePoints:
     nugget_effect_scalar: Union[np.ndarray, float] = 0.000001
 
     # TODO (Sep 2022): Pretty sure this has to be private
-    slice_feature: Optional[slice] = slice(None, None)  # * Used to slice the surface points values of the interpolation (grid.values)
+    slice_feature: Optional[slice] = field(default_factory=lambda: slice(None, None))  # * Used to slice the surface points values of the interpolation (grid.values)
 
     def __post_init__(self):
         if type(self.nugget_effect_scalar) is float or type(self.nugget_effect_scalar) is int:
