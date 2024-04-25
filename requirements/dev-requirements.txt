@@ -1,4 +1,4 @@
--r requirements/optional-requirements.txt
+-r optional-requirements.txt
 
 matplotlib
 pandas
