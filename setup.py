@@ -31,7 +31,6 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="gempy_engine",
-    # version=version,
     author="Miguel de la Varga",
     author_email="miguel@terranigma-solutions.com",
     description="A Python package for GemPy",
