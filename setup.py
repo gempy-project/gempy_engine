@@ -1,11 +1,14 @@
-﻿from os import path
+﻿import os
+from os import path
 
 from setuptools import setup, find_packages
 
 
-def read_requirements(file_name):
+def read_requirements(file_name, base_path=""):
+    # Construct the full path to the requirements file
+    full_path = os.path.join(base_path, file_name)
     requirements = []
-    with open(file_name, "r", encoding="utf-8") as f:
+    with open(full_path, "r", encoding="utf-8") as f:
         for line in f:
             # Strip whitespace and ignore comments
             line = line.strip()
@@ -15,7 +18,8 @@ def read_requirements(file_name):
             # Handle -r directive
             if line.startswith("-r "):
                 referenced_file = line.split()[1]  # Extract the file name
-                requirements.extend(read_requirements(referenced_file))  # Recursively read referenced file
+                # Recursively read the referenced file, making sure to include the base path
+                requirements.extend(read_requirements(referenced_file, base_path=base_path))
             else:
                 requirements.append(line)
 
@@ -47,11 +51,11 @@ setup(
             "Programming Language :: Python :: 3.12",
     ],
     python_requires=">=3.10",
-    install_requires=read_requirements("requirements/requirements.txt"),
+    install_requires=read_requirements("requirements.txt", "requirements"),
     extras_require={
-            "dev"   : read_requirements("requirements/dev-requirements.txt"),
-            "opt"   : read_requirements("requirements/optional-requirements.txt"),
-            "server": read_requirements("requirements/server-requirements.txt")
+            "dev"   : read_requirements("dev-requirements.txt", "requirements"),
+            "opt"   : read_requirements("optional-requirements.txt", "requirements"),
+            "server": read_requirements("server-requirements.txt", "requirements")
     },
     setup_requires=['setuptools_scm'],
     use_scm_version={
