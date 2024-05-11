@@ -99,6 +99,12 @@ class KernelOptions:
 
 @dataclass
 class InterpolationOptions:
+    class CacheMode(enum.Enum):
+        NO_CACHE = enum.auto()
+        CACHE = enum.auto()
+        CLEAR_CACHE = enum.auto()
+        
+        
     # @off
     kernel_options                 : KernelOptions                = None  # * This is the compression of the fields above and the way to go in the future
 
@@ -111,6 +117,8 @@ class InterpolationOptions:
     mesh_extraction                : bool                         = True
     mesh_extraction_masking_options: MeshExtractionMaskingOptions = MeshExtractionMaskingOptions.INTERSECT
     mesh_extraction_fancy          : bool                         = True
+    
+    cache_mode                     : CacheMode                    = CacheMode.CACHE
 
     debug                          : bool                         = gempy_engine.config.DEBUG_MODE
     debug_water_tight              : bool                         = False

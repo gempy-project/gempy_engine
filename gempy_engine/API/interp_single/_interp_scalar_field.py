@@ -38,16 +38,27 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
     # region Solver
 
     weights_key = f"{options._model_name}.{stack_number}"
-    weights_cached: Optional[dict] = WeightCache.load_weights(weights_key)
-    weights_hash = generate_cache_key(
-        name="",
-        parameters={
-                "surface_points": solver_input.sp_internal,
-                "orientations"  : solver_input.ori_internal,
-                "fault_internal": solver_input._fault_internal.fault_values_on_sp,
-                "kernel_options": options.kernel_options
-        }
-    )
+    weights_hash = None
+    match options.cache_mode:
+        case InterpolationOptions.CacheMode.NO_CACHE:
+            weights_cached = None
+        case InterpolationOptions.CacheMode.CACHE:
+            weights_cached: Optional[dict] = WeightCache.load_weights(weights_key)
+            weights_hash = generate_cache_key(
+                name="",
+                parameters={
+                        "surface_points": solver_input.sp_internal,
+                        "orientations"  : solver_input.ori_internal,
+                        "fault_internal": solver_input._fault_internal.fault_values_on_sp,
+                        "kernel_options": options.kernel_options
+                }
+            )
+        case  InterpolationOptions.CacheMode.CLEAR_CACHE:
+            WeightCache.initialize_cache_dir()
+            weights_cached = None
+        case _:
+            raise ValueError("Cache mode not recognized")
+        
 
     match weights_cached:
         case None:

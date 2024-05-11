@@ -30,7 +30,7 @@ elif os.path.exists(dotenv_gempy_engine_path):
 DEBUG_MODE = os.getenv('DEBUG_MODE', 'True') == 'True'  # Note the handling of Boolean values
 OPTIMIZE_MEMORY = os.getenv('OPTIMIZE_MEMORY', 'True') == 'True'
 DEFAULT_BACKEND = AvailableBackends[os.getenv('DEFAULT_BACKEND', 'numpy')]
-DEFAULT_PYKEOPS = os.getenv('DEFAULT_PYKEOPS', 'False') == 'True'
+DEFAULT_PYKEOPS = os.getenv('DEFAULT_PYKEOPS', 'True') == 'True'
 DEFAULT_TENSOR_DTYPE = os.getenv('DEFAULT_TENSOR_DTYPE', 'float64')
 LINE_PROFILER_ENABLED = os.getenv('LINE_PROFILER_ENABLED', 'False') == 'True'
 SET_RAW_ARRAYS_IN_SOLUTION = os.getenv('SET_RAW_ARRAYS_IN_SOLUTION', 'True') == 'True'
