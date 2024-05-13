@@ -138,8 +138,11 @@ def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_re
         if onlap_chain_counter:
             mask_matrix[i - 1] = all_scalar_fields_outputs[i].mask_components_erode_components_onlap
 
-            cumprod_mask = np.cumprod(mask_matrix[(i - onlap_chain_counter):i, :][::-1], axis=0)[::-1]
-            mask_matrix[i - onlap_chain_counter: i] = cumprod_mask
+            x_mask = mask_matrix[(i - onlap_chain_counter):i, :]
+            reversed_x_mask = BackendTensor.t.invert(x_mask)
+            cumprod_mask = BackendTensor.t.cumprod(reversed_x_mask, axis=0)
+            reversed_cumprod_mask = BackendTensor.t.invert(cumprod_mask)
+            mask_matrix[i - onlap_chain_counter: i] = reversed_cumprod_mask
 
         # convert to match
         match stack_relation[i]:
