@@ -78,7 +78,7 @@ class EngineGrid:
 
     @property
     def dense_grid_slice(self) -> slice:
-        start = len(self.octree_grid) if self.octree_grid is not None else 0
+        start = self.octree_grid_slice.stop
         return slice(
             start,
             start + len(self.dense_grid) if self.dense_grid is not None else start
@@ -86,7 +86,7 @@ class EngineGrid:
 
     @property
     def custom_grid_slice(self) -> slice:
-        start = len(self.dense_grid) if self.dense_grid is not None else 0
+        start = self.dense_grid_slice.stop
         return slice(
             start,
             start + len(self.custom_grid) if self.custom_grid is not None else start
