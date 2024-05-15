@@ -40,7 +40,7 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
 
     # region new triangulations
     is_pure_octree = bool(np.all(octree_list[0].grid_centers.octree_grid_shape == 2))
-    match (options.mesh_extraction_fancy, is_pure_octree):
+    match (options.evaluation_options.mesh_extraction_fancy, is_pure_octree):
         case (True, True):
             left_right_codes = get_left_right_array(octree_list)
         case (True, False):
@@ -54,7 +54,7 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
 
     all_mask_arrays: np.ndarray = _mask_generation(
         octree_leaves=octree_leaves,
-        masking_option=options.mesh_extraction_masking_options
+        masking_option=options.evaluation_options.mesh_extraction_masking_options
     )
 
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
