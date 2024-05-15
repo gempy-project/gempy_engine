@@ -43,7 +43,7 @@ class InterpolationOptions:
             number_octree_levels: int = 1,
             kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.cubic,
             mesh_extraction: bool = True,
-            compute_scalar_gradient: bool = False,
+            compute_scalar_gradient: bool = True,
             compute_condition_number: bool = False,
     ):
 
