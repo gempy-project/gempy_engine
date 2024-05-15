@@ -29,7 +29,7 @@ def get_next_octree_grid(prev_octree: OctreeLevel, curvature_threshold, compute_
         )
         num_voxels_marked_as_outliers = voxel_selected_to_refinement_due_to_curvature.sum()
         total_voxels = voxel_selected_to_refinement_due_to_curvature.size
-        print(f"Number of voxels marked as outliers: {num_voxels_marked_as_outliers}of {total_voxels}")
+        print(f"Number of voxels marked as high curvature: {num_voxels_marked_as_outliers} of {total_voxels}")
     else: 
         voxel_selected_to_refinement_due_to_curvature = None
     

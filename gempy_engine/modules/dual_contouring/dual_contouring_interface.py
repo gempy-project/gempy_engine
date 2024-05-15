@@ -30,9 +30,14 @@ def find_intersection_on_edge(_xyz_corners: np.ndarray, scalar_field_on_corners:
     xyz_8 = BackendTensor.t.tile(xyz_8, (n_isosurface, 1, 1))  # TODO: Generalize
 
     # Compute distance of scalar field on the corners
-    scalar_dx = scalar_8[:, :, :4] - scalar_8[:, :, 4:]
+    scalar_dx = scalar_8[:, :, :4] - scalar_8[:, :, 4:] 
     scalar_d_y = scalar_8[:, :, [0, 1, 4, 5]] - scalar_8[:, :, [2, 3, 6, 7]]
     scalar_d_z = scalar_8[:, :, ::2] - scalar_8[:, :, 1::2]
+    
+    # Add a tiny value to avoid division by zero
+    scalar_dx += 1e-10
+    scalar_d_y += 1e-10
+    scalar_d_z += 1e-10
 
     # Compute the weights
     weight_x = ((scalar_at_sp - scalar_8[:, :, 4:]) / scalar_dx).reshape(-1, 4, 1)
