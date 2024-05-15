@@ -1,3 +1,4 @@
+import torch
 import warnings
 from typing import List, Optional
 
@@ -17,7 +18,7 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, union_voxel_select: 
     # Old octree
     shift_select_xyz, voxel_select = _mark_voxel(uv_8)
     if union_voxel_select is not None:
-        voxel_select = voxel_select | union_voxel_select
+        voxel_select = voxel_select | torch.tensor(union_voxel_select)
     prev_octree.marked_edges = shift_select_xyz
 
     if compute_topology:  # TODO: Fix topology function

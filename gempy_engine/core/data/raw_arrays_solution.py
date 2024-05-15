@@ -4,15 +4,15 @@ from typing import Optional
 
 import numpy as np
 
-from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.core.data.interp_output import InterpOutput
-from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
-from gempy_engine.core.data.octree_level import OctreeLevel
+from ..backend_tensor import BackendTensor
+from .interp_output import InterpOutput
+from .dual_contouring_mesh import DualContouringMesh
+from .octree_level import OctreeLevel
 
 # ? These two imports are suggesting that this class should be splatted and move one half into a gempy.module
-from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
-from gempy_engine.core.data.output.blocks_value_type import ValueType
-from gempy_engine.optional_dependencies import require_pandas, require_subsurface
+from ...modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
+from .output.blocks_value_type import ValueType
+from ...optional_dependencies import require_pandas, require_subsurface
 
 
 

@@ -32,7 +32,7 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
     all_meshes: List[DualContouringMesh] = []
 
     dual_contouring_options = copy.copy(options)
-    dual_contouring_options.compute_scalar_gradient = True
+    dual_contouring_options.evaluation_options.compute_scalar_gradient = True
 
     if options.debug_water_tight:
         _experimental_water_tight(all_meshes, data_descriptor, interpolation_input, octree_leaves, dual_contouring_options)

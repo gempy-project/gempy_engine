@@ -7,6 +7,7 @@ from .evaluation_options import MeshExtractionMaskingOptions, EvaluationOptions
 from .temp_interpolation_values import TempInterpolationValues
 from ..kernel_classes.kernel_functions import AvailableKernelFunctions
 from .kernel_options import KernelOptions
+from ..raw_arrays_solution import RawArraysSolution
 
 
 @dataclass
@@ -21,8 +22,8 @@ class InterpolationOptions:
     evaluation_options: EvaluationOptions
     temp_interpolation_values: TempInterpolationValues
 
-    compute_scalar_gradient: bool = False
-
+    block_solutions_type: RawArraysSolution.BlockSolutionType = RawArraysSolution.BlockSolutionType.OCTREE
+    
     cache_mode: CacheMode = CacheMode.CACHE
     _model_name: str = None  # : Model name for the cache
 
@@ -62,12 +63,12 @@ class InterpolationOptions:
             _number_octree_levels_surface=4,
             mesh_extraction=mesh_extraction,
             mesh_extraction_masking_options=MeshExtractionMaskingOptions.INTERSECT,
-            mesh_extraction_fancy=True
+            mesh_extraction_fancy=True,
+            compute_scalar_gradient=compute_scalar_gradient
+            
         )
 
         self.temp_interpolation_values = TempInterpolationValues()
-        self.compute_scalar_gradient = compute_scalar_gradient
-
     # @on
 
     def __repr__(self):
@@ -140,6 +141,10 @@ class InterpolationOptions:
         compute_corners = is_dual_contouring_and_octree_is_for_surfaces or is_not_last_octree
         return compute_corners
 
+    @property
+    def compute_scalar_gradient(self):
+        return self.evaluation_options.compute_scalar_gradient
+    
     @property
     def is_last_octree_level(self) -> bool:
         return self.temp_interpolation_values.current_octree_level == self.number_octree_levels - 1
