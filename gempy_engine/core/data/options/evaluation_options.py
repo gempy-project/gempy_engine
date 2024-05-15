@@ -16,6 +16,7 @@ class MeshExtractionMaskingOptions(enum.Enum):
 class EvaluationOptions:
     _number_octree_levels: int = 1
     _number_octree_levels_surface: int = 4
+    curvature_threshold: float = 0.8  # * Threshold to do octree refinement due to curvature to deal with angular geometries. This curvature assumes that 1 is the maximum curvature of any voxel
     block_solutions_type: RawArraysSolution.BlockSolutionType = RawArraysSolution.BlockSolutionType.OCTREE
 
     mesh_extraction: bool = True
@@ -38,11 +39,6 @@ class EvaluationOptions:
 
     @property
     def number_octree_levels_surface(self):
-        # if self._number_octree_levels_surface >= self.number_octree_levels -1:
-        #     return self.number_octree_levels 
-        # else:
-        #     return self._number_octree_levels_surface
-        # ? Should we make this just a property
         return self._number_octree_levels_surface
 
     @number_octree_levels_surface.setter

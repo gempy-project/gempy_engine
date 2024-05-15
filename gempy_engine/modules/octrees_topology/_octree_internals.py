@@ -27,7 +27,6 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, union_voxel_select: 
         )
 
     # New Octree
-
     dxdydz = prev_octree.dxdydz
     xyz_anchor = prev_octree.grid_centers.octree_grid.values[voxel_select]
     xyz_coords, bool_idx = _generate_next_level_centers(xyz_anchor, dxdydz, level=1)

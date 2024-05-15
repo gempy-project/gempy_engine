@@ -16,24 +16,27 @@ from gempy_engine.core.data.engine_grid import EngineGrid
 # TODO: Remove all stack to be able to compile TF
 
 
-def get_next_octree_grid(prev_octree: OctreeLevel, compute_topology=False) -> EngineGrid:
+def get_next_octree_grid(prev_octree: OctreeLevel, curvature_threshold, compute_topology=False) -> EngineGrid:
 
-    if True:
-        bar = mark_highest_curvature_voxels(
+    # Check curvature is between 0 and 1
+    if 0 <= curvature_threshold <= 1:
+        voxel_selected_to_refinement_due_to_curvature = mark_highest_curvature_voxels(
             gx=(prev_octree.last_output_corners.scalar_fields.exported_fields.gx_field.reshape((-1, 8))),
             gy=(prev_octree.last_output_corners.scalar_fields.exported_fields.gy_field.reshape((-1, 8))),
             gz=(prev_octree.last_output_corners.scalar_fields.exported_fields.gz_field.reshape((-1, 8))),
             voxel_size=np.array(prev_octree.grid_centers.octree_grid.dxdydz),
-            curvature_threshold=.6  # * This curvature assumes that 1 is the maximum curvature of any voxel
+            curvature_threshold=curvature_threshold  # * This curvature assumes that 1 is the maximum curvature of any voxel
         )
-        print(f"Number of voxels marked as outliers: {bar.sum()} of {bar.size}")
+        num_voxels_marked_as_outliers = voxel_selected_to_refinement_due_to_curvature.sum()
+        total_voxels = voxel_selected_to_refinement_due_to_curvature.size
+        print(f"Number of voxels marked as outliers: {num_voxels_marked_as_outliers}of {total_voxels}")
     else: 
-        bar = None
+        voxel_selected_to_refinement_due_to_curvature = None
     
 
     octree_from_output: EngineGrid = compute_next_octree_locations(
         prev_octree=prev_octree, 
-        union_voxel_select=bar,
+        union_voxel_select=voxel_selected_to_refinement_due_to_curvature,
         compute_topology=compute_topology
     )
     return octree_from_output
