@@ -33,11 +33,16 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
         grid_0_corners: Optional[EngineGrid] = EngineGrid.from_xyz_coords(
             xyz_coords=_generate_corners(regular_grid=grid_0_centers.octree_grid)
         )
-        
+
         # ! Here we need to swap the grid temporarily but it is
         # ! important to set up the og grid back for the gradients
         temp_interpolation_input.set_temp_grid(grid_0_corners)  # * Prepare grid for next interpolation
-        output_0_corners: List[InterpOutput] = interpolate_all_fields(temp_interpolation_input, options, data_shape)  # * This is unnecessary for the last level except for Dual contouring
+        output_0_corners: List[InterpOutput] = interpolate_all_fields(  # * This is unnecessary for the last level except for Dual contouring
+            interpolation_input=temp_interpolation_input,
+            options=options,
+            data_descriptor=data_shape
+        )
+
         temp_interpolation_input.set_grid_to_original()
     else:
         output_0_corners = []

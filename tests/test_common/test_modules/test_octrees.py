@@ -49,7 +49,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     octree_lvl0 = OctreeLevel(grid_0_centers, grid_0_corners, [output_0_centers], [output_0_corners])
 
     # Generate grid_1_centers
-    grid_1_centers = get_next_octree_grid(octree_lvl0, compute_topology=False, debug=True)
+    grid_1_centers = get_next_octree_grid(octree_lvl0, compute_topology=False)
     xyz, anch, select = grid_1_centers.debug_vals[:3]
 
     # Level 1
@@ -70,7 +70,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     # Create octree level 1
     octree_lvl1 = OctreeLevel(grid_1_centers, grid_1_corners, [output_1_centers], [output_1_corners])
 
-    grid_2_centers = get_next_octree_grid(octree_lvl1, compute_topology=False, debug=True)
+    grid_2_centers = get_next_octree_grid(octree_lvl1, compute_topology=False)
     xyz1, anch1, select1 = grid_2_centers.debug_vals[:3]
 
     if plot_pyvista or False:
@@ -142,10 +142,10 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
                                     octree_list[0].last_output_center.weights)
 
         n = options.number_octree_levels - 1
-        debug_vals = get_next_octree_grid(octree_list[n], compute_topology=False, debug=True)
+        debug_vals = get_next_octree_grid(octree_list[n], compute_topology=False)
         a = debug_vals[-2]
         grid_centers = octree_list[n].grid_centers
-        debug_vals_prev = get_next_octree_grid(octree_list[n - 1], compute_topology=False, debug=True)
+        debug_vals_prev = get_next_octree_grid(octree_list[n - 1], compute_topology=False)
         anch = debug_vals_prev[1]
         grid_centers.values = grid_centers.values[a]
 
