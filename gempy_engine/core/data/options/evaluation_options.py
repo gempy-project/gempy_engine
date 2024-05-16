@@ -38,6 +38,12 @@ class EvaluationOptions:
 
     @property
     def number_octree_levels_surface(self):
+        # Raise error if the number of octree levels for the surface is 0
+        if self._number_octree_levels_surface <= 1 or self._number_octree_levels <= 1:
+            raise ValueError("The number of octree levels for the surface must be greater than 1.")
+
+        if self._number_octree_levels_surface > self._number_octree_levels:
+            return self.number_octree_levels - 1
         return self._number_octree_levels_surface
 
     @number_octree_levels_surface.setter

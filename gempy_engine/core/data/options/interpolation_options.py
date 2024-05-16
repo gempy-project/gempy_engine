@@ -1,6 +1,6 @@
 import enum
 import warnings
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 
 import gempy_engine.config
 from .evaluation_options import MeshExtractionMaskingOptions, EvaluationOptions
@@ -12,6 +12,7 @@ from ..raw_arrays_solution import RawArraysSolution
 
 @dataclass
 class InterpolationOptions:
+    __slots__ = ['kernel_options', 'evaluation_options', 'temp_interpolation_values']
     class CacheMode(enum.Enum):
         NO_CACHE = enum.auto()
         CACHE = enum.auto()
@@ -30,7 +31,8 @@ class InterpolationOptions:
     debug: bool = gempy_engine.config.DEBUG_MODE
     debug_water_tight: bool = False
 
-    sigmoid_slope: int = 50_000
+    sigmoid_slope: int = field(default=50_000, repr=False)
+    
 
     def __init__(
             self,
@@ -136,7 +138,7 @@ class InterpolationOptions:
     def compute_corners(self):
         is_not_last_octree = (self.is_last_octree_level is False)
         is_dual_contouring = self.mesh_extraction
-        is_octree_for_surfaces = self.temp_interpolation_values.current_octree_level == self.number_octree_levels_surface - 1
+        is_octree_for_surfaces = self.temp_interpolation_values.current_octree_level == self.number_octree_levels_surface
         is_dual_contouring_and_octree_is_for_surfaces = is_dual_contouring and is_octree_for_surfaces
 
         compute_corners = is_dual_contouring_and_octree_is_for_surfaces or is_not_last_octree
@@ -210,7 +212,7 @@ class InterpolationOptions:
 
     @property
     def number_octree_levels_surface(self):
-        return self.evaluation_options.number_octree_levels_surface
+        return self.evaluation_options.number_octree_levels_surface 
 
     @number_octree_levels_surface.setter
     def number_octree_levels_surface(self, value):

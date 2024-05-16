@@ -46,6 +46,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
     options.compute_scalar_gradient = True
+    options.evaluation_options.number_octree_levels = 1
 
     ids = np.array([1, 2])
     grid_0_centers = simple_grid_3d_octree

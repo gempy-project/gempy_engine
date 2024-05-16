@@ -59,12 +59,19 @@ def compute_curvature(gx, gy, gz, voxel_size):
 
 
 def mark_highest_curvature_voxels(gx, gy, gz, voxel_size, curvature_threshold=0.1):
+    if gx.shape[0] == 0:
+        return np.zeros((0,), dtype=bool)
+    
     principal_curvatures = compute_curvature(gx, gy, gz, voxel_size)
 
-    # Measure curvature using the sum of absolute principal curvatures
     curvature_measure = np.sum(principal_curvatures, axis=1)
-    # Normalize between 0 and 1 like pandas.factorize
-    curvature_measure = (curvature_measure - curvature_measure.min()) / (curvature_measure.max() - curvature_measure.min())
+    
+    measure_min = np.min(curvature_measure, axis=0)
+    measure_max = np.max(curvature_measure, axis=0)
+    if measure_max == measure_min:
+        return np.zeros_like(curvature_measure, dtype=bool)
+   
+    curvature_measure = (curvature_measure - measure_min) / (measure_max - measure_min)
 
     marked_voxels = curvature_measure > curvature_threshold
     

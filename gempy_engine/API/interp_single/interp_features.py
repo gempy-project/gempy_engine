@@ -25,7 +25,7 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
 
     octree_list = []
     for i in range(0, n_levels):
-        options.current_octree_level = i
+        options.temp_interpolation_values.current_octree_level = i
         
         # * Here it goes all the different grids
         next_octree: OctreeLevel = interpolate_on_octree(interpolation_input, options, data_descriptor)
