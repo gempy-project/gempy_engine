@@ -30,6 +30,8 @@ def test_regular_grid_preparation(simple_grid_3d_more_points_grid):
 
 def test_octree_root(simple_model, simple_grid_3d_octree):
     spi, ori_i, options, data_shape = simple_model
+    options.number_octree_levels = 2
+    options.evaluation_options.curvature_threshold = -1
     ids = np.array([1, 2])
     grid_0_centers = simple_grid_3d_octree
 
@@ -49,7 +51,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     octree_lvl0 = OctreeLevel(grid_0_centers, grid_0_corners, [output_0_centers], [output_0_corners])
 
     # Generate grid_1_centers
-    grid_1_centers = get_next_octree_grid(octree_lvl0, compute_topology=False)
+    grid_1_centers = get_next_octree_grid(octree_lvl0, evaluation_options=options.evaluation_options, compute_topology=False)
     xyz, anch, select = grid_1_centers.debug_vals[:3]
 
     # Level 1
@@ -70,7 +72,7 @@ def test_octree_root(simple_model, simple_grid_3d_octree):
     # Create octree level 1
     octree_lvl1 = OctreeLevel(grid_1_centers, grid_1_corners, [output_1_centers], [output_1_corners])
 
-    grid_2_centers = get_next_octree_grid(octree_lvl1, compute_topology=False)
+    grid_2_centers = get_next_octree_grid(octree_lvl1, evaluation_options=options.evaluation_options, compute_topology=False)
     xyz1, anch1, select1 = grid_2_centers.debug_vals[:3]
 
     if plot_pyvista or False:
