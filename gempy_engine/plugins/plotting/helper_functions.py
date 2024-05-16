@@ -57,7 +57,7 @@ def calculate_gradient(dip, az, pol):
 
 
 def plot_block(block, grid: RegularGrid, interpolation_input=None, direction="y"):
-    resolution = grid.resolution
+    resolution = tuple(grid.resolution)
     extent = grid.extent
     if direction == "y":
         plt.imshow(block.reshape(resolution)[:, resolution[1] // 2, :].T, extent=extent[[0, 1, 4, 5]], origin="lower")

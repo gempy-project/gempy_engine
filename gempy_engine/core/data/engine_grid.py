@@ -1,3 +1,5 @@
+import warnings
+
 from dataclasses import dataclass
 from typing import Optional
 
@@ -34,6 +36,19 @@ class EngineGrid:
         self.topography = topography
         self.sections = sections
         self.geophysics_grid = geophysics_grid
+
+    @property
+    def regular_grid(self):
+        warnings.warn("This is deprecated. Use dense_grid instead", DeprecationWarning)
+        if self.dense_grid is not None and self.octree_grid is not None:
+            raise AttributeError('Both dense_grid and octree_grid are active. This is not possible.')
+        elif self.dense_grid is not None:
+            return self.dense_grid
+        elif self.octree_grid is not None:
+            return self.octree_grid
+        else:
+            return None
+
 
     @classmethod
     def from_xyz_coords(cls, xyz_coords: ndarray) -> "EngineGrid":
