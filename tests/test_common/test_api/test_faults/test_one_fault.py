@@ -33,7 +33,7 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
     options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
     options.dual_contouring_fancy = True
 
-    options.number_octree_levels = n_oct_levels
+    options.evaluation_options.number_octree_levels = n_oct_levels
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 

@@ -117,8 +117,9 @@ class InterpolationOptions:
 
     @number_octree_levels.setter
     def number_octree_levels(self, value):
-        raise ValueError("The number_octree_levels attribute is deprecated and will be removed in the future. Use"
-                         "evaluation_options.number_octree_levels instead.")
+        warnings.warn("The number_octree_levels attribute is deprecated and will be removed in the future. Use"
+                         "evaluation_options.number_octree_levels instead.", DeprecationWarning)
+        self.evaluation_options.number_octree_levels = value
 
     @property
     def mesh_extraction(self):
@@ -144,6 +145,12 @@ class InterpolationOptions:
     @property
     def compute_scalar_gradient(self):
         return self.evaluation_options.compute_scalar_gradient
+    
+    @compute_scalar_gradient.setter
+    def compute_scalar_gradient(self, value):
+        warnings.warn("The compute_scalar_gradient attribute is deprecated and will be removed in the future. Use"
+                         "evaluation_options.compute_scalar_gradient instead.", DeprecationWarning)
+        self.evaluation_options.compute_scalar_gradient = value
     
     @property
     def is_last_octree_level(self) -> bool:

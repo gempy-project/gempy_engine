@@ -27,7 +27,7 @@ def test_graben_fault_model(graben_fault_model):
     options.dual_conturing_fancy = True
     options.debug=True
 
-    options.number_octree_levels = 4
+    options.evaluation_options.number_octree_levels = 4
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     outputs: list[OctreeLevel] = solutions.octrees_output
@@ -70,7 +70,7 @@ def test_graben_fault_model_thickness(graben_fault_model, n_octree_levels=3):
     fault_data2: FaultsData = FaultsData.from_user_input(thickness=.2)
     structure.stack_structure.faults_input_data = [fault_data, fault_data2, None]
 
-    options.number_octree_levels = n_octree_levels
+    options.evaluation_options.number_octree_levels = n_octree_levels
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     outputs: list[OctreeLevel] = solutions.octrees_output
