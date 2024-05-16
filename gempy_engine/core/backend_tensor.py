@@ -198,6 +198,7 @@ class BackendTensor:
         cls.tfnp.repeat = _repeat
         cls.tfnp.expand_dims = lambda tensor, axis: tensor
         cls.tfnp.invert = lambda tensor: ~tensor
+        cls.tfnp.flip = lambda tensor, axis: tensor.flip(axis)
         cls.tfnp.hstack = lambda tensors: torch.concat(tensors, dim=1)
         cls.tfnp.array = _array
         cls.tfnp.to_numpy = lambda tensor: tensor.detach().numpy()
