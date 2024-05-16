@@ -179,7 +179,7 @@ def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
     structure.stack_structure.faults_input_data = None
 
     options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
-    options.number_octree_levels = 1
+    options.number_octree_levels = 4
 
     rescaling_factor = 240
     resolution = np.array([20, 4, 20])
