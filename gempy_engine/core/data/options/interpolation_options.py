@@ -223,8 +223,10 @@ class InterpolationOptions:
 
     @number_octree_levels_surface.setter
     def number_octree_levels_surface(self, value):
-        raise ValueError("The number_octree_levels_surface attribute is deprecated and will be removed in the future. Use"
-                         "evaluation_options.number_octree_levels_surface instead.")
+        warnings.warn("The number_octree_levels_surface attribute is deprecated and will be removed in the future. Use"
+                      "evaluation_options.number_octree_levels_surface instead."
+                      , DeprecationWarning)
+        self.evaluation_options.number_octree_levels_surface = value
 
     @property
     def evaluation_chunk_size(self):
