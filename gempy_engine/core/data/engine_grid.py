@@ -14,7 +14,7 @@ from .regular_grid import RegularGrid
 # TODO: (custom_grid?) and then having a values as a property that brings both together?
 @dataclass
 class EngineGrid:
-    octree_grid: Optional[RegularGrid] = None
+    octree_grid: Optional[RegularGrid] = None  #: This is None at least while we are interpolating branch
     dense_grid: Optional[RegularGrid] = None
     custom_grid: Optional[GenericGrid] = None
     topography: Optional[GenericGrid] = None
