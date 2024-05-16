@@ -73,7 +73,7 @@ class InterpolationOptions:
 
         self.temp_interpolation_values = TempInterpolationValues()
         self.debug = gempy_engine.config.DEBUG_MODE
-        self.cache_mode = self.CacheMode.CACHE
+        self.cache_mode = self.CacheMode.NO_CACHE
         self.cache_model_name = ""
         self.block_solutions_type = RawArraysSolution.BlockSolutionType.OCTREE
         self.sigmoid_slope = 50_000
