@@ -37,7 +37,7 @@ class WeightsBuffer:
 def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions, stack_number: int) -> Tuple[np.ndarray, ExportedFields]:
     # region Solver
 
-    weights_key = f"{options._model_name}.{stack_number}"
+    weights_key = f"{options.cache_model_name}.{stack_number}"
     weights_hash = None
     match options.cache_mode:
         case InterpolationOptions.CacheMode.NO_CACHE:

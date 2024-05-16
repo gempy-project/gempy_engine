@@ -12,7 +12,9 @@ from ..raw_arrays_solution import RawArraysSolution
 
 @dataclass
 class InterpolationOptions:
-    __slots__ = ['kernel_options', 'evaluation_options', 'temp_interpolation_values']
+    __slots__ = ['kernel_options', 'evaluation_options', 'temp_interpolation_values', 'debug',
+                 'cache_mode', 'cache_model_name', 'block_solutions_type', 'sigmoid_slope']
+
     class CacheMode(enum.Enum):
         NO_CACHE = enum.auto()
         CACHE = enum.auto()
@@ -23,16 +25,15 @@ class InterpolationOptions:
     evaluation_options: EvaluationOptions
     temp_interpolation_values: TempInterpolationValues
 
-    block_solutions_type: RawArraysSolution.BlockSolutionType = RawArraysSolution.BlockSolutionType.OCTREE
-    
-    cache_mode: CacheMode = CacheMode.CACHE
-    _model_name: str = None  # : Model name for the cache
+    debug: bool
+    cache_mode: CacheMode
+    cache_model_name: str  # : Model name for the cache
 
-    debug: bool = gempy_engine.config.DEBUG_MODE
+    block_solutions_type: RawArraysSolution.BlockSolutionType
+
+    sigmoid_slope: int
+
     debug_water_tight: bool = False
-
-    sigmoid_slope: int = field(default=50_000, repr=False)
-    
 
     def __init__(
             self,
@@ -67,10 +68,16 @@ class InterpolationOptions:
             mesh_extraction_masking_options=MeshExtractionMaskingOptions.INTERSECT,
             mesh_extraction_fancy=True,
             compute_scalar_gradient=compute_scalar_gradient
-            
+
         )
 
         self.temp_interpolation_values = TempInterpolationValues()
+        self.debug = gempy_engine.config.DEBUG_MODE
+        self.cache_mode = self.CacheMode.CACHE
+        self.cache_model_name = ""
+        self.block_solutions_type = RawArraysSolution.BlockSolutionType.OCTREE
+        self.sigmoid_slope = 50_000
+
     # @on
 
     def __repr__(self):
@@ -120,7 +127,7 @@ class InterpolationOptions:
     @number_octree_levels.setter
     def number_octree_levels(self, value):
         warnings.warn("The number_octree_levels attribute is deprecated and will be removed in the future. Use"
-                         "evaluation_options.number_octree_levels instead.", DeprecationWarning)
+                      "evaluation_options.number_octree_levels instead.", DeprecationWarning)
         self.evaluation_options.number_octree_levels = value
 
     @property
@@ -147,13 +154,13 @@ class InterpolationOptions:
     @property
     def compute_scalar_gradient(self):
         return self.evaluation_options.compute_scalar_gradient
-    
+
     @compute_scalar_gradient.setter
     def compute_scalar_gradient(self, value):
         warnings.warn("The compute_scalar_gradient attribute is deprecated and will be removed in the future. Use"
-                         "evaluation_options.compute_scalar_gradient instead.", DeprecationWarning)
+                      "evaluation_options.compute_scalar_gradient instead.", DeprecationWarning)
         self.evaluation_options.compute_scalar_gradient = value
-    
+
     @property
     def is_last_octree_level(self) -> bool:
         return self.temp_interpolation_values.current_octree_level == self.number_octree_levels - 1
@@ -212,13 +219,13 @@ class InterpolationOptions:
 
     @property
     def number_octree_levels_surface(self):
-        return self.evaluation_options.number_octree_levels_surface 
+        return self.evaluation_options.number_octree_levels_surface
 
     @number_octree_levels_surface.setter
     def number_octree_levels_surface(self, value):
         raise ValueError("The number_octree_levels_surface attribute is deprecated and will be removed in the future. Use"
                          "evaluation_options.number_octree_levels_surface instead.")
-    
+
     @property
     def evaluation_chunk_size(self):
         return self.evaluation_options.evaluation_chunk_size

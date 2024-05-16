@@ -46,7 +46,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
     options.compute_scalar_gradient = True
-    options.evaluation_options.number_octree_levels = 1
+    options.evaluation_options.number_octree_levels = 2
 
     ids = np.array([1, 2])
     grid_0_centers = simple_grid_3d_octree
@@ -205,8 +205,8 @@ def test_compute_dual_contouring_complex(unconformity_complex_one_layer, n_oct_l
 
     options.debug = True
 
-    options.number_octree_levels = n_oct_levels
-    options.number_octree_levels_surface = n_oct_levels
+    options.evaluation_options.number_octree_levels = n_oct_levels
+    options.evaluation_options.number_octree_levels_surface = n_oct_levels
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
     dc_data = solutions.dc_meshes[0].dc_data
