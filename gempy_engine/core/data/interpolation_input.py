@@ -164,9 +164,6 @@ class InterpolationInput:
                 resolution=grid.centered_grid.resolution
             )
         if grid.active_grids_bool[5] and grid.octree_grid is not None:
-            raise NotImplementedError("Passing other than the default initial octree grid is not implemented yet.")
-            octree_grid = grid.octree_grid
-        else:
             octree_grid = RegularGrid(
                 extent=new_extents,
                 regular_grid_shape=np.array([2, 2, 2])
