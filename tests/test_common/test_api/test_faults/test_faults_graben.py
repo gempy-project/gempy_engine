@@ -22,9 +22,9 @@ def test_graben_fault_model(graben_fault_model):
     interpolation_input, structure, options = graben_fault_model
 
     options.compute_scalar_gradient = False
-    options.dual_contouring = True
-    options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
-    options.dual_conturing_fancy = True
+    options.evaluation_options.dual_contouring = True
+    options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
+    options.evaluation_options.dual_conturing_fancy = True
     options.debug=True
 
     options.evaluation_options.number_octree_levels = 4
@@ -63,8 +63,8 @@ def test_graben_fault_model_thickness(graben_fault_model, n_octree_levels=3):
     interpolation_input, structure, options = graben_fault_model
 
     options.compute_scalar_gradient = False
-    options.dual_contouring = True
-    options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
+    options.evaluation_options.dual_contouring = True
+    options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
 
     fault_data: FaultsData = FaultsData.from_user_input(thickness=.2)
     fault_data2: FaultsData = FaultsData.from_user_input(thickness=.2)
@@ -115,7 +115,7 @@ def test_graben_fault_model_offset(graben_fault_model):
     interpolation_input, structure, options = graben_fault_model
 
     options.compute_scalar_gradient = False
-    options.dual_contouring = False
+    options.evaluation_options.dual_contouring = False
 
     fault_data: FaultsData = FaultsData.from_user_input(thickness=None)
     structure.stack_structure.faults_input_data = [fault_data, None, None]

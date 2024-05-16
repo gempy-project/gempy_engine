@@ -29,9 +29,9 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
     interpolation_input, structure, options = one_fault_model
 
     options.compute_scalar_gradient = False
-    options.dual_contouring = True
-    options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
-    options.dual_contouring_fancy = True
+    options.evaluation_options.dual_contouring = True
+    options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
+    options.evaluation_options.mesh_extraction_fancy = True
 
     options.evaluation_options.number_octree_levels = n_oct_levels
 
@@ -85,8 +85,8 @@ def test_one_fault_model_thickness(one_fault_model, n_oct_levels=2):
 
     fault_data: FaultsData = FaultsData.from_user_input(thickness=.5)
     structure.stack_structure.faults_input_data = [fault_data, None, None]
-    options.dual_contouring = True
-    options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
+    options.evaluation_options.dual_contouring = True
+    options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
 
     options.number_octree_levels = n_oct_levels
     solutions: Solutions = compute_model(interpolation_input, options, structure)
@@ -125,7 +125,7 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=4):
 
     options.compute_scalar_gradient = False
     options.mesh_extraction = True
-    options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
+    options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
 
     # region finite fault
     faults_relations = np.array(
@@ -178,7 +178,7 @@ def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
     interpolation_input, structure, options = one_fault_model
     structure.stack_structure.faults_input_data = None
 
-    options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
+    options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
     options.number_octree_levels = 4
 
     rescaling_factor = 240

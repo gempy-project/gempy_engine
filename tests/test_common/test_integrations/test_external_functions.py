@@ -73,7 +73,7 @@ def test_dual_contouring_multiple_independent_fields(unconformity_complex_implic
     interpolation_input, options, structure = unconformity_complex_implicit
     options.number_octree_levels = n_oct_levels
     options.debug = True
-    options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
+    options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 

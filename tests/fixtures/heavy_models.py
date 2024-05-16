@@ -39,7 +39,7 @@ def moureze_model(request, tests_root) -> Tuple[InterpolationInput, Interpolatio
         solver=request.param[2],
         nugget=request.param[3]
     )
-    model[1].dual_contouring_fancy = True  # ! This is the Opt3
+    model[1].evalution_options.mesh_extraction_fancy = True  # ! This is the Opt3
     return model
 
 

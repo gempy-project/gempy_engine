@@ -67,7 +67,7 @@ def test_public_interface_simplest_model():
         kernel_function=AvailableKernelFunctions.cubic,
         uni_degree=0
     )
-    interpolation_options.dual_contouring_fancy = True
+    interpolation_options.evaluation_options.mesh_extraction_fancy = True
 
     # endregion
 

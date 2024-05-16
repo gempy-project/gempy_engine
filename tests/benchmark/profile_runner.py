@@ -32,7 +32,7 @@ def profile_moureze_model():
         octree_lvls=3,
         path_to_root=f"{os.path.dirname(os.path.abspath(__file__))}/../"
     )
-    model[1].dual_contouring_fancy = True  # ! This is the Opt3
+    model[1].evalution_options.mesh_extraction_fancy = True  # ! This is the Opt3
     _run_model(model)
     print("Done")
 

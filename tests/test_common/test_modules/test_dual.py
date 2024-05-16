@@ -97,7 +97,7 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
 
 
 @pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="Only numpy supported")
-def test_compute_dual_contouring_fancy_triangulation(simple_model, simple_grid_3d_octree):
+def test_compute_mesh_extraction_fancy_triangulation(simple_model, simple_grid_3d_octree):
     from gempy_engine.modules.dual_contouring.fancy_triangulation import get_left_right_array, triangulate
 
     def _simple_grid_3d_octree_regular():

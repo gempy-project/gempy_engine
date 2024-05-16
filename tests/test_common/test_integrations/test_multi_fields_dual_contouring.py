@@ -74,8 +74,8 @@ def _run_model_for_FANCY_dual_contouring(dual_contouring_option, n_oct_levels, u
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
     options.debug = True
-    options.mesh_extraction_masking_options = dual_contouring_option
-    options.dual_contouring_fancy = True
+    options.evaluation_options.mesh_extraction_masking_options = dual_contouring_option
+    options.evaluation_options.mesh_extraction_fancy = True
     regular_grid = RegularGrid(extent=[0, 10., 0, 2., 0, 5.], regular_grid_shape=[2, 2, 2])
     grid = EngineGrid(octree_grid=regular_grid)
     interpolation_input.set_temp_grid(grid)
@@ -101,7 +101,7 @@ def _run_model_for_dual_contouring_option(dual_contouring_option, n_oct_levels, 
     interpolation_input, options, structure = model
     options.number_octree_levels = n_oct_levels
     options.debug = True
-    options.mesh_extraction_masking_options = dual_contouring_option
+    options.evaluation_options.mesh_extraction_masking_options = dual_contouring_option
     solutions: Solutions = compute_model(interpolation_input, options, structure)
     if plot_pyvista or False:
         dc_data = solutions.dc_meshes[0].dc_data  # * Scalar field where to show gradients
