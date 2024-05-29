@@ -1,5 +1,3 @@
-import torch
-import warnings
 from typing import List, Optional
 
 from gempy_engine.core.backend_tensor import BackendTensor
