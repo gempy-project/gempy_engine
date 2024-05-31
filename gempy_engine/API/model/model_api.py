@@ -8,7 +8,6 @@ from ...core.data.geophysics_input import GeophysicsInput
 from ...modules.geophysics.fw_gravity import compute_gravity
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ..dual_contouring.multi_scalar_dual_contouring import dual_contouring_multi_scalar
-from ..interp_single._interp_scalar_field import WeightsBuffer
 from ..interp_single.interp_features import interpolate_n_octree_levels
 from ...core.data import InterpolationOptions
 from ...core.data.solutions import Solutions
@@ -21,7 +20,6 @@ from ...core.utils import gempy_profiler_decorator
 @gempy_profiler_decorator
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                   data_descriptor: InputDataDescriptor, *, geophysics_input: Optional[GeophysicsInput] = None) -> Solutions:
-    WeightsBuffer.clean()
 
     # ! If we inline this it seems the deepcopy does not work
     if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:

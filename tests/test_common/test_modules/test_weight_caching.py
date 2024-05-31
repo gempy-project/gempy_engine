@@ -31,5 +31,5 @@ def test_load_weights():
         }
     )
 
-    retrieved_weights = WeightCache.load_weights(weights_key)
+    retrieved_weights = WeightCache.load_weights(weights_key, look_in_disk=True)
     print(retrieved_weights)

@@ -16,8 +16,10 @@ class InterpolationOptions:
                  'cache_mode', 'cache_model_name', 'block_solutions_type', 'sigmoid_slope']
 
     class CacheMode(enum.Enum):
-        NO_CACHE = enum.auto()
+        """ Cache mode for the interpolation"""
+        NO_CACHE: int = enum.auto()  #: No cache at all even during the interpolation computation. This is quite expensive for no good reason.
         CACHE = enum.auto()
+        IN_MEMORY_CACHE = enum.auto()
         CLEAR_CACHE = enum.auto()
 
     # @off
@@ -73,7 +75,7 @@ class InterpolationOptions:
 
         self.temp_interpolation_values = TempInterpolationValues()
         self.debug = gempy_engine.config.DEBUG_MODE
-        self.cache_mode = self.CacheMode.NO_CACHE
+        self.cache_mode = InterpolationOptions.CacheMode.IN_MEMORY_CACHE
         self.cache_model_name = ""
         self.block_solutions_type = RawArraysSolution.BlockSolutionType.OCTREE
         self.sigmoid_slope = 50_000

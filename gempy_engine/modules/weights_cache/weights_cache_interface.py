@@ -77,12 +77,14 @@ class WeightCache:
                 f)
 
     @staticmethod
-    def load_weights(key) -> Optional[dict]:
+    def load_weights(key, look_in_disk: bool) -> Optional[dict]:
         # Try to load from memory
         if key in WeightCache.memory_cache:
             return WeightCache.memory_cache[key]
 
         # Load from disk if not in memory
+        if not look_in_disk:
+            return None
         disk_path = WeightCache._disk_cache_path(key)
         if os.path.exists(disk_path):
             with open(disk_path, 'rb') as f:
