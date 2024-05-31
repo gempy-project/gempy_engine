@@ -116,15 +116,17 @@ class InterpolationInput:
         if LEGACY_COORDS := False:
             _legacy_factor = 0.5
 
+        surface_points_copy = structural_frame.surface_points_copy
         surface_points: SurfacePoints = SurfacePoints(
-            sp_coords=transform.apply(structural_frame.surface_points.xyz) + _legacy_factor,
-            nugget_effect_scalar=structural_frame.surface_points.nugget
+            sp_coords=transform.apply(surface_points_copy.xyz) + _legacy_factor,
+            nugget_effect_scalar=surface_points_copy.nugget
         )
 
+        orientations_copy = structural_frame.orientations_copy
         orientations: Orientations = Orientations(
-            dip_positions=transform.apply(structural_frame.orientations.xyz) + _legacy_factor,
-            dip_gradients=transform.transform_gradient(structural_frame.orientations.grads),
-            nugget_effect_grad=structural_frame.orientations.nugget
+            dip_positions=transform.apply(orientations_copy.xyz) + _legacy_factor,
+            dip_gradients=transform.transform_gradient(orientations_copy.grads),
+            nugget_effect_grad=orientations_copy.nugget
         )
 
         # region Transforming the grid
