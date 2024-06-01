@@ -25,4 +25,7 @@ def kriging_eq(moureze_model):
 
 
 def test_falkon_1(kriging_eq):
-    pass
+    cov, b, kernel_options = kriging_eq
+    kernel_options.compute_condition_number = True
+    weights = kernel_reduction(cov, b, kernel_options)
+    print(weights)

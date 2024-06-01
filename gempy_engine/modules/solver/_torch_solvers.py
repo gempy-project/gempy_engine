@@ -43,5 +43,5 @@ def pykeops_torch_direct(b, cov):
 
 
 def torch_solve(b, cov):
-    w = bt.t.linalg.solver(cov, b)
+    w = bt.t.linalg.solve(cov, b)
     return w
