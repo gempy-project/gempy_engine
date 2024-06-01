@@ -1,5 +1,6 @@
 import numpy as np
 from gempy_engine.core.backend_tensor import BackendTensor
+from scipy.sparse.linalg import aslinearoperator, cg, spsolve
 
 bt = BackendTensor
 
@@ -16,6 +17,14 @@ def pykeops_numpy_cg(b, cov, dtype):
     )
     return w
 
+def pykeops_numpy_solve(b, cov, dtype):
+    # ! Only Positive definite matrices are solved. Otherwise, the kernel gets stuck
+    # * Very interesting: https://stats.stackexchange.com/questions/386813/use-the-rbf-kernel-to-construct-a-positive-definite-covariance-matrix
+    A = aslinearoperator(cov)
+    w = spsolve(A, b[:, 0])
+    return w
+
+
 def numpy_solve(b, cov, dtype):
     w = BackendTensor.tfnp.linalg.solve(cov.astype(dtype), b[:, 0])
     return w
@@ -23,7 +32,6 @@ def numpy_solve(b, cov, dtype):
 
 def numpy_cg(b, cov, ):
     n_iters = 0
-    from scipy.sparse.linalg import aslinearoperator, cg
     if bt.use_gpu is False and BackendTensor.pykeops_enabled is True:
         cov.backend = 'CPU'
     A = aslinearoperator(cov)

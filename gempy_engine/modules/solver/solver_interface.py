@@ -7,10 +7,12 @@ from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 import numpy as np
 
 from ...core.data.options import KernelOptions
-from ._numpy_solvers import pykeops_numpy_cg, numpy_solve, numpy_cg, numpy_gmres
+from ._numpy_solvers import pykeops_numpy_cg, numpy_solve, numpy_cg, numpy_gmres, pykeops_numpy_solve
 from ._torch_solvers import torch_solve, pykeops_torch_cg
 
 bt = BackendTensor
+
+
 
 def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndarray] = None) -> np.ndarray:
     solver: Solvers = kernel_options.kernel_solver
@@ -28,6 +30,8 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndar
             w = pykeops_torch_cg(b, cov, x0)
         case (AvailableBackends.numpy, True, Solvers.PYKEOPS_CG):
             w = pykeops_numpy_cg(b, cov, dtype)
+        case (AvailableBackends.numpy, True, Solvers.DEFAULT):
+            w = pykeops_numpy_solve(b, cov, dtype)
         case (AvailableBackends.numpy, False, Solvers.DEFAULT):
             w = numpy_solve(b, cov, dtype)
             if compute_condition_number:
