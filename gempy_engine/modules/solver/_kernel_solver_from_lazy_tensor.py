@@ -146,6 +146,7 @@ class KernelSolve:
             use_double_acc,
             sum_scheme,
             enable_chunks,
+            use_fast_math=True
         )
 
         self.formula = (

@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 
 class AvailableBackends(Flag):
     numpy = auto()
-    tensorflow = auto()
     PYTORCH = auto()
 
     # Legacy
