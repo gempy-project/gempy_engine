@@ -39,7 +39,7 @@ def moureze_model(request, tests_root) -> Tuple[InterpolationInput, Interpolatio
         solver=request.param[2],
         nugget=request.param[3]
     )
-    model[1].evalution_options.mesh_extraction_fancy = True  # ! This is the Opt3
+    model[1].evaluation_options.mesh_extraction_fancy = True  # ! This is the Opt3
     return model
 
 
@@ -116,7 +116,7 @@ def moureze_model_factory(path_to_root: str, pick_every=8, octree_lvls=3, solver
     interpolation_options.kernel_options.kernel_solver = solver
 
     from gempy_engine.core.data.options import MeshExtractionMaskingOptions
-    interpolation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
+    interpolation_options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
 
     # endregion
     # region InputDataDescriptor
