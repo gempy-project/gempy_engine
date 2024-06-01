@@ -185,46 +185,6 @@ class BackendTensor:
         cls.tfnp.geomspace = lambda start, stop, step: torch.logspace(start, stop, step, base=10)
 
     @classmethod
-    def _wrap_pykeops_functions_(cls):
-        def _exp(tensor):
-            if type(tensor) == numpy.ndarray:
-                return numpy.exp(tensor)
-            elif type(tensor) == pykeops.numpy.LazyTensor:
-                return tensor.exp()
-            elif type(tensor) == pykeops.torch.LazyTensor:
-                return tensor.exp()
-            elif type(tensor) == torch.Tensor:
-                return tensor.exp()
-
-        def _sum(tensor, axis, dtype=None, keepdims=False):
-            if type(tensor) == numpy.ndarray:
-                return numpy.sum(tensor, axis=axis, keepdims=keepdims, dtype=dtype)
-            elif type(tensor) == pykeops.numpy.LazyTensor:
-                return tensor.sum(axis)
-            elif type(tensor) == pykeops.torch.LazyTensor:
-                return tensor.sum(axis)
-            elif type(tensor) == torch.Tensor:
-                return tensor.sum(axis, keepdims=keepdims, dtype=dtype)
-
-        def _divide(tensor, other, dtype=None):
-            if type(tensor) == numpy.ndarray:
-                return numpy.divide(tensor, other, dtype=dtype)
-            elif type(tensor) == pykeops.numpy.LazyTensor:
-                return tensor / other
-            elif type(tensor) == pykeops.torch.LazyTensor:
-                return tensor / other
-            elif type(tensor) == torch.Tensor:
-                return tensor / other
-
-        def _sqrt_fn(tensor):
-            return tensor.sqrt()
-
-        cls.tfnp.sqrt = _sqrt_fn
-        cls.tfnp.sum = _sum
-        cls.tfnp.exp = _exp
-        cls.tfnp.divide = _divide
-
-    @classmethod
     def _wrap_pykeops_functions(cls):
         torch_available = cls.engine_backend == AvailableBackends.PYTORCH
 
