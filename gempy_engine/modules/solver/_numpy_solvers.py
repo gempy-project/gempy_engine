@@ -20,8 +20,14 @@ def pykeops_numpy_cg(b, cov, dtype):
 def pykeops_numpy_solve(b, cov, dtype):
     # ! Only Positive definite matrices are solved. Otherwise, the kernel gets stuck
     # * Very interesting: https://stats.stackexchange.com/questions/386813/use-the-rbf-kernel-to-construct-a-positive-definite-covariance-matrix
-    A = aslinearoperator(cov)
-    w = spsolve(A, b[:, 0])
+    # A = aslinearoperator(cov)
+    # w = spsolve(A, b[:, 0])
+    # TODO: Clean this up
+
+    from linear_operator.operators import DenseLinearOperator
+
+    w = DenseLinearOperator(cov).solve(b)
+
     return w
 
 

@@ -13,6 +13,8 @@ if is_pykeops_installed:
 if is_pytorch_installed:
     import torch
 
+# * Import a copy of numpy as tfnp
+from importlib.util import find_spec, module_from_spec
 
 class BackendTensor:
     engine_backend: AvailableBackends
@@ -54,8 +56,6 @@ class BackendTensor:
                     raise AttributeError(
                         f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: numpy")
 
-                # * Import a copy of numpy as tfnp
-                from importlib.util import find_spec, module_from_spec
 
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
@@ -84,39 +84,12 @@ class BackendTensor:
                     case (False, _, _):
                         cls.pykeops_enabled = False
                         cls.use_gpu = False
-            case (engine_backend.tensorflow):
-                if is_tensorflow_installed is False:
-                    raise AttributeError(
-                        f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: tensorflow")
-
-                import tensorflow as tf
-                experimental_numpy_api = tf.experimental.numpy
-                cls._set_active_backend_pointers(engine_backend, experimental_numpy_api)  # * Here is where we set the tensorflow-numpy backend
-                cls.tensor_types = Union[tf.Tensor, tf.Variable]  # tensor Types with respect the backend:
-
-                from tensorflow.python.ops.numpy_ops import np_config
-                np_config.enable_numpy_behavior(prefer_float32=True)
-
-                physical_devices_gpu = tf.config.list_physical_devices('GPU')
-                physical_devices_cpu = tf.config.list_physical_devices('CPU')
-
-                tf.config.experimental.set_memory_growth(physical_devices_gpu[0], True)  # * This cannot be modified on run time
-                tf.config.set_soft_device_placement(True)  # * This seems to allow changing the device on run time
-
-                if DEBUG_MODE:
-                    import logging
-                    tf.get_logger().setLevel(logging.ERROR)
-                    logging.getLogger("tensorflow").setLevel(logging.ERROR)
-                    tf.debugging.set_log_device_placement(False)  # * To find out which devices your operations and tensors are assigned to
 
                 match (pykeops_enabled, use_gpu):
                     # * device visibility can only be set once. In case of CPU and GPU visible, tf will use the GPU
                     # * The only thing I can do in here is to remove the GPU from the list of visible devices
                     case (False, True):
                         cls.use_gpu = True
-                        cls.pykeops_enabled = False
-                    case (False, False):
-                        tf.config.set_visible_devices([], 'GPU')
                         cls.pykeops_enabled = False
                     case (True, _):
                         raise NotImplementedError("Pykeops is not compatible with Tensorflow yet")
@@ -266,6 +239,8 @@ class BackendTensor:
                 case _:
                     raise TypeError("Unsupported tensor type")
 
+
+        @torch.jit.ignore
         def _sum(tensor, axis=None, dtype=None, keepdims=False):
             match tensor:
                 case numpy.ndarray():

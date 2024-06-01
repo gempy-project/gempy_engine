@@ -35,6 +35,13 @@ def pykeops_torch_cg(b, cov, x0):
         )
     return w
 
+def pykeops_torch_direct(b, cov):
+
+    from linear_operator.operators import DenseLinearOperator
+    A = DenseLinearOperator(cov)
+    w = A.solve(b)
+    return w
+
 
 def torch_solve(b, cov):
     w = bt.t.linalg.solve(cov, b)

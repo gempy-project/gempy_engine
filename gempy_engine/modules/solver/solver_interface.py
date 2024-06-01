@@ -8,7 +8,7 @@ import numpy as np
 
 from ...core.data.options import KernelOptions
 from ._numpy_solvers import pykeops_numpy_cg, numpy_solve, numpy_cg, numpy_gmres, pykeops_numpy_solve
-from ._torch_solvers import torch_solve, pykeops_torch_cg
+from ._torch_solvers import torch_solve, pykeops_torch_cg, pykeops_torch_direct
 
 bt = BackendTensor
 
@@ -27,7 +27,8 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndar
                 print(f'Condition number: {cond_number}.')
             w = torch_solve(b, cov)
         case (AvailableBackends.PYTORCH, True, _):
-            w = pykeops_torch_cg(b, cov, x0)
+            # w = pykeops_torch_cg(b, cov, x0)
+            w = pykeops_torch_direct(b, cov)
         case (AvailableBackends.numpy, True, Solvers.PYKEOPS_CG):
             w = pykeops_numpy_cg(b, cov, dtype)
         case (AvailableBackends.numpy, True, Solvers.DEFAULT):

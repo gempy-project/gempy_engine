@@ -9,7 +9,7 @@ def cast_type_inplace(data_instance: Any, requires_grad:bool = False):
     for key, val in data_instance.__dict__.items():
         if type(val) != np.ndarray: continue
         match BackendTensor.engine_backend:
-            case (gempy_engine.config.AvailableBackends.numpy | gempy_engine.config.AvailableBackends.tensorflow):
+            case (gempy_engine.config.AvailableBackends.numpy):
                 data_instance.__dict__[key] = val.astype(BackendTensor.dtype)
             case (gempy_engine.config.AvailableBackends.PYTORCH):
                 tensor = BackendTensor.t.from_numpy(val.astype(BackendTensor.dtype))
