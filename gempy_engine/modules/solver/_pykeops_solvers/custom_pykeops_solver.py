@@ -1,4 +1,4 @@
-﻿def solve(tensor, other, var=None, call=True, **kwargs):
+﻿def custom_pykeops_solver(tensor, other, var=None, call=True, **kwargs):
     r"""
     Solves a positive definite linear system of the form ``sum(self) = other`` or ``sum(self*var) = other`` , using a conjugate gradient solver.
 
@@ -102,7 +102,7 @@
     else:
         res.rec_multVar_highdim = None
 
-    from gempy_engine.modules.solver._kernel_solver_from_lazy_tensor import KernelSolve
+    from gempy_engine.modules.solver._pykeops_solvers._kernel_solver_from_lazy_tensor import KernelSolve
     if res._dtype is not None:
         res.fixvariables()
         res.callfun = KernelSolve(

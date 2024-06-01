@@ -27,8 +27,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndar
                 print(f'Condition number: {cond_number}.')
             w = torch_solve(b, cov)
         case (AvailableBackends.PYTORCH, True, _):
-            # w = pykeops_torch_cg(b, cov, x0)
-            w = pykeops_torch_direct(b, cov)
+            w = pykeops_torch_cg(b, cov, x0)
         case (AvailableBackends.numpy, True, Solvers.PYKEOPS_CG):
             w = pykeops_numpy_cg(b, cov, dtype)
         case (AvailableBackends.numpy, True, Solvers.DEFAULT):
