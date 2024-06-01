@@ -13,7 +13,12 @@ pykeops.config.verbose = True
 def test_keops_run():
     import pykeops
     pykeops.verbose = True
-    #pykeops.set_bin_folder("/home/miguel/.s")
+    import os
+    os.environ["PYKEOPS_VERBOSE"] = "3"  # Maximum verbosity
+    os.environ["PYKEOPS_DEBUG"] = "1"    # Enables detailed debug mode
+    print(pykeops.get_build_folder())  # display new build_folder
+    pykeops.set_build_folder("/home/miguel/.s")
+
     pykeops.clean_pykeops()  # just in case old build files are still present
     pykeops.test_numpy_bindings()
 
@@ -36,7 +41,7 @@ def test_basic_op():
     )  # (1, N, 2) KeOps LazyTensor, wrapped around the numpy array y
 
     D_ij = ((x_i - y_j) ** 2)  # **Symbolic** (M, N) matrix of squared distances
-    foo = D_ij.sum_reduction(axis=0, backend="GPU")
+    foo = D_ij.sum_reduction(axis=0, backend="CPU")
 
     print(foo)
 

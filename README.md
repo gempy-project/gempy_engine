@@ -20,12 +20,16 @@
 
 ### Adding environment variables:
 
->>>  export PATH="/usr/local/cuda-11.2/bin:$PATH"
->>>  export LD_LIBRARY_PATH="/usr/local/cuda-8.0/lib64:$LD_LIBRARY_PATH"
->>>  for WSL:
->>>  export PATH=/usr/local/cuda/bin:$PATH
->>>  export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH
+>  export PATH="/usr/local/cuda-11.2/bin:$PATH"
+> 
+>  export LD_LIBRARY_PATH="/usr/local/cuda-8.0/lib64:$LD_LIBRARY_PATH"
 
+for WSL:
+>  export PATH=/usr/local/cuda/bin:$PATH
+> 
+>  export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH
+
+> **Important**: Make sure that your Python-dev version matches your environment python version.
 
 Adding the path to bash is not enough for Pycharm. It has to be added to the enviroment variables. In ubuntu is on the file `/etc/environment`. Edit it with the following command `sudo -H gedit /etc/environment`.
 

@@ -26,6 +26,8 @@ if os.path.exists(dotenv_path):
     load_dotenv(dotenv_path)
 elif os.path.exists(dotenv_gempy_engine_path):
     load_dotenv(dotenv_gempy_engine_path)
+else:
+    load_dotenv()
 
 DEBUG_MODE = os.getenv('DEBUG_MODE', 'True') == 'True'  # Note the handling of Boolean values
 OPTIMIZE_MEMORY = os.getenv('OPTIMIZE_MEMORY', 'True') == 'True'
