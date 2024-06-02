@@ -38,6 +38,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndar
                 _compute_conditional_number(cov)
         case (AvailableBackends.numpy, _, Solvers.DEFAULT |Solvers.SCIPY_CG):
             w = numpy_cg(b, cov)
+            # w = numpy_cg_jacobi(b,cov)
         case (AvailableBackends.numpy, _, Solvers.GMRES):
             w = numpy_gmres(b, cov)
         case _:

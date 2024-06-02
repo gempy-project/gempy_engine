@@ -49,7 +49,7 @@ def numpy_cg(b, cov, ):
     w, info = cg(
         A=A,
         b=b[:, 0],
-        maxiter=1000,
+        maxiter=5000,
         tol=.000005,  # * With this tolerance we do 8 iterations
         callback=callback,
         # x0=x0

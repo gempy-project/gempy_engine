@@ -42,14 +42,10 @@ def test_jacobi(kriging_eq):
     #: Jacobi preconditioner 7.1| 5000 iterations
     #: No preconditioner 2031 | 5000 iterations | pykeops
 
+
 def test_setup_1(kriging_eq):
     cov, b, kernel_options = kriging_eq
     kernel_options.compute_condition_number = True
     weights = kernel_reduction(cov, b, kernel_options)
     print(weights)
-
-
-
-
-
 
