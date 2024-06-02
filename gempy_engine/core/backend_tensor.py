@@ -85,14 +85,6 @@ class BackendTensor:
                         cls.pykeops_enabled = False
                         cls.use_gpu = False
 
-                match (pykeops_enabled, use_gpu):
-                    # * device visibility can only be set once. In case of CPU and GPU visible, tf will use the GPU
-                    # * The only thing I can do in here is to remove the GPU from the list of visible devices
-                    case (False, True):
-                        cls.use_gpu = True
-                        cls.pykeops_enabled = False
-                    case (True, _):
-                        raise NotImplementedError("Pykeops is not compatible with Tensorflow yet")
             case (engine_backend.PYTORCH):
                 if is_pytorch_installed is False:
                     raise AttributeError(
