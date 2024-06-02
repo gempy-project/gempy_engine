@@ -1,3 +1,6 @@
+"""Based on pymatting awesome implementation of the conjugate gradient descent method"""
+
+
 import numpy as np
 
 
@@ -97,6 +100,7 @@ def cg(
             callback(A, x, b, norm_b, r, norm_r)
 
         if norm_r < atol or norm_r < rtol * norm_b:
+            print(f'CG iterations: {iteration}')
             return x
 
         z = precondition(r)
@@ -112,6 +116,7 @@ def cg(
         p *= beta
         p += z
 
+    print(f'CG iterations: {iteration}')
     return x
     # raise ValueError(
     #     "Conjugate gradient descent did not converge within %d iterations" % maxiter

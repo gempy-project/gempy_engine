@@ -1,3 +1,5 @@
+"""Based on pymatting awesome implementation of the incomplete Cholesky decomposition"""
+
 import numpy as np
 import scipy.sparse
 from numba import njit
