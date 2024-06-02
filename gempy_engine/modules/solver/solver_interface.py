@@ -7,7 +7,7 @@ from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 import numpy as np
 
 from ...core.data.options import KernelOptions
-from ._numpy_solvers import pykeops_numpy_cg, numpy_solve, numpy_cg, numpy_gmres, pykeops_numpy_solve
+from ._numpy_solvers import pykeops_numpy_cg, numpy_solve, numpy_cg, numpy_gmres, pykeops_numpy_solve, numpy_cg_jacobi
 from ._torch_solvers import torch_solve, pykeops_torch_cg, pykeops_torch_direct
 
 bt = BackendTensor
