@@ -1,7 +1,7 @@
 ﻿import pprint
 import warnings
 from enum import Enum, auto
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 from dataclasses import dataclass
@@ -34,6 +34,10 @@ class Transform:
         assert self.rotation.shape == (3,)
         assert self.scale.shape == (3,)
 
+    @classmethod
+    def init_default(cls):
+        return cls(position=np.zeros(3), rotation=np.zeros(3), scale=np.ones(3))
+    
     @classmethod
     def from_matrix(cls, matrix: np.ndarray):
         assert matrix.shape == (4, 4)
