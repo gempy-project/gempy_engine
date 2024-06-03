@@ -35,24 +35,26 @@ class Transform:
         assert self.scale.shape == (3,)
 
     @classmethod
-    def init_default(cls):
+    def init_neutral(cls):
         return cls(position=np.zeros(3), rotation=np.zeros(3), scale=np.ones(3))
-    
+
     @classmethod
     def from_matrix(cls, matrix: np.ndarray):
         assert matrix.shape == (4, 4)
         position = matrix[:3, 3]
-        rotation = np.array([
-            np.arctan2(matrix[2, 1], matrix[2, 2]),
-            np.arctan2(-matrix[2, 0], np.sqrt(matrix[2, 1] ** 2 + matrix[2, 2] ** 2)),
-            np.arctan2(matrix[1, 0], matrix[0, 0])
+        rotation_radians = np.array([
+                np.arctan2(matrix[2, 1], matrix[2, 2]),
+                np.arctan2(-matrix[2, 0], np.sqrt(matrix[2, 1] ** 2 + matrix[2, 2] ** 2)),
+                np.arctan2(matrix[1, 0], matrix[0, 0])
         ])
+        rotation_degrees = np.degrees(rotation_radians)
         scale = np.array([
-            np.linalg.norm(matrix[0, :3]),
-            np.linalg.norm(matrix[1, :3]),
-            np.linalg.norm(matrix[2, :3])
+                np.linalg.norm(matrix[0, :3]),
+                np.linalg.norm(matrix[1, :3]),
+                np.linalg.norm(matrix[2, :3])
         ])
-        return cls(position, rotation, scale)
+        return cls(position, rotation_degrees, scale)
+
 
 
     @classmethod
@@ -195,7 +197,8 @@ class Transform:
             )
 
         homogeneous_points = np.concatenate([points, np.ones((points.shape[0], 1))], axis=1)
-        transformed_points = (self.get_transform_matrix(transform_op_order) @ homogeneous_points.T).T
+        matrix = self.get_transform_matrix(transform_op_order)
+        transformed_points = (matrix @ homogeneous_points.T).T
         return transformed_points[:, :3]
 
     def scale_points(self, points: np.ndarray):
@@ -205,7 +208,9 @@ class Transform:
         # * NOTE: to compare with legacy we would have to add 0.5 to the coords
         assert points.shape[1] == 3
         homogeneous_points = np.concatenate([points, np.ones((points.shape[0], 1))], axis=1)
-        transformed_points = (np.linalg.inv(self.get_transform_matrix(transform_op_order)) @ homogeneous_points.T).T
+        matrix = self.get_transform_matrix(transform_op_order)
+        inv = np.linalg.inv(matrix)
+        transformed_points = (inv @ homogeneous_points.T).T
         return transformed_points[:, :3]
 
     def apply_with_pivot(self, points: np.ndarray, pivot: np.ndarray,
@@ -233,7 +238,7 @@ class Transform:
     def apply_inverse_with_pivot(self, points: np.ndarray, pivot: np.ndarray,
                                  transform_op_order: TransformOpsOrder = TransformOpsOrder.SRT):
         assert points.shape[1] == 3
-
+        
         # Translation matrices to and from the pivot
         T_to_origin = self._translation_matrix(-pivot[0], -pivot[1], -pivot[2])
         T_back = self._translation_matrix(*pivot)
