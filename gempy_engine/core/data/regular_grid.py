@@ -3,6 +3,7 @@ from typing import Union, List
 
 import numpy as np
 
+from .transforms import Transform
 from ..backend_tensor import BackendTensor
 from ..utils import _check_and_convert_list_to_array, cast_type_inplace
 from .kernel_classes.server.input_parser import GridSchema
@@ -10,8 +11,10 @@ from .kernel_classes.server.input_parser import GridSchema
 
 @dataclass(frozen=False)  # TODO: I want to do this class immutable
 class RegularGrid:
-    extent: Union[np.ndarray, List]
+    extent: Union[np.ndarray, List] #: This is always orthogonal extent. We use the transform to rotate it.
     regular_grid_shape: Union[np.ndarray, List]  # Shape(3)
+    transform: Transform  #: Transform to rotate the grid. If None, the grid is orthogonal.
+    
     _active_cells: np.ndarray = field(default=None, repr=False, init=False)
     left_right: np.ndarray = field(default=None, repr=False, init=False)
     
@@ -25,10 +28,33 @@ class RegularGrid:
         self.regular_grid_shape = _check_and_convert_list_to_array(self.regular_grid_shape)
         self.extent = _check_and_convert_list_to_array(self.extent) + 1e-6  # * This to avoid some errors evaluating in 0 (e.g. bias in dual contouring)
 
-        self.values = self._create_regular_grid(self.extent, self.regular_grid_shape)
+        self._create_regular_grid_3d()
 
         self.original_values = self.values.copy()
-        
+
+    @property
+    def dx(self):
+        return (self.extent[1] - self.extent[0]) / self.resolution[0]
+
+    @property
+    def dy(self):
+        return (self.extent[3] - self.extent[2]) / self.resolution[1]
+
+    @property
+    def dz(self):
+        return (self.extent[5] - self.extent[4]) / self.resolution[2]
+    
+    @property
+    def x_coord(self):
+        return np.linspace(self.extent[0] + self.dx / 2, self.extent[1] - self.dx / 2, self.resolution[0], dtype="float64")
+
+    @property
+    def y_coord(self):
+        return np.linspace(self.extent[2] + self.dy / 2, self.extent[3] - self.dy / 2, self.resolution[1], dtype="float64")
+
+    @property
+    def z_coord(self):
+        return np.linspace(self.extent[4] + self.dz / 2, self.extent[5] - self.dz / 2, self.resolution[2], dtype="float64")
 
     @classmethod
     def from_octree_level(cls, xyz_coords_octree: np.ndarray, previous_regular_grid: "RegularGrid",
@@ -37,6 +63,7 @@ class RegularGrid:
         regular_grid_for_octree_level = cls(
             extent=previous_regular_grid.extent,
             regular_grid_shape=previous_regular_grid.regular_grid_shape * 2,
+            transform=previous_regular_grid.transform
         )
 
         regular_grid_for_octree_level.values = xyz_coords_octree  # ! Overwrite the common values
@@ -53,6 +80,7 @@ class RegularGrid:
 
     @classmethod
     def from_schema(cls, schema: GridSchema):
+        raise NotImplementedError("This method has to be updated")
         return cls(
             extent=schema.extent,
             regular_grid_shape=[2, 2, 2],  # ! This needs to be generalized. For now I hardcoded the octree initial shapes
@@ -165,16 +193,19 @@ class RegularGrid:
         dz = (extent[5] - extent[4]) / resolution[2]
         return dx, dy, dz
 
-    @classmethod
-    def _create_regular_grid(cls, extent, resolution):
-        dx, dy, dz = cls._compute_dxdydz(extent, resolution)
 
-        x = np.linspace(extent[0] + dx / 2, extent[1] - dx / 2, resolution[0], dtype=BackendTensor.dtype)
-        y = np.linspace(extent[2] + dy / 2, extent[3] - dy / 2, resolution[1], dtype=BackendTensor.dtype)
-        z = np.linspace(extent[4] + dz / 2, extent[5] - dz / 2, resolution[2], dtype=BackendTensor.dtype)
+    def _create_regular_grid_3d(self):
+        coords = self.x_coord, self.y_coord, self.z_coord
 
-        # Create C contiguous arrays
-        xv, yv, zv = np.meshgrid(x, y, z, indexing="ij")
-        g = np.vstack((xv.ravel(), yv.ravel(), zv.ravel())).T
+        g = np.meshgrid(*coords, indexing="ij")
+        values = np.vstack(tuple(map(np.ravel, g))).T.astype("float64")
+        values = np.ascontiguousarray(values)
 
-        return np.ascontiguousarray(g)
+        # Transform the values
+        if self.transform is not None:
+            self.values = self.transform.apply_with_pivot(
+                points=values,
+                pivot=np.array([self.extent[0], self.extent[2], self.extent[4]])
+            )
+        else:
+            self.values = values
