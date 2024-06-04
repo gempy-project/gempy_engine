@@ -13,9 +13,6 @@ from ._torch_solvers import torch_solve, pykeops_torch_cg, pykeops_torch_direct
 bt = BackendTensor
 
 
-
-global ii
-ii = 0
 def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndarray] = None) -> np.ndarray:
 
     solver: Solvers = kernel_options.kernel_solver
@@ -46,19 +43,6 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndar
         case _:
             raise AttributeError(f'There is a weird combination of libraries? '
                                  f'{BackendTensor.engine_backend}, {BackendTensor.pykeops_enabled}, {solver}')
-    global ii
-    foo = cov.sum(0)
-
-    if False:
-        np.save(f'cov_{ii}.npy', cov)
-        np.save(f"w_{ii}.npy", w)
-    else:
-        bar = np.load(f'cov_{ii}.npy').sum(0)
-        weights = np.load(f"w_{ii}.npy")
-        foo_ = foo.reshape(-1) - bar
-        weights_ = weights - w
-
-    ii += 1
 
     return w
 
