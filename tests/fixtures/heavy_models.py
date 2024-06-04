@@ -90,7 +90,7 @@ def moureze_model_factory(path_to_root: str, pick_every=8, octree_lvls=3, solver
         sp['Z'].min(), sp['Z'].max()
     ])
     regular_grid = RegularGrid(
-        extent=extent,
+        orthogonal_extent=extent,
         regular_grid_shape=[2, 2, 2]
     )
     grid: EngineGrid = EngineGrid.from_regular_grid(regular_grid)

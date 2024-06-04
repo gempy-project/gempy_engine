@@ -4,16 +4,14 @@ from typing import Union, List
 import numpy as np
 
 from .transforms import Transform
-from ..backend_tensor import BackendTensor
 from ..utils import _check_and_convert_list_to_array, cast_type_inplace
 from .kernel_classes.server.input_parser import GridSchema
 
 
 @dataclass(frozen=False)  # TODO: I want to do this class immutable
 class RegularGrid:
-    extent: Union[np.ndarray, List] #: This is always orthogonal extent. We use the transform to rotate it.
+    orthogonal_extent: Union[np.ndarray, List] #: This is always orthogonal extent. We use the transform to rotate it.
     regular_grid_shape: Union[np.ndarray, List]  # Shape(3)
-    transform: Transform  #: Transform to rotate the grid. If None, the grid is orthogonal.
     
     _active_cells: np.ndarray = field(default=None, repr=False, init=False)
     left_right: np.ndarray = field(default=None, repr=False, init=False)
@@ -26,7 +24,7 @@ class RegularGrid:
 
     def __post_init__(self):
         self.regular_grid_shape = _check_and_convert_list_to_array(self.regular_grid_shape)
-        self.extent = _check_and_convert_list_to_array(self.extent) + 1e-6  # * This to avoid some errors evaluating in 0 (e.g. bias in dual contouring)
+        self.orthogonal_extent = _check_and_convert_list_to_array(self.orthogonal_extent) + 1e-6  # * This to avoid some errors evaluating in 0 (e.g. bias in dual contouring)
 
         self._create_regular_grid_3d()
 
@@ -34,36 +32,35 @@ class RegularGrid:
 
     @property
     def dx(self):
-        return (self.extent[1] - self.extent[0]) / self.resolution[0]
+        return (self.orthogonal_extent[1] - self.orthogonal_extent[0]) / self.resolution[0]
 
     @property
     def dy(self):
-        return (self.extent[3] - self.extent[2]) / self.resolution[1]
+        return (self.orthogonal_extent[3] - self.orthogonal_extent[2]) / self.resolution[1]
 
     @property
     def dz(self):
-        return (self.extent[5] - self.extent[4]) / self.resolution[2]
+        return (self.orthogonal_extent[5] - self.orthogonal_extent[4]) / self.resolution[2]
     
     @property
     def x_coord(self):
-        return np.linspace(self.extent[0] + self.dx / 2, self.extent[1] - self.dx / 2, self.resolution[0], dtype="float64")
+        return np.linspace(self.orthogonal_extent[0] + self.dx / 2, self.orthogonal_extent[1] - self.dx / 2, self.resolution[0], dtype="float64")
 
     @property
     def y_coord(self):
-        return np.linspace(self.extent[2] + self.dy / 2, self.extent[3] - self.dy / 2, self.resolution[1], dtype="float64")
+        return np.linspace(self.orthogonal_extent[2] + self.dy / 2, self.orthogonal_extent[3] - self.dy / 2, self.resolution[1], dtype="float64")
 
     @property
     def z_coord(self):
-        return np.linspace(self.extent[4] + self.dz / 2, self.extent[5] - self.dz / 2, self.resolution[2], dtype="float64")
+        return np.linspace(self.orthogonal_extent[4] + self.dz / 2, self.orthogonal_extent[5] - self.dz / 2, self.resolution[2], dtype="float64")
 
     @classmethod
     def from_octree_level(cls, xyz_coords_octree: np.ndarray, previous_regular_grid: "RegularGrid",
                           active_cells: np.ndarray, left_right: np.ndarray) -> "RegularGrid":
        
         regular_grid_for_octree_level = cls(
-            extent=previous_regular_grid.extent,
+            orthogonal_extent=previous_regular_grid.orthogonal_extent,
             regular_grid_shape=previous_regular_grid.regular_grid_shape * 2,
-            transform=previous_regular_grid.transform
         )
 
         regular_grid_for_octree_level.values = xyz_coords_octree  # ! Overwrite the common values
@@ -82,7 +79,7 @@ class RegularGrid:
     def from_schema(cls, schema: GridSchema):
         raise NotImplementedError("This method has to be updated")
         return cls(
-            extent=schema.extent,
+            extent=schema.orthogonal_extent,
             regular_grid_shape=[2, 2, 2],  # ! This needs to be generalized. For now I hardcoded the octree initial shapes
             left_right=None
         )
@@ -104,7 +101,7 @@ class RegularGrid:
 
     @property
     def dxdydz(self):
-        extent = self.extent
+        extent = self.orthogonal_extent
         resolution = self.regular_grid_shape
         dx, dy, dz = self._compute_dxdydz(extent, resolution)
         return dx, dy, dz
@@ -128,7 +125,7 @@ class RegularGrid:
 
     @property
     def values_vtk_format(self):
-        extent = self.extent
+        extent = self.orthogonal_extent
         resolution = self.resolution + 1
 
         x = np.linspace(extent[0], extent[1], resolution[0], dtype="float64")
@@ -201,11 +198,4 @@ class RegularGrid:
         values = np.vstack(tuple(map(np.ravel, g))).T.astype("float64")
         values = np.ascontiguousarray(values)
 
-        # Transform the values
-        if self.transform is not None:
-            self.values = self.transform.apply_with_pivot(
-                points=values,
-                pivot=np.array([self.extent[0], self.extent[2], self.extent[4]])
-            )
-        else:
-            self.values = values
+        self.values = values

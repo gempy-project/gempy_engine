@@ -45,7 +45,7 @@ def test_public_interface_simplest_model():
     )
 
     regular_grid = RegularGrid(
-        extent=[0.25, .75, 0.25, .75, 0.25, .75],
+        orthogonal_extent=[0.25, .75, 0.25, .75, 0.25, .75],
         regular_grid_shape=[2, 2, 3]
     )
     grid: EngineGrid = EngineGrid.from_regular_grid(regular_grid)

@@ -34,6 +34,16 @@ class Transform:
         assert self.rotation.shape == (3,)
         assert self.scale.shape == (3,)
 
+    def __add__(self, other):
+        if not isinstance(other, Transform):
+            raise ValueError("Both objects must be an instance of Transform")
+
+        new_position = self.position + other.position
+        new_rotation = self.rotation + other.rotation
+        new_scale = self.scale * other.scale
+
+        return Transform(new_position, new_rotation, new_scale)
+
     @classmethod
     def init_neutral(cls):
         return cls(position=np.zeros(3), rotation=np.zeros(3), scale=np.ones(3))

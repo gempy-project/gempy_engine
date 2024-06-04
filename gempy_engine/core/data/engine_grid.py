@@ -58,7 +58,7 @@ class EngineGrid:
     def from_regular_grid(cls, regular_grid: RegularGrid) -> "EngineGrid":
         return cls(
             dense_grid=regular_grid,
-            octree_grid=RegularGrid(regular_grid.extent, np.array([2, 2, 2]))
+            octree_grid=RegularGrid(regular_grid.orthogonal_extent, np.array([2, 2, 2]))
         )
 
     @property

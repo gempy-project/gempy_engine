@@ -54,7 +54,7 @@ def test_implicit_function(unconformity_complex):
     interpolation_input, options, structure = unconformity_complex
     grid = interpolation_input.grid.octree_grid 
     xyz = grid.values
-    scalar = implicit_sphere(xyz, grid.extent)
+    scalar = implicit_sphere(xyz, grid.orthogonal_extent)
 
     from gempy_engine.core.backend_tensor import BackendTensor
     exported_fields = ExportedFields(
