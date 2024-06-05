@@ -25,6 +25,7 @@ class Transform:
     scale: np.ndarray
 
     _is_default_transform: bool = False
+    _cached_pivot: Optional[np.ndarray] = None
 
     def __repr__(self):
         return pprint.pformat(self.__dict__)
@@ -66,6 +67,13 @@ class Transform:
         return cls(position, rotation_degrees, scale)
 
 
+    @property
+    def cached_pivot(self):
+        return self._cached_pivot
+    
+    @cached_pivot.setter
+    def cached_pivot(self, pivot: np.ndarray):
+        self._cached_pivot = pivot
 
     @classmethod
     def from_input_points(cls, surface_points: 'gempy.data.SurfacePointsTable', orientations: 'gempy.data.OrientationsTable') -> 'Transform':
@@ -223,9 +231,20 @@ class Transform:
         transformed_points = (inv @ homogeneous_points.T).T
         return transformed_points[:, :3]
 
+    
+    def apply_with_cached_pivot(self, points: np.ndarray, transform_op_order: TransformOpsOrder = TransformOpsOrder.SRT):
+        if self._cached_pivot is None:
+            raise ValueError("A pivot must be set before calling this method")
+        return self.apply_with_pivot(points, self._cached_pivot, transform_op_order)
+    
+    def apply_inverse_with_cached_pivot(self, points: np.ndarray, transform_op_order: TransformOpsOrder = TransformOpsOrder.SRT):
+        if self._cached_pivot is None:
+            raise ValueError("A pivot must be set before calling this method")
+        return self.apply_inverse_with_pivot(points, self._cached_pivot, transform_op_order)
+
     def apply_with_pivot(self, points: np.ndarray, pivot: np.ndarray,
                          transform_op_order: TransformOpsOrder = TransformOpsOrder.SRT):
-        """This are used for ellipsoids for finite faults"""
+        """These are used for ellipsoids for finite faults"""
         assert points.shape[1] == 3
         if self._is_default_transform:
             warnings.warn(
