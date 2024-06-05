@@ -124,7 +124,7 @@ class RegularGrid:
         return self.dxdydz[2]
 
     @property
-    def values_vtk_format(self):
+    def values_vtk_format(self) -> np.ndarray:
         extent = self.orthogonal_extent
         resolution = self.resolution + 1
 
