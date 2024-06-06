@@ -21,6 +21,7 @@ def yield_b_vector(ori_internals: OrientationsInternals, cov_size: int) -> tenso
 
 
 def yield_evaluation_kernel(interp_input: SolverInput, kernel_options: KernelOptions, slice_array = None):
+    
     kernel_data = evaluation_vectors_preparations(interp_input, kernel_options, axis=None, slice_array=slice_array)
     return create_scalar_kernel(kernel_data, kernel_options)
 

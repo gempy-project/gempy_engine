@@ -3,8 +3,8 @@ from typing import List, Optional
 
 import numpy as np
 
-from gempy_engine.config import SET_RAW_ARRAYS_IN_SOLUTION
-from gempy_engine.core.backend_tensor import BackendTensor
+from ...config import SET_RAW_ARRAYS_IN_SOLUTION
+from ..backend_tensor import BackendTensor
 from .dual_contouring_mesh import DualContouringMesh
 from .octree_level import OctreeLevel
 from .raw_arrays_solution import RawArraysSolution

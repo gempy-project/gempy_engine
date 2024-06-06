@@ -17,6 +17,8 @@ from ...core.data.interpolation_input import InterpolationInput
 from ...core.utils import gempy_profiler_decorator
 
 
+
+
 @gempy_profiler_decorator
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                   data_descriptor: InputDataDescriptor, *, geophysics_input: Optional[GeophysicsInput] = None) -> Solutions:
@@ -24,6 +26,9 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
     # ! If we inline this it seems the deepcopy does not work
     if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
         interpolation_input = copy.deepcopy(interpolation_input)
+        
+    # Check input is valid
+    _check_input_validity(interpolation_input, options, data_descriptor)
 
     output: list[OctreeLevel] = interpolate_n_octree_levels(
         interpolation_input=interpolation_input,
@@ -69,3 +74,9 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
         solutions.debug_input_data["stack_interpolation_input"] = interpolation_input
 
     return solutions
+
+
+def _check_input_validity(interpolation_input: InterpolationInput, options: InterpolationOptions, data_descriptor: InputDataDescriptor):
+    
+    
+    pass
