@@ -13,12 +13,14 @@ def require_pandas():
         raise ImportError("The pandas library is required to use this function.")
     return pd
 
+
 def require_subsurface():
     try:
         import subsurface
     except ImportError:
         raise ImportError("The subsurface library is required to use this function.")
     return subsurface
+
 
 def require_pooch():
     try:
@@ -58,3 +60,11 @@ def require_scipy():
     except ImportError:
         raise ImportError("The scipy package is required to run this function.")
     return scipy
+
+
+def require_trimesh():
+    try:
+        import trimesh
+    except ImportError:
+        raise ImportError("The trimesh package is required to run this function.")
+    return trimesh

@@ -4,6 +4,7 @@ from typing import List
 import numpy as np
 
 from gempy_engine.config import AvailableBackends
+from ... import optional_dependencies
 
 from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
@@ -92,11 +93,26 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
             indices = np.vstack(indices)
             
         # @on
+        vertices_numpy = BackendTensor.t.to_numpy(vertices)
+        
+        vertices_numpy, indices = _last_pass(vertices_numpy, indices)
+        
         stack_meshes.append(
             DualContouringMesh(
-                BackendTensor.t.to_numpy(vertices),
+                vertices_numpy,
                 indices,
                 dc_data_per_stack
             )
         )
     return stack_meshes
+
+
+def _last_pass(vertices, indices):
+    # Check if trimesh is available
+    try:
+        trimesh = optional_dependencies.require_trimesh()
+        mesh = trimesh.Trimesh(vertices=vertices, faces=indices)
+        mesh.fill_holes()
+        return mesh.vertices, mesh.faces
+    except ImportError:
+        return vertices, indices

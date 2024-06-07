@@ -47,7 +47,9 @@ class Transform:
 
     @classmethod
     def init_neutral(cls):
-        return cls(position=np.zeros(3), rotation=np.zeros(3), scale=np.ones(3))
+        t = cls(position=np.zeros(3), rotation=np.zeros(3), scale=np.ones(3))
+        t._cached_pivot = np.zeros(3)
+        return t
 
     @classmethod
     def from_matrix(cls, matrix: np.ndarray):
