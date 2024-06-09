@@ -16,8 +16,40 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, union_voxel_select: 
 
     # Old octree
     shift_select_xyz, voxel_select = _mark_voxel(uv_8)
+
+    exported_fields = prev_octree.last_output_corners.scalar_fields.exported_fields
+    foo = exported_fields.scalar_field.reshape((-1, 8))
+    bar = (exported_fields.scalar_field - exported_fields.scalar_field_at_surface_points[1].reshape(-1,1)).T
+    baz = bar[:, 0].reshape(-1, 8)
+    foo2 = baz.mean(axis=1)
+    foo3 = baz[voxel_select].std(axis=1)
+    baz_v = foo3.std()
+
+    import matplotlib.pyplot as plt
+    # plt.imshow(exported_fields.gz_field.reshape((-1,8)))
+    # plt.colorbar()
+    # plt.show()
+
+    # paint the values of foo that have voxel_select as True
+    
+    # Color to .5 those values that are not in voxel select but are within 2 std of the mean
+    c = np.zeros_like(foo2)
+    logical_and =  np.abs(foo2 - foo2.mean()) < 1 * foo2.std()
+    c[logical_and] = .5
+
+    c[voxel_select] = 1
+
+
+    # colorbar between 0 and 1
+    foo2 = BackendTensor.t.to_numpy(foo2)
+    plt.scatter(y=foo2, x=range(foo2.size), c=c, cmap='viridis', vmin=0, vmax=1, alpha=.5)
+    plt.colorbar()
+    plt.show()
+
+    voxel_select = voxel_select | logical_and
     if union_voxel_select is not None:
-        voxel_select = voxel_select | BackendTensor.t.array(union_voxel_select)
+        voxel_select = voxel_select | BackendTensor.t.array(union_voxel_select) 
+        print( "Union voxel select", voxel_select.sum())
     prev_octree.marked_edges = shift_select_xyz
 
     if compute_topology:  # TODO: Fix topology function

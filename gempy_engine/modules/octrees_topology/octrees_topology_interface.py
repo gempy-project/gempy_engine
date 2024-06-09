@@ -9,6 +9,7 @@ from ._curvature_analysis import mark_highest_curvature_voxels
 from ._octree_internals import compute_next_octree_locations
 from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.core.data.engine_grid import EngineGrid
+from ...core.data.exported_fields import ExportedFields
 from ...core.data.options.evaluation_options import EvaluationOptions
 
 
@@ -18,27 +19,49 @@ from ...core.data.options.evaluation_options import EvaluationOptions
 
 
 def get_next_octree_grid(prev_octree: OctreeLevel, evaluation_options: EvaluationOptions,
-                         compute_topology=False) -> EngineGrid:
+                         compute_topology=False, current_octree_level: int = 9999) -> EngineGrid:
+    exported_fields: ExportedFields = prev_octree.last_output_corners.scalar_fields.exported_fields
 
-    # Check curvature is between 0 and 1
-    if 0 <= evaluation_options.curvature_threshold <= 1 and evaluation_options.compute_scalar_gradient:
-        voxel_selected_to_refinement_due_to_curvature = mark_highest_curvature_voxels(
-            gx=(prev_octree.last_output_corners.scalar_fields.exported_fields.gx_field.reshape((-1, 8))),
-            gy=(prev_octree.last_output_corners.scalar_fields.exported_fields.gy_field.reshape((-1, 8))),
-            gz=(prev_octree.last_output_corners.scalar_fields.exported_fields.gz_field.reshape((-1, 8))),
+    if current_octree_level < evaluation_options.min_octree_level:
+        shape_ = exported_fields.scalar_field.shape[0] // 8
+        additional_voxel_selected_to_refinement = np.ones(shape_, dtype=bool)
+    elif 0 <= evaluation_options.curvature_threshold <= 1 and evaluation_options.compute_scalar_gradient:
+        # Check curvature is between 0 and 1
+        additional_voxel_selected_to_refinement = mark_highest_curvature_voxels(
+            gx=(exported_fields.gx_field.reshape((-1, 8))),
+            gy=(exported_fields.gy_field.reshape((-1, 8))),
+            gz=(exported_fields.gz_field.reshape((-1, 8))),
             voxel_size=np.array(prev_octree.grid_centers.octree_grid.dxdydz),
             curvature_threshold=evaluation_options.curvature_threshold  # * This curvature assumes that 1 is the maximum curvature of any voxel
         )
-        num_voxels_marked_as_outliers = voxel_selected_to_refinement_due_to_curvature.sum()
-        total_voxels = voxel_selected_to_refinement_due_to_curvature.size
+        num_voxels_marked_as_outliers = additional_voxel_selected_to_refinement.sum()
+        total_voxels = additional_voxel_selected_to_refinement.size
         print(f"Number of voxels marked as high curvature: {num_voxels_marked_as_outliers} of {total_voxels}")
     else: 
-        voxel_selected_to_refinement_due_to_curvature = None
+        additional_voxel_selected_to_refinement = None
     
+    foo = exported_fields.scalar_field.reshape((-1, 8))
+    bar = (exported_fields.scalar_field - exported_fields.scalar_field_at_surface_points[1].reshape(-1,1)).T
+    baz = bar[:, 0].reshape(-1, 8)
+    foo2 = baz.mean(axis=1)
+
+
+    shift_x = foo[:, :4] - foo[:, 4:]
+    shift_y = foo[:, [0, 1, 4, 5]] - foo[:, [2, 3, 6, 7]]
+    shift_z = foo[:, ::2] - foo[:, 1::2]
+    
+    
+    import matplotlib.pyplot as plt
+    # plt.imshow(exported_fields.gz_field.reshape((-1,8)))
+    # plt.colorbar()
+    # plt.show()
+    
+    # plt.scatter(y=foo2, x=range(foo2.size))
+    # plt.show()
 
     octree_from_output: EngineGrid = compute_next_octree_locations(
         prev_octree=prev_octree, 
-        union_voxel_select=voxel_selected_to_refinement_due_to_curvature,
+        union_voxel_select=additional_voxel_selected_to_refinement,
         compute_topology=compute_topology
     )
     return octree_from_output
