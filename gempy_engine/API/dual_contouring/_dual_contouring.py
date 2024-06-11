@@ -95,7 +95,7 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
         # @on
         vertices_numpy = BackendTensor.t.to_numpy(vertices)
         
-        if True:
+        if TRIMESH_LAST_PASS := False:
             vertices_numpy, indices = _last_pass(vertices_numpy, indices)
         
         stack_meshes.append(

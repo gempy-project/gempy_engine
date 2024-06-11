@@ -48,17 +48,11 @@ def compute_curvature(gx, gy, gz, voxel_size):
     """
     hessian_matrices = finite_difference_gradient(gx, gy, gz, voxel_size)
     principal_curvatures = np.abs(np.linalg.eigvals(hessian_matrices))
-    # number_voxels = gx.shape[0]
-    # principal_curvatures = np.zeros((number_voxels, 3))
-    
-    # for i in range(number_voxels):
-    #     eigenvalues = np.linalg.eigvals(hessian_matrices[i])
-    #     principal_curvatures[i] = np.abs(eigenvalues)  # Sort eigenvalues for consistency
 
     return principal_curvatures
 
 
-def mark_highest_curvature_voxels(gx, gy, gz, voxel_size, curvature_threshold=0.1):
+def mark_highest_curvature_voxels(gx, gy, gz, voxel_size, curvature_threshold=0.1, verbose: bool = False):
     if gx.shape[0] == 0:
         return np.zeros((0,), dtype=bool)
     
@@ -74,7 +68,12 @@ def mark_highest_curvature_voxels(gx, gy, gz, voxel_size, curvature_threshold=0.
     curvature_measure = (curvature_measure - measure_min) / (measure_max - measure_min)
 
     marked_voxels = curvature_measure > curvature_threshold
-    
+
+    if verbose:
+        num_voxels_marked_as_outliers = marked_voxels.sum()
+        total_voxels = marked_voxels.size
+        print(f"Number of voxels marked as high curvature: {num_voxels_marked_as_outliers} of {total_voxels}")
+
     return marked_voxels
 
 

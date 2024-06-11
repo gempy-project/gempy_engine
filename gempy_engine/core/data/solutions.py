@@ -104,7 +104,7 @@ class Solutions:
 
         return unstructured_data
     
-    def _set_scalar_field_at_surface_points_and_elements_order(self, octrees_output):
+    def _set_scalar_field_at_surface_points_and_elements_order(self, octrees_output: List[OctreeLevel]):
         self.scalar_field_at_surface_points = np.empty(0)
         self._ordered_elements = []
         
