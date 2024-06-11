@@ -3,7 +3,6 @@ from typing import Union, List
 
 import numpy as np
 
-from .transforms import Transform
 from ..utils import _check_and_convert_list_to_array, cast_type_inplace
 from .kernel_classes.server.input_parser import GridSchema
 
