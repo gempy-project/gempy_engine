@@ -1,4 +1,6 @@
 import numpy as np
+
+from gempy_engine import optional_dependencies
 from gempy_engine.core.backend_tensor import BackendTensor
 
 bt = BackendTensor
@@ -14,7 +16,6 @@ def pykeops_numpy_cg(b, cov, dtype):
         backend="CPU"
     )
 
-
     return w
 
 
@@ -22,23 +23,23 @@ def numpy_solve(b, cov, dtype):
     w = BackendTensor.tfnp.linalg.solve(cov.astype(dtype), b[:, 0])
     return w
 
-def numpy_cg(b, cov, ):
-    global i
+
+def numpy_cg(b, cov):
     if bt.use_gpu is False and BackendTensor.pykeops_enabled is True:
         cov.backend = 'CPU'
 
     from ._pykeops_solvers.incomplete_cholesky import ichol
     from ._pykeops_solvers.cg import cg
-    from scipy.sparse.linalg import aslinearoperator
-    import scipy.sparse as sps
+    
+    scipy = optional_dependencies.require_scipy()
 
     sparse_cov = cov.copy()
     sparse_cov[np.abs(cov) < 1e-10] = 0
 
-    sparse_cov = sps.csc_matrix(sparse_cov,)
+    sparse_cov = scipy.sparse.csc_matrix(sparse_cov, )
     conditioner = ichol(sparse_cov)
 
-    A = aslinearoperator(cov)
+    A = scipy.sparse.linalg.aslinearoperator(cov)
     print(f'A size: {A.shape}')
 
     w = cg(
@@ -65,7 +66,3 @@ def numpy_gmres(b, cov):
     )
     w = np.atleast_2d(w).T
     return w
-
-
-
-
