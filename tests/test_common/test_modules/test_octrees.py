@@ -28,96 +28,6 @@ def test_regular_grid_preparation(simple_grid_3d_more_points_grid):
     np.testing.assert_almost_equal(engine_grid.dense_grid_values[45, 2, 4, 2], .295, 6)
 
 
-def test_octree_root(simple_model, simple_grid_3d_octree):
-    spi, ori_i, options, data_shape = simple_model
-    options.number_octree_levels = 2
-    options.evaluation_options.curvature_threshold = -1
-    ids = np.array([1, 2])
-    grid_0_centers = simple_grid_3d_octree
-
-    interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
-
-    # interpolate level 0 - center
-    output_0_centers = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure)
-
-    # Interpolate level 0 - corners
-    grid_0_corners = EngineGrid.from_xyz_coords(
-        xyz_coords=_generate_corners(regular_grid=grid_0_centers.octree_grid)
-    )
-    interpolation_input.set_temp_grid(grid_0_corners)
-    output_0_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure, clean_buffer=False)
-
-    # Create octree level 0
-    octree_lvl0 = OctreeLevel(grid_0_centers, grid_0_corners, [output_0_centers], [output_0_corners])
-
-    # Generate grid_1_centers
-    grid_1_centers = get_next_octree_grid(octree_lvl0, evaluation_options=options.evaluation_options, compute_topology=False)
-    xyz, anch, select = grid_1_centers.debug_vals[:3]
-
-    # Level 1
-
-    interpolation_input.set_temp_grid(grid_1_centers)
-    output_1_centers = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure,
-                                                      clean_buffer=False)
-
-    # Interpolate level 1 - Corners
-    grid_1_corners = EngineGrid.from_xyz_coords(
-        xyz_coords=_generate_corners(regular_grid=grid_1_centers.octree_grid)
-    )
-
-    interpolation_input.set_temp_grid(grid_1_corners)
-    output_1_corners = interp.interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure,
-                                                      clean_buffer=False)
-
-    # Create octree level 1
-    octree_lvl1 = OctreeLevel(grid_1_centers, grid_1_corners, [output_1_centers], [output_1_corners])
-
-    grid_2_centers = get_next_octree_grid(octree_lvl1, evaluation_options=options.evaluation_options, compute_topology=False)
-    xyz1, anch1, select1 = grid_2_centers.debug_vals[:3]
-
-    if plot_pyvista or False:
-        # Compute actual mesh
-        resolution = [20, 20, 20]
-        p = pv.Plotter()
-        rg = grid_0_centers.octree_grid
-
-        grid_0_faces = grid_0_corners
-
-        # ? This does not seem to be working p.add_mesh(mesh, opacity=.8, silhouette=True)
-        p.add_mesh(pv.PolyData(grid_0_centers.values), color="black", point_size=12.0, render_points_as_spheres=False)
-        p.add_mesh(pv.PolyData(rg.corners_values), color="blue", point_size=3.0, render_points_as_spheres=False)
-
-        z_left = grid_0_faces.values.reshape((-1, 8, 3))[:, ::2, :][select[2]]
-        z_right = grid_0_faces.values.reshape((-1, 8, 3))[:, 1::2, :][select[2]]
-        try:
-            p.add_mesh(pv.PolyData(z_left), color="c", point_size=6.0, render_points_as_spheres=False)
-            p.add_mesh(pv.PolyData(z_right), color="y", point_size=5.0, render_points_as_spheres=False)
-        except:
-            pass
-
-        x_left = grid_0_faces.values.reshape((-1, 8, 3))[:, :4, :][select[0]]
-        x_right = grid_0_faces.values.reshape((-1, 8, 3))[:, 4:, :][select[0]]
-        try:
-            p.add_mesh(pv.PolyData(x_left), color="c", point_size=6.0, render_points_as_spheres=False)
-            p.add_mesh(pv.PolyData(x_right), color="y", point_size=5.0, render_points_as_spheres=False)
-        except:
-            pass
-        y_left = grid_0_faces.values.reshape((-1, 8, 3))[:, [0, 1, 4, 5], :][select[1]]
-        y_right = grid_0_faces.values.reshape((-1, 8, 3))[:, [2, 3, 6, 7], :][select[1]]
-        try:
-            p.add_mesh(pv.PolyData(y_left), color="c", point_size=6.0, render_points_as_spheres=False)
-            p.add_mesh(pv.PolyData(y_right), color="y", point_size=5.0, render_points_as_spheres=False)
-        except:
-            pass
-        try:
-            p.add_mesh(pv.PolyData(anch), color="r", point_size=10.0, render_points_as_spheres=False)
-            p.add_mesh(pv.PolyData(anch1), color="orange", point_size=8.0, render_points_as_spheres=False)
-            p.add_mesh(pv.PolyData(xyz), color="w", point_size=5.0, render_points_as_spheres=False)
-            p.add_mesh(pv.PolyData(xyz1), color="g", point_size=4.0, render_points_as_spheres=False)
-
-        except:
-            pass
-        p.show()
 
 
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
@@ -144,10 +54,10 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
                                     octree_list[0].last_output_center.weights)
 
         n = options.number_octree_levels - 1
-        debug_vals = get_next_octree_grid(octree_list[n], compute_topology=False)
+        debug_vals = get_next_octree_grid(octree_list[n])
         a = debug_vals[-2]
         grid_centers = octree_list[n].grid_centers
-        debug_vals_prev = get_next_octree_grid(octree_list[n - 1], compute_topology=False)
+        debug_vals_prev = get_next_octree_grid(octree_list[n - 1]) 
         anch = debug_vals_prev[1]
         grid_centers.values = grid_centers.values[a]
 
