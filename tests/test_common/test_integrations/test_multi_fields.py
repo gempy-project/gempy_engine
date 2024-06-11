@@ -137,9 +137,9 @@ def test_final_exported_fields(unconformity_complex):
 
     if plot_pyvista or False:
         grid = interpolation_input.grid.regular_grid
-        plot_block(BackendTensor.t.to_numpy(outputs[0].final_exported_fields._scalar_field_at_surface_points), grid)
-        plot_block(BackendTensor.t.to_numpy(outputs[1].final_exported_fields._scalar_field_at_surface_points), grid)
-        plot_block(BackendTensor.t.to_numpy(outputs[2].final_exported_fields._scalar_field_at_surface_points), grid)
+        plot_block(BackendTensor.t.to_numpy(outputs[0].final_exported_fields._scalar_field), grid)
+        plot_block(BackendTensor.t.to_numpy(outputs[1].final_exported_fields._scalar_field), grid)
+        plot_block(BackendTensor.t.to_numpy(outputs[2].final_exported_fields._scalar_field), grid)
 
 
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
