@@ -1,17 +1,15 @@
-from typing import List, Optional
+import numpy as np
+from typing import List
 
+from ._curvature_analysis import mark_highest_curvature_voxels
+from ._octree_common import _generate_next_level_centers
 from ...core.backend_tensor import BackendTensor
+from ...core.data.engine_grid import EngineGrid
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.interp_output import InterpOutput
 from ...core.data.octree_level import OctreeLevel
-import numpy as np
-
-from ...core.data.engine_grid import EngineGrid
 from ...core.data.options.evaluation_options import EvaluationOptions
 from ...core.data.regular_grid import RegularGrid
-from ._curvature_analysis import mark_highest_curvature_voxels
-from ._octree_common import _generate_next_level_centers
-from ...core.data.scalar_field_output import ScalarFieldOutput
 
 
 def compute_next_octree_locations(prev_octree: OctreeLevel, evaluation_options: EvaluationOptions,
@@ -106,17 +104,16 @@ def _calculate_topology(shift_select_xyz: List[np.ndarray], ids: np.ndarray):
 
 def _additional_refinement_tests(voxel_select, current_octree_level, evaluation_options, prev_octree):
     shape = voxel_select.shape[0]
-    exported_fields = prev_octree.last_output_corners.scalar_fields.exported_fields
 
     if current_octree_level < evaluation_options.min_octree_level:
         shape_ = shape
-        additional_voxel_selected_to_refinement = np.ones(shape_, dtype=bool)
+        additional_voxel_selected_to_refinement = BackendTensor.t.ones(shape_, dtype=bool)
         return BackendTensor.t.array(additional_voxel_selected_to_refinement)
 
     test_for_curvature = 0 <= evaluation_options.curvature_threshold <= 1 and evaluation_options.compute_scalar_gradient
     test_for_error = evaluation_options.error_threshold > 0
 
-    additional_voxel_selected_to_refinement = np.zeros_like(voxel_select)
+    additional_voxel_selected_to_refinement = BackendTensor.t.zeros(voxel_select.shape, dtype=bool)
     output: InterpOutput
     for output in prev_octree.outputs_corners:
         exported_fields = output.scalar_fields.exported_fields
@@ -130,38 +127,50 @@ def _additional_refinement_tests(voxel_select, current_octree_level, evaluation_
             )
 
         if test_for_error:
-            additional_voxel_selected_to_refinement |= _test_refinement_on_stats(
-                voxel_select_corners_eval=voxel_select,
+            marked_voxels = _test_refinement_on_stats(
                 exported_fields=exported_fields,
+                voxel_select_corners_eval=voxel_select,
+                n_std=evaluation_options.error_threshold,
                 plot=evaluation_options.verbose
             )
+            additional_voxel_selected_to_refinement |= marked_voxels
+            
+            if evaluation_options.verbose:
+                num_voxels_marked_as_outliers = marked_voxels.sum()
+                total_voxels = marked_voxels.shape
+                print(f"Number of voxels marked by stats: {num_voxels_marked_as_outliers} of {total_voxels}."
+                      f"\n Number of voxels marked total : {voxel_select.sum()}"
+                      f"\nDense Grid would be {8 ** (current_octree_level + 1)} voxels")
 
     return BackendTensor.t.array(additional_voxel_selected_to_refinement)
 
 
-def _test_refinement_on_stats(exported_fields: ExportedFields, voxel_select_corners_eval, plot=False):
+def _test_refinement_on_stats(exported_fields: ExportedFields, voxel_select_corners_eval, n_std: int = 1, plot=False):
     at_surface_points = exported_fields.scalar_field_at_surface_points
-    n_surfaces = at_surface_points.shape[0]
+    n_surfaces = 1  # * Since the layers are sub-parallel it seems that 99% of the info is redundant - og code: at_surface_points.shape[0]
     
-    voxel_select_stats = np.zeros_like(voxel_select_corners_eval, dtype=bool)
+    voxel_select_stats = BackendTensor.t.zeros(voxel_select_corners_eval.shape, dtype=bool)
     scalar_distance = (exported_fields.scalar_field - at_surface_points.reshape(-1, 1)).T
     # TODO: This is only applying the first isosurface of the scalar field. 
     for i in range(0, n_surfaces):
         scalar_distance_8 = scalar_distance[:, i].reshape(-1, 8)
 
-        mean_scalar = scalar_distance_8.mean(axis=1)
-        # foo3 = scalar_distance_8[voxel_select_corners_eval].std(axis=1)
-        voxel_select_stats |= np.abs(mean_scalar - mean_scalar.mean()) < 1 * mean_scalar.std()
+        mean_scalar_per_voxel = scalar_distance_8.mean(axis=1)
+        mean_scalar_selected = mean_scalar_per_voxel[voxel_select_corners_eval].mean()
+        std_scalar_selected = mean_scalar_per_voxel[voxel_select_corners_eval].std()
+        marked_voxels = BackendTensor.t.abs(mean_scalar_per_voxel - mean_scalar_selected) < n_std * std_scalar_selected
+        voxel_select_stats |= marked_voxels
 
         if plot:
             import matplotlib.pyplot as plt
             # Color to .5 those values that are not in voxel select but are within 2 std of the mean
-            c = np.zeros_like(mean_scalar)
+            mean_scalar_per_voxel = scalar_distance_8.mean(axis=1)
+            c = np.zeros_like(mean_scalar_per_voxel)
             c[voxel_select_stats] = .5
             c[voxel_select_corners_eval] = 1
             # colorbar between 0 and 1
-            mean_scalar = BackendTensor.t.to_numpy(mean_scalar)
-            plt.scatter( y=mean_scalar, x=range(mean_scalar.size), c=c, cmap='viridis', vmin=0, vmax=1, alpha=.8,)
+            mean_scalar_per_voxel = BackendTensor.t.to_numpy(mean_scalar_per_voxel)
+            plt.scatter( y=mean_scalar_per_voxel, x=range(mean_scalar_per_voxel.size), c=c, cmap='viridis', vmin=0, vmax=1, alpha=.8,)
             plt.colorbar()
             plt.show()
             
