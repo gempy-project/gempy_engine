@@ -27,7 +27,7 @@ except ImportError:
     plot_pyvista = False
 
 
-plot_pyvista = True
+plot_pyvista = False
 
 def test_extract_input_subsets(unconformity_complex):
     interpolation_input, options, input_descriptor = unconformity_complex

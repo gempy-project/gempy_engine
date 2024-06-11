@@ -31,6 +31,7 @@ def kriging_eq(moureze_model):
     return A_matrix, b_vector, options.kernel_options
 
 
+@pytest.mark.skip(reason="Moureze model is not having a solution. I ran this code with Vector Model 1.")
 def test_jacobi(kriging_eq):
     cov, b, kernel_options = kriging_eq
     kernel_options.kernel_solver = Solvers.SCIPY_CG
