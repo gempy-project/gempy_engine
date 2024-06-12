@@ -10,6 +10,7 @@ from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import
 
 def generic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions) -> ExportedFields:
     grid_size = solver_input.xyz_to_interpolate.shape[0]
+    matrix_size = grid_size * weights.shape[0]
     scalar_field: np.ndarray = BackendTensor.t.zeros(grid_size, dtype=weights.dtype)
     gx_field: Optional[np.ndarray] = None
     gy_field: Optional[np.ndarray] = None
@@ -18,8 +19,8 @@ def generic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: I
 
     # * Chunking the evaluation
     max_size = options.evaluation_chunk_size
-    n_chunks = int(np.ceil(grid_size / max_size))
-    chunk_size = int(np.ceil(grid_size / n_chunks))
+    n_chunks = int(np.ceil(matrix_size / max_size))
+    chunk_size = int(np.ceil(matrix_size / n_chunks))
     for i in range(n_chunks):
         slice_array = slice(i * chunk_size, (i + 1) * chunk_size)
         scalar_field_chunk, gx_field_chunk, gy_field_chunk, gz_field_chunk = _eval_on(

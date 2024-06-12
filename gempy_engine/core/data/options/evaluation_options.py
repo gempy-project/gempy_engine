@@ -22,7 +22,7 @@ class EvaluationOptions:
     mesh_extraction_masking_options: MeshExtractionMaskingOptions = MeshExtractionMaskingOptions.INTERSECT
     mesh_extraction_fancy: bool = True
 
-    evaluation_chunk_size: int = 50_000
+    evaluation_chunk_size: int = 5_000_000
 
     compute_scalar_gradient: bool = False
     
