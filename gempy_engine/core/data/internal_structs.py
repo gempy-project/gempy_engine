@@ -22,8 +22,10 @@ class SolverInput(object):
                  xyz_to_interpolate: np.ndarray=None, fault_internal=None):
         self.sp_internal = sp_internal
         self.ori_internal = ori_internal
-        if xyz_to_interpolate is not None:
+        if xyz_to_interpolate is not None and xyz_to_interpolate.dtype != BackendTensor.dtype_obj:
             self.xyz_to_interpolate = xyz_to_interpolate.astype(BackendTensor.dtype)
+        else:
+            self.xyz_to_interpolate = xyz_to_interpolate
         self._fault_internal = fault_internal
 
     def __hash__(self):

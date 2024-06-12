@@ -24,8 +24,7 @@ def interpolate_feature(interpolation_input: InterpolationInput,
                         solver_input: SolverInput,
                         external_interp_funct: Optional[CustomInterpolationFunctions] = None,
                         external_segment_funct: Optional[Callable[[np.ndarray], float]] = None,
-                        stack_number: Optional[int] = None,
-                        clean_buffer: bool = True) -> ScalarFieldOutput:
+                        stack_number: Optional[int] = None) -> ScalarFieldOutput:
     
     if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
         grid = copy.deepcopy(interpolation_input.grid)
