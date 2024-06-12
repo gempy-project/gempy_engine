@@ -80,7 +80,7 @@ class EngineGrid:
             values.append(self.geophysics_grid.values)
 
         values_array = BackendTensor.t.concatenate(values, dtype=BackendTensor.dtype)
-        values_array = BackendTensor.t.array(values_array)
+        values_array = BackendTensor.t.array(values_array, dtype=BackendTensor.dtype)
 
         return values_array
 
