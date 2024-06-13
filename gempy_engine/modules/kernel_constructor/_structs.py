@@ -184,27 +184,6 @@ class DriftMatrixSelector:
 
         _cast_tensors(self)
 
-    @classmethod
-    def old_method(cls, x_size: int, y_size: int, n_drift_eq: int):  # * This does not account for faults
-        sel_i = np.zeros((x_size, 2))
-        sel_j = np.zeros((y_size, 2))
-
-        # ! TODO [x]: This need to account for faults too. This is what the new __init__ does.
-
-        sel_i[:-n_drift_eq, 0] = 1
-        sel_i[-n_drift_eq:, 1] = 1
-
-        sel_j[:-n_drift_eq, 0] = -1
-        sel_j[-n_drift_eq:, 1] = -1
-
-        foo = cls(1, 1, 1, 1)
-        foo.sel_ui = sel_i[:, None, :]
-        foo.sel_vj = sel_j[None, :, :]
-
-        if BackendTensor.is_pykeops_enabled():
-            _upgrade_kernel_input_to_keops_tensor_numpy(cls)
-        return foo
-
 
 @dataclass
 class KernelInput:
