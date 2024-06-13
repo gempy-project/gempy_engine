@@ -139,7 +139,8 @@ def _additional_refinement_tests(voxel_select, current_octree_level, evaluation_
                 num_voxels_marked_as_outliers = marked_voxels.sum()
                 total_voxels = marked_voxels.shape
                 print(f"Number of voxels marked by stats: {num_voxels_marked_as_outliers} of {total_voxels}."
-                      f"\n Number of voxels marked total : {voxel_select.sum()}"
+                      f"\n Number of voxels marked by corners : {voxel_select.sum()}"
+                      f"\nTotal voxels: {additional_voxel_selected_to_refinement.sum()}"
                       f"\nDense Grid would be {8 ** (current_octree_level + 1)} voxels")
 
     return BackendTensor.t.array(additional_voxel_selected_to_refinement)
@@ -161,17 +162,46 @@ def _test_refinement_on_stats(exported_fields: ExportedFields, voxel_select_corn
         marked_voxels = BackendTensor.t.abs(mean_scalar_per_voxel - mean_scalar_selected) < n_std * std_scalar_selected
         voxel_select_stats |= marked_voxels
 
-        if plot:
-            import matplotlib.pyplot as plt
-            # Color to .5 those values that are not in voxel select but are within 2 std of the mean
-            mean_scalar_per_voxel = scalar_distance_8.mean(axis=1)
-            c = np.zeros_like(mean_scalar_per_voxel)
-            c[voxel_select_stats] = .5
-            c[voxel_select_corners_eval] = 1
-            # colorbar between 0 and 1
-            mean_scalar_per_voxel = BackendTensor.t.to_numpy(mean_scalar_per_voxel)
-            plt.scatter( y=mean_scalar_per_voxel, x=range(mean_scalar_per_voxel.size), c=c, cmap='viridis', vmin=0, vmax=1, alpha=.8,)
-            plt.colorbar()
-            plt.show()
+    if plot:
+        import matplotlib.pyplot as plt
+        from matplotlib.colors import ListedColormap
+
+        # Calculate mean scalar per voxel
+        mean_scalar_per_voxel = scalar_distance_8.mean(axis=1)
+        c = np.zeros_like(mean_scalar_per_voxel)
+
+        # Set colors for different refinement states
+        c[voxel_select_stats] = 0.5
+        c[voxel_select_corners_eval] = 1
+
+        # Convert tensor to numpy array
+        mean_scalar_per_voxel = BackendTensor.t.to_numpy(mean_scalar_per_voxel)
+
+        # Create custom colormap
+        cmap = ListedColormap(['#440154', '#21918c', '#fde725'])  # Example colors: No refined, Refined by stats, Refined by corners
+
+        # Create scatter plot
+        plt.figure(figsize=(10, 6))
+        scatter = plt.scatter(
+            x=range(mean_scalar_per_voxel.size),
+            y=mean_scalar_per_voxel,
+            c=c,
+            cmap=cmap,
+            vmin=0,
+            vmax=1,
+            alpha=0.8
+        )
+
+        # Add labels and title
+        plt.xlabel('Voxel')
+        plt.ylabel('Scalar Value')
+        plt.title('Voxel Scalar Values with Refinement Status')
+
+        # Create colorbar with custom labels
+        cbar = plt.colorbar(scatter, ticks=[0, 0.5, 1])
+        cbar.ax.set_yticklabels(['No refined', 'Refined by stats', 'Refined by corners'])
+
+        # Show plot
+        plt.show()
             
     return voxel_select_stats
