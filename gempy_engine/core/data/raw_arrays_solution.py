@@ -1,6 +1,6 @@
 ﻿import enum
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 
@@ -62,7 +62,7 @@ class RawArraysSolution:
     # ? TODO: This could be just the init
     @classmethod
     def from_gempy_engine_solutions(cls, octrees_output: list[OctreeLevel], meshes: list[DualContouringMesh],
-                                    block_solution_type: BlockSolutionType) -> "RawArraysSolution" | None:
+                                    block_solution_type: BlockSolutionType) -> Union["RawArraysSolution", None]:
         raw_arrays_solution = cls()
 
         first_level_octree: OctreeLevel = octrees_output[0]
