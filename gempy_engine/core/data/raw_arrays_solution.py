@@ -19,8 +19,10 @@ from ...optional_dependencies import require_pandas, require_subsurface
 @dataclass(init=True)
 class RawArraysSolution:
     class BlockSolutionType(enum.Enum):
-        OCTREE = 0
-        DENSE_GRID = 1
+        NONE = 0
+        OCTREE = 1
+        DENSE_GRID = 2
+        
 
     # region Regular Grid
     lith_block: np.ndarray = field(default_factory=lambda: np.empty(0))
@@ -60,7 +62,7 @@ class RawArraysSolution:
     # ? TODO: This could be just the init
     @classmethod
     def from_gempy_engine_solutions(cls, octrees_output: list[OctreeLevel], meshes: list[DualContouringMesh],
-                                    block_solution_type: BlockSolutionType) -> "RawArraysSolution":
+                                    block_solution_type: BlockSolutionType) -> "RawArraysSolution" | None:
         raw_arrays_solution = cls()
 
         first_level_octree: OctreeLevel = octrees_output[0]
@@ -78,6 +80,11 @@ class RawArraysSolution:
             case cls.BlockSolutionType.DENSE_GRID:
                 _fill_block_solutions_with_dense_grid(stacks_output, raw_arrays_solution)
                 raw_arrays_solution.dense_ids = BackendTensor.t.to_numpy(collapsed_output.ids_block_dense_grid)
+            case cls.BlockSolutionType.NONE:
+                return None
+            case _:
+                raise ValueError(f"Block solution type {block_solution_type} not recognized")
+        
 
         # Endregion
 

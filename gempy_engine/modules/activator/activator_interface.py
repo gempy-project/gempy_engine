@@ -16,7 +16,7 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
         sigm = activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slope)
     else:
         from .torch_activation import activate_formation_block_from_args_hard_sigmoid
-        sigm = activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp, sigmoid_slope)
+        sigm = activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp)
 
     return sigm
 

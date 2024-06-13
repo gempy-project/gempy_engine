@@ -13,7 +13,7 @@ Here is the torch implementation https://pytorch.org/docs/stable/_modules/torch/
 '''
 
 
-def activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp, sigmoid_slope):
+def activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp):
     element_0 = bt.t.array([0], dtype=BackendTensor.dtype_obj)
 
     min_Z_x = BackendTensor.t.min(Z_x, axis=0).reshape(-1)  # ? Is this as good as it gets?
