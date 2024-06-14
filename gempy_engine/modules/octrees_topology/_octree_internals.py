@@ -105,13 +105,13 @@ def _calculate_topology(shift_select_xyz: List[np.ndarray], ids: np.ndarray):
 def _additional_refinement_tests(voxel_select, current_octree_level, evaluation_options, prev_octree):
     shape = voxel_select.shape[0]
 
-    if current_octree_level < evaluation_options.min_octree_level:
+    if current_octree_level < evaluation_options.octree_min_level:
         shape_ = shape
         additional_voxel_selected_to_refinement = BackendTensor.t.ones(shape_, dtype=bool)
         return BackendTensor.t.array(additional_voxel_selected_to_refinement)
 
-    test_for_curvature = 0 <= evaluation_options.curvature_threshold <= 1 and evaluation_options.compute_scalar_gradient
-    test_for_error = evaluation_options.error_threshold > 0
+    test_for_curvature = 0 <= evaluation_options.octree_curvature_threshold <= 1 and evaluation_options.compute_scalar_gradient
+    test_for_error = evaluation_options.octree_error_threshold > 0
 
     additional_voxel_selected_to_refinement = BackendTensor.t.zeros(voxel_select.shape, dtype=bool)
     output: InterpOutput
@@ -123,14 +123,14 @@ def _additional_refinement_tests(voxel_select, current_octree_level, evaluation_
                 gy=(exported_fields.gy_field.reshape((-1, 8))),
                 gz=(exported_fields.gz_field.reshape((-1, 8))),
                 voxel_size=np.array(prev_octree.grid_centers.octree_grid.dxdydz),
-                curvature_threshold=evaluation_options.curvature_threshold  # * This curvature assumes that 1 is the maximum curvature of any voxel
+                curvature_threshold=evaluation_options.octree_curvature_threshold  # * This curvature assumes that 1 is the maximum curvature of any voxel
             )
 
         if test_for_error:
             marked_voxels = _test_refinement_on_stats(
                 exported_fields=exported_fields,
                 voxel_select_corners_eval=voxel_select,
-                n_std=evaluation_options.error_threshold,
+                n_std=evaluation_options.octree_error_threshold,
                 plot=evaluation_options.verbose
             )
             additional_voxel_selected_to_refinement |= marked_voxels
