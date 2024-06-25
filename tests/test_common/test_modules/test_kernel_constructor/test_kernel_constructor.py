@@ -4,7 +4,7 @@ from approvaltests import Options
 from approvaltests.approvals import verify
 from approvaltests.namer import NamerFactory
 
-from conftest import Requirements, REQUIREMENT_LEVEL
+from ....conftest import Requirements, REQUIREMENT_LEVEL
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor

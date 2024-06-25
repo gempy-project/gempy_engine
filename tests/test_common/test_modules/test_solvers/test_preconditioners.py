@@ -1,18 +1,8 @@
-from typing import Optional
-
-import numpy as np
 import pytest
-import torch
-from gempy_engine.core.data.kernel_classes.solvers import Solvers
 
-from gempy_engine.config import AvailableBackends
-
-from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
-
-from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.internal_structs import SolverInput
-from gempy_engine.modules.kernel_constructor._vectors_preparation import \
-    evaluation_vectors_preparations
+from gempy_engine.core.data.kernel_classes.solvers import Solvers
+from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, orientations_preprocess
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, \
     yield_b_vector
 from gempy_engine.modules.solver.solver_interface import kernel_reduction
