@@ -130,3 +130,9 @@ dmypy.json
 
 .idea
 /gempy_engine/_version.py
+test.py
+gempy_engine/API/model/model_api.py
+gempy_engine/core/data/marching_cube_mesh.py
+gempy_engine/core/data/marching_cubes_data.py
+gempy_engine/core/data/mc_output.py
+gempy_engine/core/data/solutions.py

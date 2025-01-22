@@ -75,7 +75,7 @@ class InterpolationInput:
 
         stack_number = stack_structure.stack_number
 
-        sp = SurfacePoints.from_suraface_points_subset(all_interpolation_input.surface_points, stack_structure)
+        sp = SurfacePoints.from_surface_points_subset(all_interpolation_input.surface_points, stack_structure)
         o = Orientations.from_orientations_subset(all_interpolation_input.orientations, stack_structure)
 
         cum_number_surfaces_l0 = stack_structure.number_of_surfaces_per_stack[:stack_number].sum()
