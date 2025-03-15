@@ -12,7 +12,7 @@ except ImportError:
     plot_pyvista = False
 
 
-def plot_octree_pyvista(p: pv.Plotter, octree_list: List[OctreeLevel], n_octree: int):
+def plot_octree_pyvista(p: "pv.Plotter", octree_list: List[OctreeLevel], n_octree: int):
     n = n_octree
 
     shape = octree_list[n].grid_centers.octree_grid_shape
@@ -28,7 +28,7 @@ def plot_octree_pyvista(p: pv.Plotter, octree_list: List[OctreeLevel], n_octree:
     p.add_axes()
 
 
-def plot_dc_meshes(p: pv.Plotter, dc_mesh: DualContouringMesh, plot_labels=False, color="green"):
+def plot_dc_meshes(p: "pv.Plotter", dc_mesh: DualContouringMesh, plot_labels=False, color="green"):
     vtk_edges = np.insert(dc_mesh.edges.reshape(-1, 3), 0, 3, axis=1).ravel()
     dual_mesh = pv.PolyData(dc_mesh.vertices, vtk_edges)
     p.add_mesh(dual_mesh, opacity=1, silhouette=False, color=color)
@@ -39,7 +39,7 @@ def plot_dc_meshes(p: pv.Plotter, dc_mesh: DualContouringMesh, plot_labels=False
         p.add_point_labels(vertex, list(range(dc_mesh.vertices.shape[0])), point_size=20, font_size=36)
 
 
-def plot_points(p: pv.Plotter, xyz: np.ndarray, plot_labels=False):
+def plot_points(p: "pv.Plotter", xyz: np.ndarray, plot_labels=False):
     coords = pv.PolyData(xyz)
     p.add_mesh(coords, color="w", point_size=10.0, render_points_as_spheres=True)
     if plot_labels:
@@ -47,7 +47,7 @@ def plot_points(p: pv.Plotter, xyz: np.ndarray, plot_labels=False):
                            font_size=36)
 
 
-def plot_vector(p: pv.Plotter, xyz, gradients):
+def plot_vector(p: "pv.Plotter", xyz, gradients):
     poly = pv.PolyData(xyz)
     poly['vectors'] = gradients
 
