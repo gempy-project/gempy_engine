@@ -2,10 +2,10 @@
 import logging
 
 from gempy_engine.core.data.engine_grid import EngineGrid
-from core.data.regular_grid import RegularGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.server.input_parser import GemPyInput
+from gempy_engine.core.data.regular_grid import RegularGrid
 
 
 def setup_logger():
@@ -34,10 +34,12 @@ def setup_logger():
 def process_input(gempy_input: GemPyInput, logger: logging.Logger) -> (InputDataDescriptor, InterpolationInput, int):
     
     logger.debug("Input grid:", gempy_input.interpolation_input.grid)
+
+    regular_grid: EngineGrid = EngineGrid.from_regular_grid(regular_grid=RegularGrid.from_schema(gempy_input.interpolation_input.grid))
     
-    gempy_input.interpolation_input.grid = EngineGrid.from_regular_grid(
-        regular_grid=RegularGrid.from_schema(gempy_input.interpolation_input.grid)
-    )
+    # BUG: Adapt this to the new grid
+    # gempy_input.interpolation_input.grid = regular_grid
+    
     interpolation_input: InterpolationInput = InterpolationInput.from_schema(gempy_input.interpolation_input)
     input_data_descriptor: InputDataDescriptor = InputDataDescriptor.from_schema(gempy_input.input_data_descriptor)
     n_stack = len(input_data_descriptor.stack_structure.masking_descriptor)

@@ -29,8 +29,9 @@ except ImportError:
     print("Pydantic is not installed. No server capabilities will be available.")
     BaseModel = object
 
-app = FastAPI()
-# Start the server: uvicorn gempy_engine.API.server.main_server:app
+gempy_engine_App = FastAPI(debug=True)
+logger = setup_logger()
+# *  Start the server: uvicorn gempy_engine.API.server.main_server:app
 
 
 # region InterpolationOptions
@@ -47,12 +48,12 @@ default_interpolation_options: InterpolationOptions = InterpolationOptions(
 
 # endregion
 
-logger = setup_logger()
 
 # BackendTensor.change_backend(AvailableBackends.numpy, use_gpu=False, pykeops_enabled=True)
 
-@app.post("/")
+@gempy_engine_App.post("/")
 def compute_gempy_model(gempy_input: GemPyInput):
+    print("Running gempy model...")
     logger.info("Running GemPy Engine")
 
     input_data_descriptor, interpolation_input, n_stack = process_input(

@@ -1,0 +1,77 @@
+{
+  "interpolation_input": {
+    "surface_points": {
+      "sp_coords": [
+        [
+          0.25010,
+          0.50010,
+          0.37510
+        ],
+        [
+          0.50010,
+          0.50010,
+          0.37510
+        ],
+        [
+          0.66677,
+          0.50010,
+          0.41677
+        ],
+        [
+          0.70843,
+          0.50010,
+          0.47510
+        ],
+        [
+          0.75010,
+          0.50010,
+          0.54177
+        ],
+        [
+          0.58343,
+          0.50010,
+          0.39177
+        ],
+        [
+          0.73343,
+          0.50010,
+          0.50010
+        ]
+      ]
+    },
+    "orientations": {
+      "dip_positions": [
+        [
+          0.25010,
+          0.50010,
+          0.54177
+        ],
+        [
+          0.66677,
+          0.50010,
+          0.62510
+        ]
+      ],
+      "dip_gradients": [
+        [
+          0,
+          0,
+          1
+        ],
+        [
+          -0.6,
+          0,
+          0.8
+        ]
+      ]
+    },
+    "grid": null
+  },
+  "input_data_descriptor": {
+    "number_of_points_per_surface": [7],
+    "number_of_points_per_stack": [7],
+    "number_of_orientations_per_stack": [2],
+    "number_of_surfaces_per_stack": [1],
+    "masking_descriptor": [1]  
+  }
+}
