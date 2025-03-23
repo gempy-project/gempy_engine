@@ -43,6 +43,10 @@ def test_post_example_json(client):
     
     assert len(response.content) == 15326
     assert response.status_code == 200
+    
+    # Save binary into example.mle
+    with open("example.mle", "wb") as f:
+        f.write(response.content)
 
 
 @pytest.mark.skip(reason="Not implemented yet")
