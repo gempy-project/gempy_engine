@@ -41,7 +41,7 @@ def test_post_example_json(client):
         headers={"Content-Type": "application/json"}
     )
     
-    # Deserialize octet-stream response
+    assert len(response.content) == 15326
     assert response.status_code == 200
 
 
