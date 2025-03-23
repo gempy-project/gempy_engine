@@ -81,13 +81,14 @@ def compute_gempy_model(gempy_input: GemPyInput):
     logger.info("Finished computing model")
     # logger.debug("first mesh vertices:", solutions.dc_meshes[0].vertices)
 
-    body = process_output(
+    body:bytes = process_output(
         meshes=solutions.dc_meshes,
         n_stack=n_stack,
         solutions=solutions,
         logger=logger
     )
 
+    size_in_mb = len(body) / 1024 / 1024
     logger.info("Finished running GemPy Engine")
     response = fastapi.Response(content=body, media_type='application/octet-stream')
     return response

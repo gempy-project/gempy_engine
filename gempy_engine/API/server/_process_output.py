@@ -18,12 +18,12 @@ def process_output(meshes: list[DualContouringMesh], n_stack: int, solutions: So
     unstructured_data_meshes: UnstructuredData = _meshes_to_unstruct(meshes, logger)
     if PLOT_SUBSURFACE_OBJECT:
         _plot_subsurface_object(unstructured_data_meshes)
-    body_meshes, header_meshes = unstructured_data_meshes.to_binary()
-    header_json = json.dumps(header_meshes)
-    header_json_bytes = header_json.encode('utf-8')
-    header_json_length = len(header_json_bytes)
-    header_json_length_bytes = header_json_length.to_bytes(4, byteorder='little')
-    body_meshes = header_json_length_bytes + header_json_bytes + body_meshes
+    body_meshes = unstructured_data_meshes.to_binary()
+    # header_json = json.dumps(header_meshes)
+    # header_json_bytes = header_json.encode('utf-8')
+    # header_json_length = len(header_json_bytes)
+    # header_json_length_bytes = header_json_length.to_bytes(4, byteorder='little')
+    # body_meshes = header_json_length_bytes + header_json_bytes + body_meshes
 
     # * serialize octrees
     unstructured_data_volume = subsurface.UnstructuredData.from_array(
@@ -35,12 +35,12 @@ def process_output(meshes: list[DualContouringMesh], n_stack: int, solutions: So
         )  # TODO: We have to create an array with the shape of simplex array with the id of each simplex
     )
     
-    body_volume, header_volume = unstructured_data_volume.to_binary()
-    header_json = json.dumps(header_volume)
-    header_json_bytes = header_json.encode('utf-8')
-    header_json_length = len(header_json_bytes)
-    header_json_length_bytes = header_json_length.to_bytes(4, byteorder='little')
-    body_volume = header_json_length_bytes + header_json_bytes + body_volume
+    body_volume= unstructured_data_volume.to_binary()
+    # header_json = json.dumps(header_volume)
+    # header_json_bytes = header_json.encode('utf-8')
+    # header_json_length = len(header_json_bytes)
+    # header_json_length_bytes = header_json_length.to_bytes(4, byteorder='little')
+    # body_volume = header_json_length_bytes + header_json_bytes + body_volume
 
     # * serialize global header
     body = body_meshes + body_volume
