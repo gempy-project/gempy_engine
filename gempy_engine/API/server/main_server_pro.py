@@ -56,19 +56,21 @@ def compute_gempy_model(gempy_input: GemPyInput):
     print("Running gempy model...")
     logger.info("Running GemPy Engine")
 
+    interpolation_input: InterpolationInput
+    input_data_descriptor: InputDataDescriptor
     input_data_descriptor, interpolation_input, n_stack = process_input(
         gempy_input=gempy_input,
         logger=logger
     )
-
+    
     # region Set new fancy triangulation TODO: This has to be move to the interpolation options coming from the client
-    FANCY_TRIANGULATION = True
-    if FANCY_TRIANGULATION:
-        default_interpolation_options.mesh_extraction_fancy = True
+    # FANCY_TRIANGULATION = True
+    # if FANCY_TRIANGULATION:
+    #     default_interpolation_options.mesh_extraction_fancy = True
         # default_interpolation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW  # * To Date only raw making is supported
     # endregion
 
-    default_interpolation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW  # * To Date only raw making is supported
+    # default_interpolation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW  # * To Date only raw making is supported
     
     solutions: Solutions = _compute_model(
         interpolation_input=interpolation_input,

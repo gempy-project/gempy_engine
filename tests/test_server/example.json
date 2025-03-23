@@ -65,7 +65,10 @@
         ]
       ]
     },
-    "grid": null
+    "grid": {
+      "extent": [ 0.0, 1.0, 0.0, 1.0, 0.0, 1.0 ],
+      "octree_levels": 2
+    }
   },
   "input_data_descriptor": {
     "number_of_points_per_surface": [7],

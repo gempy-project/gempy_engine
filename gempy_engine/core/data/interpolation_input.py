@@ -102,10 +102,18 @@ class InterpolationInput:
 
     @classmethod
     def from_schema(cls, schema: InterpolationInputSchema) -> "InterpolationInput":
+
+        octree_grid = RegularGrid(
+            orthogonal_extent=schema.grid.extent,
+            regular_grid_shape=np.array([2, 2, 2])
+        )
+        grid: EngineGrid = EngineGrid(  # * Here we convert the GemPy grid to the
+            octree_grid=octree_grid
+        )
         return cls(
             surface_points=SurfacePoints.from_schema(schema.surface_points),
             orientations=Orientations.from_schema(schema.orientations),
-            grid=schema.grid,
+            grid=grid
         )
 
 

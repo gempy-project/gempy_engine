@@ -41,6 +41,7 @@ def test_post_example_json(client):
         headers={"Content-Type": "application/json"}
     )
     
+    print(response.json())
     assert response.status_code == 200
     result = response.json()
     assert "result" in result or "scalar_field" in result
