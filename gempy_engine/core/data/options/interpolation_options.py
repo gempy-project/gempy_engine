@@ -78,9 +78,34 @@ class InterpolationOptions:
         self.cache_mode = InterpolationOptions.CacheMode.IN_MEMORY_CACHE
         self.cache_model_name = ""
         self.block_solutions_type = RawArraysSolution.BlockSolutionType.OCTREE
-        self.sigmoid_slope = 50_000
+        self.sigmoid_slope = 5_000_000
 
     # @on
+
+    @classmethod
+    def init_octree_options(cls, range=1.7, c_o=10, refinement: int = 1):
+        return InterpolationOptions(
+            range=range,
+            c_o=c_o,
+            mesh_extraction=True,
+            number_octree_levels=refinement,
+        )
+
+    @classmethod
+    def init_dense_grid_options(cls):
+        options = InterpolationOptions(
+            range=1.7,
+            c_o=10,
+            mesh_extraction=False,
+            number_octree_levels=1
+        )
+        options.block_solutions_type = RawArraysSolution.BlockSolutionType.DENSE_GRID
+        return options
+
+    @classmethod
+    def probabilistic_options(cls):
+        # TODO: This should have the sigmoid slope different
+        raise NotImplementedError("Probabilistic interpolation is not yet implemented.")
 
     def __repr__(self):
         return f"InterpolationOptions({', '.join(f'{k}={v}' for k, v in asdict(self).items())})"
