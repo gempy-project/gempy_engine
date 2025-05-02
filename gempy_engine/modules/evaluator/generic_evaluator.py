@@ -20,8 +20,8 @@ def generic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: I
     # * Chunking the evaluation
     max_size = options.evaluation_chunk_size
     n_chunks = int(np.ceil(matrix_size / max_size))
-    chunk_size = int(np.ceil(matrix_size / n_chunks))
-    for i in range(n_chunks):
+    chunk_size = int(np.ceil(grid_size / n_chunks))
+    for i in range(n_chunks): # TODO: It seems the chunking is not properly implemented
         slice_array = slice(i * chunk_size, (i + 1) * chunk_size)
         scalar_field_chunk, gx_field_chunk, gy_field_chunk, gz_field_chunk = _eval_on(
             solver_input=solver_input,
@@ -50,6 +50,7 @@ def generic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: I
 def _eval_on(solver_input, weights, options, slice_array: slice = None):
     eval_kernel = yield_evaluation_kernel(solver_input, options.kernel_options, slice_array=slice_array)
     scalar_field: np.ndarray = (eval_kernel.T @ weights).reshape(-1)
+    scalar_field[-50:]
     gx_field: Optional[np.ndarray] = None
     gy_field: Optional[np.ndarray] = None
     gz_field: Optional[np.ndarray] = None
