@@ -1,7 +1,7 @@
 # gempy_engine
 
 
-## GPU Install in Linux
+## GPU Install in Linux  
 
 
 - Check the instalation guide of tensorflow. It is very picky on the enviroment
