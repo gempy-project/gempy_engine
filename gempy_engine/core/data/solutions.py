@@ -63,6 +63,13 @@ class Solutions:
                 raise ValueError("Block solution type not recognized.")
         
         return resolution
+    
+    @property
+    def root_output(self) -> OctreeLevel:
+        """Get the root output where you can find all the grids other than the octree grid, and lvl0 of the octree."""
+        if not self.octrees_output:
+            raise ValueError("No octree levels available.")
+        return self.octrees_output[0]
 
     @property
     def raw_arrays(self) -> RawArraysSolution:
