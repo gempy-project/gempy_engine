@@ -14,7 +14,7 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
 
     sigmoid_slope_negative = isinstance(sigmoid_slope, float) and sigmoid_slope < 0 # * sigmoid_slope can be array for finite faultskA
     
-    if LEGACY := False and not sigmoid_slope_negative: # * Here we branch to the experimental activation function with hard sigmoid
+    if LEGACY := True and not sigmoid_slope_negative: # * Here we branch to the experimental activation function with hard sigmoid
         sigm = activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slope)
     else:
         # from .torch_activation import activate_formation_block_from_args_hard_sigmoid
@@ -33,7 +33,7 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
             Z=Z_x,
             edges=scalar_value_at_sp,
             ids=ids,
-            tau=sigmoid_slope, 
+            tau=1/sigmoid_slope, 
         )
 
     return sigm
