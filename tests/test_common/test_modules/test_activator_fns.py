@@ -41,12 +41,12 @@ def test_activator_3_layers_segmentation_function(simple_model_3_layers, simple_
     print(Z_x, Z_x.shape[0])
     print(sasp)
 
-    # BackendTensor.change_backend_gempy(AvailableBackends.PYTORCH)
+    BackendTensor.change_backend_gempy(AvailableBackends.PYTORCH)
     ids_block = activate_formation_block(
         exported_fields=exported_fields,
         ids=ids,
         # sigmoid_slope=5_000_000
-        sigmoid_slope = 500
+        sigmoid_slope = 500*4
     )[0, :-7]
 
     BackendTensor.change_backend_gempy(AvailableBackends.numpy)

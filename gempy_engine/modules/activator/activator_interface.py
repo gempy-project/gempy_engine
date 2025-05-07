@@ -12,9 +12,9 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
     Z_x: np.ndarray = exported_fields.scalar_field_everywhere
     scalar_value_at_sp: np.ndarray = exported_fields.scalar_field_at_surface_points
 
-    sigmoid_slope_negative = isinstance(sigmoid_slope, float) and sigmoid_slope < 0 # * sigmoid_slope can be array for finite faultskA
-    
-    if LEGACY := True and not sigmoid_slope_negative: # * Here we branch to the experimental activation function with hard sigmoid
+    sigmoid_slope_negative = isinstance(sigmoid_slope, float) and sigmoid_slope < 0  # * sigmoid_slope can be array for finite faultskA
+
+    if LEGACY := False and not sigmoid_slope_negative:  # * Here we branch to the experimental activation function with hard sigmoid
         sigm = activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slope)
     else:
         # from .torch_activation import activate_formation_block_from_args_hard_sigmoid
@@ -28,12 +28,12 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
         #         bt.t.array([float('inf')], dtype=BackendTensor.dtype_obj)
         # ])  # now length K+1
         # ids = torch.arange(K, dtype=scalar_value_at_sp.dtype, device=scalar_value_at_sp.device)
-        
+
         sigm = soft_segment_unbounded(
             Z=Z_x,
             edges=scalar_value_at_sp,
             ids=ids,
-            tau=1/sigmoid_slope, 
+            sigmoid_slope=sigmoid_slope
         )
 
     return sigm
@@ -81,35 +81,43 @@ def activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slo
 
 import torch
 
-def soft_segment_unbounded(Z, edges, ids, tau):
+
+def soft_segment_unbounded(Z, edges, ids, sigmoid_slope):
     """
-    Z:       (...,) tensor of scalar values
+    Z:            (...,) tensor of scalar values
     edges:   (K-1,) tensor of finite split points [e1, e2, ..., e_{K-1}]
-    ids:     (K,)   tensor of the id for each of the K bins
-    tau:     temperature > 0
-    returns: (...,) tensor of the soft‐assigned id
+    ids:       (K,) tensor of the id for each of the K bins
+    tau:         scalar target peak slope m > 0
+    returns:      (...,) tensor of the soft‐assigned id
     """
-    # first bin: (-∞, e1)
-    
-    # convert numpy to torch tensor
-    edges = torch.tensor(edges, dtype=BackendTensor.dtype_obj)
-    ids = torch.tensor(ids, dtype=BackendTensor.dtype_obj)
-    Z = torch.tensor(Z, dtype=BackendTensor.dtype_obj)
-    tau = torch.tensor(tau, dtype=BackendTensor.dtype_obj)
-    
-    first = torch.sigmoid((edges[0] - Z) / tau)[..., None]       # (...,1)
+    # --- ensure torch tensors on the same device/dtype ---
+    if not isinstance(Z, torch.Tensor):
+        Z = torch.tensor(Z, dtype=torch.float32, device=edges.device)
+    if not isinstance(edges, torch.Tensor):
+        edges = torch.tensor(edges, dtype=Z.dtype, device=Z.device)
+    if not isinstance(ids, torch.Tensor):
+        ids = torch.tensor(ids, dtype=Z.dtype, device=Z.device)
 
-    # last  bin: [e_{K-1}, ∞)
-    last  = torch.sigmoid((Z - edges[-1]) / tau)[..., None]      # (...,1)
+    # --- 1) per-edge temp: tau_k = jump_k / (4 * m) ---
+    # jumps = ids[1:] - ids[:-1]  # shape (K-1,)
 
-    # middle bins: [e_i, e_{i+1})
-    # edges[:-1] are e1..e_{K-2}, edges[1:] are e2..e_{K-1}
-    left  =  torch.sigmoid((Z[...,None] - edges[:-1]) / tau)     # (...,K-2)
-    right =  torch.sigmoid((Z[...,None] - edges[1: ]) / tau)     # (...,K-2)
-    middle = left - right                                        # (...,K-2)
+    jumps = torch.abs(ids[1:] - ids[:-1])       # shape (K-1,)
+    tau_k = jumps / (4 * sigmoid_slope)  # shape (K-1,)
 
-    # concatenate into (...,K) membership probabilities
-    membership = torch.cat([first, middle, last], dim=-1)        # (...,K)
+    # --- 2) first bin (-∞, e1) ---
+    first = torch.sigmoid((edges[0] - Z) / tau_k[0])[..., None]  # (...,1)
+
+    # --- 3) last bin [e_{K-1}, ∞) ---
+    last = torch.sigmoid((Z - edges[-1]) / tau_k[-1])[..., None]  # (...,1)
+
+    # --- 4) middle bins [e_i, e_{i+1}) ---
+    left = torch.sigmoid((Z[..., None] - edges[:-1]) / tau_k[:-1])  # (...,K-2)
+    right = torch.sigmoid((Z[..., None] - edges[1:]) / tau_k[1:])  # (...,K-2)
+    middle = left - right  # (...,K-2)
+
+    # --- 5) assemble memberships and weight by ids ---
+    membership = torch.cat([first, middle, last], dim=-1)  # (...,K)
+    # return (membership * ids).sum(dim=-1)                  # (...,)
 
     # weighted sum by the ids
     ids__sum = (membership * ids).sum(dim=-1)
