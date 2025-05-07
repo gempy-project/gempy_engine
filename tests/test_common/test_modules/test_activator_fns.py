@@ -41,15 +41,11 @@ def test_activator_3_layers_segmentation_function(simple_model_3_layers, simple_
     print(Z_x, Z_x.shape[0])
     print(sasp)
 
-    BackendTensor.change_backend_gempy(AvailableBackends.PYTORCH)
     ids_block = activate_formation_block(
         exported_fields=exported_fields,
         ids=ids,
-        # sigmoid_slope=5_000_000
         sigmoid_slope = 500*4
     )[0, :-7]
-
-    BackendTensor.change_backend_gempy(AvailableBackends.numpy)
 
     if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
         ids_block = ids_block.detach().numpy()
@@ -57,9 +53,6 @@ def test_activator_3_layers_segmentation_function(simple_model_3_layers, simple_
         interpolation_input.surface_points.sp_coords = interpolation_input.surface_points.sp_coords.detach().numpy()
 
     if plot:
-        if False:
-            _plot_4_categories(grid, ids_block, interpolation_input)
-
         _plot_continious(grid, ids_block, interpolation_input)
 
 
@@ -82,22 +75,3 @@ def _plot_continious(grid, ids_block, interpolation_input):
     plt.show()
 
 
-def _plot_4_categories(grid, ids_block, interpolation_input):
-    block__ = ids_block[grid.dense_grid_slice]
-    reshaped_block = block__.reshape(50, 5, 50)[:, 2, :].T
-    bounds = [0, 1, 2, 3, 4]
-    # Create a normalized colormap with 5 distinct colors
-    import matplotlib.colors as colors
-    cmap = plt.cm.autumn
-    norm = colors.BoundaryNorm(bounds, cmap.N)
-    # Plot with 5 distinct categories
-    im = plt.contourf(reshaped_block, levels=bounds, cmap=cmap, norm=norm,
-                      extent=(.25, .75, .25, .75))
-    xyz = interpolation_input.surface_points.sp_coords
-    plt.plot(xyz[:, 0], xyz[:, 2], "o")
-    # Add a colorbar with category labels
-    cbar = plt.colorbar(im, ticks=bounds)
-    # cbar.ax.set_yticklabels(['', '<1', '1-2', '2-3', '3-4', '>4'])
-    cbar.ax.set_yticklabels(['', '<1', '1-2', '2-3', '3-4'])
-    plt.title('Formation Categories')
-    plt.show()
