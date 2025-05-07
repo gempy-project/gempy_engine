@@ -17,18 +17,6 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
     if LEGACY := False and not sigmoid_slope_negative:  # * Here we branch to the experimental activation function with hard sigmoid
         sigm = activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slope)
     else:
-        # from .torch_activation import activate_formation_block_from_args_hard_sigmoid
-        # sigm = activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp)
-
-        # assume scalar_value_at_sp is shape (K-1,)
-        # bt.t.array
-        # edges = bt.t.concatenate([
-        #          bt.t.array([0.], dtype=BackendTensor.dtype_obj),
-        #         scalar_value_at_sp,
-        #         bt.t.array([float('inf')], dtype=BackendTensor.dtype_obj)
-        # ])  # now length K+1
-        # ids = torch.arange(K, dtype=scalar_value_at_sp.dtype, device=scalar_value_at_sp.device)
-
         sigm = soft_segment_unbounded(
             Z=Z_x,
             edges=scalar_value_at_sp,
