@@ -49,6 +49,8 @@ def test_activator_3_layers_segmentation_function_torch(simple_model_3_layers, s
         simple_grid_3d_more_points_grid=simple_grid_3d_more_points_grid,
         simple_model_3_layers=simple_model_3_layers
     )
+
+    BackendTensor.change_backend_gempy(AvailableBackends.numpy)
     if plot:
         _plot_continious(grid, ids_block, interpolation_input)
 
