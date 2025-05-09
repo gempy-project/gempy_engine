@@ -21,7 +21,7 @@ from tests.conftest import pykeops_enabled, plot_pyvista
 from gempy_engine.plugins.plotting.helper_functions import plot_block_and_input_2d, plot_scalar_and_input_2d
 
 
-def test_one_fault_model(one_fault_model, n_oct_levels=3):
+def test_one_fault_model(one_fault_model, n_oct_levels=5):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -44,7 +44,7 @@ def test_one_fault_model(one_fault_model, n_oct_levels=3):
         gempy_v2_cov = _covariance_for_one_fault_model_from_gempy_v2()
         diff = last_cov - gempy_v2_cov
 
-    if plot_2d := False:
+    if plot_2d := True:
         _plot_stack_raw(interpolation_input, outputs, structure)
         _plot_stack_squeezed_mask(interpolation_input, outputs, structure)
         _plot_stack_mask_component(interpolation_input, outputs, structure)

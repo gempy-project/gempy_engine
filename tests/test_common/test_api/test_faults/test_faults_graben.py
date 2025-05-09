@@ -27,7 +27,7 @@ def test_graben_fault_model(graben_fault_model):
     options.evaluation_options.dual_conturing_fancy = True
     options.debug=True
 
-    options.evaluation_options.number_octree_levels = 4
+    options.evaluation_options.number_octree_levels = 5
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
     outputs: list[OctreeLevel] = solutions.octrees_output

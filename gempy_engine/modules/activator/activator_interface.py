@@ -1,10 +1,11 @@
 import warnings
 
-from gempy_engine.config import DEBUG_MODE, AvailableBackends
-from gempy_engine.core.backend_tensor import BackendTensor as bt, BackendTensor
-import numpy as np
+from ...config import DEBUG_MODE, AvailableBackends
+from ...core.backend_tensor import BackendTensor as bt, BackendTensor
+from ...core.data.exported_fields import ExportedFields
+from ._soft_segment import soft_segment_unbounded
 
-from gempy_engine.core.data.exported_fields import ExportedFields
+import numpy as np
 
 
 def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
@@ -12,14 +13,22 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
     Z_x: np.ndarray = exported_fields.scalar_field_everywhere
     scalar_value_at_sp: np.ndarray = exported_fields.scalar_field_at_surface_points
 
-    sigmoid_slope_negative = isinstance(sigmoid_slope, float) and sigmoid_slope < 0 # * sigmoid_slope can be array for finite faultskA
-    
-    if LEGACY := True and not sigmoid_slope_negative: # * Here we branch to the experimental activation function with hard sigmoid
-        sigm = activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slope)
-    else:
-        from .torch_activation import activate_formation_block_from_args_hard_sigmoid
-        sigm = activate_formation_block_from_args_hard_sigmoid(Z_x, ids, scalar_value_at_sp)
+    sigmoid_slope_negative = isinstance(sigmoid_slope, float) and sigmoid_slope < 0  # * sigmoid_slope can be array for finite faultskA
 
+    if LEGACY := False and not sigmoid_slope_negative:  # * Here we branch to the experimental activation function with hard sigmoid
+        sigm = activate_formation_block_from_args(
+            Z_x=Z_x,
+            ids=ids,
+            scalar_value_at_sp=scalar_value_at_sp,
+            sigmoid_slope=sigmoid_slope
+        )
+    else:
+        sigm = soft_segment_unbounded(
+            Z=Z_x,
+            edges=scalar_value_at_sp,
+            ids=ids,
+            sigmoid_slope=sigmoid_slope
+        )
     return sigm
 
 

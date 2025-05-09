@@ -35,7 +35,7 @@ def one_fault_model():
 
     spi: SurfacePoints = SurfacePoints(sp_coords)
     ori: Orientations = Orientations(dip_postions, dip_gradients)
-    ids = np.array([1, 2, 3, 4, 5, 6])
+    ids = np.array([1, 2, 3, 4, 5, 6, 7])
 
     resolution = [2, 2, 2]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
@@ -172,7 +172,7 @@ def graben_fault_model():
 
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)
-    ids = np.array([1, 2, 3, 4, 5, 6])
+    ids = np.array([1, 2, 3, 4, 5, 6, 7])
 
     resolution = [2, 2, 2]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
