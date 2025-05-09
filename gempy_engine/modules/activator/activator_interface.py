@@ -3,6 +3,7 @@ import warnings
 from gempy_engine.config import DEBUG_MODE, AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor as bt, BackendTensor
 import numpy as np
+import numbers
 
 from gempy_engine.core.data.exported_fields import ExportedFields
 
@@ -16,9 +17,9 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
 
     if LEGACY := False and not sigmoid_slope_negative:  # * Here we branch to the experimental activation function with hard sigmoid
         sigm = activate_formation_block_from_args(
-            Z_x=Z_x, 
-            ids=ids, 
-            scalar_value_at_sp=scalar_value_at_sp, 
+            Z_x=Z_x,
+            ids=ids,
+            scalar_value_at_sp=scalar_value_at_sp,
             sigmoid_slope=sigmoid_slope
         )
     else:
@@ -35,7 +36,7 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
                     Z=Z_x,
                     edges=scalar_value_at_sp,
                     ids=ids,
-                    sigmoid_slope=sigmoid_slope   
+                    sigmoid_slope=sigmoid_slope
                 )
 
     return sigm
@@ -103,7 +104,7 @@ def soft_segment_unbounded(Z, edges, ids, sigmoid_slope):
     # --- 1) per-edge temp: tau_k = jump_k / (4 * m) ---
     # jumps = ids[1:] - ids[:-1]  # shape (K-1,)
 
-    jumps = torch.abs(ids[1:] - ids[:-1])       # shape (K-1,)
+    jumps = torch.abs(ids[1:] - ids[:-1])  # shape (K-1,)
     tau_k = jumps / (4 * sigmoid_slope)  # shape (K-1,)
 
     # --- 2) first bin (-∞, e1) ---
@@ -128,6 +129,7 @@ def soft_segment_unbounded(Z, edges, ids, sigmoid_slope):
 
 import numpy as np
 
+
 def soft_segment_unbounded_np(Z, edges, ids, sigmoid_slope):
     """
     Z:            array of shape (...,) of scalar values
@@ -136,31 +138,79 @@ def soft_segment_unbounded_np(Z, edges, ids, sigmoid_slope):
     sigmoid_slope: scalar target peak slope m > 0
     returns:      array of shape (...,) of the soft-assigned id
     """
-    Z     = np.asarray(Z)
+    Z = np.asarray(Z)
     edges = np.asarray(edges)
-    ids   = np.asarray(ids)
+    ids = np.asarray(ids)
 
-    # 1) per-edge temperatures τ_k = |Δ_k|/(4·m)
-    jumps = np.abs(ids[1:] - ids[:-1])      # shape (K-1,)
-    tau_k = jumps / (4 * sigmoid_slope)     # shape (K-1,)
+    # Check if sigmoid function is num or array
+    match sigmoid_slope:
+        case np.ndarray():
+            membership = _final_faults_segmentation(Z, edges, sigmoid_slope)
+        case numbers.Number():
+             membership = _lith_segmentation(Z, edges, ids, sigmoid_slope)
+        case _:
+             raise ValueError("sigmoid_slope must be a float or an array")
 
-    # 2) first bin (-∞, e1) via σ((e1 - Z)/τ₁)
-    first = 1.0 / (1.0 + np.exp((Z - edges[0]) / tau_k[0]))     # shape (...,)
-
-    # 3) last  bin [e_{K-1}, ∞) via σ((Z - e_{K-1})/τ_{K-1})
-    last  = 1.0 / (1.0 + np.exp(-(Z - edges[-1]) / tau_k[-1]))  # shape (...,)
-
-    # 4) middle bins [e_i, e_{i+1}): σ((Z - e_i)/τ_i) - σ((Z - e_{i+1})/τ_{i+1})
-    Z_exp = Z[..., None]  # shape (...,1)
-    left  =  1.0 / (1.0 + np.exp(-(Z_exp - edges[:-1]) / tau_k[:-1]))  # (...,K-2)
-    right =  1.0 / (1.0 + np.exp(-(Z_exp - edges[1: ]) / tau_k[1: ]))  # (...,K-2)
-    middle = left - right                                              # (...,K-2)
-
-    # 5) assemble memberships and weight by ids
-    membership = np.concatenate(
-        [ first[..., None], middle, last[..., None] ],
-        axis=-1
-    )  # shape (...,K)
 
     ids__sum = np.sum(membership * ids, axis=-1)
     return np.atleast_2d(ids__sum)
+
+
+def _final_faults_segmentation(Z, edges, sigmoid_slope):
+    first = _sigmoid(
+        scalar_field=Z,
+        edges=edges[0],
+        tau_k=1 / sigmoid_slope
+    )  # shape (...,)
+    last = _sigmoid(
+        scalar_field=Z,
+        edges=edges[-1],
+        tau_k=1 / sigmoid_slope
+    )
+    membership = np.concatenate(
+        [first[..., None], last[..., None]],
+        axis=-1
+    )  # shape (...,K)
+    return membership
+
+
+def _lith_segmentation(Z, edges, ids, sigmoid_slope):
+    # 1) per-edge temperatures τ_k = |Δ_k|/(4·m)
+    jumps = np.abs(ids[1:] - ids[:-1])  # shape (K-1,)
+    tau_k = jumps / (4 * sigmoid_slope)  # shape (K-1,)
+    # 2) first bin (-∞, e1) via σ((e1 - Z)/τ₁)
+    first = _sigmoid(
+        scalar_field=Z,
+        edges=edges[0],
+        tau_k=tau_k[0]
+    )  # shape (...,)
+    # 3) last  bin [e_{K-1}, ∞) via σ((Z - e_{K-1})/τ_{K-1})
+    # last = 1.0 / (1.0 + np.exp(-(Z - edges[-1]) / tau_k[-1]))  # shape (...,)
+    last = _sigmoid(
+        scalar_field=Z,
+        edges=edges[-1],
+        tau_k=tau_k[-1]
+    )
+    # 4) middle bins [e_i, e_{i+1}): σ((Z - e_i)/τ_i) - σ((Z - e_{i+1})/τ_{i+1})
+    # shape (...,1)
+    left = _sigmoid(
+        scalar_field=(Z[..., None]),
+        edges=edges[:-1],
+        tau_k=tau_k[:-1]
+    )
+    right = _sigmoid(
+        scalar_field=(Z[..., None]),
+        edges=edges[1:],
+        tau_k=tau_k[1:]
+    )
+    middle = left - right  # (...,K-2)
+    # 5) assemble memberships and weight by ids
+    membership = np.concatenate(
+        [first[..., None], middle, last[..., None]],
+        axis=-1
+    )  # shape (...,K)
+    return membership
+
+
+def _sigmoid(scalar_field, edges, tau_k):
+    return 1.0 / (1.0 + np.exp((scalar_field - edges) / tau_k))
