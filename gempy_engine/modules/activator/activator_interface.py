@@ -177,11 +177,11 @@ def _final_faults_segmentation(Z, edges, sigmoid_slope):
 def _lith_segmentation(Z, edges, ids, sigmoid_slope):
     # 1) per-edge temperatures τ_k = |Δ_k|/(4·m)
     jumps = np.abs(ids[1:] - ids[:-1])  # shape (K-1,)
-    tau_k = jumps / (4 * sigmoid_slope)  # shape (K-1,)
+    tau_k = jumps / float(4 * sigmoid_slope)  # shape (K-1,)
     # 2) first bin (-∞, e1) via σ((e1 - Z)/τ₁)
     first = _sigmoid(
-        scalar_field=Z,
-        edges=edges[0],
+        scalar_field=-Z,
+        edges=-edges[0],
         tau_k=tau_k[0]
     )  # shape (...,)
     # 3) last  bin [e_{K-1}, ∞) via σ((Z - e_{K-1})/τ_{K-1})
@@ -213,4 +213,4 @@ def _lith_segmentation(Z, edges, ids, sigmoid_slope):
 
 
 def _sigmoid(scalar_field, edges, tau_k):
-    return 1.0 / (1.0 + np.exp((scalar_field - edges) / tau_k))
+    return 1.0 / (1.0 + np.exp(-(scalar_field - edges) / tau_k))
