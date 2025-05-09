@@ -140,7 +140,7 @@ def soft_segment_unbounded_np(Z, edges, ids, sigmoid_slope):
     """
     Z = np.asarray(Z)
     edges = np.asarray(edges)
-    ids = np.asarray(ids)
+    ids = np.asarray(ids[::-1])
 
     # Check if sigmoid function is num or array
     match sigmoid_slope:
@@ -175,9 +175,10 @@ def _final_faults_segmentation(Z, edges, sigmoid_slope):
 
 
 def _lith_segmentation(Z, edges, ids, sigmoid_slope):
+    
     # 1) per-edge temperatures τ_k = |Δ_k|/(4·m)
     jumps = np.abs(ids[1:] - ids[:-1])  # shape (K-1,)
-    tau_k = jumps / float(4 * sigmoid_slope)  # shape (K-1,)
+    tau_k = jumps / float(sigmoid_slope)  # shape (K-1,)
     # 2) first bin (-∞, e1) via σ((e1 - Z)/τ₁)
     first = _sigmoid(
         scalar_field=-Z,
