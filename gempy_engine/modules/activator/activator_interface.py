@@ -1,11 +1,12 @@
 import warnings
 
-from gempy_engine.config import DEBUG_MODE, AvailableBackends
-from gempy_engine.core.backend_tensor import BackendTensor as bt, BackendTensor
+from ...config import DEBUG_MODE, AvailableBackends
+from ...core.backend_tensor import BackendTensor as bt, BackendTensor
+from ...core.data.exported_fields import ExportedFields
+from ._soft_segment import soft_segment_unbounded
+
 import numpy as np
 import numbers
-
-from gempy_engine.core.data.exported_fields import ExportedFields
 
 
 def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
@@ -23,9 +24,17 @@ def activate_formation_block(exported_fields: ExportedFields, ids: np.ndarray,
             sigmoid_slope=sigmoid_slope
         )
     else:
+        sigm = soft_segment_unbounded(
+            Z=Z_x,
+            edges=scalar_value_at_sp,
+            ids=ids,
+            sigmoid_slope=sigmoid_slope
+        )
+        return sigm
+
         match BackendTensor.engine_backend:
             case AvailableBackends.PYTORCH:
-                sigm = soft_segment_unbounded(
+                sigm = soft_segment_unbounded_torch(
                     Z=Z_x,
                     edges=scalar_value_at_sp,
                     ids=ids,
@@ -85,7 +94,7 @@ def activate_formation_block_from_args(Z_x, ids, scalar_value_at_sp, sigmoid_slo
 import torch
 
 
-def soft_segment_unbounded(Z, edges, ids, sigmoid_slope):
+def soft_segment_unbounded_torch(Z, edges, ids, sigmoid_slope):
     """
     Z:            (...,) tensor of scalar values
     edges:   (K-1,) tensor of finite split points [e1, e2, ..., e_{K-1}]
@@ -124,7 +133,7 @@ def soft_segment_unbounded(Z, edges, ids, sigmoid_slope):
 
     # weighted sum by the ids
     ids__sum = (membership * ids).sum(dim=-1)
-    
+
     # make it at least 2d
     ids__sum = ids__sum[None, :]
 
@@ -151,10 +160,9 @@ def soft_segment_unbounded_np(Z, edges, ids, sigmoid_slope):
         case np.ndarray():
             membership = _final_faults_segmentation(Z, edges, sigmoid_slope)
         case numbers.Number():
-             membership = _lith_segmentation(Z, edges, ids, sigmoid_slope)
+            membership = _lith_segmentation(Z, edges, ids, sigmoid_slope)
         case _:
-             raise ValueError("sigmoid_slope must be a float or an array")
-
+            raise ValueError("sigmoid_slope must be a float or an array")
 
     ids__sum = np.sum(membership * ids, axis=-1)
     return np.atleast_2d(ids__sum)
@@ -179,7 +187,6 @@ def _final_faults_segmentation(Z, edges, sigmoid_slope):
 
 
 def _lith_segmentation(Z, edges, ids, sigmoid_slope):
-    
     # 1) per-edge temperatures τ_k = |Δ_k|/(4·m)
     jumps = np.abs(ids[1:] - ids[:-1])  # shape (K-1,)
     tau_k = jumps / float(sigmoid_slope)  # shape (K-1,)
