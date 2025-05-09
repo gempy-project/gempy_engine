@@ -124,7 +124,11 @@ def soft_segment_unbounded(Z, edges, ids, sigmoid_slope):
 
     # weighted sum by the ids
     ids__sum = (membership * ids).sum(dim=-1)
-    return np.atleast_2d(ids__sum.numpy())
+    
+    # make it at least 2d
+    ids__sum = ids__sum[None, :]
+
+    return ids__sum
 
 
 import numpy as np
