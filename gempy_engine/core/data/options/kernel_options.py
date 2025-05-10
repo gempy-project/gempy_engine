@@ -1,6 +1,7 @@
 import warnings
 
 from dataclasses import dataclass, asdict
+from typing import Optional
 
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.core.data.kernel_classes.solvers import Solvers
@@ -8,7 +9,7 @@ from gempy_engine.core.data.kernel_classes.solvers import Solvers
 
 @dataclass(frozen=False)
 class KernelOptions:
-    range: int  # TODO: have constructor from RegularGrid
+    range: int | float # TODO: have constructor from RegularGrid
     c_o: float  # TODO: This should be a property
     uni_degree: int = 1
     i_res: float = 4.
@@ -20,7 +21,7 @@ class KernelOptions:
 
     compute_condition_number: bool = False
     optimizing_condition_number: bool = False
-    condition_number: float = None
+    condition_number: Optional[float] = None
 
     @property
     def n_uni_eq(self):
