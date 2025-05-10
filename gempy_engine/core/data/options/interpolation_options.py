@@ -39,7 +39,10 @@ class InterpolationOptions(BaseModel):
     debug_water_tight: bool = False
 
     # region Volatile
-    _temp_interpolation_values: TempInterpolationValues = PrivateAttr(default_factory=TempInterpolationValues)
+    temp_interpolation_values: TempInterpolationValues = Field(
+        default_factory=TempInterpolationValues,
+        exclude=True
+    )
 
     # endregion
 
@@ -165,10 +168,6 @@ class InterpolationOptions(BaseModel):
                 setattr(self, key, value)  # sets the attribute to the provided value
             else:
                 warnings.warn(f"{key} is not a recognized attribute and will be ignored.")
-
-    @property
-    def temp_interpolation_values(self):
-        return self._temp_interpolation_values
 
     @property
     def number_octree_levels(self):
