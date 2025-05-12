@@ -7,7 +7,7 @@ from tests.fixtures.simple_models import simple_model_interpolation_input_factor
 
 def test_interpolate_model_cubic(n_oct_levels=3):
     interpolation_input, options, structure = simple_model_interpolation_input_factory()
-    options = InterpolationOptions(
+    options = InterpolationOptions.from_args(
         range=options.range,
         c_o=options.c_o,
         uni_degree=0,
@@ -31,7 +31,7 @@ def test_interpolate_model_cubic(n_oct_levels=3):
 def test_interpolate_model_exponential(n_oct_levels=3):
     interpolation_input, options, structure = simple_model_interpolation_input_factory()
 
-    options = InterpolationOptions(
+    options = InterpolationOptions.from_args(
         range=options.range,
         c_o=options.c_o,
         uni_degree=0,

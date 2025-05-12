@@ -77,7 +77,7 @@ def one_fault_model():
     range_ = 7 ** 2  # ? Since we are not getting the square root should we also square this? 
     c_o = 1
 
-    options = InterpolationOptions(
+    options = InterpolationOptions.from_args(
         range_, c_o,
         uni_degree=1,
         number_dimensions=3,
@@ -144,7 +144,7 @@ def one_finite_fault_model():
     range_ = 7 ** 2  # ? Since we are not getting the square root should we also square this? 
     c_o = 1
 
-    options = InterpolationOptions(
+    options = InterpolationOptions.from_args(
         range_, c_o,
         uni_degree=1,
         number_dimensions=3,
@@ -211,7 +211,7 @@ def graben_fault_model():
     range_ = 7 ** 2  # ? Since we are not getting the square root should we also square this? 
     c_o = 1
 
-    options = InterpolationOptions(
+    options = InterpolationOptions.from_args(
         range_, c_o,
         uni_degree=1,
         number_dimensions=3,

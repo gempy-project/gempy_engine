@@ -60,7 +60,7 @@ def test_public_interface_simplest_model():
 
     # region InterpolationOptions
 
-    interpolation_options: InterpolationOptions = InterpolationOptions(
+    interpolation_options: InterpolationOptions = InterpolationOptions.from_args(
         range=4.166666666667,  # TODO: have constructor from RegularGrid
         c_o=0.1428571429,  # TODO: This should be a property
         number_octree_levels=3,

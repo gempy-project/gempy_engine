@@ -43,6 +43,9 @@ class InterpolationOptions(BaseModel):
         default_factory=TempInterpolationValues,
         exclude=True
     )
+    
+    def __init__(self):
+        pass
 
     # endregion
 
@@ -90,7 +93,7 @@ class InterpolationOptions(BaseModel):
         block_solutions_type = RawArraysSolution.BlockSolutionType.OCTREE
         sigmoid_slope = 5_000_000
 
-        return InterpolationOptions(
+        return InterpolationOptions.from_args(
             kernel_options=kernel_options,
             evaluation_options=evaluation_options,
             # temp_interpolation_values=temp_interpolation_values,
@@ -106,7 +109,7 @@ class InterpolationOptions(BaseModel):
 
     @classmethod
     def init_octree_options(cls, range=1.7, c_o=10, refinement: int = 1):
-        return InterpolationOptions(
+        return InterpolationOptions.from_args(
             range=range,
             c_o=c_o,
             mesh_extraction=True,
@@ -115,7 +118,7 @@ class InterpolationOptions(BaseModel):
 
     @classmethod
     def init_dense_grid_options(cls):
-        options = InterpolationOptions(
+        options = InterpolationOptions.from_args(
             range=1.7,
             c_o=10,
             mesh_extraction=False,
@@ -130,7 +133,7 @@ class InterpolationOptions(BaseModel):
         raise NotImplementedError("Probabilistic interpolation is not yet implemented.")
 
     # def __repr__(self):
-    #     return f"InterpolationOptions({', '.join(f'{k}={v}' for k, v in asdict(self).items())})"
+    #     return f"InterpolationOptions.from_args({', '.join(f'{k}={v}' for k, v in asdict(self).items())})"
 
     # def _repr_html_(self):
     #     html = f"""

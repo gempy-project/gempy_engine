@@ -69,7 +69,7 @@ class TestCompareWithGempy_v2:
         tensors_structure = simple_model[3]
 
         # Prepare options
-        interpolation_options = InterpolationOptions(
+        interpolation_options = InterpolationOptions.from_args(
             range=5,
             c_o=5 ** 2 / 14 / 3,
             uni_degree=0,

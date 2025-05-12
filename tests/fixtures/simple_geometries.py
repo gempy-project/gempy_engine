@@ -46,7 +46,7 @@ def unconformity() -> Tuple[InterpolationInput, InterpolationOptions, InputDataD
     i_r = 4
     gi_r = 2
 
-    options = InterpolationOptions(range_, c_o, uni_degree=1, i_res=i_r, gi_res=gi_r,
+    options = InterpolationOptions.from_args(range_, c_o, uni_degree=1, i_res=i_r, gi_res=gi_r,
                                    number_dimensions=3,
                                    kernel_function=AvailableKernelFunctions.cubic)
 

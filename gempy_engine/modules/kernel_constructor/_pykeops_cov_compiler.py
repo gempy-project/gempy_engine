@@ -40,7 +40,7 @@ def simple_model_2():
     ori_i = Orientations(dip_positions, nugget_effect_grad)
 
     range = 5 ** 2
-    kri = InterpolationOptions(range, 1, 0, i_res=1, gi_res=1,
+    kri = InterpolationOptions.from_args(range, 1, 0, i_res=1, gi_res=1,
                                number_dimensions=2)
 
     _ = np.ones(3)
