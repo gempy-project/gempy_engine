@@ -23,13 +23,14 @@ class InterpolationOptions(BaseModel):
         arbitrary_types_allowed=False,
         use_enum_values=False,
         json_encoders={
-                CacheMode: lambda e: e.value
+                CacheMode: lambda e: e.value,
+                AvailableKernelFunctions: lambda e: e.name
         }
     )
 
     # @off
-    kernel_options: KernelOptions = Field(init=True)  # * This is the compression of the fields above and the way to go in the future
-    evaluation_options: EvaluationOptions = Field(init=True)
+    kernel_options: KernelOptions = Field(init=True, exclude=False)  # * This is the compression of the fields above and the way to go in the future
+    evaluation_options: EvaluationOptions = Field(init=True, exclude= False)
 
     debug: bool
     cache_mode: CacheMode
