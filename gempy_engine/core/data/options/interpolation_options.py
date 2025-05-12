@@ -90,7 +90,7 @@ class InterpolationOptions(BaseModel):
         block_solutions_type = RawArraysSolution.BlockSolutionType.OCTREE
         sigmoid_slope = 5_000_000
 
-        return InterpolationOptions.from_args(
+        return InterpolationOptions(
             kernel_options=kernel_options,
             evaluation_options=evaluation_options,
             # temp_interpolation_values=temp_interpolation_values,
