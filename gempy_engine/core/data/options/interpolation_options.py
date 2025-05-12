@@ -43,10 +43,7 @@ class InterpolationOptions(BaseModel):
         default_factory=TempInterpolationValues,
         exclude=True
     )
-    
-    def __init__(self):
-        pass
-
+   
     # endregion
 
     @classmethod
