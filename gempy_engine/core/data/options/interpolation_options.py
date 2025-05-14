@@ -106,7 +106,7 @@ class InterpolationOptions(BaseModel):
     # @on
 
     @classmethod
-    def init_octree_options(cls, range=1.7, c_o=10, refinement: int = 1):
+    def init_octree_options(cls, range=1.7, c_o=10., refinement: int = 1):
         return InterpolationOptions.from_args(
             range=range,
             c_o=c_o,
@@ -118,7 +118,7 @@ class InterpolationOptions(BaseModel):
     def init_dense_grid_options(cls):
         options = InterpolationOptions.from_args(
             range=1.7,
-            c_o=10,
+            c_o=10.,
             mesh_extraction=False,
             number_octree_levels=1
         )

@@ -1,10 +1,13 @@
 ﻿import pprint
 import warnings
+from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Optional, Union
+from typing import Optional
 
 import numpy as np
-from dataclasses import dataclass
+from typing_extensions import Annotated
+
+from .encoders.converters import numpy_array_short_validator
 
 
 class TransformOpsOrder(Enum):
@@ -13,16 +16,16 @@ class TransformOpsOrder(Enum):
 
 
 class GlobalAnisotropy(Enum):
-    CUBE = auto() # * Transform data to be as close as possible to a cube
-    NONE = auto() # * Do not transform data
-    MANUAL = auto() # * Use the user defined transform
-    
+    CUBE = auto()  # * Transform data to be as close as possible to a cube
+    NONE = auto()  # * Do not transform data
+    MANUAL = auto()  # * Use the user defined transform
+
 
 @dataclass
 class Transform:
-    position: np.ndarray
-    rotation: np.ndarray
-    scale: np.ndarray
+    position: Annotated[np.ndarray, numpy_array_short_validator]
+    rotation: Annotated[np.ndarray, numpy_array_short_validator]
+    scale: Annotated[np.ndarray, numpy_array_short_validator]
 
     _is_default_transform: bool = False
     _cached_pivot: Optional[np.ndarray] = None
@@ -68,11 +71,10 @@ class Transform:
         ])
         return cls(position, rotation_degrees, scale)
 
-
     @property
     def cached_pivot(self):
         return self._cached_pivot
-    
+
     @cached_pivot.setter
     def cached_pivot(self, pivot: np.ndarray):
         self._cached_pivot = pivot
@@ -96,7 +98,7 @@ class Transform:
 
         # The scaling factor for each dimension is the inverse of its range
         scaling_factors = 1 / range_coord
-        
+
         # ! Be careful with toy models
         center: np.ndarray = (max_coord + min_coord) / 2
         return cls(
@@ -127,14 +129,14 @@ class Transform:
             )
         else:
             raise NotImplementedError
-        
+
     @staticmethod
     def _adjust_scale_to_limit_ratio(s, anisotropic_limit=np.array([10, 10, 10])):
         # Calculate the ratios
         ratios = [
-            s[0] / s[1], s[0] / s[2],
-            s[1] / s[0], s[1] / s[2],
-            s[2] / s[0], s[2] / s[1]
+                s[0] / s[1], s[0] / s[2],
+                s[1] / s[0], s[1] / s[2],
+                s[2] / s[0], s[2] / s[1]
         ]
 
         # Adjust the scales based on the index of the max ratio
@@ -158,9 +160,9 @@ class Transform:
     @staticmethod
     def _max_scale_ratio(s):
         ratios = [
-            s[0] / s[1], s[0] / s[2],
-            s[1] / s[0], s[1] / s[2],
-            s[2] / s[0], s[2] / s[1]
+                s[0] / s[1], s[0] / s[2],
+                s[1] / s[0], s[1] / s[2],
+                s[2] / s[0], s[2] / s[1]
         ]
         return max(ratios)
 
@@ -223,7 +225,7 @@ class Transform:
 
     def scale_points(self, points: np.ndarray):
         return points * self.scale
-    
+
     def apply_inverse(self, points: np.ndarray, transform_op_order: TransformOpsOrder = TransformOpsOrder.SRT):
         # * NOTE: to compare with legacy we would have to add 0.5 to the coords
         assert points.shape[1] == 3
@@ -233,12 +235,11 @@ class Transform:
         transformed_points = (inv @ homogeneous_points.T).T
         return transformed_points[:, :3]
 
-    
     def apply_with_cached_pivot(self, points: np.ndarray, transform_op_order: TransformOpsOrder = TransformOpsOrder.SRT):
         if self._cached_pivot is None:
             raise ValueError("A pivot must be set before calling this method")
         return self.apply_with_pivot(points, self._cached_pivot, transform_op_order)
-    
+
     def apply_inverse_with_cached_pivot(self, points: np.ndarray, transform_op_order: TransformOpsOrder = TransformOpsOrder.SRT):
         if self._cached_pivot is None:
             raise ValueError("A pivot must be set before calling this method")
@@ -269,7 +270,7 @@ class Transform:
     def apply_inverse_with_pivot(self, points: np.ndarray, pivot: np.ndarray,
                                  transform_op_order: TransformOpsOrder = TransformOpsOrder.SRT):
         assert points.shape[1] == 3
-        
+
         # Translation matrices to and from the pivot
         T_to_origin = self._translation_matrix(-pivot[0], -pivot[1], -pivot[2])
         T_back = self._translation_matrix(*pivot)
@@ -284,10 +285,10 @@ class Transform:
     @staticmethod
     def _translation_matrix(tx, ty, tz):
         return np.array([
-            [1, 0, 0, tx],
-            [0, 1, 0, ty],
-            [0, 0, 1, tz],
-            [0, 0, 0, 1]
+                [1, 0, 0, tx],
+                [0, 1, 0, ty],
+                [0, 0, 1, tz],
+                [0, 0, 0, 1]
         ])
 
     def transform_gradient(self, gradients: np.ndarray, transform_op_order: TransformOpsOrder = TransformOpsOrder.SRT,

@@ -25,7 +25,8 @@ class KernelOptions:
     optimizing_condition_number: bool = False
     condition_number: Optional[float] = None
 
-    @field_validator('kernel_function', mode='before')
+
+    @field_validator('kernel_function', mode='before', json_schema_input_type=str)
     @classmethod
     def _deserialize_kernel_function_from_name(cls, value):
         """
