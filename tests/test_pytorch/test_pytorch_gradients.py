@@ -64,7 +64,7 @@ def simple_model_interpolation_input_TORCH():
     co = 0.1428571429
 
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
-    interpolation_options = InterpolationOptions(range_, co, 0, number_dimensions=3,
+    interpolation_options = InterpolationOptions.from_args(range_, co, 0, number_dimensions=3,
                                                  kernel_function=AvailableKernelFunctions.cubic)
     ids = np.array([1, 2])
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)

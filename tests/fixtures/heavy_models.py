@@ -102,7 +102,7 @@ def moureze_model_factory(path_to_root: str, pick_every=8, octree_lvls=3, solver
     # endregion
 
     # region InterpolationOptions
-    interpolation_options: InterpolationOptions = InterpolationOptions(
+    interpolation_options: InterpolationOptions = InterpolationOptions.from_args(
         range=100.,
         c_o=10.,
         number_octree_levels=octree_lvls,

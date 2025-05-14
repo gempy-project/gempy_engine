@@ -1,6 +1,7 @@
 import enum
 import warnings
-from dataclasses import dataclass, asdict, field
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator, PrivateAttr
 
 import gempy_engine.config
 from .evaluation_options import MeshExtractionMaskingOptions, EvaluationOptions
@@ -10,11 +11,7 @@ from .kernel_options import KernelOptions
 from ..raw_arrays_solution import RawArraysSolution
 
 
-@dataclass
-class InterpolationOptions:
-    __slots__ = ['kernel_options', 'evaluation_options', 'temp_interpolation_values', 'debug',
-                 'cache_mode', 'cache_model_name', 'block_solutions_type', 'sigmoid_slope']
-
+class InterpolationOptions(BaseModel):
     class CacheMode(enum.Enum):
         """ Cache mode for the interpolation"""
         NO_CACHE: int = enum.auto()  #: No cache at all even during the interpolation computation. This is quite expensive for no good reason.
@@ -22,28 +19,42 @@ class InterpolationOptions:
         IN_MEMORY_CACHE = enum.auto()
         CLEAR_CACHE = enum.auto()
 
+    model_config = ConfigDict(
+        arbitrary_types_allowed=False,
+        use_enum_values=False,
+        json_encoders={
+                CacheMode: lambda e: e.value,
+                AvailableKernelFunctions: lambda e: e.name
+        }
+    )
+
     # @off
-    kernel_options: KernelOptions  # * This is the compression of the fields above and the way to go in the future
-    evaluation_options: EvaluationOptions
-    temp_interpolation_values: TempInterpolationValues
+    kernel_options: KernelOptions = Field(init=True, exclude=False)  # * This is the compression of the fields above and the way to go in the future
+    evaluation_options: EvaluationOptions = Field(init=True, exclude= False)
 
     debug: bool
     cache_mode: CacheMode
     cache_model_name: str  # : Model name for the cache
-
     block_solutions_type: RawArraysSolution.BlockSolutionType
-
     sigmoid_slope: int
-
     debug_water_tight: bool = False
 
-    def __init__(
-            self,
+    # region Volatile
+    temp_interpolation_values: TempInterpolationValues = Field(
+        default_factory=TempInterpolationValues,
+        exclude=True
+    )
+   
+    # endregion
+
+    @classmethod
+    def from_args(
+            cls,
             range: int | float,
             c_o: float,
             uni_degree: int = 1,
-            i_res: float = 4,
-            gi_res: float = 2,  # ! This should be DEP
+            i_res: float = 4.,
+            gi_res: float = 2.,  # ! This should be DEP
             number_dimensions: int = 3,  # ? This probably too
             number_octree_levels: int = 1,
             kernel_function: AvailableKernelFunctions = AvailableKernelFunctions.cubic,
@@ -52,7 +63,7 @@ class InterpolationOptions:
             compute_condition_number: bool = False,
     ):
 
-        self.kernel_options = KernelOptions(
+        kernel_options = KernelOptions(
             range=range,
             c_o=c_o,
             uni_degree=uni_degree,
@@ -63,7 +74,7 @@ class InterpolationOptions:
             compute_condition_number=compute_condition_number
         )
 
-        self.evaluation_options = EvaluationOptions(
+        evaluation_options = EvaluationOptions(
             _number_octree_levels=number_octree_levels,
             _number_octree_levels_surface=4,
             mesh_extraction=mesh_extraction,
@@ -73,18 +84,30 @@ class InterpolationOptions:
 
         )
 
-        self.temp_interpolation_values = TempInterpolationValues()
-        self.debug = gempy_engine.config.DEBUG_MODE
-        self.cache_mode = InterpolationOptions.CacheMode.IN_MEMORY_CACHE
-        self.cache_model_name = ""
-        self.block_solutions_type = RawArraysSolution.BlockSolutionType.OCTREE
-        self.sigmoid_slope = 5_000_000
+        temp_interpolation_values = TempInterpolationValues()
+        debug = gempy_engine.config.DEBUG_MODE
+        cache_mode = InterpolationOptions.CacheMode.IN_MEMORY_CACHE
+        cache_model_name = ""
+        block_solutions_type = RawArraysSolution.BlockSolutionType.OCTREE
+        sigmoid_slope = 5_000_000
+
+        return InterpolationOptions(
+            kernel_options=kernel_options,
+            evaluation_options=evaluation_options,
+            # temp_interpolation_values=temp_interpolation_values,
+            debug=debug,
+            cache_mode=cache_mode,
+            cache_model_name=cache_model_name,
+            block_solutions_type=block_solutions_type,
+            sigmoid_slope=sigmoid_slope,
+            debug_water_tight=False,
+        )
 
     # @on
 
     @classmethod
     def init_octree_options(cls, range=1.7, c_o=10, refinement: int = 1):
-        return InterpolationOptions(
+        return InterpolationOptions.from_args(
             range=range,
             c_o=c_o,
             mesh_extraction=True,
@@ -93,7 +116,7 @@ class InterpolationOptions:
 
     @classmethod
     def init_dense_grid_options(cls):
-        options = InterpolationOptions(
+        options = InterpolationOptions.from_args(
             range=1.7,
             c_o=10,
             mesh_extraction=False,
@@ -107,17 +130,17 @@ class InterpolationOptions:
         # TODO: This should have the sigmoid slope different
         raise NotImplementedError("Probabilistic interpolation is not yet implemented.")
 
-    def __repr__(self):
-        return f"InterpolationOptions({', '.join(f'{k}={v}' for k, v in asdict(self).items())})"
+    # def __repr__(self):
+    #     return f"InterpolationOptions.from_args({', '.join(f'{k}={v}' for k, v in asdict(self).items())})"
 
-    def _repr_html_(self):
-        html = f"""
-                <table>
-                    <tr><td colspan='2' style='text-align:center'><b>InterpolationOptions</b></td></tr>
-                    {''.join(f'<tr><td>{k}</td><td>{v._repr_html_() if isinstance(v, KernelOptions) else v}</td></tr>' for k, v in asdict(self).items())}
-                </table>
-                """
-        return html
+    # def _repr_html_(self):
+    #     html = f"""
+    #             <table>
+    #                 <tr><td colspan='2' style='text-align:center'><b>InterpolationOptions</b></td></tr>
+    #                 {''.join(f'<tr><td>{k}</td><td>{v._repr_html_() if isinstance(v, KernelOptions) else v}</td></tr>' for k, v in asdict(self).items())}
+    #             </table>
+    #             """
+    #     return html
 
     def update_options(self, **kwargs):
         """

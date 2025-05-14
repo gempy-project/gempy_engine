@@ -94,7 +94,7 @@ class TestPykeopsNumPyEqual():
         input_data_descriptor: InputDataDescriptor = simple_model_2_b[3]
 
         # Prepare options
-        interpolation_options = InterpolationOptions(
+        interpolation_options = InterpolationOptions.from_args(
             range=5,
             c_o=5 ** 2 / 14 / 3,
             uni_degree=0,

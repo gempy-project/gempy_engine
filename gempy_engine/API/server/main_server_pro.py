@@ -27,7 +27,7 @@ logger = setup_logger()
 
 # Default interpolation options
 range_ = 1
-default_interpolation_options: InterpolationOptions = InterpolationOptions(
+default_interpolation_options: InterpolationOptions = InterpolationOptions.from_args(
     range=range_,
     c_o=(range_ ** 2) / 14 / 3,
     number_octree_levels=4,

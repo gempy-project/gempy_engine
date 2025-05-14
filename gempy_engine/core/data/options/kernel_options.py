@@ -1,6 +1,9 @@
 import warnings
 
 from dataclasses import dataclass, asdict
+from typing import Optional
+
+from pydantic import field_validator
 
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.core.data.kernel_classes.solvers import Solvers
@@ -8,7 +11,7 @@ from gempy_engine.core.data.kernel_classes.solvers import Solvers
 
 @dataclass(frozen=False)
 class KernelOptions:
-    range: int  # TODO: have constructor from RegularGrid
+    range: int | float  # TODO: have constructor from RegularGrid
     c_o: float  # TODO: This should be a property
     uni_degree: int = 1
     i_res: float = 4.
@@ -20,7 +23,25 @@ class KernelOptions:
 
     compute_condition_number: bool = False
     optimizing_condition_number: bool = False
-    condition_number: float = None
+    condition_number: Optional[float] = None
+
+    @field_validator('kernel_function', mode='before')
+    @classmethod
+    def _deserialize_kernel_function_from_name(cls, value):
+        """
+        Ensures that a string input (e.g., "cubic" from JSON)
+        is correctly converted to an AvailableKernelFunctions enum member.
+        """
+        if isinstance(value, str):
+            try:
+                return AvailableKernelFunctions[value]  # Lookup enum member by name
+            except KeyError:
+                # This provides a more specific error if the name doesn't exist
+                valid_names = [member.name for member in AvailableKernelFunctions]
+                raise ValueError(f"Invalid kernel function name '{value}'. Must be one of: {valid_names}")
+        # If it's already an AvailableKernelFunctions member (e.g., during direct model instantiation),
+        # or if it's another type that Pydantic's later validation will catch as an error.
+        return value
 
     @property
     def n_uni_eq(self):
@@ -65,16 +86,16 @@ class KernelOptions:
     def __hash__(self):
         # Using a tuple to hash all the values together
         return hash((
-            self.range,
-            self.c_o,
-            self.uni_degree,
-            self.i_res,
-            self.gi_res,
-            self.number_dimensions,
-            self.kernel_function,
-            self.compute_condition_number,
+                self.range,
+                self.c_o,
+                self.uni_degree,
+                self.i_res,
+                self.gi_res,
+                self.number_dimensions,
+                self.kernel_function,
+                self.compute_condition_number,
         ))
-    
+
     def __repr__(self):
         return f"KernelOptions({', '.join(f'{k}={v}' for k, v in asdict(self).items())})"
 

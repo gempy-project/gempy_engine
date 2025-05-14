@@ -56,7 +56,7 @@ def simple_model_2_factory() -> Tuple[SurfacePoints, Orientations, Interpolation
                               [0, .8]])
     nugget_effect_grad = 0.0000001
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
-    kri = InterpolationOptions(5, 5 ** 2 / 14 / 3, 0,
+    kri = InterpolationOptions.from_args(5, 5 ** 2 / 14 / 3, 0,
                                number_dimensions=2, kernel_function=AvailableKernelFunctions.cubic)
     tensor_struct = TensorsStructure(number_of_points_per_surface=np.array([4, 3]))
     stack_structure = StacksStructure(number_of_points_per_stack=np.array([7]),
@@ -113,7 +113,7 @@ def simple_model() -> Tuple[SurfacePoints, Orientations, InterpolationOptions, I
         range_ = 4.166666666667
         co = 0.1428571429
         ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
-        kri = InterpolationOptions(
+        kri = InterpolationOptions.from_args(
             range_,
             co,
             0,
@@ -163,7 +163,7 @@ def simple_model_interpolation_input_factory():
     range_ = 4.166666666667
     co = 0.1428571429
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
-    interpolation_options = InterpolationOptions(range_, co, 0, number_dimensions=3,
+    interpolation_options = InterpolationOptions.from_args(range_, co, 0, number_dimensions=3,
                                                  kernel_function=AvailableKernelFunctions.cubic)
     ids = np.array([1, 2])
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
@@ -217,7 +217,7 @@ def _gen_simple_model_3_layers(simple_grid_3d_octree):
     range_ = 4.166666666667
     co = 0.1428571429
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
-    interpolation_options = InterpolationOptions(range_, co, 0, i_res=4, gi_res=2,
+    interpolation_options = InterpolationOptions.from_args(range_, co, 0, i_res=4, gi_res=2,
                                                  number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
     tensor_structure = TensorsStructure(number_of_points_per_surface=np.array([7, 2, 2]))
     stack_structure = StacksStructure(number_of_points_per_stack=np.array([11]),
@@ -267,7 +267,7 @@ def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid) -> Tuple[Int
 
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
 
-    interpolation_options = InterpolationOptions(range_, co, 0,
+    interpolation_options = InterpolationOptions.from_args(range_, co, 0,
                                                  number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
 
     ids = np.array([1, 2, 3, 4])
@@ -386,7 +386,7 @@ def unconformity_complex_factory():
     c_o = 35.71428571 * 100
     i_r = 4
     gi_r = 2
-    options = InterpolationOptions(
+    options = InterpolationOptions.from_args(
         range_, c_o, uni_degree=0, i_res=i_r, gi_res=gi_r,
         number_dimensions=3,
         kernel_function=AvailableKernelFunctions.cubic)
@@ -439,7 +439,7 @@ def unconformity_complex_implicit():
     i_r = 4
     gi_r = 2
 
-    options = InterpolationOptions(range_, c_o, uni_degree=0, i_res=i_r, gi_res=gi_r,
+    options = InterpolationOptions.from_args(range_, c_o, uni_degree=0, i_res=i_r, gi_res=gi_r,
                                    number_dimensions=3,
                                    kernel_function=AvailableKernelFunctions.cubic)
 
@@ -477,7 +477,7 @@ def unconformity_complex_one_layer():
     i_r = 4
     gi_r = 2
 
-    options = InterpolationOptions(range_, c_o, uni_degree=0, i_res=i_r, gi_res=gi_r,
+    options = InterpolationOptions.from_args(range_, c_o, uni_degree=0, i_res=i_r, gi_res=gi_r,
                                    number_dimensions=3,
                                    kernel_function=AvailableKernelFunctions.cubic)
 
