@@ -58,6 +58,8 @@ class RawArraysSolution:
     topology_count: Optional[np.ndarray] = None  # ? I am not 100% sure the type is correct
 
     # endregion
+    scalar_field_at_surface_points: list[np.ndarray] = None
+    n_surfaces: int = 0
 
     # ? TODO: This could be just the init
     @classmethod
@@ -107,9 +109,11 @@ class RawArraysSolution:
 
     def _set_scalar_field_at_surface_points(self, octree_output: OctreeLevel):
         temp_list = []
+        self.n_surfaces = 0
         for i in range(octree_output.number_of_outputs):
             at_surface_points = octree_output.outputs_centers[i].scalar_fields.exported_fields.scalar_field_at_surface_points
             temp_list.append(BackendTensor.t.to_numpy(at_surface_points))
+            self.n_surfaces += at_surface_points.shape[0]
 
         self.scalar_field_at_surface_points = temp_list
 
