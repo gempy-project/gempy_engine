@@ -3,6 +3,7 @@ import numbers
 import numpy as np
 
 from ...core.backend_tensor import BackendTensor as bt, BackendTensor
+from ...core.data.kernel_classes.kernel_functions import dtype
 
 try:
     import torch
@@ -53,7 +54,7 @@ def _final_faults_segmentation(Z, edges, sigmoid_slope):
 
 def _lith_segmentation(Z, edges, ids, sigmoid_slope):
     # 1) per-edge temperatures τ_k = |Δ_k|/(4·m)
-    jumps = bt.t.abs(ids[1:] - ids[:-1])  # shape (K-1,)
+    jumps = bt.t.abs(ids[1:] - ids[:-1], dtype=bt.dtype_obj)  # shape (K-1,)
     tau_k = jumps / float(sigmoid_slope)  # shape (K-1,)
     # 2) first bin (-∞, e1) via σ((e1 - Z)/τ₁)
     first = _sigmoid(
@@ -90,4 +91,31 @@ def _lith_segmentation(Z, edges, ids, sigmoid_slope):
 
 
 def _sigmoid(scalar_field, edges, tau_k):
-    return 1.0 / (1.0 + bt.t.exp(-(scalar_field - edges) / tau_k))
+    x = -(scalar_field - edges) / tau_k
+    return 1.0 / (1.0 + bt.t.exp(x))
+
+
+def _sigmoid_stable(scalar_field, edges, tau_k):
+    """
+    Numerically‐stable sigmoid of (scalar_field - edges)/tau_k,
+    only exponentiates on the needed slice.
+    """
+    x = (scalar_field - edges) / tau_k
+    # allocate output
+    out = bt.t.empty_like(x)
+
+    # mask which positions are >=0 or <0
+    pos = x >= 0
+    neg = ~pos
+
+    # for x>=0: safe to compute exp(-x)
+    x_pos = x[pos]
+    exp_neg = bt.t.exp(-x_pos)            # no overflow since -x_pos <= 0
+    out[pos] = 1.0 / (1.0 + exp_neg)
+
+    # for x<0: safe to compute exp(x)
+    x_neg = x[neg]
+    exp_pos = bt.t.exp(x_neg)             # no overflow since x_neg < 0
+    out[neg] = exp_pos / (1.0 + exp_pos)
+
+    return out
