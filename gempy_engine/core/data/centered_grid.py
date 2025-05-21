@@ -1,14 +1,15 @@
 ﻿from dataclasses import dataclass, field
-from typing import Sequence, Union, Annotated
 
 import numpy as np
-from .encoders.converters import numpy_array_short_validator
+
+from .encoders.converters import short_array_type
+
 
 @dataclass
 class CenteredGrid:
-    centers: Annotated[np.ndarray,  numpy_array_short_validator] #: This is just used to calculate xyz to interpolate. Tz is independent
-    resolution: Annotated[np.ndarray,  numpy_array_short_validator]  
-    radius: float | Annotated[np.ndarray,  numpy_array_short_validator]
+    centers: short_array_type  #: This is just used to calculate xyz to interpolate. Tz is independent
+    resolution: short_array_type  
+    radius: float | short_array_type
 
     kernel_grid_centers: np.ndarray  = field(init=False)
     left_voxel_edges: np.ndarray  = field(init=False)
