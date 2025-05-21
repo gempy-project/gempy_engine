@@ -2,13 +2,13 @@
 from typing import Sequence, Union, Annotated
 
 import numpy as np
-
+from .encoders.converters import numpy_array_short_validator
 
 @dataclass
 class CenteredGrid:
-    centers: np.ndarray  #: This is just used to calculate xyz to interpolate. Tz is independent
-    resolution: Sequence[float] | np.ndarray 
-    radius: float | Sequence[float] | np.ndarray
+    centers: Annotated[np.ndarray,  numpy_array_short_validator] #: This is just used to calculate xyz to interpolate. Tz is independent
+    resolution: Annotated[np.ndarray,  numpy_array_short_validator]  
+    radius: float | Annotated[np.ndarray,  numpy_array_short_validator]
 
     kernel_grid_centers: np.ndarray  = field(init=False)
     left_voxel_edges: np.ndarray  = field(init=False)
