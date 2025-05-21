@@ -1,21 +1,18 @@
-﻿from dataclasses import dataclass
-from typing import Sequence, Union
+﻿from dataclasses import dataclass, field
+from typing import Sequence, Union, Annotated
 
 import numpy as np
-
-from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.core.utils import cast_type_inplace
 
 
 @dataclass
 class CenteredGrid:
     centers: np.ndarray  #: This is just used to calculate xyz to interpolate. Tz is independent
-    resolution: Sequence[float]
-    radius: Union[float, Sequence[float]]
+    resolution: Sequence[float] | np.ndarray 
+    radius: float | Sequence[float] | np.ndarray
 
-    kernel_grid_centers: np.ndarray = None
-    left_voxel_edges: np.ndarray = None
-    right_voxel_edges: np.ndarray = None
+    kernel_grid_centers: np.ndarray  = field(init=False)
+    left_voxel_edges: np.ndarray  = field(init=False)
+    right_voxel_edges: np.ndarray  = field(init=False)
 
     def __len__(self):
         return self.centers.shape[0] * self.kernel_grid_centers.shape[0]
