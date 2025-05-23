@@ -42,7 +42,8 @@ class InterpolationOptions(BaseModel):
     # region Volatile
     temp_interpolation_values: TempInterpolationValues = Field(
         default_factory=TempInterpolationValues,
-        exclude=True
+        exclude=True,
+        repr=False
     )
    
     # endregion
