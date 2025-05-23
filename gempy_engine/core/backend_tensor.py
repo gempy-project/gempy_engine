@@ -175,7 +175,7 @@ class BackendTensor:
         cls.tfnp.concatenate = _concatenate
         cls.tfnp.transpose = _transpose
         cls.tfnp.geomspace = lambda start, stop, step: torch.logspace(start, stop, step, base=10)
-        cls.tfnp.abs = lambda tensor, dtype: tensor.abs().type(dtype)
+        cls.tfnp.abs = lambda tensor, dtype = None: tensor.abs().type(dtype) if dtype is not None else tensor.abs()
 
     @classmethod
     def _wrap_pykeops_functions(cls):
