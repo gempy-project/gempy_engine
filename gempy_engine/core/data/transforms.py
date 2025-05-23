@@ -28,7 +28,7 @@ class Transform:
     scale: Annotated[np.ndarray, numpy_array_short_validator]
 
     _is_default_transform: bool = False
-    _cached_pivot: Optional[np.ndarray] = None
+    _cached_pivot: Annotated[np.ndarray, numpy_array_short_validator] | None = None
 
     def __repr__(self):
         return pprint.pformat(self.__dict__)
@@ -76,8 +76,8 @@ class Transform:
         return self._cached_pivot
 
     @cached_pivot.setter
-    def cached_pivot(self, pivot: np.ndarray):
-        self._cached_pivot = pivot
+    def cached_pivot(self, pivot: list):
+        self._cached_pivot = np.array(pivot)
 
     @classmethod
     def from_input_points(cls, surface_points: 'gempy.data.SurfacePointsTable', orientations: 'gempy.data.OrientationsTable') -> 'Transform':
