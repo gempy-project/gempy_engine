@@ -8,10 +8,6 @@ class AvailableBackends(Flag):
     numpy = auto()
     PYTORCH = auto()
 
-    # Legacy
-    aesara = auto()
-    legacy = auto()
-
 
 # Define the paths for the .env files
 
