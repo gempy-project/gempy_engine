@@ -117,7 +117,7 @@ def _optimize_nuggets_against_condition_number(A_matrix, interp_input, kernel_op
     cond_number = BackendTensor.t.linalg.cond(A_matrix)
     nuggets = interp_input.sp_internal.nugget_effect_ref_rest
     l1_reg = torch.norm(nuggets, 2) ** 2
-    lambda_l1 = 100000000
+    lambda_l1 = 100_000_000
     loss = cond_number - lambda_l1 * l1_reg
     loss.backward()
     kernel_options.condition_number = cond_number
