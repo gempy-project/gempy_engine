@@ -394,8 +394,6 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
                       xyz_on_edge, gradients, a, b, v_pro, np.array(v_mesh), indices=None,
                       plot_label=False, plot_marching_cubes=False)
 
-    return xyz_on_edge, gradients
-
 
 @pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="Only numpy supported")
 def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
@@ -503,8 +501,6 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
                       v_pro=v_pro, indices=indices, plot_marching_cubes=True
                       )
 
-    return xyz_on_edge, gradients
-
 
 @pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="Only numpy supported")
 def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple_grid_3d_octree):
@@ -607,8 +603,6 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
                       xyz_on_edge, gradients, a=center_mass, b=normals,
                       v_pro=v_pro, indices=indices, plot_marching_cubes=True
                       )
-
-    return xyz_on_edge, gradients
 
 
 # * ======================= Private functions =======================
