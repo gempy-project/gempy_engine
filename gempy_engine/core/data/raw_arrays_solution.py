@@ -82,11 +82,6 @@ class RawArraysSolution:
             case cls.BlockSolutionType.DENSE_GRID:
                 _fill_block_solutions_with_dense_grid(stacks_output, raw_arrays_solution)
                 raw_arrays_solution.dense_ids = BackendTensor.t.to_numpy(collapsed_output.ids_block_dense_grid)
-            case cls.BlockSolutionType.NONE:
-                return None
-            case _:
-                raise ValueError(f"Block solution type {block_solution_type} not recognized")
-        
 
         # Endregion
 
