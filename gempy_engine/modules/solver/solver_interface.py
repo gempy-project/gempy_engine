@@ -35,7 +35,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndar
         case (AvailableBackends.numpy, False, Solvers.DEFAULT):
             w = numpy_solve(b, cov, dtype)
             if compute_condition_number:
-                _compute_conditional_number(cov)
+                kernel_options.condition_number = _compute_conditional_number(cov)
         case (AvailableBackends.numpy, _, Solvers.DEFAULT |Solvers.SCIPY_CG):
             w = numpy_cg(b, cov)
         case (AvailableBackends.numpy, _, Solvers.GMRES):
@@ -49,7 +49,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndar
 
 
 
-def _compute_conditional_number(cov):
+def _compute_conditional_number(cov, plot=False):
     cond_number = np.linalg.cond(cov)
     svd = np.linalg.svd(cov)
     eigvals = np.linalg.eigvals(cov)
@@ -61,12 +61,15 @@ def _compute_conditional_number(cov):
     import matplotlib.pyplot as plt
     if not is_positive_definite:  # ! Careful numpy False
         warnings.warn('The covariance matrix is not positive definite')
-    # Plotting the histogram
-    plt.hist(eigvals, bins=50, color='blue', alpha=0.7, log=True)
-    plt.xlabel('Eigenvalue')
-    plt.ylabel('Frequency')
-    plt.title('Histogram of Eigenvalues')
-    plt.show()
+    if plot:
+        # Plotting the histogram
+        plt.hist(eigvals, bins=50, color='blue', alpha=0.7, log=True)
+        plt.xlabel('Eigenvalue')
+        plt.ylabel('Frequency')
+        plt.title('Histogram of Eigenvalues')
+        plt.show()
+        
+    return cond_number
 
 
 
