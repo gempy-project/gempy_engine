@@ -24,6 +24,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndar
         case (AvailableBackends.PYTORCH, False, _):
             if kernel_options.compute_condition_number:
                 cond_number = BackendTensor.t.linalg.cond(cov)
+                kernel_options.condition_number = cond_number
                 print(f'Condition number: {cond_number}.')
             w = torch_solve(b, cov)
         case (AvailableBackends.PYTORCH, True, _):
