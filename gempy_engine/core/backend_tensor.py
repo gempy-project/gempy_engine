@@ -100,6 +100,12 @@ class BackendTensor:
                 if (pykeops_enabled):
                     import pykeops
                     cls._wrap_pykeops_functions()
+                
+                if (use_gpu):
+                    cls.use_gpu = True
+                    # cls.tensor_backend_pointer['active_backend'].set_default_device("cuda")
+                else:
+                    cls.use_gpu = False
 
             case (_):
                 raise AttributeError(
