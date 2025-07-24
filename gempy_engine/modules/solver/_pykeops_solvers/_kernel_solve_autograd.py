@@ -5,7 +5,7 @@ from pykeops.common.keops_io import keops_binder
 from pykeops.common.parse_type import get_type
 from pykeops.torch.generic.generic_red import GenredAutograd
 
-from gempy_engine.modules.solver._pykeops_solvers._conjugate_gradient import ConjugateGradientSolver
+from gempy_engine.modules.solver._pykeops_solvers._conjugate_gradient import ConjugateGradientSolver, create_regularized_solver, diagonal_preconditioner
 
 
 class KernelSolveAutograd(torch.autograd.Function):
@@ -113,7 +113,16 @@ class KernelSolveAutograd(torch.autograd.Function):
             return res
 
         global copy
-        result = ConjugateGradientSolver("torch", linop, varinv.data, eps, x0=x0)
+        # result = ConjugateGradientSolver("torch", linop, varinv.data, eps, x0=x0)
+
+        preconditioner = diagonal_preconditioner("torch", linop)
+        result = create_regularized_solver(
+            binding="torch",
+            linop=linop,
+            b=varinv.data, 
+            preconditioning=preconditioner,
+            eps=eps, x0=x0
+        )
 
         # relying on the 'ctx.saved_variables' attribute is necessary  if you want to be able to differentiate the output
         #  of the backward once again. It helps pytorch to keep track of 'who is who'.
