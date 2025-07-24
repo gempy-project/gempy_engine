@@ -59,10 +59,10 @@ def _compute_conditional_number(cov, plot=False):
     
     idx = np.where(eigvals > 800)
     print(idx)
-    import matplotlib.pyplot as plt
     if not is_positive_definite:  # ! Careful numpy False
         warnings.warn('The covariance matrix is not positive definite')
     if plot:
+        import matplotlib.pyplot as plt
         # Plotting the histogram
         plt.hist(eigvals, bins=50, color='blue', alpha=0.7, log=True)
         plt.xlabel('Eigenvalue')
