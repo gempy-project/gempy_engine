@@ -29,7 +29,12 @@ class WeightCache:
 
         os.makedirs(WeightCache.disk_cache_dir, exist_ok=True)
         WeightCache._check_and_cleanup_cache()
-
+    
+    @staticmethod
+    def clear_cache():
+        WeightCache.memory_cache = {}
+        WeightCache._check_and_cleanup_cache()
+    
     @staticmethod
     def _check_and_cleanup_cache():
         total_size = 0

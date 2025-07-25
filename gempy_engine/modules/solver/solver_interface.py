@@ -28,6 +28,8 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndar
                 print(f'Condition number: {cond_number}.')
             w = torch_solve(b, cov)
         case (AvailableBackends.PYTORCH, True, _):
+            if len(x0) == 0:
+                x0 = None
             w = pykeops_torch_cg(b, cov, x0, bt.use_gpu)
         case (AvailableBackends.numpy, True, Solvers.PYKEOPS_CG):
             w = pykeops_numpy_cg(b, cov, dtype)

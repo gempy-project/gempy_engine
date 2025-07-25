@@ -108,6 +108,7 @@ def input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpol
         xyz_to_interpolate=grid_internal,
         fault_internal=fault_values
     )
+    solver_input.weights_x0 = interpolation_input.weights
 
     return solver_input
 

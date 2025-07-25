@@ -40,18 +40,26 @@ def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None,
 
     tools = get_tools(binding)
 
-    # Enhanced convergence criteria for ill-conditioned systems
+
+    # --- inside INITIALIZATION AND STABILITY SETUP -----------------
     if adaptive_tolerance:
-        # Estimate condition number heuristically
         b_norm = (b ** 2).sum().sqrt()
-        initial_residual_threshold = max(eps * b_norm, eps * tools.size(b))
+        # Relative part
+        rel_thresh = eps * b_norm
+        # Absolute part scaled by vector size
+        abs_thresh = eps * tools.size(b)
+        # Minimum practical threshold to avoid over-tightening
+        min_thresh = 1e-4 * b_norm        # <- tweak to taste
+        initial_residual_threshold = max(rel_thresh, abs_thresh, min_thresh)
         delta = initial_residual_threshold ** 2
     else:
         delta = tools.size(b) * eps ** 2
 
+
     # Initialize solution vector with better conditioning
     if x0 is not None:
-        a = tools.copy(x0.to(BackendTensor.dtype_obj))
+        a = tools.copy(x0.to(BackendTensor.dtype_obj)).reshape(-1, 1) 
+
     else:
         # For ill-conditioned systems, start with small random perturbation
         # instead of pure zero to avoid getting stuck in numerical null space

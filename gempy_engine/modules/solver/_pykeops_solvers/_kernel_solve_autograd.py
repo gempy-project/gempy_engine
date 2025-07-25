@@ -128,12 +128,12 @@ class KernelSolveAutograd(torch.autograd.Function):
             binding="torch",
             linop=linop,
             b=varinv.data,
-            eps=1e-6,
-            x0=None,
+            eps=1e-4,
+            x0=x0,
             regularization=None,
             preconditioning=preconditioner,
-            adaptive_tolerance=True,
-            max_iterations=5000,
+            adaptive_tolerance=False,
+            max_iterations=500,
             verbose=False
         )
 
