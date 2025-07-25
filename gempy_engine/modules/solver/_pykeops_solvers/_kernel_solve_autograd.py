@@ -114,12 +114,15 @@ class KernelSolveAutograd(torch.autograd.Function):
             return res
 
         global copy
-        preconditioner = create_adaptive_nystrom_preconditioner(
-            binding="torch",
-            linop=linop,
-            x_sample=varinv.data,
-            strategy="conservative",
-        )
+        if False:
+            preconditioner = create_adaptive_nystrom_preconditioner(
+                binding="torch",
+                linop=linop,
+                x_sample=varinv.data,
+                strategy="conservative",
+            )
+        else:
+            preconditioner = None
         
         result = ConjugateGradientSolver(
             binding="torch",
