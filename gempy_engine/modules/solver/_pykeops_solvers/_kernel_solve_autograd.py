@@ -5,7 +5,7 @@ from pykeops.common.keops_io import keops_binder
 from pykeops.common.parse_type import get_type
 from pykeops.torch.generic.generic_red import GenredAutograd
 
-from gempy_engine.modules.solver._pykeops_solvers._conjugate_gradient import ConjugateGradientSolver, create_regularized_solver, diagonal_preconditioner
+from gempy_engine.modules.solver._pykeops_solvers._conjugate_gradient import (create_regularized_solver)
 
 
 class KernelSolveAutograd(torch.autograd.Function):
@@ -113,9 +113,11 @@ class KernelSolveAutograd(torch.autograd.Function):
             return res
 
         global copy
+        
         # result = ConjugateGradientSolver("torch", linop, varinv.data, eps, x0=x0)
-
-        preconditioner = diagonal_preconditioner("torch", linop)
+        # preconditioner = diagonal_preconditioner("torch", linop)
+        from gempy_engine.modules.solver._pykeops_solvers._helper_functions import create_adaptive_preconditioner
+        preconditioner = create_adaptive_preconditioner("torch", linop, x0)
         result = create_regularized_solver(
             binding="torch",
             linop=linop,
