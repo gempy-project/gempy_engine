@@ -114,7 +114,7 @@ class KernelSolveAutograd(torch.autograd.Function):
             return res
 
         global copy
-        if False:
+        if False: # * This does not work for gpu and so far it seems not to be specially better than direct solvers
             preconditioner = create_adaptive_nystrom_preconditioner(
                 binding="torch",
                 linop=linop,
