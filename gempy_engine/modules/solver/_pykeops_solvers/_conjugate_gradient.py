@@ -5,7 +5,9 @@ import warnings
 
 def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None,
                             regularization=None, preconditioning=None,
-                            adaptive_tolerance=True, max_iterations=5000):
+                            adaptive_tolerance=True, max_iterations=5000,
+                            verbose=False
+                            ):
     """
     Robust Conjugate Gradient solver for ill-conditioned linear systems using PyKeOps.
     
@@ -227,7 +229,8 @@ def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None,
 
         # Prevent beta from becoming too large (Fletcher-Reeves restart condition)
         if beta > 1.0:
-            print(f"Large beta detected ({beta:.2e}) at iteration {k}. Restarting.")
+            if verbose:
+                print(f"Large beta detected ({beta:.2e}) at iteration {k}. Restarting.")
             p = tools.copy(r)  # Restart with steepest descent
         else:
             p = r + beta * p
