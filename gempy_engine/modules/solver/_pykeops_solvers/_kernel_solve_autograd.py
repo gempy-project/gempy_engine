@@ -5,8 +5,8 @@ from pykeops.common.keops_io import keops_binder
 from pykeops.common.parse_type import get_type
 from pykeops.torch.generic.generic_red import GenredAutograd
 
-from gempy_engine.modules.solver._pykeops_solvers._conjugate_gradient import (create_regularized_solver)
-from gempy_engine.modules.solver._pykeops_solvers._nystrom import nystrom_preconditioner, create_adaptive_nystrom_preconditioner
+from ._conjugate_gradient import ConjugateGradientSolver
+from ._nystrom import create_adaptive_nystrom_preconditioner
 
 
 class KernelSolveAutograd(torch.autograd.Function):
@@ -120,12 +120,18 @@ class KernelSolveAutograd(torch.autograd.Function):
             x_sample=varinv.data,
             strategy="conservative",
         )
-        result = create_regularized_solver(
+        
+        result = ConjugateGradientSolver(
             binding="torch",
             linop=linop,
             b=varinv.data,
+            eps=1e-6,
+            x0=None,
+            regularization=None,
             preconditioning=preconditioner,
-            eps=eps, x0=x0
+            adaptive_tolerance=True,
+            max_iterations=5000,
+            verbose=False
         )
 
         # relying on the 'ctx.saved_variables' attribute is necessary  if you want to be able to differentiate the output

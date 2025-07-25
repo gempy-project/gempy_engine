@@ -43,11 +43,11 @@ def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None,
     # Enhanced convergence criteria for ill-conditioned systems
     if adaptive_tolerance:
         # Estimate condition number heuristically
-        b_norm = (b**2).sum().sqrt()
+        b_norm = (b ** 2).sum().sqrt()
         initial_residual_threshold = max(eps * b_norm, eps * tools.size(b))
-        delta = initial_residual_threshold**2
+        delta = initial_residual_threshold ** 2
     else:
-        delta = tools.size(b) * eps**2
+        delta = tools.size(b) * eps ** 2
 
     # Initialize solution vector with better conditioning
     if x0 is not None:
@@ -103,7 +103,7 @@ def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None,
 
     # Compute initial residual
     r = tools.copy(working_b) - working_linop(a)
-    nr2 = (r**2).sum()
+    nr2 = (r ** 2).sum()
 
     # Store initial residual for relative convergence check
     initial_nr2 = nr2
@@ -162,7 +162,7 @@ def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None,
 
         a += alp * p
         r -= alp * Mp
-        nr2new = (r**2).sum()
+        nr2new = (r ** 2).sum()
 
         # -------------------------------------------------------------------------
         # ENHANCED CONVERGENCE CRITERIA
@@ -174,7 +174,7 @@ def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None,
 
         if adaptive_tolerance:
             # Use both absolute and relative criteria
-            converged = (absolute_residual < delta) or (relative_residual < eps**2)
+            converged = (absolute_residual < delta) or (relative_residual < eps ** 2)
         else:
             converged = absolute_residual < delta
 
@@ -274,30 +274,9 @@ def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None,
         # Check convergence rate
         recent_residuals = residual_history[-50:]
         if len(recent_residuals) > 10:
-            avg_reduction = (recent_residuals[0] / recent_residuals[-1]) ** (1/len(recent_residuals))
+            avg_reduction = (recent_residuals[0] / recent_residuals[-1]) ** (1 / len(recent_residuals))
             if avg_reduction < 1.01:
                 warnings.warn("Very slow convergence detected. Consider preconditioning.")
 
     return a
 
-
-def create_regularized_solver(binding, linop, b, **kwargs):
-    """
-    Factory function to create a solver with automatic regularization tuning.
-    """
-    # Try different regularization strategies
-    strategies = [None, 'auto', 'fixed']
-
-    for reg in strategies:
-        try:
-            result = ConjugateGradientSolver(
-                binding, linop, b,
-                regularization=reg,
-                **kwargs
-            )
-            return result
-        except Exception as e:
-            print(f"Regularization strategy '{reg}' failed: {e}")
-            continue
-
-    raise RuntimeError("All regularization strategies failed")
