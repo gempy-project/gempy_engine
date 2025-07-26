@@ -43,11 +43,11 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
             weights_cached = None
         case _:
             raise ValueError("Cache mode not recognized")
-        
 
+    
+    BackendTensor.pykeops_enabled = False
     match weights_cached:
         case None:
-            foo = solver_input.weights_x0
             weights = _solve_and_store_weights(
                 solver_input=solver_input,
                 kernel_options=options.kernel_options,
@@ -70,6 +70,7 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
 
     # endregion
 
+    BackendTensor.pykeops_enabled = BackendTensor.use_pykeops
     exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options)
 
     return weights, exported_fields

@@ -61,7 +61,7 @@ plot = False
 class TestCompareWithGempy_v2:
     @pytest.fixture(scope="class")
     def internals(self, simple_model):
-        BackendTensor._change_backend(AvailableBackends.numpy, pykeops_enabled=False)
+        BackendTensor._change_backend(AvailableBackends.numpy, use_pykeops=False)
 
         surface_points = simple_model[0]
         orientations = simple_model[1]
