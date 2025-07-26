@@ -24,7 +24,7 @@ plot_pyvista = False  # ! Set here if you want to plot the results
 BackendTensor._change_backend(
     engine_backend=backend,
     use_gpu=use_gpu,
-    pykeops_enabled=pykeops_enabled
+    use_pykeops=pykeops_enabled
 )
 
 try:
