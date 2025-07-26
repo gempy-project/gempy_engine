@@ -209,6 +209,8 @@ class BackendTensor:
                 case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor():
                     return tensor.sum(axis)
                 case torch.Tensor() if torch_available:
+                    if isinstance(dtype, str):
+                        dtype = getattr(torch, dtype)
                     return tensor.sum(axis, keepdims=keepdims, dtype=dtype)
                 case _:
                     raise TypeError("Unsupported tensor type")
