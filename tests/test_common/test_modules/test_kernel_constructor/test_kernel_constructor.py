@@ -185,7 +185,7 @@ class TestPykeopsNumPyEqual():
         sp_internals, ori_internals, options = preprocess_data
 
         # numpy
-        BackendTensor._change_backend(AvailableBackends.numpy, pykeops_enabled=False)
+        BackendTensor._change_backend(AvailableBackends.numpy, use_pykeops=False)
         solver_input = SolverInput(sp_internals, ori_internals)
         kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
         c_n = cov_func(kernel_data, options, item=item)
@@ -198,7 +198,7 @@ class TestPykeopsNumPyEqual():
         c_n_sum = c_n.sum(0).reshape(-1, 1)
 
         # pykeops
-        BackendTensor._change_backend(AvailableBackends.numpy, pykeops_enabled=True)
+        BackendTensor._change_backend(AvailableBackends.numpy, use_pykeops=True)
         kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
         c_k = cov_func(kernel_data, options, item=item)
         c_k_sum = c_n.sum(0).reshape(-1, 1)

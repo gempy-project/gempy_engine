@@ -34,12 +34,12 @@ def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: 
         eval_gx_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=0)
         eval_gy_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=1)
 
-        gx_field = (eval_gx_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend=backend_string).reshape(-1)
-        gy_field = (eval_gy_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend=backend_string).reshape(-1)
+        gx_field = (eval_gx_kernel.T * lazy_weights).sum(axis=1, backend=backend_string).reshape(-1)
+        gy_field = (eval_gy_kernel.T * lazy_weights).sum(axis=1, backend=backend_string).reshape(-1)
 
         if options.number_dimensions == 3:
             eval_gz_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=2)
-            gz_field = (eval_gz_kernel.T * LazyTensor(weights, axis=1)).sum(axis=1, backend=backend_string).reshape(-1)
+            gz_field = (eval_gz_kernel.T * lazy_weights).sum(axis=1, backend=backend_string).reshape(-1)
         elif options.number_dimensions == 2:
             gz_field = None
         else:
