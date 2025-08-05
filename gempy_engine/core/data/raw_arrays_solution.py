@@ -4,6 +4,7 @@ from typing import Optional, Union
 
 import numpy as np
 
+from .transforms import Transform
 from ..backend_tensor import BackendTensor
 from .interp_output import InterpOutput
 from .dual_contouring_mesh import DualContouringMesh
@@ -112,7 +113,7 @@ class RawArraysSolution:
 
         self.scalar_field_at_surface_points = temp_list
 
-    def meshes_to_subsurface(self):
+    def meshes_to_subsurface(self, input_transform: Transform | None = None):
         ss = require_subsurface()
         pd = require_pandas()
 
@@ -129,9 +130,13 @@ class RawArraysSolution:
 
         concatenated_id_array = np.concatenate(vertex_id_array)
         concatenated_cell_id_array = np.concatenate(cell_id_array)
+
+        all_vertex = np.concatenate(vertex)
+        if input_transform:
+            all_vertex = input_transform.apply_inverse(all_vertex)
         
         meshes: ss.UnstructuredData = ss.UnstructuredData.from_array(
-            vertex=np.concatenate(vertex),
+            vertex=all_vertex,
             cells=np.concatenate(simplex_list),
             vertex_attr=pd.DataFrame({'id': concatenated_id_array}),
             cells_attr=pd.DataFrame({'id': concatenated_cell_id_array})
