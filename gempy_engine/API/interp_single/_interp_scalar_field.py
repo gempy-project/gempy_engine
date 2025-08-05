@@ -47,6 +47,7 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
 
     match weights_cached:
         case None:
+            foo = solver_input.weights_x0
             weights = _solve_and_store_weights(
                 solver_input=solver_input,
                 kernel_options=options.kernel_options,
@@ -87,7 +88,6 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
     if kernel_options.optimizing_condition_number:
         _optimize_nuggets_against_condition_number(A_matrix, interp_input, kernel_options)
 
-    # TODO: Smooth should be taken from options
     weights = solver_interface.kernel_reduction(
         cov=A_matrix,
         b=b_vector,

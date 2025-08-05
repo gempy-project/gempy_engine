@@ -1,6 +1,6 @@
 import pprint
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, Union
 
 import numpy as np
 
@@ -21,23 +21,9 @@ class InterpolationInput:
     surface_points: SurfacePoints
     orientations: Orientations
     _original_grid: EngineGrid
-    
-    @property
-    def original_grid(self):
-        return self._original_grid
-    
-    def set_grid_to_original(self):
-        self._grid = self._original_grid
-
-
     _grid: EngineGrid
-    @property
-    def grid(self):
-        return self._grid
-    
-    def set_temp_grid(self, value):
-        self._grid = value
 
+    weights: Union[list[np.ndarray] | np.ndarray] = field(default_factory=lambda: [])
     _unit_values: Optional[np.ndarray] = None
     segmentation_function: Optional[callable] = None  # * From scalar field to values
 
@@ -52,7 +38,10 @@ class InterpolationInput:
 
     def __init__(self, surface_points: SurfacePoints, orientations: Orientations, grid: EngineGrid,
                  unit_values: Optional[np.ndarray] = None, segmentation_function: Optional[callable] = None,
-                 stack_relation: StackRelationType = StackRelationType.ERODE):
+                 stack_relation: StackRelationType = StackRelationType.ERODE, weights: list[np.ndarray] = None):
+        if weights is None:
+            weights = []
+        
         self.surface_points = surface_points
         self._original_grid = grid
         self._grid = grid
@@ -60,6 +49,7 @@ class InterpolationInput:
         self.unit_values = unit_values
         self.segmentation_function = segmentation_function
         self.stack_relation = stack_relation
+        self.weights = weights
 
     # @ on
 
@@ -92,6 +82,7 @@ class InterpolationInput:
             grid=grid,
             unit_values=unit_values,
             stack_relation=stack_structure.active_masking_descriptor,
+            weights=(all_interpolation_input.weights[stack_number] if stack_number < len(all_interpolation_input.weights) else None)
         )
 
         # ! Setting this on the constructor does not work with data classes.
@@ -116,6 +107,19 @@ class InterpolationInput:
             grid=grid
         )
 
+    @property
+    def original_grid(self):
+        return self._original_grid
+
+    def set_grid_to_original(self):
+        self._grid = self._original_grid
+
+    @property
+    def grid(self):
+        return self._grid
+
+    def set_temp_grid(self, value):
+        self._grid = value
 
     @property
     def slice_feature(self):

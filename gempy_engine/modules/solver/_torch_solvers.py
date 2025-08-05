@@ -4,8 +4,8 @@ from ...core.backend_tensor import BackendTensor
 bt = BackendTensor
 
 
-def pykeops_torch_cg(b, cov, x0):
-    if PYKEOPS_SOLVER:=False:
+def pykeops_torch_cg(b, cov, x0, use_gpu):
+    if PYKEOPS_SOLVER:=False: # * Default pykeops solver. It is here as reference
         solver = cov.solver(
             b.view(-1, 1),
             alpha=0,
@@ -17,14 +17,14 @@ def pykeops_torch_cg(b, cov, x0):
         )
 
         w = solver(eps=1e-5)
-    else:
+    else:  # * My solver and what we need to tweak
         solver = custom_pykeops_solver(
             cov,
             b.view(-1, 1),
             alpha=0,
-            backend="CPU",
+            backend="GPU" if use_gpu else "CPU",
             call=False,
-            dtype_acc="float64",
+            dtype_acc="float64", # * For now we always use float 64 even on gpu
             sum_scheme="kahan_scheme"
         )
 
