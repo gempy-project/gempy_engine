@@ -86,7 +86,7 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
             y_size=j_size,
             n_drift_eq=fault_n,
             drift_start_post_x=cov_size - fault_n,
-            drift_start_post_y=j_size - fault_n
+            drift_start_post_y=j_size
         )
 
         selector = bt.t.sum(selector_components.sel_ui * (selector_components.sel_vj + 1), axis=-1)
