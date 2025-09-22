@@ -203,6 +203,72 @@ class BackendTensor:
             else:
                 raise NotImplementedError("packbits only implemented for axis=0")
 
+        def _packbits(tensor, axis=None, bitorder="big"):
+            """
+            Pack boolean values into uint8 bytes along the specified axis.
+            For a (4, n) tensor with axis=0, this packs every 4 bits into nibbles,
+            then pads to create full bytes.
+            """
+            # Convert to uint8 if boolean
+            if tensor.dtype == torch.bool:
+                tensor = tensor.to(torch.uint8)
+
+            if axis == 0:
+                # Pack along axis 0 (rows)
+                n_rows, n_cols = tensor.shape
+                n_output_rows = (n_rows + 7) // 8  # Round up to nearest byte boundary
+
+                # Pad with zeros if we don't have multiples of 8 rows
+                if n_rows % 8 != 0:
+                    padding_rows = 8 - (n_rows % 8)
+                    padding = torch.zeros(padding_rows, n_cols, dtype=torch.uint8, device=tensor.device)
+                    tensor = torch.cat([tensor, padding], dim=0)
+
+                # Reshape to group every 8 rows together: (n_output_rows, 8, n_cols)
+                tensor_reshaped = tensor.view(n_output_rows, 8, n_cols)
+
+                # Define bit positions (powers of 2)
+                if bitorder == "little":
+                    # Little endian: LSB first [1, 2, 4, 8, 16, 32, 64, 128]
+                    powers = torch.tensor([1, 2, 4, 8, 16, 32, 64, 128],
+                                          dtype=torch.uint8, device=tensor.device).view(1, 8, 1)
+                else:
+                    # Big endian: MSB first [128, 64, 32, 16, 8, 4, 2, 1]
+                    powers = torch.tensor([128, 64, 32, 16, 8, 4, 2, 1],
+                                          dtype=torch.uint8, device=tensor.device).view(1, 8, 1)
+
+                # Pack bits: multiply each bit by its power and sum along the 8-bit dimension
+                packed = (tensor_reshaped * powers).sum(dim=1)  # Shape: (n_output_rows, n_cols)
+
+                return packed
+
+            elif axis == 1:
+                # Pack along axis 1 (columns) 
+                n_rows, n_cols = tensor.shape
+                n_output_cols = (n_cols + 7) // 8
+
+                # Pad with zeros if needed
+                if n_cols % 8 != 0:
+                    padding_cols = 8 - (n_cols % 8)
+                    padding = torch.zeros(n_rows, padding_cols, dtype=torch.uint8, device=tensor.device)
+                    tensor = torch.cat([tensor, padding], dim=1)
+
+                # Reshape: (n_rows, n_output_cols, 8)
+                tensor_reshaped = tensor.view(n_rows, n_output_cols, 8)
+
+                # Define bit positions
+                if bitorder == "little":
+                    powers = torch.tensor([1, 2, 4, 8, 16, 32, 64, 128],
+                                          dtype=torch.uint8, device=tensor.device).view(1, 1, 8)
+                else:
+                    powers = torch.tensor([128, 64, 32, 16, 8, 4, 2, 1],
+                                          dtype=torch.uint8, device=tensor.device).view(1, 1, 8)
+
+                packed = (tensor_reshaped * powers).sum(dim=2)  # Shape: (n_rows, n_output_cols)
+                return packed
+
+            else:
+                raise NotImplementedError(f"packbits not implemented for axis={axis}")
 
         cls.tfnp.sum = _sum
         cls.tfnp.repeat = _repeat

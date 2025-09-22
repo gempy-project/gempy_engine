@@ -37,7 +37,7 @@ def get_left_right_array(octree_list: list[OctreeLevel]):
             left_right_list.append(left_right_per_lvl_dir)
 
         left_right_list.append(idx_from_root)
-        binary_code = BackendTensor.tfnp.vstack(left_right_list)
+        binary_code = BackendTensor.tfnp.stack(left_right_list)
         return binary_code
 
     # === Local function ===
