@@ -145,7 +145,7 @@ class BackendTensor:
 
     @classmethod
     def _wrap_pytorch_functions(cls):
-        from torch import sum, repeat_interleave
+        from torch import sum, repeat_interleave, flip
         import torch
 
         def _sum(tensor, axis=None, dtype=None, keepdims=False):
@@ -183,6 +183,26 @@ class BackendTensor:
 
         def _transpose(tensor, axes=None):
             return tensor.transpose(axes[0], axes[1])
+        
+        def _packbits(tensor, axis=None, bitorder="big"):
+            # PyTorch doesn't have packbits, need to implement or use alternative
+            # This is a simplified version - you might need a more complete implementation
+            if bitorder == "little":
+                # Reverse bits for little endian
+                # noinspection PyArgumentList
+                tensor = flip(tensor, axis=[axis] if axis is not None else [-1])
+
+            # Convert boolean to integers and pack
+            tensor_int = tensor.to(torch.uint8)
+            if axis == 0:
+                # Pack along first axis
+                result = torch.zeros(tensor.shape[1], dtype=torch.uint8, device=tensor.device)
+                for i in range(tensor.shape[0]):
+                    result += tensor_int[i] * (2 ** i)
+                return result
+            else:
+                raise NotImplementedError("packbits only implemented for axis=0")
+
 
         cls.tfnp.sum = _sum
         cls.tfnp.repeat = _repeat
@@ -203,6 +223,7 @@ class BackendTensor:
         cls.tfnp.abs = lambda tensor, dtype = None: tensor.abs().type(dtype) if dtype is not None else tensor.abs()
         cls.tfnp.tile = lambda tensor, repeats: tensor.repeat(repeats)
         cls.tfnp.ravel = lambda tensor: tensor.flatten()
+        cls.tfnp.packbits = _packbits
 
     @classmethod
     def _wrap_pykeops_functions(cls):
