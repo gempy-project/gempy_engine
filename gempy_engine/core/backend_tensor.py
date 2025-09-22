@@ -110,13 +110,13 @@ class BackendTensor:
                     # Check if CUDA is available
                     if not pytorch_copy.cuda.is_available():
                         raise RuntimeError("GPU requested but CUDA is not available in PyTorch")
-
-                    # Set default device to CUDA
-                    cls.device = pytorch_copy.device("cuda")
-                    pytorch_copy.set_default_device("cuda")
-                    print(f"GPU enabled. Using device: {cls.device}")
-                    print(f"GPU device count: {pytorch_copy.cuda.device_count()}")
-                    print(f"Current GPU device: {pytorch_copy.cuda.current_device()}")
+                    if False:
+                        # Set default device to CUDA
+                        cls.device = pytorch_copy.device("cuda")
+                        pytorch_copy.set_default_device("cuda")
+                        print(f"GPU enabled. Using device: {cls.device}")
+                        print(f"GPU device count: {pytorch_copy.cuda.device_count()}")
+                        print(f"Current GPU device: {pytorch_copy.cuda.current_device()}")
                 else:
                     cls.use_gpu = False
                     cls.device = pytorch_copy.device("cpu")
