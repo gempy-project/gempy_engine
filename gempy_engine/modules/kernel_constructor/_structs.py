@@ -22,6 +22,9 @@ def _upgrade_kernel_input_to_keops_tensor_pytorch(struct_data_instance):
 
     for key, val in struct_data_instance.__dict__.items():
         if key == "n_faults_i": continue
+        if (val.is_contiguous() is False):
+            raise ValueError("Input tensors are not contiguous")
+        
         struct_data_instance.__dict__[key] = LazyTensor(val.type(BackendTensor.dtype_obj))
 
 
