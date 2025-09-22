@@ -107,9 +107,20 @@ class BackendTensor:
                 if (use_gpu):
                     cls.use_gpu = True
                     # cls.tensor_backend_pointer['active_backend'].set_default_device("cuda")
+                    # Check if CUDA is available
+                    if not pytorch_copy.cuda.is_available():
+                        raise RuntimeError("GPU requested but CUDA is not available in PyTorch")
+
+                    # Set default device to CUDA
+                    cls.device = pytorch_copy.device("cuda")
+                    pytorch_copy.set_default_device("cuda")
+                    print(f"GPU enabled. Using device: {cls.device}")
+                    print(f"GPU device count: {pytorch_copy.cuda.device_count()}")
+                    print(f"Current GPU device: {pytorch_copy.cuda.current_device()}")
                 else:
                     cls.use_gpu = False
-
+                    cls.device = pytorch_copy.device("cpu")
+                    pytorch_copy.set_default_device("cpu")
             case (_):
                 raise AttributeError(
                     f"Engine Backend: {engine_backend} cannot be used because the correspondent library"
@@ -155,6 +166,11 @@ class BackendTensor:
                 if dtype is None: return array_like
                 else: return array_like.type(dtype)
             else:
+                # Ensure numpy arrays are contiguous before converting to torch tensor
+                if isinstance(array_like, numpy.ndarray):
+                    if not array_like.flags.c_contiguous:
+                        array_like = numpy.ascontiguousarray(array_like)
+
                 return torch.tensor(array_like, dtype=dtype)
 
         def _concatenate(tensors, axis=0, dtype=None):
