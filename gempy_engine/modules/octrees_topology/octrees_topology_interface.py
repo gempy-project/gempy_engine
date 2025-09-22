@@ -8,6 +8,7 @@ from gempy_engine.core.data.output.blocks_value_type import ValueType
 from ._octree_internals import compute_next_octree_locations
 from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.core.data.engine_grid import EngineGrid
+from ...core.backend_tensor import BackendTensor
 from ...core.data.options.evaluation_options import EvaluationOptions
 
 
@@ -105,6 +106,7 @@ def get_regular_grid_value_for_level(octree_list: List[OctreeLevel], level: Opti
     for e, octree in enumerate(octree_list[1:level + 1]):
         n_rep = (level - e)
         active_cells: np.ndarray = octree.grid_centers.octree_grid.active_cells
+        active_cells = BackendTensor.t.to_numpy(active_cells)
 
         local_active_cells: np.ndarray = np.where(active_cells)[0]
         shape: np.ndarray = octree.grid_centers.octree_grid_shape

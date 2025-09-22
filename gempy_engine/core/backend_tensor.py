@@ -184,24 +184,6 @@ class BackendTensor:
         def _transpose(tensor, axes=None):
             return tensor.transpose(axes[0], axes[1])
         
-        def _packbits(tensor, axis=None, bitorder="big"):
-            # PyTorch doesn't have packbits, need to implement or use alternative
-            # This is a simplified version - you might need a more complete implementation
-            if bitorder == "little":
-                # Reverse bits for little endian
-                # noinspection PyArgumentList
-                tensor = flip(tensor, axis=[axis] if axis is not None else [-1])
-
-            # Convert boolean to integers and pack
-            tensor_int = tensor.to(torch.uint8)
-            if axis == 0:
-                # Pack along first axis
-                result = torch.zeros(tensor.shape[1], dtype=torch.uint8, device=tensor.device)
-                for i in range(tensor.shape[0]):
-                    result += tensor_int[i] * (2 ** i)
-                return result
-            else:
-                raise NotImplementedError("packbits only implemented for axis=0")
 
         def _packbits(tensor, axis=None, bitorder="big"):
             """
@@ -270,6 +252,19 @@ class BackendTensor:
             else:
                 raise NotImplementedError(f"packbits not implemented for axis={axis}")
 
+
+        def _to_numpy(tensor):
+            """Convert tensor to numpy array, handling GPU tensors properly"""
+            if hasattr(tensor, 'device') and tensor.device.type == 'cuda':
+                # Move to CPU first, then detach and convert to numpy
+                return tensor.cpu().detach().numpy()
+            elif hasattr(tensor, 'detach'):
+                # CPU tensor, just detach and convert
+                return tensor.detach().numpy()
+            else:
+                # Not a torch tensor, return as-is
+                return tensor
+
         cls.tfnp.sum = _sum
         cls.tfnp.repeat = _repeat
         cls.tfnp.expand_dims = lambda tensor, axis: tensor
@@ -277,7 +272,7 @@ class BackendTensor:
         cls.tfnp.flip = lambda tensor, axis: tensor.flip(axis)
         cls.tfnp.hstack = lambda tensors: torch.concat(tensors, dim=1)
         cls.tfnp.array = _array
-        cls.tfnp.to_numpy = lambda tensor: tensor.detach().numpy()
+        cls.tfnp.to_numpy = _to_numpy
         cls.tfnp.min = lambda tensor, axis: tensor.min(axis=axis)[0]
         cls.tfnp.max = lambda tensor, axis: tensor.max(axis=axis)[0]
         cls.tfnp.rint = lambda tensor: tensor.round().type(torch.int32)

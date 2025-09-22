@@ -154,6 +154,7 @@ class InterpOutput:
         
         match (BackendTensor.engine_backend):
             case AvailableBackends.PYTORCH:
-                block = block.detach().numpy()
+                block = BackendTensor.t.to_numpy(block)
+                # block = block.to_numpy()
 
         return block[slice_]
