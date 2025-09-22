@@ -201,6 +201,8 @@ class BackendTensor:
         cls.tfnp.transpose = _transpose
         cls.tfnp.geomspace = lambda start, stop, step: torch.logspace(start, stop, step, base=10)
         cls.tfnp.abs = lambda tensor, dtype = None: tensor.abs().type(dtype) if dtype is not None else tensor.abs()
+        cls.tfnp.tile = lambda tensor, repeats: tensor.repeat(repeats)
+        cls.tfnp.ravel = lambda tensor: tensor.flatten()
 
     @classmethod
     def _wrap_pykeops_functions(cls):
