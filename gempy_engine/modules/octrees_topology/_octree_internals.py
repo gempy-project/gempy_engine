@@ -63,10 +63,10 @@ def _mark_voxel(uv_8):
     shift_y = uv_8[:, [0, 1, 4, 5]] - uv_8[:, [2, 3, 6, 7]]
     shift_z = uv_8[:, ::2] - uv_8[:, 1::2]
 
-    shift_x_select = np.not_equal(shift_x, 0)
-    shift_y_select = np.not_equal(shift_y, 0)
-    shift_z_select = np.not_equal(shift_z, 0)
-    shift_select_xyz = np.array([shift_x_select, shift_y_select, shift_z_select])
+    shift_x_select = BackendTensor.t.not_equal(shift_x, 0)
+    shift_y_select = BackendTensor.t.not_equal(shift_y, 0)
+    shift_z_select = BackendTensor.t.not_equal(shift_z, 0)
+    shift_select_xyz = BackendTensor.t.stack([shift_x_select, shift_y_select, shift_z_select])
 
     idx_select_x = shift_x_select.sum(axis=1, dtype=bool)
     idx_select_y = shift_y_select.sum(axis=1, dtype=bool)

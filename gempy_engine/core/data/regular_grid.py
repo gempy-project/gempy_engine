@@ -3,6 +3,7 @@ from typing import Union, List
 
 import numpy as np
 
+from ..backend_tensor import BackendTensor
 from ..utils import _check_and_convert_list_to_array, cast_type_inplace
 from .kernel_classes.server.input_parser import GridSchema
 
@@ -27,7 +28,7 @@ class RegularGrid:
 
         self._create_regular_grid_3d()
 
-        self.original_values = self.values.copy()
+        self.original_values = BackendTensor.t.copy(self.values)
 
     @property
     def dx(self):
@@ -196,5 +197,6 @@ class RegularGrid:
         g = np.meshgrid(*coords, indexing="ij")
         values = np.vstack(tuple(map(np.ravel, g))).T.astype("float64")
         values = np.ascontiguousarray(values)
+        values = BackendTensor.tfnp.array(values, dtype=BackendTensor.dtype_obj)
 
         self.values = values

@@ -127,8 +127,8 @@ class InterpOutput:
         faults_ids = BackendTensor.t.rint(self.faults_block)
 
         # Get the number of unique lithology IDs
-        multiplier = len(np.unique(litho_ids))
-
+        multiplier = len(BackendTensor.t.unique(litho_ids))
+    
         # Generate the unique IDs
         unique_ids = litho_ids + faults_ids * multiplier
         return unique_ids
