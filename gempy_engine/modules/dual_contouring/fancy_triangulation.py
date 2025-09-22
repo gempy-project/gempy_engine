@@ -231,36 +231,25 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
         raise ValueError("n must be smaller than 12")
 
     # flip triangle order if normal is negative
-    if False:
-        indices = BackendTensor.tfnp.stack([x[normal >= 0], y[normal >= 0], z[normal >= 0]]).T
-        flipped_indices = BackendTensor.tfnp.stack(
-            [
-                    x[normal < 0],
-                    y[normal < 0],
-                    z[normal < 0]]).T[:, [0, 2, 1]
-        ]
-        indices = BackendTensor.tfnp.stack([indices, flipped_indices])
-    else:
-        # flip triangle order if normal is negative
-        # Create masks for positive and negative normals
-        positive_mask = normal >= 0
-        negative_mask = normal < 0
+    # Create masks for positive and negative normals
+    positive_mask = normal >= 0
+    negative_mask = normal < 0
 
-        # Extract indices for positive normals (keep original order)
-        x_pos = x[positive_mask]
-        y_pos = y[positive_mask]
-        z_pos = z[positive_mask]
+    # Extract indices for positive normals (keep original order)
+    x_pos = x[positive_mask]
+    y_pos = y[positive_mask]
+    z_pos = z[positive_mask]
 
-        # Extract indices for negative normals (flip order: x, z, y instead of x, y, z)
-        x_neg = x[negative_mask]
-        y_neg = y[negative_mask]
-        z_neg = z[negative_mask]
+    # Extract indices for negative normals (flip order: x, z, y instead of x, y, z)
+    x_neg = x[negative_mask]
+    y_neg = y[negative_mask]
+    z_neg = z[negative_mask]
 
-        # Combine all indices
-        all_x = BackendTensor.tfnp.concatenate([x_pos, x_neg], axis=0)
-        all_y = BackendTensor.tfnp.concatenate([y_pos, z_neg], axis=0)  # Note: z_neg for flipped triangles
-        all_z = BackendTensor.tfnp.concatenate([z_pos, y_neg], axis=0)  # Note: y_neg for flipped triangles
+    # Combine all indices
+    all_x = BackendTensor.tfnp.concatenate([x_pos, x_neg], axis=0)
+    all_y = BackendTensor.tfnp.concatenate([y_pos, z_neg], axis=0)  # Note: z_neg for flipped triangles
+    all_z = BackendTensor.tfnp.concatenate([z_pos, y_neg], axis=0)  # Note: y_neg for flipped triangles
 
-        # Stack into final indices array
-        indices = BackendTensor.tfnp.stack([all_x, all_y, all_z], axis=1)
+    # Stack into final indices array
+    indices = BackendTensor.tfnp.stack([all_x, all_y, all_z], axis=1)
     return indices
