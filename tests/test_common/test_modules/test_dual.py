@@ -3,7 +3,6 @@ from typing import List
 
 import pytest
 
-from gempy_engine.API.dual_contouring._interpolate_on_edges import _get_intersection_on_edges
 from gempy_engine.API.interp_single._interp_scalar_field import _evaluate_sys_eq
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields
@@ -56,7 +55,16 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    intersection_xyz, valid_edges = _get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
+    corners = last_octree_level.outputs_corners[0]
+    # First find xyz on edges:
+    xyz, edges = find_intersection_on_edge(
+        _xyz_corners=last_octree_level.grid_corners.values,
+        scalar_field_on_corners=corners.exported_fields.scalar_field,
+        scalar_at_sp=corners.scalar_field_at_sp,
+        masking=None
+    )
+    result = xyz, edges
+    intersection_xyz, valid_edges = result
     interpolation_input.set_temp_grid(EngineGrid.from_xyz_coords(intersection_xyz))
 
 
@@ -124,10 +132,16 @@ def test_compute_mesh_extraction_fancy_triangulation(simple_model, simple_grid_3
 
     octree_level_for_surface: OctreeLevel = octree_list[options.number_octree_levels_surface - 1]
 
-    intersection_xyz, valid_edges = _get_intersection_on_edges(
-        octree_level=octree_level_for_surface,
-        output_corners=octree_level_for_surface.outputs_corners[0]
+    corners = octree_level_for_surface.outputs_corners[0]
+    # First find xyz on edges:
+    xyz, edges = find_intersection_on_edge(
+        _xyz_corners=octree_level_for_surface.grid_corners.values,
+        scalar_field_on_corners=corners.exported_fields.scalar_field,
+        scalar_at_sp=corners.scalar_field_at_sp,
+        masking=None
     )
+    result = xyz, edges
+    intersection_xyz, valid_edges = result
 
     interpolation_input.set_temp_grid(EngineGrid.from_xyz_coords(intersection_xyz))
     output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
@@ -245,7 +259,16 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    intersection_xyz, valid_edges = _get_intersection_on_edges(last_octree_level, last_octree_level.outputs_corners[0])
+    corners = last_octree_level.outputs_corners[0]
+    # First find xyz on edges:
+    xyz, edges = find_intersection_on_edge(
+        _xyz_corners=last_octree_level.grid_corners.values,
+        scalar_field_on_corners=corners.exported_fields.scalar_field,
+        scalar_at_sp=corners.scalar_field_at_sp,
+        masking=None
+    )
+    result = xyz, edges
+    intersection_xyz, valid_edges = result
     interpolation_input.set_temp_grid(EngineGrid.from_xyz_coords(intersection_xyz))
 
     output_on_edges = interp.interpolate_single_field(interpolation_input, options, data_shape.tensors_structure)
