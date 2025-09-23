@@ -88,26 +88,7 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
         all_valid_edges.append(valid_edges)
         all_left_right_codes.append(left_right_codes_per_stack)
 
-    from gempy_engine.core.data.engine_grid import EngineGrid
-    from gempy_engine.core.data.generic_grid import GenericGrid
-    from gempy_engine.API.interp_single.interp_features import interpolate_all_fields_no_octree
-    interpolation_input.set_temp_grid(
-        EngineGrid(
-            custom_grid=GenericGrid(
-                values=BackendTensor.t.concatenate(all_stack_intersection, axis=0)
-            )
-        )
-    )
-    # endregion
-
-    # ! (@miguel 21 June) I think by definition in the function `interpolate_all_fields_no_octree`
-    # ! we just need to interpolate up to the n_scalar_field, but I am not sure about this. I need to test it
-    output_on_edges: List[InterpOutput] = interpolate_all_fields_no_octree(
-        interpolation_input=interpolation_input,
-        options=dual_contouring_options,
-        data_descriptor=data_descriptor
-    )  # ! This has to be done with buffer weights otherwise is a waste
-    interpolation_input.set_grid_to_original()
+    output_on_edges = _interp_on_edges(all_stack_intersection, data_descriptor, dual_contouring_options, interpolation_input)
 
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
         output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
@@ -133,6 +114,30 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
             # @on
 
     return all_meshes
+
+
+def _interp_on_edges(all_stack_intersection: list[Any], data_descriptor: InputDataDescriptor, dual_contouring_options: InterpolationOptions, interpolation_input: InterpolationInput) -> list[InterpOutput]:
+    from ...core.data.engine_grid import EngineGrid
+    from ...core.data.generic_grid import GenericGrid
+    from ..interp_single.interp_features import interpolate_all_fields_no_octree
+    interpolation_input.set_temp_grid(
+        EngineGrid(
+            custom_grid=GenericGrid(
+                values=BackendTensor.t.concatenate(all_stack_intersection, axis=0)
+            )
+        )
+    )
+    # endregion
+
+    # ! (@miguel 21 June) I think by definition in the function `interpolate_all_fields_no_octree`
+    # ! we just need to interpolate up to the n_scalar_field, but I am not sure about this. I need to test it
+    output_on_edges: List[InterpOutput] = interpolate_all_fields_no_octree(
+        interpolation_input=interpolation_input,
+        options=dual_contouring_options,
+        data_descriptor=data_descriptor
+    )  # ! This has to be done with buffer weights otherwise is a waste
+    interpolation_input.set_grid_to_original()
+    return output_on_edges
 
 
 def _mask_generation(octree_leaves, masking_option: MeshExtractionMaskingOptions) -> np.ndarray | None:
