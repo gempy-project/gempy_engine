@@ -161,7 +161,6 @@ def _process_single_surface(i, dc_data_per_stack, valid_edges_per_surface, left_
             valid_voxels = dc_data_per_surface.valid_voxels
             left_right_per_surface = left_right_codes[valid_voxels]
             valid_voxels_per_surface = dc_data_per_surface.valid_edges[valid_voxels]
-            voxel_normal_per_surface = voxel_normal[valid_voxels]
             tree_depth_per_surface = dc_data_per_surface.tree_depth
 
             print(f"DEBUG: Calling triangulate function")

@@ -36,26 +36,27 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
 
     # Check if we should use parallel processing
     use_parallel = _should_use_parallel_processing(dc_data_per_stack.n_surfaces_to_export, BackendTensor.engine_backend)
+    parallel_results = None
     
     if use_parallel:
         print(f"Using parallel processing for {dc_data_per_stack.n_surfaces_to_export} surfaces")
         parallel_results = _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug)
         
-        if parallel_results is not None:
-            # Convert parallel results to DualContouringMesh objects
-            stack_meshes = []
-            for vertices_numpy, indices_numpy in parallel_results:
-                if TRIMESH_LAST_PASS := True:
-                    vertices_numpy, indices_numpy = _last_pass(vertices_numpy, indices_numpy)
-                
-                stack_meshes.append(
-                    DualContouringMesh(
-                        vertices_numpy,
-                        indices_numpy,
-                        dc_data_per_stack
-                    )
-                )
-            return stack_meshes
+        # if parallel_results is not None:
+        #     # Convert parallel results to DualContouringMesh objects
+        #     stack_meshes = []
+        #     for vertices_numpy, indices_numpy in parallel_results:
+        #         if TRIMESH_LAST_PASS := True:
+        #             vertices_numpy, indices_numpy = _last_pass(vertices_numpy, indices_numpy)
+        #         
+        #         stack_meshes.append(
+        #             DualContouringMesh(
+        #                 vertices_numpy,
+        #                 indices_numpy,
+        #                 dc_data_per_stack
+        #             )
+        #         )
+        #     return stack_meshes
 
     # Fall back to sequential processing
     print(f"Using sequential processing for {dc_data_per_stack.n_surfaces_to_export} surfaces")
@@ -64,7 +65,27 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
     last_surface_edge_idx = 0
     for i in range(dc_data_per_stack.n_surfaces_to_export):
         # @off
-        indices_numpy, vertices_numpy = _sequential_triangulation(dc_data_per_stack, debug, i, last_surface_edge_idx, left_right_codes, valid_edges_per_surface)
+        if parallel_results is not None:
+            _, vertices_numpy = _sequential_triangulation(
+                dc_data_per_stack,
+                debug, 
+                i, 
+                last_surface_edge_idx, 
+                left_right_codes, 
+                valid_edges_per_surface,
+                compute_indices=False 
+            )
+            indices_numpy = parallel_results[i]
+        else:
+            vertices_numpy, indices_numpy = _sequential_triangulation(
+                dc_data_per_stack,
+                debug, 
+                i, 
+                last_surface_edge_idx, 
+                left_right_codes, 
+                valid_edges_per_surface,
+                compute_indices=True
+            )
 
         if TRIMESH_LAST_PASS := True:
             vertices_numpy, indices_numpy = _last_pass(vertices_numpy, indices_numpy)

@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 import warnings
 
@@ -8,7 +10,13 @@ from ...modules.dual_contouring.dual_contouring_interface import triangulate_dua
 from ...modules.dual_contouring.fancy_triangulation import triangulate
 
 
-def _sequential_triangulation(dc_data_per_stack: DualContouringData, debug: bool, i: int, last_surface_edge_idx: int, left_right_codes, valid_edges_per_surface: ndarray[tuple[int, int, int], dtype[Any] | Any]) -> tuple[Any, Any]:
+def _sequential_triangulation(dc_data_per_stack: DualContouringData,
+                              debug: bool
+                              , i: int, last_surface_edge_idx: int, 
+                              left_right_codes, 
+                              valid_edges_per_surface,
+                              compute_indices=True
+                              ) -> tuple[Any, Any]:
     valid_edges: np.ndarray = valid_edges_per_surface[i]
     next_surface_edge_idx: int = valid_edges.sum() + last_surface_edge_idx
     slice_object: slice = slice(last_surface_edge_idx, next_surface_edge_idx)
@@ -24,11 +32,10 @@ def _sequential_triangulation(dc_data_per_stack: DualContouringData, debug: bool
         tree_depth=dc_data_per_stack.tree_depth
 
     )
-    vertices: np.ndarray = generate_dual_contouring_vertices(
-        dc_data_per_stack=dc_data_per_surface,
-        slice_surface=slice_object,
-        debug=debug
-    )
+    vertices_numpy = _generate_vertices(dc_data_per_surface, debug, slice_object)
+    
+    if not compute_indices:
+        return None, vertices_numpy
 
     if left_right_codes is None:
         # * Legacy triangulation
@@ -82,6 +89,15 @@ def _sequential_triangulation(dc_data_per_stack: DualContouringData, debug: bool
         indices = BackendTensor.t.concatenate(indices, axis=0)
 
     # @on
-    vertices_numpy = BackendTensor.t.to_numpy(vertices)
     indices_numpy = BackendTensor.t.to_numpy(indices)
     return indices_numpy, vertices_numpy
+
+
+def _generate_vertices(dc_data_per_surface: DualContouringData, debug: bool, slice_object: slice) -> Any:
+    vertices: np.ndarray = generate_dual_contouring_vertices(
+        dc_data_per_stack=dc_data_per_surface,
+        slice_surface=slice_object,
+        debug=debug
+    )
+    vertices_numpy = BackendTensor.t.to_numpy(vertices)
+    return vertices_numpy
