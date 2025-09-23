@@ -20,7 +20,8 @@ class RegularGrid:
     original_values: np.ndarray = field(default=None, repr=False, init=False)  #: When the regular grid is representing a octree level, only active cells are stored in values. This is the original values of the regular grid.
     
     def __len__(self):
-        return self.regular_grid_shape.prod()
+        # return self.regular_grid_shape.prod()
+        return self.values.shape[0]
 
     def __post_init__(self):
         self.regular_grid_shape = _check_and_convert_list_to_array(self.regular_grid_shape)
