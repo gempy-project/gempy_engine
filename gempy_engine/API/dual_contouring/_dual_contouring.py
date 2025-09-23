@@ -1,22 +1,13 @@
-
-import numpy
-import warnings
-from typing import List
 import os
+from typing import List
 
-import numpy as np
-
-from gempy_engine.config import AvailableBackends
 from ... import optional_dependencies
-
 from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.utils import gempy_profiler_decorator
 from ...modules.dual_contouring._parallel_triangulation import _should_use_parallel_processing, _process_surface_batch, _init_worker
 from ...modules.dual_contouring._sequential_triangulation import _sequential_triangulation
-from ...modules.dual_contouring.dual_contouring_interface import triangulate_dual_contouring, generate_dual_contouring_vertices
-from ...modules.dual_contouring.fancy_triangulation import triangulate
 
 # Multiprocessing imports
 try:
@@ -38,25 +29,10 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
     use_parallel = _should_use_parallel_processing(dc_data_per_stack.n_surfaces_to_export, BackendTensor.engine_backend)
     parallel_results = None
     
-    if use_parallel:
+    if use_parallel and True:
         print(f"Using parallel processing for {dc_data_per_stack.n_surfaces_to_export} surfaces")
         parallel_results = _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug)
         
-        # if parallel_results is not None:
-        #     # Convert parallel results to DualContouringMesh objects
-        #     stack_meshes = []
-        #     for vertices_numpy, indices_numpy in parallel_results:
-        #         if TRIMESH_LAST_PASS := True:
-        #             vertices_numpy, indices_numpy = _last_pass(vertices_numpy, indices_numpy)
-        #         
-        #         stack_meshes.append(
-        #             DualContouringMesh(
-        #                 vertices_numpy,
-        #                 indices_numpy,
-        #                 dc_data_per_stack
-        #             )
-        #         )
-        #     return stack_meshes
 
     # Fall back to sequential processing
     print(f"Using sequential processing for {dc_data_per_stack.n_surfaces_to_export} surfaces")
@@ -77,7 +53,7 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
             )
             indices_numpy = parallel_results[i]
         else:
-            vertices_numpy, indices_numpy = _sequential_triangulation(
+            indices_numpy, vertices_numpy = _sequential_triangulation(
                 dc_data_per_stack,
                 debug, 
                 i, 
