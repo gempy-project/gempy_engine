@@ -19,6 +19,7 @@ from ...core.data.octree_level import OctreeLevel
 from ...core.data.options import MeshExtractionMaskingOptions
 from ...core.data.stack_relation_type import StackRelationType
 from ...core.utils import gempy_profiler_decorator
+from ...modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge
 from ...modules.dual_contouring.fancy_triangulation import get_left_right_array
 
 
@@ -57,6 +58,10 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
         masking_option=options.evaluation_options.mesh_extraction_masking_options
     )
 
+    all_stack_intersection = []
+    all_valid_edges = []
+    all_left_right_codes = []
+
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
         previous_stack_is_onlap = data_descriptor.stack_relation[n_scalar_field - 1] == 'Onlap'
         was_erosion_before = data_descriptor.stack_relation[n_scalar_field - 1] == 'Erosion'
@@ -71,19 +76,53 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
         else:
             left_right_codes_per_stack = left_right_codes
 
-        # @off
-        dc_data: DualContouringData = interpolate_on_edges_for_dual_contouring(
-            data_descriptor=data_descriptor,
-            interpolation_input=interpolation_input,
-            options=dual_contouring_options,
-            n_scalar_field=n_scalar_field,
-            octree_leaves=octree_leaves,
-            mask=mask
+        output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
+        intersection_xyz, valid_edges = find_intersection_on_edge(
+            _xyz_corners=octree_leaves.grid_centers.corners_grid.values,
+            scalar_field_on_corners=output.exported_fields.scalar_field[output.grid.corners_grid_slice],
+            scalar_at_sp=output.scalar_field_at_sp,
+            masking=mask
         )
 
+        all_stack_intersection.append(intersection_xyz)
+        all_valid_edges.append(valid_edges)
+        all_left_right_codes.append(left_right_codes_per_stack)
+
+    from gempy_engine.core.data.engine_grid import EngineGrid
+    from gempy_engine.core.data.generic_grid import GenericGrid
+    from gempy_engine.API.interp_single.interp_features import interpolate_all_fields_no_octree
+    interpolation_input.set_temp_grid(
+        EngineGrid(
+            custom_grid=GenericGrid(
+                values=BackendTensor.t.concatenate(all_stack_intersection, axis=0)
+            )
+        )
+    )
+    # endregion
+
+    # ! (@miguel 21 June) I think by definition in the function `interpolate_all_fields_no_octree`
+    # ! we just need to interpolate up to the n_scalar_field, but I am not sure about this. I need to test it
+    output_on_edges: List[InterpOutput] = interpolate_all_fields_no_octree(
+        interpolation_input=interpolation_input,
+        options=dual_contouring_options,
+        data_descriptor=data_descriptor
+    )  # ! This has to be done with buffer weights otherwise is a waste
+    interpolation_input.set_grid_to_original()
+
+    for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
+        output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
+        dc_data = DualContouringData(
+            xyz_on_edge=all_stack_intersection[n_scalar_field],
+            valid_edges=all_valid_edges[n_scalar_field],
+            xyz_on_centers=octree_leaves.grid_centers.octree_grid.values if mask is None else octree_leaves.grid_centers.octree_grid.values[mask],
+            dxdydz=octree_leaves.grid_centers.octree_dxdydz,
+            exported_fields_on_edges=output_on_edges[n_scalar_field].exported_fields,
+            n_surfaces_to_export=output.scalar_field_at_sp.shape[0],
+            tree_depth=options.number_octree_levels,
+        )
         meshes: List[DualContouringMesh] = compute_dual_contouring(
             dc_data_per_stack=dc_data,
-            left_right_codes=left_right_codes_per_stack,
+            left_right_codes=all_left_right_codes[n_scalar_field],
             debug=options.debug
         )
 
@@ -91,7 +130,7 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
 
         if meshes is not None:
             all_meshes.extend(meshes)
-        # @on
+            # @on
 
     return all_meshes
 
