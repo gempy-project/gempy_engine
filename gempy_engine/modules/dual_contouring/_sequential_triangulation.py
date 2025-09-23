@@ -11,16 +11,19 @@ from ...modules.dual_contouring.fancy_triangulation import triangulate
 
 
 def _sequential_triangulation(dc_data_per_stack: DualContouringData,
-                              debug: bool
-                              , i: int, last_surface_edge_idx: int, 
+                              debug: bool , 
+                              i: int,
                               left_right_codes, 
                               valid_edges_per_surface,
                               compute_indices=True
                               ) -> tuple[Any, Any]:
     valid_edges: np.ndarray = valid_edges_per_surface[i]
-    next_surface_edge_idx: int = valid_edges.sum() + last_surface_edge_idx
+    next_surface_edge_idx: int = valid_edges_per_surface[:i+1].sum()
+    if i == 0:
+        last_surface_edge_idx = 0
+    else:
+        last_surface_edge_idx: int = valid_edges_per_surface[:i].sum() 
     slice_object: slice = slice(last_surface_edge_idx, next_surface_edge_idx)
-    last_surface_edge_idx: int = next_surface_edge_idx
 
     dc_data_per_surface = DualContouringData(
         xyz_on_edge=dc_data_per_stack.xyz_on_edge,

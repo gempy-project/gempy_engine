@@ -46,7 +46,6 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
                 dc_data_per_stack,
                 debug, 
                 i, 
-                last_surface_edge_idx, 
                 left_right_codes, 
                 valid_edges_per_surface,
                 compute_indices=False 
@@ -57,7 +56,6 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
                 dc_data_per_stack,
                 debug, 
                 i, 
-                last_surface_edge_idx, 
                 left_right_codes, 
                 valid_edges_per_surface,
                 compute_indices=True
