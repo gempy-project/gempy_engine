@@ -29,7 +29,7 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
     use_parallel = _should_use_parallel_processing(dc_data_per_stack.n_surfaces_to_export, BackendTensor.engine_backend)
     parallel_results = None
     
-    if use_parallel and True:
+    if use_parallel and False: # ! (Miguel Sep 25) I do not see a speedup
         print(f"Using parallel processing for {dc_data_per_stack.n_surfaces_to_export} surfaces")
         parallel_results = _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug)
         
@@ -38,7 +38,6 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
     print(f"Using sequential processing for {dc_data_per_stack.n_surfaces_to_export} surfaces")
     stack_meshes: List[DualContouringMesh] = []
 
-    last_surface_edge_idx = 0
     for i in range(dc_data_per_stack.n_surfaces_to_export):
         # @off
         if parallel_results is not None:

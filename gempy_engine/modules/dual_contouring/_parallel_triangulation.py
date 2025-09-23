@@ -102,43 +102,25 @@ def _process_single_surface(i, dc_data_per_stack, valid_edges_per_surface, left_
             tree_depth=dc_data_per_stack.tree_depth
         )
 
-        print(f"DEBUG: Processing surface {i}")
-
         if left_right_codes is None:
             # Legacy triangulation
             indices = triangulate_dual_contouring(dc_data_per_surface)
         else:
-            # Fancy triangulation
-            print(f"DEBUG: Creating edges_normals tensor")
-
-            # Check BackendTensor.dtype_obj
-            print(f"DEBUG: BackendTensor.dtype_obj = {BackendTensor.dtype_obj}")
-
             edges_normals = BackendTensor.t.zeros((valid_edges.shape[0], 12, 3), dtype=BackendTensor.dtype_obj)
-            print(f"DEBUG: edges_normals dtype: {edges_normals.dtype if hasattr(edges_normals, 'dtype') else 'No dtype attr'}")
-
-            # Set to NaN - this might be where the error occurs
-            print(f"DEBUG: Setting edges_normals to NaN")
             if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
                 edges_normals[:] = float('nan')  # Use Python float nan instead of np.nan
             else:
                 edges_normals[:] = np.nan
 
             # Get gradient data
-            print(f"DEBUG: Getting gradient data")
             gradient_data = dc_data_per_stack.gradients[slice_object]
-            print(f"DEBUG: gradient_data shape: {gradient_data.shape}, dtype: {gradient_data.dtype if hasattr(gradient_data, 'dtype') else 'No dtype attr'}")
 
             # Fix dtype mismatch by ensuring compatible dtypes
             if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
                 if hasattr(gradient_data, 'dtype') and hasattr(edges_normals, 'dtype'):
-                    print(f"DEBUG: Comparing dtypes - edges_normals: {edges_normals.dtype}, gradient_data: {gradient_data.dtype}")
                     if gradient_data.dtype != edges_normals.dtype:
-                        print(f"DEBUG: Converting gradient_data from {gradient_data.dtype} to {edges_normals.dtype}")
                         gradient_data = gradient_data.to(edges_normals.dtype)
 
-            print(f"DEBUG: Assigning gradient data to edges_normals")
-            print(f"DEBUG: valid_edges shape: {valid_edges.shape}, sum: {valid_edges.sum()}")
             edges_normals[valid_edges] = gradient_data
 
             if BackendTensor.engine_backend != AvailableBackends.PYTORCH:
@@ -147,7 +129,6 @@ def _process_single_surface(i, dc_data_per_stack, valid_edges_per_surface, left_
                     voxel_normal = np.nanmean(edges_normals, axis=1)
                     voxel_normal = voxel_normal[(~np.isnan(voxel_normal).any(axis=1))]
             else:
-                print(f"DEBUG: Computing voxel normals with PyTorch")
                 # PyTorch tensor operations
                 nan_mask = BackendTensor.t.isnan(edges_normals)
                 valid_count = (~nan_mask).sum(dim=1)
@@ -156,28 +137,22 @@ def _process_single_surface(i, dc_data_per_stack, valid_edges_per_surface, left_
                 sum_normals = BackendTensor.t.sum(safe_normals, 1)
                 voxel_normal = sum_normals / valid_count.clamp(min=1)
                 voxel_normal = voxel_normal[valid_count > 0].reshape(-1, 3)
-                print(f"DEBUG: voxel_normal shape: {voxel_normal.shape}, dtype: {voxel_normal.dtype}")
 
             valid_voxels = dc_data_per_surface.valid_voxels
             left_right_per_surface = left_right_codes[valid_voxels]
             valid_voxels_per_surface = dc_data_per_surface.valid_edges[valid_voxels]
             tree_depth_per_surface = dc_data_per_surface.tree_depth
 
-            print(f"DEBUG: Calling triangulate function")
             indices = triangulate(
                 left_right_array=left_right_per_surface,
                 valid_edges=valid_voxels_per_surface,
                 tree_depth=tree_depth_per_surface,
                 voxel_normals=voxel_normal
             )
-            print(f"DEBUG: triangulate returned, concatenating indices")
             indices = BackendTensor.t.concatenate(indices, axis=0)
 
-        print(f"DEBUG: Converting to numpy")
         # vertices_numpy = BackendTensor.t.to_numpy(vertices)
         indices_numpy = BackendTensor.t.to_numpy(indices)
-
-        print(f"DEBUG: Successfully processed surface {i}")
         return indices_numpy
 
     except Exception as e:

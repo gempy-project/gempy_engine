@@ -21,7 +21,6 @@ class DualContouringData:
     _gradients: np.ndarray = None
 
     tree_depth: int = -1
-    last_surface_edge_idx: int = 0
     # Water tight 
     mask: np.ndarray = None
 
