@@ -1,3 +1,4 @@
+import time
 import copy
 from typing import List, Optional
 
@@ -22,7 +23,8 @@ from ...core.utils import gempy_profiler_decorator
 @gempy_profiler_decorator
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                   data_descriptor: InputDataDescriptor, *, geophysics_input: Optional[GeophysicsInput] = None) -> Solutions:
-
+    options.temp_interpolation_values.start_computation_ts = int(time.time())
+    
     # ! If we inline this it seems the deepcopy does not work
     if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
         interpolation_input = copy.deepcopy(interpolation_input)
