@@ -71,28 +71,13 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
         grid_0_centers: EngineGrid = temp_interpolation_input.grid  # ? This could be moved to the next section
         xyz_corners = _generate_corners(regular_grid=grid_0_centers.octree_grid)
         
-        if grid_0_centers.custom_grid is None:
-            corner_grid = GenericGrid(values=xyz_corners)
-            grid_0_corners = None
-            output_0_corners = []
-            grid_0_centers.corners_grid = corner_grid
-            output_0_centers: List[InterpOutput] = interpolate_all_fields(temp_interpolation_input, options, data_shape)  # interpolate - centers
-            pass   
-        else:
-            # TODO: Here we would like to append the corners to the custom grid
-            raise NotImplementedError("This should not happen")
-      
-        
-        # ! Here we need to swap the grid temporarily but it is
-        # ! important to set up the og grid back for the gradients
-        # temp_interpolation_input.set_temp_grid(grid_0_corners)  # * Prepare grid for next interpolation
-        # output_0_corners: List[InterpOutput] = interpolate_all_fields(  # * This is unnecessary for the last level except for Dual contouring
-        #     interpolation_input=temp_interpolation_input,
-        #     options=options,
-        #     data_descriptor=data_shape
-        # )
+        corner_grid = GenericGrid(values=xyz_corners)
+        grid_0_centers.corners_grid = corner_grid
+        output_0_centers: List[InterpOutput] = interpolate_all_fields(temp_interpolation_input, options, data_shape)  # interpolate - centers
 
-        # temp_interpolation_input.set_grid_to_original()
+        # * DEP
+        grid_0_corners = None
+        output_0_corners = []
 
         # * Create next octree level
         next_octree_level = OctreeLevel(
@@ -104,6 +89,8 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
     else:
         grid_0_centers: EngineGrid = temp_interpolation_input.grid  # ? This could be moved to the next section
         output_0_centers: List[InterpOutput] = interpolate_all_fields(temp_interpolation_input, options, data_shape)  # interpolate - centers
+
+        # * DEP
         output_0_corners = []
         grid_0_corners = None
 
