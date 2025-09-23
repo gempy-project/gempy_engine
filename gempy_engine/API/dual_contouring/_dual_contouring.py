@@ -1,6 +1,8 @@
+
 import numpy
 import warnings
 from typing import List
+import os
 
 import numpy as np
 
@@ -11,95 +13,62 @@ from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.utils import gempy_profiler_decorator
+from ...modules.dual_contouring._parallel_triangulation import _should_use_parallel_processing, _process_surface_batch, _init_worker
+from ...modules.dual_contouring._sequential_triangulation import _sequential_triangulation
 from ...modules.dual_contouring.dual_contouring_interface import triangulate_dual_contouring, generate_dual_contouring_vertices
 from ...modules.dual_contouring.fancy_triangulation import triangulate
+
+# Multiprocessing imports
+try:
+    import torch.multiprocessing as mp
+    MULTIPROCESSING_AVAILABLE = True
+except ImportError:
+    import multiprocessing as mp
+    MULTIPROCESSING_AVAILABLE = False
+
+
+
 
 
 @gempy_profiler_decorator
 def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_codes=None, debug: bool = False) -> List[DualContouringMesh]:
     valid_edges_per_surface = dc_data_per_stack.valid_edges.reshape((dc_data_per_stack.n_surfaces_to_export, -1, 12))
 
-    # ? Is  there a way to cut also the vertices?
+    # Check if we should use parallel processing
+    use_parallel = _should_use_parallel_processing(dc_data_per_stack.n_surfaces_to_export, BackendTensor.engine_backend)
+    
+    if use_parallel:
+        print(f"Using parallel processing for {dc_data_per_stack.n_surfaces_to_export} surfaces")
+        parallel_results = _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug)
+        
+        if parallel_results is not None:
+            # Convert parallel results to DualContouringMesh objects
+            stack_meshes = []
+            for vertices_numpy, indices_numpy in parallel_results:
+                if TRIMESH_LAST_PASS := True:
+                    vertices_numpy, indices_numpy = _last_pass(vertices_numpy, indices_numpy)
+                
+                stack_meshes.append(
+                    DualContouringMesh(
+                        vertices_numpy,
+                        indices_numpy,
+                        dc_data_per_stack
+                    )
+                )
+            return stack_meshes
 
+    # Fall back to sequential processing
+    print(f"Using sequential processing for {dc_data_per_stack.n_surfaces_to_export} surfaces")
     stack_meshes: List[DualContouringMesh] = []
 
     last_surface_edge_idx = 0
     for i in range(dc_data_per_stack.n_surfaces_to_export):
         # @off
-        valid_edges          : np.ndarray = valid_edges_per_surface[i]
-        next_surface_edge_idx: int        = valid_edges.sum() + last_surface_edge_idx
-        slice_object         : slice      = slice(last_surface_edge_idx, next_surface_edge_idx)
-        last_surface_edge_idx: int        = next_surface_edge_idx
+        indices_numpy, vertices_numpy = _sequential_triangulation(dc_data_per_stack, debug, i, last_surface_edge_idx, left_right_codes, valid_edges_per_surface)
 
-        dc_data_per_surface = DualContouringData(
-            xyz_on_edge              = dc_data_per_stack.xyz_on_edge,
-            valid_edges              = valid_edges,
-            xyz_on_centers           = dc_data_per_stack.xyz_on_centers,
-            dxdydz                   = dc_data_per_stack.dxdydz,
-            exported_fields_on_edges = dc_data_per_stack.exported_fields_on_edges,
-            n_surfaces_to_export     = dc_data_per_stack.n_surfaces_to_export,
-            tree_depth               = dc_data_per_stack.tree_depth
-
-        )
-        vertices: np.ndarray = generate_dual_contouring_vertices(
-            dc_data_per_stack = dc_data_per_surface,
-            slice_surface     = slice_object,
-            debug             = debug
-        )
-        
-        if left_right_codes is None:
-            # * Legacy triangulation
-            indices = triangulate_dual_contouring(dc_data_per_surface)
-        else:
-            # * Fancy triangulation 👗
-            
-            # * Average gradient for the edges
-            edges_normals = BackendTensor.t.zeros((valid_edges.shape[0], 12, 3), dtype=BackendTensor.dtype_obj)
-            edges_normals[:] = np.nan
-            edges_normals[valid_edges] = dc_data_per_stack.gradients[slice_object]
-                
-            # if LEGACY:=True:
-            if BackendTensor.engine_backend != AvailableBackends.PYTORCH:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", category=RuntimeWarning)
-                    voxel_normal  = np.nanmean(edges_normals, axis=1)
-                    voxel_normal  = voxel_normal[(~np.isnan(voxel_normal).any(axis=1))]  # drop nans
-                    pass 
-            else:
-                # Assuming edges_normals is a PyTorch tensor
-                nan_mask = BackendTensor.t.isnan(edges_normals)
-                valid_count = (~nan_mask).sum(dim=1)
-
-                # Replace NaNs with 0 for sum calculation
-                safe_normals = edges_normals.clone()
-                safe_normals[nan_mask] = 0
-
-                # Compute the sum of non-NaN elements
-                sum_normals = BackendTensor.t.sum(safe_normals, 1)
-
-                # Calculate the mean, avoiding division by zero
-                voxel_normal = sum_normals / valid_count.clamp(min=1)
-
-                # Remove rows where all elements were NaN (and hence valid_count is 0)
-                voxel_normal = voxel_normal[valid_count > 0].reshape(-1, 3)
-                
-
-            valid_voxels = dc_data_per_surface.valid_voxels
-            indices = triangulate(
-                left_right_array = left_right_codes[valid_voxels],
-                valid_edges      = dc_data_per_surface.valid_edges[valid_voxels],
-                tree_depth       = dc_data_per_surface.tree_depth,
-                voxel_normals     = voxel_normal 
-            )
-            indices = BackendTensor.t.concatenate(indices, axis=0)
-            
-        # @on
-        vertices_numpy = BackendTensor.t.to_numpy(vertices)
-        indices_numpy = BackendTensor.t.to_numpy(indices)
-        
         if TRIMESH_LAST_PASS := True:
             vertices_numpy, indices_numpy = _last_pass(vertices_numpy, indices_numpy)
-        
+
         stack_meshes.append(
             DualContouringMesh(
                 vertices_numpy,
@@ -109,6 +78,55 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
         )
     return stack_meshes
 
+
+
+
+def _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug, num_workers=None, chunk_size=2):
+    """Process surfaces in parallel using multiprocessing."""
+    if num_workers is None:
+        num_workers = max(1, min(os.cpu_count() // 2, dc_data_per_stack.n_surfaces_to_export // 2))
+
+    # Prepare data for serialization
+    dc_data_dict = {
+            'xyz_on_edge'             : dc_data_per_stack.xyz_on_edge,
+            'valid_edges'             : dc_data_per_stack.valid_edges,
+            'xyz_on_centers'          : dc_data_per_stack.xyz_on_centers,
+            'dxdydz'                  : dc_data_per_stack.dxdydz,
+            'exported_fields_on_edges': dc_data_per_stack.exported_fields_on_edges,
+            'n_surfaces_to_export'    : dc_data_per_stack.n_surfaces_to_export,
+            'tree_depth'              : dc_data_per_stack.tree_depth,
+            # 'gradients': getattr(dc_data_per_stack, 'gradients', None)
+    }
+
+    # Create surface index chunks
+    surface_indices = list(range(dc_data_per_stack.n_surfaces_to_export))
+    chunks = [surface_indices[i:i + chunk_size] for i in range(0, len(surface_indices), chunk_size)]
+
+    try:
+        # Use spawn context for better PyTorch compatibility
+        ctx = mp.get_context("spawn") if MULTIPROCESSING_AVAILABLE else mp
+
+        with ctx.Pool(processes=num_workers, initializer=_init_worker) as pool:
+            # Submit all chunks
+            async_results = []
+            for chunk in chunks:
+                result = pool.apply_async(
+                    _process_surface_batch,
+                    (chunk, dc_data_dict, left_right_codes, debug)
+                )
+                async_results.append(result)
+
+            # Collect results
+            all_results = []
+            for async_result in async_results:
+                batch_results = async_result.get()
+                all_results.extend(batch_results)
+
+        return all_results
+
+    except Exception as e:
+        print(f"Parallel processing failed: {e}. Falling back to sequential processing.")
+        return None
 
 def _last_pass(vertices, indices):
     # Check if trimesh is available
