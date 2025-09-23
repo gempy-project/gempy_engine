@@ -22,6 +22,7 @@ class EngineGrid:
     topography: Optional[GenericGrid] = None
     sections: Optional[GenericGrid] = None
     geophysics_grid: Optional[CenteredGrid] = None  # TODO: Not implemented this probably will need something different that the generic grid?
+    corners_grid: Optional[GenericGrid] = None  # TODO: Not implemented this probably will need something different that the generic grid?
 
     debug_vals = None
 
@@ -29,13 +30,15 @@ class EngineGrid:
 
     def __init__(self, octree_grid: Optional[RegularGrid] = None, dense_grid: Optional[RegularGrid] = None,
                  custom_grid: Optional[GenericGrid] = None, topography: Optional[GenericGrid] = None,
-                 sections: Optional[GenericGrid] = None, geophysics_grid: Optional[CenteredGrid] = None):
+                 sections: Optional[GenericGrid] = None, geophysics_grid: Optional[CenteredGrid] = None,
+                 cornersGrid: Optional[GenericGrid] = None):
         self.octree_grid = octree_grid
         self.dense_grid = dense_grid
         self.custom_grid = custom_grid
         self.topography = topography
         self.sections = sections
         self.geophysics_grid = geophysics_grid
+        self.corners_grid = cornersGrid
 
     @property
     def regular_grid(self):
@@ -78,6 +81,8 @@ class EngineGrid:
             values.append(self.sections.values)
         if self.geophysics_grid is not None:
             values.append(self.geophysics_grid.values)
+        if self.corners_grid is not None:
+            values.append(self.corners_grid.values)
 
         values_array = BackendTensor.t.concatenate(values, dtype=BackendTensor.dtype)
         values_array = BackendTensor.t.array(values_array, dtype=BackendTensor.dtype)
@@ -129,6 +134,14 @@ class EngineGrid:
         return slice(
             start,
             start + len(self.geophysics_grid) if self.geophysics_grid is not None else start
+        )
+
+    @property
+    def corners_grid_slice(self) -> slice:
+        start = self.geophysics_grid_slice.stop
+        return slice(
+            start,
+            start + len(self.corners_grid) if self.corners_grid is not None else start
         )
 
     @property

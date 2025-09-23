@@ -85,6 +85,14 @@ class InterpOutput:
         return self.block[self.grid.geophysics_grid_slice]
     
     @property
+    def cornersGrid_values(self):
+        return self.block[self.grid.corners_grid_slice]
+
+    @property
+    def ids_cornersGrid(self):
+        return BackendTensor.t.rint(self.block[self.grid.corners_grid_slice])
+
+    @property
     def ids_geophysics_grid(self):
         return BackendTensor.t.rint(self.block[self.grid.geophysics_grid_slice])
 
@@ -129,6 +137,21 @@ class InterpOutput:
         # Get the number of unique lithology IDs
         multiplier = len(BackendTensor.t.unique(litho_ids))
     
+        # Generate the unique IDs
+        unique_ids = litho_ids + faults_ids * multiplier
+        return unique_ids
+
+    @property
+    def litho_faults_ids_corners_grid(self):
+        if self.combined_scalar_field is None:  # * This in principle is only used for testing
+            return self.ids_cornersGrid
+
+        litho_ids = BackendTensor.t.rint(self.block[self.grid.corners_grid_slice])
+        faults_ids = BackendTensor.t.rint(self.faults_block[self.grid.corners_grid_slice])
+
+        # Get the number of unique lithology IDs
+        multiplier = len(BackendTensor.t.unique(litho_ids))
+
         # Generate the unique IDs
         unique_ids = litho_ids + faults_ids * multiplier
         return unique_ids

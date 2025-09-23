@@ -17,7 +17,7 @@ from ._multi_scalar_field_manager import interpolate_all_fields
 import numpy as np
 
 
-def interpolate_on_octree(interpolation_input: InterpolationInput, options: InterpolationOptions,
+def interpolate_on_octree_(interpolation_input: InterpolationInput, options: InterpolationOptions,
                           data_shape: InputDataDescriptor) -> OctreeLevel:
     if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
         temp_interpolation_input = copy.deepcopy(interpolation_input)
@@ -30,8 +30,9 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
     # * Interpolate - corners
     grid_0_centers: EngineGrid = temp_interpolation_input.grid  # ? This could be moved to the next section
     if options.compute_corners:
-        grid_0_corners: Optional[EngineGrid] = EngineGrid.from_xyz_coords(
-            xyz_coords=_generate_corners(regular_grid=grid_0_centers.octree_grid)
+        xyz_corners = _generate_corners(regular_grid=grid_0_centers.octree_grid)
+        grid_0_corners: EngineGrid = EngineGrid.from_xyz_coords(
+            xyz_coords=xyz_corners
         )
 
         # ! Here we need to swap the grid temporarily but it is
@@ -57,6 +58,64 @@ def interpolate_on_octree(interpolation_input: InterpolationInput, options: Inte
     )
     return next_octree_level
 
+
+def interpolate_on_octree(interpolation_input: InterpolationInput, options: InterpolationOptions,
+                           data_shape: InputDataDescriptor) -> OctreeLevel:
+    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
+        temp_interpolation_input = copy.deepcopy(interpolation_input)
+    else:
+        temp_interpolation_input = interpolation_input
+
+    # * Interpolate - corners
+    if options.compute_corners:
+        grid_0_centers: EngineGrid = temp_interpolation_input.grid  # ? This could be moved to the next section
+        xyz_corners = _generate_corners(regular_grid=grid_0_centers.octree_grid)
+        
+        if grid_0_centers.custom_grid is None:
+            corner_grid = GenericGrid(values=xyz_corners)
+            grid_0_corners = None
+            output_0_corners = []
+            grid_0_centers.corners_grid = corner_grid
+            output_0_centers: List[InterpOutput] = interpolate_all_fields(temp_interpolation_input, options, data_shape)  # interpolate - centers
+            pass   
+        else:
+            # TODO: Here we would like to append the corners to the custom grid
+            raise NotImplementedError("This should not happen")
+      
+        
+        # ! Here we need to swap the grid temporarily but it is
+        # ! important to set up the og grid back for the gradients
+        # temp_interpolation_input.set_temp_grid(grid_0_corners)  # * Prepare grid for next interpolation
+        # output_0_corners: List[InterpOutput] = interpolate_all_fields(  # * This is unnecessary for the last level except for Dual contouring
+        #     interpolation_input=temp_interpolation_input,
+        #     options=options,
+        #     data_descriptor=data_shape
+        # )
+
+        # temp_interpolation_input.set_grid_to_original()
+
+        # * Create next octree level
+        next_octree_level = OctreeLevel(
+            grid_centers=grid_0_centers,
+            grid_corners=grid_0_corners,
+            outputs_centers=output_0_centers,
+            outputs_corners=output_0_corners
+        )
+    else:
+        grid_0_centers: EngineGrid = temp_interpolation_input.grid  # ? This could be moved to the next section
+        output_0_centers: List[InterpOutput] = interpolate_all_fields(temp_interpolation_input, options, data_shape)  # interpolate - centers
+        output_0_corners = []
+        grid_0_corners = None
+
+        # * Create next octree level
+        next_octree_level = OctreeLevel(
+            grid_centers=grid_0_centers,
+            grid_corners=grid_0_corners,
+            outputs_centers=output_0_centers,
+            outputs_corners=output_0_corners
+        )
+
+    return next_octree_level
 
 def _generate_corners_DEP(regular_grid: RegularGrid, level=1) -> np.ndarray:
     if regular_grid is None: raise ValueError("Regular grid is None")
