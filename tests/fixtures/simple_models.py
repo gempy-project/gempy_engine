@@ -33,6 +33,7 @@ from gempy_engine.modules.activator.activator_interface import activate_formatio
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
 
+
 np.set_printoptions(precision=3, linewidth=200)
 
 dir_name = os.path.dirname(__file__)
@@ -192,6 +193,10 @@ def simple_model_3_layers(simple_grid_3d_octree) -> Tuple[InterpolationInput, In
 
 
 def _gen_simple_model_3_layers(simple_grid_3d_octree):
+
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache
+    WeightCache.initialize_cache_dir() 
+    
     grid_0_centers = dataclasses.replace(simple_grid_3d_octree)
     np.set_printoptions(precision=3, linewidth=200)
     dip_positions = np.array([
@@ -235,6 +240,8 @@ def _gen_simple_model_3_layers(simple_grid_3d_octree):
 
 @pytest.fixture(scope="session")
 def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache 
+    WeightCache.initialize_cache_dir() 
     grid_0_centers = dataclasses.replace(simple_grid_3d_more_points_grid)
 
     np.set_printoptions(precision=3, linewidth=200)
