@@ -52,7 +52,12 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
                 weights_hash=weights_hash
             )
         case _ if weights_cached["hash"] != weights_hash:
-            raise ValueError("Cache is corrupted")
+            weights = _solve_and_store_weights(
+                solver_input=solver_input,
+                kernel_options=options.kernel_options,
+                weights_key=weights_key,
+                weights_hash=weights_hash
+            )
         case _ if weights_cached["hash"] == weights_hash:
             weights = weights_cached["weights"]
         case _:
