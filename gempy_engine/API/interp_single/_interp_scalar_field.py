@@ -29,10 +29,14 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
                 key=weights_key,
                 look_in_disk= not options.cache_mode == InterpolationOptions.CacheMode.IN_MEMORY_CACHE
             )
+            ts = options.temp_interpolation_values.start_computation_ts
+            if ts == -1:
+                raise ValueError("ts not set")
+            
             weights_hash = generate_cache_key(
                 name="",
                 parameters={
-                        "ts": options.temp_interpolation_values.start_computation_ts
+                        "ts": ts
                 }
             )
         case  InterpolationOptions.CacheMode.CLEAR_CACHE:

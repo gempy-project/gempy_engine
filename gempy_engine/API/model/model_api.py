@@ -23,58 +23,63 @@ from ...modules.weights_cache.weights_cache_interface import WeightCache
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                   data_descriptor: InputDataDescriptor, *, geophysics_input: Optional[GeophysicsInput] = None) -> Solutions:
 
-    WeightCache.initialize_cache_dir()
-    options.temp_interpolation_values.start_computation_ts = int(time.time())
-    
-    # ! If we inline this it seems the deepcopy does not work
-    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
-        interpolation_input = copy.deepcopy(interpolation_input)
+    try:
+        WeightCache.initialize_cache_dir()
+        options.temp_interpolation_values.start_computation_ts = int(time.time())
         
-    # Check input is valid
-    _check_input_validity(interpolation_input, options, data_descriptor)
+        # ! If we inline this it seems the deepcopy does not work
+        if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
+            interpolation_input = copy.deepcopy(interpolation_input)
+            
+        # Check input is valid
+        _check_input_validity(interpolation_input, options, data_descriptor)
 
-    output: list[OctreeLevel] = interpolate_n_octree_levels(
-        interpolation_input=interpolation_input,
-        options=options,
-        data_descriptor=data_descriptor
-    )
-    # region Geophysics
-    # ---------------------
-    # TODO: [x] Gravity
-    # TODO: [ ] Magnetics
-
-    if geophysics_input is not None:
-        first_level_last_field: InterpOutput = output[0].outputs_centers[-1]
-        gravity = compute_gravity(
-            geophysics_input=geophysics_input,
-            root_ouput=first_level_last_field
-        )
-    else:
-        gravity = None
-
-    # endregion
-
-    meshes: Optional[list[DualContouringMesh]] = None
-    if options.mesh_extraction:
-        if interpolation_input.grid.octree_grid is None:
-            raise ValueError("Octree grid must be defined to extract the mesh")
-        
-        meshes: list[DualContouringMesh] = dual_contouring_multi_scalar(
-            data_descriptor=data_descriptor,
+        output: list[OctreeLevel] = interpolate_n_octree_levels(
             interpolation_input=interpolation_input,
             options=options,
-            octree_list=output[:options.number_octree_levels_surface]
+            data_descriptor=data_descriptor
+        )
+        # region Geophysics
+        # ---------------------
+        # TODO: [x] Gravity
+        # TODO: [ ] Magnetics
+
+        if geophysics_input is not None:
+            first_level_last_field: InterpOutput = output[0].outputs_centers[-1]
+            gravity = compute_gravity(
+                geophysics_input=geophysics_input,
+                root_ouput=first_level_last_field
+            )
+        else:
+            gravity = None
+
+        # endregion
+
+        meshes: Optional[list[DualContouringMesh]] = None
+        if options.mesh_extraction:
+            if interpolation_input.grid.octree_grid is None:
+                raise ValueError("Octree grid must be defined to extract the mesh")
+            
+            meshes: list[DualContouringMesh] = dual_contouring_multi_scalar(
+                data_descriptor=data_descriptor,
+                interpolation_input=interpolation_input,
+                options=options,
+                octree_list=output[:options.number_octree_levels_surface]
+            )
+
+        solutions = Solutions(
+            octrees_output=output,
+            dc_meshes=meshes,
+            fw_gravity=gravity,
+            block_solution_type=options.block_solutions_type
         )
 
-    solutions = Solutions(
-        octrees_output=output,
-        dc_meshes=meshes,
-        fw_gravity=gravity,
-        block_solution_type=options.block_solutions_type
-    )
-
-    if options.debug:
-        solutions.debug_input_data["stack_interpolation_input"] = interpolation_input
+        if options.debug:
+            solutions.debug_input_data["stack_interpolation_input"] = interpolation_input
+    except Exception as e:
+        raise e
+    finally:
+        options.temp_interpolation_values.start_computation_ts = -1
 
     return solutions
 

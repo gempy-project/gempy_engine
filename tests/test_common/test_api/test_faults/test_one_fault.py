@@ -107,6 +107,9 @@ def test_one_fault_model_thickness(one_fault_model, n_oct_levels=2):
 
 
 def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=4):
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache
+    WeightCache.initialize_cache_dir()
+    
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -171,6 +174,9 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=4):
 
 
 def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache
+    WeightCache.initialize_cache_dir()
+    
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
