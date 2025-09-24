@@ -145,7 +145,7 @@ class BackendTensor:
 
     @classmethod
     def _wrap_pytorch_functions(cls):
-        from torch import sum, repeat_interleave, flip
+        from torch import sum, repeat_interleave, isclose
         import torch
 
         def _sum(tensor, axis=None, dtype=None, keepdims=False):
@@ -265,6 +265,14 @@ class BackendTensor:
                 # Not a torch tensor, return as-is
                 return tensor
 
+        def _fill_diagonal(tensor, value):
+            """Fill the diagonal of a 2D tensor with the given value"""
+            if tensor.dim() != 2:
+                raise ValueError("fill_diagonal only supports 2D tensors")
+            diagonal_indices = torch.arange(min(tensor.size(0), tensor.size(1)))
+            tensor[diagonal_indices, diagonal_indices] = value
+            return tensor
+
         cls.tfnp.sum = _sum
         cls.tfnp.repeat = _repeat
         cls.tfnp.expand_dims = lambda tensor, axis: tensor
@@ -285,6 +293,14 @@ class BackendTensor:
         cls.tfnp.tile = lambda tensor, repeats: tensor.repeat(repeats)
         cls.tfnp.ravel = lambda tensor: tensor.flatten()
         cls.tfnp.packbits = _packbits
+        cls.tfnp.fill_diagonal = _fill_diagonal
+        cls.tfnp.isclose = lambda a, b, rtol=1e-05, atol=1e-08, equal_nan=False: isclose(
+            a,
+            torch.tensor(b, dtype=a.dtype, device=a.device),
+            rtol=rtol,
+            atol=atol,
+            equal_nan=equal_nan
+        )
 
     @classmethod
     def _wrap_pykeops_functions(cls):
