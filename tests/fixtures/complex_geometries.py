@@ -83,6 +83,7 @@ def one_fault_model():
         number_dimensions=3,
         kernel_function=AvailableKernelFunctions.exponential)
 
+    options.cache_mode = InterpolationOptions.CacheMode.NO_CACHE
     # endregion
 
     return interpolation_input, input_data_descriptor, options
