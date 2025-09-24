@@ -24,7 +24,7 @@ def profile_moureze_model():
     BackendTensor._change_backend(
         engine_backend=AvailableBackends.numpy,
         use_gpu=False,
-        pykeops_enabled=False
+        use_pykeops=False
     )
 
     model = moureze_model_factory(

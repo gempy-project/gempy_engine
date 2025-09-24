@@ -22,6 +22,7 @@ class BackendTensor:
     engine_backend: AvailableBackends
 
     pykeops_enabled: bool
+    use_pykeops: bool = False
     use_gpu: bool = True
     dtype: str = DEFAULT_TENSOR_DTYPE
     dtype_obj: Union[str, "torch.dtype"] = DEFAULT_TENSOR_DTYPE
@@ -46,10 +47,10 @@ class BackendTensor:
 
     @classmethod
     def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = True, dtype: Optional[str] = None):
-        cls._change_backend(engine_backend, pykeops_enabled=PYKEOPS, use_gpu=use_gpu, dtype=dtype)
+        cls._change_backend(engine_backend, use_pykeops=PYKEOPS, use_gpu=use_gpu, dtype=dtype)
 
     @classmethod
-    def _change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled: bool = False, use_gpu: bool = True, dtype: Optional[str] = None):
+    def _change_backend(cls, engine_backend: AvailableBackends, use_pykeops: bool = False, use_gpu: bool = True, dtype: Optional[str] = None):
         cls.dtype = DEFAULT_TENSOR_DTYPE if dtype is None else dtype
         cls.dtype_obj = cls.dtype
         match engine_backend:
@@ -71,20 +72,20 @@ class BackendTensor:
 
                 cls._wrap_numpy_functions()
 
-                match (pykeops_enabled, is_pykeops_installed, use_gpu):
+                match (use_pykeops, is_pykeops_installed, use_gpu):
                     case (True, True, True):
-                        cls.pykeops_enabled = True
+                        cls.use_pykeops = True
                         cls.use_gpu = True
                         cls._wrap_pykeops_functions()
                     case (True, True, False):
-                        cls.pykeops_enabled = True
+                        cls.use_pykeops = True
                         cls.use_gpu = False
                         cls._wrap_pykeops_functions()
                     case (True, False, _):
                         raise AttributeError(
                             f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: pykeops")
                     case (False, _, _):
-                        cls.pykeops_enabled = False
+                        cls.use_pykeops = False
                         cls.use_gpu = False
 
             case (engine_backend.PYTORCH):
@@ -98,8 +99,8 @@ class BackendTensor:
                 cls.dtype_obj = pytorch_copy.float32 if cls.dtype == "float32" else pytorch_copy.float64
                 cls.tensor_types = pytorch_copy.Tensor
 
-                cls.pykeops_enabled = pykeops_enabled  # TODO: Make this compatible with pykeops
-                if (pykeops_enabled):
+                cls.use_pykeops = use_pykeops  # TODO: Make this compatible with pykeops
+                if (use_pykeops):
                     import pykeops
                     cls._wrap_pykeops_functions()
                 
@@ -209,6 +210,8 @@ class BackendTensor:
                 case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor():
                     return tensor.sum(axis)
                 case torch.Tensor() if torch_available:
+                    if isinstance(dtype, str):
+                        dtype = getattr(torch, dtype)
                     return tensor.sum(axis, keepdims=keepdims, dtype=dtype)
                 case _:
                     raise TypeError("Unsupported tensor type")
