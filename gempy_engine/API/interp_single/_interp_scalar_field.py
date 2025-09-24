@@ -1,3 +1,5 @@
+import warnings
+
 from typing import Tuple, Optional
 
 import numpy as np
@@ -31,14 +33,15 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
             )
             ts = options.temp_interpolation_values.start_computation_ts
             if ts == -1:
-                raise ValueError("ts not set")
-            
-            weights_hash = generate_cache_key(
-                name="",
-                parameters={
-                        "ts": ts
-                }
-            )
+                warnings.warn("No start computation timestamp found. No caching.")
+                weights_cached = None
+            else:
+                weights_hash = generate_cache_key(
+                    name="",
+                    parameters={
+                            "ts": ts
+                    }
+                )
         case  InterpolationOptions.CacheMode.CLEAR_CACHE:
             WeightCache.initialize_cache_dir()
             weights_cached = None
