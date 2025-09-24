@@ -21,7 +21,7 @@ from importlib.util import find_spec, module_from_spec
 class BackendTensor:
     engine_backend: AvailableBackends
 
-    pykeops_enabled: bool
+    pykeops_enabled: bool = False
     use_pykeops: bool = False
     use_gpu: bool = True
     dtype: str = DEFAULT_TENSOR_DTYPE
@@ -46,7 +46,7 @@ class BackendTensor:
                 return "CPU"
 
     @classmethod
-    def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = True, dtype: Optional[str] = None):
+    def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = False, dtype: Optional[str] = None):
         cls._change_backend(engine_backend, use_pykeops=PYKEOPS, use_gpu=use_gpu, dtype=dtype)
 
     @classmethod
@@ -110,7 +110,10 @@ class BackendTensor:
                     # Check if CUDA is available
                     if not pytorch_copy.cuda.is_available():
                         raise RuntimeError("GPU requested but CUDA is not available in PyTorch")
-                    if False:
+                    if False: # * (Miguel) this slows down the code a lot
+                        # Check if CUDA device is available
+                        if not pytorch_copy.cuda.device_count():
+                            raise RuntimeError("GPU requested but no CUDA device is available in PyTorch")
                         # Set default device to CUDA
                         cls.device = pytorch_copy.device("cuda")
                         pytorch_copy.set_default_device("cuda")
@@ -293,6 +296,7 @@ class BackendTensor:
         cls.tfnp.tile = lambda tensor, repeats: tensor.repeat(repeats)
         cls.tfnp.ravel = lambda tensor: tensor.flatten()
         cls.tfnp.packbits = _packbits
+        cls.tfnp.ascontiguousarray = lambda tensor: tensor.contiguous()
         cls.tfnp.fill_diagonal = _fill_diagonal
         cls.tfnp.isclose = lambda a, b, rtol=1e-05, atol=1e-08, equal_nan=False: isclose(
             a,

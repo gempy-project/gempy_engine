@@ -48,8 +48,8 @@ def cov_vectors_preparation(interp_input: SolverInput, kernel_options: KernelOpt
     return KernelInput(
         ori_sp_matrices=orientations_sp_matrices,
         cartesian_selector=cartesian_selector,
-        nugget_scalar= interp_input.sp_internal.nugget_effect_ref_rest,
-        nugget_grad= interp_input.ori_internal.nugget_effect_grad,
+        nugget_scalar=interp_input.sp_internal.nugget_effect_ref_rest,
+        nugget_grad=interp_input.ori_internal.nugget_effect_grad,
         # Drift
         ori_drift=dips_ug,
         ref_drift=dips_ref_ui,
@@ -61,11 +61,11 @@ def cov_vectors_preparation(interp_input: SolverInput, kernel_options: KernelOpt
     )
 
 
-def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: KernelOptions, 
-                                    axis: Optional[int] = None, slice_array = None) -> KernelInput:
+def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: KernelOptions,
+                                    axis: Optional[int] = None, slice_array=None) -> KernelInput:
     sp_: SurfacePointsInternals = interp_input.sp_internal
     ori_: OrientationsInternals = interp_input.ori_internal
-    
+
     # if is none just get the whole array
     if slice_array is not None:
         grid: np.ndarray = interp_input.xyz_to_interpolate[slice_array]
@@ -129,10 +129,10 @@ def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: K
 def _assembly_dips_points_tensors(matrices_size: MatricesSizes, ori_, sp_) -> OrientationSurfacePointsCoords:
     dips_ref_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.ref_surface_points, matrices_size)
     dips_rest_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.rest_surface_points, matrices_size)
-    
+
     orientations_sp_matrices = OrientationSurfacePointsCoords(dips_ref_coord, dips_ref_coord, dips_rest_coord,
                                                               dips_rest_coord)  # When we create que core covariance these are the repeated since the distance are with themselves
-    
+
     return orientations_sp_matrices
 
 
@@ -196,7 +196,6 @@ def _assembly_drift_grid_tensors(grid: np.ndarray, options: KernelOptions, matri
     # region UG
     dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector = assembly_dips_ug_coords(ori_, options, matrices_size)
 
-
     grid_1 = BackendTensor.t.zeros_like(grid)
     grid_1[:, axis] = 1
 
@@ -223,7 +222,10 @@ def _assembly_drift_grid_tensors(grid: np.ndarray, options: KernelOptions, matri
 
 def _assembly_fault_grid_tensors(fault_values_on_grid, options: KernelOptions, faults_val: FaultsData, ori_size: int) -> FaultDrift:
     fault_vector_ref, fault_vector_rest = _assembly_fault_internals(faults_val, options, ori_size)
-    fault_drift = FaultDrift(fault_vector_ref, fault_values_on_grid.T)
+    fault_drift = FaultDrift(
+        x_degree_1=fault_vector_ref,
+        y_degree_1=BackendTensor.t.ascontiguousarray(fault_values_on_grid.T)
+    )
     return fault_drift
 
 
@@ -244,6 +246,7 @@ def _assembly_fault_internals(faults_val, options, ori_size):
 
     ref_matrix_val = faults_val.fault_values_ref
     rest_matrix_val = faults_val.fault_values_rest
-    fault_vector_ref = _assembler(ref_matrix_val.T, ori_size, options.n_uni_eq)
+    ref_matrix_contig = BackendTensor.t.ascontiguousarray(ref_matrix_val.T)
+    fault_vector_ref = _assembler(ref_matrix_contig, ori_size, options.n_uni_eq)
     fault_vector_rest = _assembler(rest_matrix_val.T, ori_size, options.n_uni_eq)
     return fault_vector_ref, fault_vector_rest
