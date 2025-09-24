@@ -21,7 +21,7 @@ from importlib.util import find_spec, module_from_spec
 class BackendTensor:
     engine_backend: AvailableBackends
 
-    pykeops_enabled: bool
+    pykeops_enabled: bool = False
     use_pykeops: bool = False
     use_gpu: bool = True
     dtype: str = DEFAULT_TENSOR_DTYPE
@@ -46,7 +46,7 @@ class BackendTensor:
                 return "CPU"
 
     @classmethod
-    def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = True, dtype: Optional[str] = None):
+    def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = False, dtype: Optional[str] = None):
         cls._change_backend(engine_backend, use_pykeops=PYKEOPS, use_gpu=use_gpu, dtype=dtype)
 
     @classmethod
