@@ -12,6 +12,9 @@ except ImportError:
 
 
 def test_interpolate_model(simple_model_interpolation_input, n_oct_levels=3):
+
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache
+    WeightCache.initialize_cache_dir()
     """Kernel function Cubic"""
     interpolation_input, options, structure = simple_model_interpolation_input
     print(interpolation_input)
@@ -29,6 +32,9 @@ def test_interpolate_model(simple_model_interpolation_input, n_oct_levels=3):
 
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
 def test_interpolate_model_no_octtree(simple_model_3_layers_high_res, n_oct_levels=2):
+
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache
+    WeightCache.initialize_cache_dir()
     interpolation_input, options, structure = simple_model_3_layers_high_res
     print(interpolation_input)
 
@@ -44,6 +50,9 @@ def test_interpolate_model_no_octtree(simple_model_3_layers_high_res, n_oct_leve
 
 
 def test_interpolate_model_several_surfaces(simple_model_3_layers, n_oct_levels=3):
+
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache
+    WeightCache.initialize_cache_dir()
     interpolation_input, options, structure = simple_model_3_layers
     print(interpolation_input)
 

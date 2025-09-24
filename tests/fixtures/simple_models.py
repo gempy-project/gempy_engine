@@ -169,6 +169,7 @@ def simple_model_interpolation_input_factory():
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
     interpolation_options = InterpolationOptions.from_args(range_, co, 0, number_dimensions=3,
                                                  kernel_function=AvailableKernelFunctions.cubic)
+    interpolation_options.cache_mode = InterpolationOptions.CacheMode.NO_CACHE
     ids = np.array([1, 2])
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
     tensor_struct = TensorsStructure(np.array([7]))
@@ -279,6 +280,7 @@ def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid) -> Tuple[Int
 
     interpolation_options = InterpolationOptions.from_args(range_, co, 0,
                                                  number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+    interpolation_options.cache_mode = InterpolationOptions.CacheMode.NO_CACHE
 
     ids = np.array([1, 2, 3, 4])
 
