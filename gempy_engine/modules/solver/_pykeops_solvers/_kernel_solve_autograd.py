@@ -5,7 +5,8 @@ from pykeops.common.keops_io import keops_binder
 from pykeops.common.parse_type import get_type
 from pykeops.torch.generic.generic_red import GenredAutograd
 
-from gempy_engine.modules.solver._pykeops_solvers._conjugate_gradient import ConjugateGradientSolver
+from ._conjugate_gradient import ConjugateGradientSolver
+from ._nystrom import create_adaptive_nystrom_preconditioner
 
 
 class KernelSolveAutograd(torch.autograd.Function):
@@ -113,7 +114,28 @@ class KernelSolveAutograd(torch.autograd.Function):
             return res
 
         global copy
-        result = ConjugateGradientSolver("torch", linop, varinv.data, eps, x0=x0)
+        if False: # * This does not work for gpu and so far it seems not to be specially better than direct solvers
+            preconditioner = create_adaptive_nystrom_preconditioner(
+                binding="torch",
+                linop=linop,
+                x_sample=varinv.data,
+                strategy="conservative",
+            )
+        else:
+            preconditioner = None
+        
+        result = ConjugateGradientSolver(
+            binding="torch",
+            linop=linop,
+            b=varinv.data,
+            eps=1e-4,
+            x0=x0,
+            regularization=None,
+            preconditioning=preconditioner,
+            adaptive_tolerance=False,
+            max_iterations=500,
+            verbose=False
+        )
 
         # relying on the 'ctx.saved_variables' attribute is necessary  if you want to be able to differentiate the output
         #  of the backward once again. It helps pytorch to keep track of 'who is who'.
@@ -271,18 +293,18 @@ class KernelSolveAutograd(torch.autograd.Function):
 
         # Grads wrt. formula, aliases, varinvpos, alpha, backend, dtype, device_id_request, eps, ranges, optional_flags, rec_multVar_highdim, nx, ny, *args
         return (
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            *grads,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                *grads,
         )

@@ -12,6 +12,8 @@ if is_pykeops_installed:
 
 if is_pytorch_installed:
     import torch
+    
+PYKEOPS= DEFAULT_PYKEOPS
 
 # * Import a copy of numpy as tfnp
 from importlib.util import find_spec, module_from_spec
@@ -44,7 +46,7 @@ class BackendTensor:
 
     @classmethod
     def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = True, dtype: Optional[str] = None):
-        cls._change_backend(engine_backend, pykeops_enabled=DEFAULT_PYKEOPS, use_gpu=use_gpu, dtype=dtype)
+        cls._change_backend(engine_backend, pykeops_enabled=PYKEOPS, use_gpu=use_gpu, dtype=dtype)
 
     @classmethod
     def _change_backend(cls, engine_backend: AvailableBackends, pykeops_enabled: bool = False, use_gpu: bool = True, dtype: Optional[str] = None):
@@ -100,6 +102,12 @@ class BackendTensor:
                 if (pykeops_enabled):
                     import pykeops
                     cls._wrap_pykeops_functions()
+                
+                if (use_gpu):
+                    cls.use_gpu = True
+                    # cls.tensor_backend_pointer['active_backend'].set_default_device("cuda")
+                else:
+                    cls.use_gpu = False
 
             case (_):
                 raise AttributeError(
