@@ -136,6 +136,9 @@ def simple_model() -> Tuple[SurfacePoints, Orientations, InterpolationOptions, I
 
 
 def simple_model_interpolation_input_factory():
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache
+    WeightCache.initialize_cache_dir()
+    
     resolution = [2, 2, 3]
     extent = [0.25, .75, 0.25, .75, 0.25, .75]
 

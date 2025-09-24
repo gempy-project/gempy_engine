@@ -21,6 +21,8 @@ data_path = dir_name + "/graben_data/"
 
 @pytest.fixture(scope="session")
 def one_fault_model():
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache
+    WeightCache.initialize_cache_dir()
     centers = np.array([500, 500, -550])
     rescaling_factor = 240
 

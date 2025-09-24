@@ -63,6 +63,9 @@ def test_interpolate_model_several_surfaces(simple_model_3_layers, n_oct_levels=
 
 
 def test_interpolate_model_unconformity(unconformity, n_oct_levels=4):
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache
+    WeightCache.initialize_cache_dir()
+
     interpolation_input, options, structure = unconformity
     print(interpolation_input)
 
