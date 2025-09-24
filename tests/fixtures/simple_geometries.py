@@ -49,7 +49,7 @@ def unconformity() -> Tuple[InterpolationInput, InterpolationOptions, InputDataD
     options = InterpolationOptions.from_args(range_, c_o, uni_degree=1, i_res=i_r, gi_res=gi_r,
                                    number_dimensions=3,
                                    kernel_function=AvailableKernelFunctions.cubic)
-
+    options.cache_mode = InterpolationOptions.CacheMode.NO_CACHE
     resolution = [2, 2, 2]
     extent = [0, 1000, 0, 1000, 0, 1000]
 

@@ -33,6 +33,7 @@ from gempy_engine.modules.activator.activator_interface import activate_formatio
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
     orientations_preprocess
 
+
 np.set_printoptions(precision=3, linewidth=200)
 
 dir_name = os.path.dirname(__file__)
@@ -136,6 +137,9 @@ def simple_model() -> Tuple[SurfacePoints, Orientations, InterpolationOptions, I
 
 
 def simple_model_interpolation_input_factory():
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache
+    WeightCache.initialize_cache_dir()
+    
     resolution = [2, 2, 3]
     extent = [0.25, .75, 0.25, .75, 0.25, .75]
 
@@ -165,6 +169,7 @@ def simple_model_interpolation_input_factory():
     ori_i = Orientations(dip_positions, dip_gradients, nugget_effect_grad)
     interpolation_options = InterpolationOptions.from_args(range_, co, 0, number_dimensions=3,
                                                  kernel_function=AvailableKernelFunctions.cubic)
+    interpolation_options.cache_mode = InterpolationOptions.CacheMode.NO_CACHE
     ids = np.array([1, 2])
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
     tensor_struct = TensorsStructure(np.array([7]))
@@ -189,6 +194,10 @@ def simple_model_3_layers(simple_grid_3d_octree) -> Tuple[InterpolationInput, In
 
 
 def _gen_simple_model_3_layers(simple_grid_3d_octree):
+
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache
+    WeightCache.initialize_cache_dir() 
+    
     grid_0_centers = dataclasses.replace(simple_grid_3d_octree)
     np.set_printoptions(precision=3, linewidth=200)
     dip_positions = np.array([
@@ -232,6 +241,8 @@ def _gen_simple_model_3_layers(simple_grid_3d_octree):
 
 @pytest.fixture(scope="session")
 def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid) -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache 
+    WeightCache.initialize_cache_dir() 
     grid_0_centers = dataclasses.replace(simple_grid_3d_more_points_grid)
 
     np.set_printoptions(precision=3, linewidth=200)
@@ -269,6 +280,7 @@ def simple_model_3_layers_high_res(simple_grid_3d_more_points_grid) -> Tuple[Int
 
     interpolation_options = InterpolationOptions.from_args(range_, co, 0,
                                                  number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+    interpolation_options.cache_mode = InterpolationOptions.CacheMode.NO_CACHE
 
     ids = np.array([1, 2, 3, 4])
 

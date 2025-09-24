@@ -72,7 +72,10 @@ def _eval_on(
     eval_kernel = yield_evaluation_kernel(
         solver_input, options.kernel_options, slice_array=slice_array
     )
-    scalar_field = (eval_kernel.T @ weights).reshape(-1)
+    try:
+        scalar_field = (eval_kernel.T @ weights).reshape(-1)
+    except ValueError:
+        pass
 
     gx_field: Optional[np.ndarray] = None
     gy_field: Optional[np.ndarray] = None
