@@ -16,13 +16,14 @@ from ...core.data.octree_level import OctreeLevel
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.utils import gempy_profiler_decorator
-
-
+from ...modules.weights_cache.weights_cache_interface import WeightCache
 
 
 @gempy_profiler_decorator
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                   data_descriptor: InputDataDescriptor, *, geophysics_input: Optional[GeophysicsInput] = None) -> Solutions:
+
+    WeightCache.initialize_cache_dir()
     options.temp_interpolation_values.start_computation_ts = int(time.time())
     
     # ! If we inline this it seems the deepcopy does not work
