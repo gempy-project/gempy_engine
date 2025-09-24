@@ -1,3 +1,4 @@
+import numpy
 import warnings
 from typing import List
 
@@ -90,18 +91,19 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
                 tree_depth       = dc_data_per_surface.tree_depth,
                 voxel_normals     = voxel_normal 
             )
-            indices = np.vstack(indices)
+            indices = BackendTensor.t.concatenate(indices, axis=0)
             
         # @on
         vertices_numpy = BackendTensor.t.to_numpy(vertices)
+        indices_numpy = BackendTensor.t.to_numpy(indices)
         
         if TRIMESH_LAST_PASS := True:
-            vertices_numpy, indices = _last_pass(vertices_numpy, indices)
+            vertices_numpy, indices_numpy = _last_pass(vertices_numpy, indices_numpy)
         
         stack_meshes.append(
             DualContouringMesh(
                 vertices_numpy,
-                indices,
+                indices_numpy,
                 dc_data_per_stack
             )
         )

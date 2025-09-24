@@ -107,9 +107,20 @@ class BackendTensor:
                 if (use_gpu):
                     cls.use_gpu = True
                     # cls.tensor_backend_pointer['active_backend'].set_default_device("cuda")
+                    # Check if CUDA is available
+                    if not pytorch_copy.cuda.is_available():
+                        raise RuntimeError("GPU requested but CUDA is not available in PyTorch")
+                    if False:
+                        # Set default device to CUDA
+                        cls.device = pytorch_copy.device("cuda")
+                        pytorch_copy.set_default_device("cuda")
+                        print(f"GPU enabled. Using device: {cls.device}")
+                        print(f"GPU device count: {pytorch_copy.cuda.device_count()}")
+                        print(f"Current GPU device: {pytorch_copy.cuda.current_device()}")
                 else:
                     cls.use_gpu = False
-
+                    cls.device = pytorch_copy.device("cpu")
+                    pytorch_copy.set_default_device("cpu")
             case (_):
                 raise AttributeError(
                     f"Engine Backend: {engine_backend} cannot be used because the correspondent library"
@@ -134,7 +145,7 @@ class BackendTensor:
 
     @classmethod
     def _wrap_pytorch_functions(cls):
-        from torch import sum, repeat_interleave
+        from torch import sum, repeat_interleave, isclose
         import torch
 
         def _sum(tensor, axis=None, dtype=None, keepdims=False):
@@ -155,6 +166,11 @@ class BackendTensor:
                 if dtype is None: return array_like
                 else: return array_like.type(dtype)
             else:
+                # Ensure numpy arrays are contiguous before converting to torch tensor
+                if isinstance(array_like, numpy.ndarray):
+                    if not array_like.flags.c_contiguous:
+                        array_like = numpy.ascontiguousarray(array_like)
+
                 return torch.tensor(array_like, dtype=dtype)
 
         def _concatenate(tensors, axis=0, dtype=None):
@@ -167,6 +183,95 @@ class BackendTensor:
 
         def _transpose(tensor, axes=None):
             return tensor.transpose(axes[0], axes[1])
+        
+
+        def _packbits(tensor, axis=None, bitorder="big"):
+            """
+            Pack boolean values into uint8 bytes along the specified axis.
+            For a (4, n) tensor with axis=0, this packs every 4 bits into nibbles,
+            then pads to create full bytes.
+            """
+            # Convert to uint8 if boolean
+            if tensor.dtype == torch.bool:
+                tensor = tensor.to(torch.uint8)
+
+            if axis == 0:
+                # Pack along axis 0 (rows)
+                n_rows, n_cols = tensor.shape
+                n_output_rows = (n_rows + 7) // 8  # Round up to nearest byte boundary
+
+                # Pad with zeros if we don't have multiples of 8 rows
+                if n_rows % 8 != 0:
+                    padding_rows = 8 - (n_rows % 8)
+                    padding = torch.zeros(padding_rows, n_cols, dtype=torch.uint8, device=tensor.device)
+                    tensor = torch.cat([tensor, padding], dim=0)
+
+                # Reshape to group every 8 rows together: (n_output_rows, 8, n_cols)
+                tensor_reshaped = tensor.view(n_output_rows, 8, n_cols)
+
+                # Define bit positions (powers of 2)
+                if bitorder == "little":
+                    # Little endian: LSB first [1, 2, 4, 8, 16, 32, 64, 128]
+                    powers = torch.tensor([1, 2, 4, 8, 16, 32, 64, 128],
+                                          dtype=torch.uint8, device=tensor.device).view(1, 8, 1)
+                else:
+                    # Big endian: MSB first [128, 64, 32, 16, 8, 4, 2, 1]
+                    powers = torch.tensor([128, 64, 32, 16, 8, 4, 2, 1],
+                                          dtype=torch.uint8, device=tensor.device).view(1, 8, 1)
+
+                # Pack bits: multiply each bit by its power and sum along the 8-bit dimension
+                packed = (tensor_reshaped * powers).sum(dim=1)  # Shape: (n_output_rows, n_cols)
+
+                return packed
+
+            elif axis == 1:
+                # Pack along axis 1 (columns) 
+                n_rows, n_cols = tensor.shape
+                n_output_cols = (n_cols + 7) // 8
+
+                # Pad with zeros if needed
+                if n_cols % 8 != 0:
+                    padding_cols = 8 - (n_cols % 8)
+                    padding = torch.zeros(n_rows, padding_cols, dtype=torch.uint8, device=tensor.device)
+                    tensor = torch.cat([tensor, padding], dim=1)
+
+                # Reshape: (n_rows, n_output_cols, 8)
+                tensor_reshaped = tensor.view(n_rows, n_output_cols, 8)
+
+                # Define bit positions
+                if bitorder == "little":
+                    powers = torch.tensor([1, 2, 4, 8, 16, 32, 64, 128],
+                                          dtype=torch.uint8, device=tensor.device).view(1, 1, 8)
+                else:
+                    powers = torch.tensor([128, 64, 32, 16, 8, 4, 2, 1],
+                                          dtype=torch.uint8, device=tensor.device).view(1, 1, 8)
+
+                packed = (tensor_reshaped * powers).sum(dim=2)  # Shape: (n_rows, n_output_cols)
+                return packed
+
+            else:
+                raise NotImplementedError(f"packbits not implemented for axis={axis}")
+
+
+        def _to_numpy(tensor):
+            """Convert tensor to numpy array, handling GPU tensors properly"""
+            if hasattr(tensor, 'device') and tensor.device.type == 'cuda':
+                # Move to CPU first, then detach and convert to numpy
+                return tensor.cpu().detach().numpy()
+            elif hasattr(tensor, 'detach'):
+                # CPU tensor, just detach and convert
+                return tensor.detach().numpy()
+            else:
+                # Not a torch tensor, return as-is
+                return tensor
+
+        def _fill_diagonal(tensor, value):
+            """Fill the diagonal of a 2D tensor with the given value"""
+            if tensor.dim() != 2:
+                raise ValueError("fill_diagonal only supports 2D tensors")
+            diagonal_indices = torch.arange(min(tensor.size(0), tensor.size(1)))
+            tensor[diagonal_indices, diagonal_indices] = value
+            return tensor
 
         cls.tfnp.sum = _sum
         cls.tfnp.repeat = _repeat
@@ -175,7 +280,7 @@ class BackendTensor:
         cls.tfnp.flip = lambda tensor, axis: tensor.flip(axis)
         cls.tfnp.hstack = lambda tensors: torch.concat(tensors, dim=1)
         cls.tfnp.array = _array
-        cls.tfnp.to_numpy = lambda tensor: tensor.detach().numpy()
+        cls.tfnp.to_numpy = _to_numpy
         cls.tfnp.min = lambda tensor, axis: tensor.min(axis=axis)[0]
         cls.tfnp.max = lambda tensor, axis: tensor.max(axis=axis)[0]
         cls.tfnp.rint = lambda tensor: tensor.round().type(torch.int32)
@@ -185,6 +290,17 @@ class BackendTensor:
         cls.tfnp.transpose = _transpose
         cls.tfnp.geomspace = lambda start, stop, step: torch.logspace(start, stop, step, base=10)
         cls.tfnp.abs = lambda tensor, dtype = None: tensor.abs().type(dtype) if dtype is not None else tensor.abs()
+        cls.tfnp.tile = lambda tensor, repeats: tensor.repeat(repeats)
+        cls.tfnp.ravel = lambda tensor: tensor.flatten()
+        cls.tfnp.packbits = _packbits
+        cls.tfnp.fill_diagonal = _fill_diagonal
+        cls.tfnp.isclose = lambda a, b, rtol=1e-05, atol=1e-08, equal_nan=False: isclose(
+            a,
+            torch.tensor(b, dtype=a.dtype, device=a.device),
+            rtol=rtol,
+            atol=atol,
+            equal_nan=equal_nan
+        )
 
     @classmethod
     def _wrap_pykeops_functions(cls):

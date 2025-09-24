@@ -12,7 +12,11 @@ def cast_type_inplace(data_instance: Any, requires_grad:bool = False):
             case (gempy_engine.config.AvailableBackends.numpy):
                 data_instance.__dict__[key] = val.astype(BackendTensor.dtype)
             case (gempy_engine.config.AvailableBackends.PYTORCH):
-                tensor = BackendTensor.t.from_numpy(val.astype(BackendTensor.dtype))
+                # tensor = BackendTensor.t.from_numpy(val.astype(BackendTensor.dtype))
+                # if (BackendTensor.use_gpu):
+                #     tensor = tensor.cuda()
+
+                tensor = BackendTensor.tfnp.array(val, dtype=BackendTensor.dtype_obj)
                 tensor.requires_grad = requires_grad
                 data_instance.__dict__[key] = tensor
         
