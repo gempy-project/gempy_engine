@@ -14,7 +14,7 @@ from ...core.data.regular_grid import RegularGrid
 
 def compute_next_octree_locations(prev_octree: OctreeLevel, evaluation_options: EvaluationOptions,
                                   current_octree_level: int) -> EngineGrid:
-    ids = prev_octree.last_output_corners.litho_faults_ids
+    ids = prev_octree.litho_faults_ids_corners_grid
     uv_8 = ids.reshape((-1, 8))
 
     # Old octree

@@ -97,9 +97,11 @@ def dual_contouring_multi_scalar(data_descriptor: InputDataDescriptor, interpola
 
 
 def _mask_generation(octree_leaves, masking_option: MeshExtractionMaskingOptions) -> np.ndarray | None:
-    all_scalar_fields_outputs: list[InterpOutput] = octree_leaves.outputs_corners
+    all_scalar_fields_outputs: list[InterpOutput] = octree_leaves.outputs_centers
     n_scalar_fields = len(all_scalar_fields_outputs)
-    grid_size = all_scalar_fields_outputs[0].grid_size
+    outputs_ = all_scalar_fields_outputs[0]
+    slice_corners = outputs_.grid.corners_grid_slice
+    grid_size = outputs_.cornersGrid_values.shape[0]
     mask_matrix = BackendTensor.t.zeros((n_scalar_fields, grid_size // 8), dtype=bool)
     onlap_chain_counter = 0
 
@@ -123,15 +125,15 @@ def _mask_generation(octree_leaves, masking_option: MeshExtractionMaskingOptions
             #     raise NotImplementedError("Onlap is not supported yet")
             #     return octree_leaves.outputs_corners[n_scalar_field].squeezed_mask_array.reshape((1, -1, 8)).sum(-1, bool)[0]
             case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.ERODE:
-                x = all_scalar_fields_outputs[i + onlap_chain_counter].squeezed_mask_array.reshape((1, -1, 8))
+                x = all_scalar_fields_outputs[i + onlap_chain_counter].squeezed_mask_array[slice_corners].reshape((1, -1, 8))
                 mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
                 onlap_chain_counter = 0
             case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.BASEMENT:
-                x = all_scalar_fields_outputs[i].squeezed_mask_array.reshape((1, -1, 8))
+                x = all_scalar_fields_outputs[i].squeezed_mask_array[slice_corners].reshape((1, -1, 8))
                 mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
                 onlap_chain_counter = 0
             case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.ONLAP:
-                x = all_scalar_fields_outputs[i].squeezed_mask_array.reshape((1, -1, 8))
+                x = all_scalar_fields_outputs[i].squeezed_mask_array[slice_corners].reshape((1, -1, 8))
                 mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
                 onlap_chain_counter += 1
             case _, StackRelationType.FAULT:

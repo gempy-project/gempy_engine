@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional
+from typing import List, Optional
 
 import numpy as np
 
@@ -24,10 +24,15 @@ def interpolate_on_edges_for_dual_contouring(
         octree_leaves: OctreeLevel,
         mask: Optional[np.ndarray] = None
 ) -> DualContouringData:
-
-    # region define location where we need to interpolate the gradients for dual contouring
-    output_corners: InterpOutput = octree_leaves.outputs_corners[n_scalar_field]
-    intersection_xyz, valid_edges = _get_intersection_on_edges(octree_leaves, output_corners, mask)
+    
+    output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
+    intersection_xyz, valid_edges = find_intersection_on_edge(
+        _xyz_corners=octree_leaves.grid_centers.corners_grid.values,
+        scalar_field_on_corners=output.exported_fields.scalar_field[output.grid.corners_grid_slice],
+        scalar_at_sp=output.scalar_field_at_sp,
+        masking=mask
+    )
+    
     interpolation_input.set_temp_grid(EngineGrid(custom_grid=GenericGrid(values=intersection_xyz)))
     # endregion
 
@@ -43,22 +48,7 @@ def interpolate_on_edges_for_dual_contouring(
         xyz_on_centers=octree_leaves.grid_centers.octree_grid.values if mask is None else octree_leaves.grid_centers.octree_grid.values[mask],
         dxdydz=octree_leaves.grid_centers.octree_dxdydz,
         exported_fields_on_edges=output_on_edges[n_scalar_field].exported_fields,
-        n_surfaces_to_export=output_corners.scalar_field_at_sp.shape[0],
+        n_surfaces_to_export=output.scalar_field_at_sp.shape[0],
         tree_depth=options.number_octree_levels,
     )
     return dc_data
-
-
-# TODO: These two functions could be moved to the module
-def _get_intersection_on_edges(octree_level: OctreeLevel, output_corners: InterpOutput,
-                               mask: Optional[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
-    # First find xyz on edges:
-    intersection_xyz, valid_edges = find_intersection_on_edge(
-        _xyz_corners=octree_level.grid_corners.values,
-        scalar_field_on_corners=output_corners.exported_fields.scalar_field,
-        scalar_at_sp=output_corners.scalar_field_at_sp,
-        masking=mask
-    )
-    return intersection_xyz, valid_edges
-
-

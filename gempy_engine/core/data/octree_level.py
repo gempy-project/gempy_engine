@@ -48,7 +48,11 @@ class OctreeLevel:
     @property
     def last_output_corners(self):
         return self.outputs_corners[-1]
-    
+
+    @property
+    def litho_faults_ids_corners_grid(self):
+        return self.outputs_centers[-1].litho_faults_ids_corners_grid
+
     @property
     def number_of_outputs(self):
         return len(self.outputs_centers)
