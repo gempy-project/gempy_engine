@@ -11,7 +11,8 @@ class GenericGrid:
     name: str = "Generic Grid"
 
     def __post_init__(self):
-        pass
+        cast_type_inplace(self, requires_grad=True) # TODO: This has to be grabbed from options
+
         
     def __len__(self):
         return self.values.shape[0]
