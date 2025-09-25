@@ -43,10 +43,22 @@ except ImportError:
 
 # pytest ignore
 
-pytestmark = pytest.mark.skip("old _dual_contouring.triangulate_dual_contour has been deprecated. Also"
-                              "output corners have been deprecated and it is intead a subgrid. Updating"
-                              "this tests are a lot of work and for now dual contouring is tested in a"
-                              "higher level test.")
+# pytestmark = pytest.mark.skip("old _dual_contouring.triangulate_dual_contour has been deprecated. Also"
+#                               "output corners have been deprecated and it is intead a subgrid. Updating"
+#                               "this tests are a lot of work and for now dual contouring is tested in a"
+#                               "higher level test.")
+
+
+def _grab_xyz_edges(last_octree_level: OctreeLevel) -> tuple:
+    corners = last_octree_level.outputs_centers[0]
+    # First find xyz on edges:
+    xyz, edges = find_intersection_on_edge(
+        _xyz_corners=last_octree_level.grid_centers.corners_grid.values,
+        scalar_field_on_corners=corners.exported_fields.scalar_field[corners.grid.corners_grid_slice],
+        scalar_at_sp=corners.scalar_field_at_sp,
+        masking=None
+    )
+    return xyz, edges
 
 
 def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
@@ -63,16 +75,18 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    corners = last_octree_level.outputs_corners[0]
-    # First find xyz on edges:
-    xyz, edges = find_intersection_on_edge(
-        _xyz_corners=last_octree_level.grid_corners.values,
-        scalar_field_on_corners=corners.exported_fields.scalar_field,
-        scalar_at_sp=corners.scalar_field_at_sp,
-        masking=None
-    )
-    result = xyz, edges
-    intersection_xyz, valid_edges = result
+    # corners = last_octree_level.outputs_corners[0]
+    # # First find xyz on edges:
+    # xyz, edges = find_intersection_on_edge(
+    #     _xyz_corners=last_octree_level.grid_corners.values,
+    #     scalar_field_on_corners=corners.exported_fields.scalar_field,
+    #     scalar_at_sp=corners.scalar_field_at_sp,
+    #     masking=None
+    # )
+    # result = xyz, edges
+    # intersection_xyz, valid_edges = result
+
+    intersection_xyz, valid_edges = _grab_xyz_edges(last_octree_level)
     interpolation_input.set_temp_grid(EngineGrid.from_xyz_coords(intersection_xyz))
 
 
