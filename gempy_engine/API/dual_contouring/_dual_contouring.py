@@ -49,6 +49,7 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
         
         if left_right_codes is None:
             # * Legacy triangulation
+            raise ValueError("Legacy triangulation is deprecated")
             indices = triangulate_dual_contouring(dc_data_per_surface)
         else:
             # * Fancy triangulation 👗
