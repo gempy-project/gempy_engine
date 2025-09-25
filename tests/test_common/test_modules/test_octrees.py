@@ -4,13 +4,9 @@ import os
 import pytest
 
 import gempy_engine.API.interp_single.interp_features as interp
-from gempy_engine.API.interp_single._octree_generation import _generate_corners
-from gempy_engine.core.data.engine_grid import EngineGrid
 from gempy_engine.core.data.interpolation_input import InterpolationInput
-from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_next_octree_grid, \
     get_regular_grid_value_for_level
-from .test_dual import _compute_actual_mesh
 from ...conftest import plot_pyvista, TEST_SPEED
 
 dir_name = os.path.dirname(__file__)
