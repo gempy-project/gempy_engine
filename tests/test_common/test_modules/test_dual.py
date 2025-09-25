@@ -174,6 +174,9 @@ def test_compute_mesh_extraction_fancy_triangulation(simple_model, simple_grid_3
         data_shape=data_shape,
         options=options,
     )
+    
+    intersection_xyz, valid_edges = _grab_xyz_edges(octree_level_for_surface)
+    
     dc_meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data)
     dc_data = dc_meshes[0].dc_data
     valid_voxels = dc_data.valid_voxels
@@ -321,11 +324,11 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
 
 
 @pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="Only numpy supported")
-def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octree):
+def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
     # region Test find_intersection_on_edge
     spi, ori_i, options, data_shape = simple_model
     ids = np.array([1, 2])
-    grid_0_centers = copy.deepcopy(simple_grid_3d_octree)
+    grid_0_centers = simple_grid_3d_octree
     interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
 
     options.number_octree_levels = 5
@@ -437,111 +440,6 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
                       plot_label=False, plot_marching_cubes=False)
 
 
-@pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="Only numpy supported")
-def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
-    # region Test find_intersection_on_edge
-    spi, ori_i, options, data_shape = simple_model
-    ids = np.array([1, 2])
-    grid_0_centers = simple_grid_3d_octree
-    interpolation_input = InterpolationInput(spi, ori_i, grid_0_centers, ids)
-
-    options.compute_scalar_gradient = True
-    octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
-
-    last_octree_level: OctreeLevel = octree_list[-1]
-
-    sfsp = last_octree_level.last_output_center.scalar_field_at_sp
-    # sfsp = np.append(sfsp, -0.1)
-    xyz_on_edge, valid_edges = find_intersection_on_edge(last_octree_level.grid_centers.corners_grid.values, last_octree_level.last_output_center.exported_fields.scalar_field[last_octree_level.last_output_center.grid.corners_grid_slice], sfsp, )
-    # endregion
-
-    # region Get Normals
-    interpolation_input.set_temp_grid(EngineGrid.from_xyz_coords(xyz_on_edge))
-
-    output_on_edges = interpolate_and_segment(interpolation_input, options, data_shape.tensors_structure)
-    # stack gradients output_on_edges.exported_fields.gx_field
-    gradients = np.stack(
-        (output_on_edges.exported_fields.gx_field,
-         output_on_edges.exported_fields.gy_field,
-         output_on_edges.exported_fields.gz_field), axis=0).T
-
-    # endregion
-
-    # region Prepare data for vectorized QEF
-
-    n_edges = valid_edges.shape[0]
-
-    # Coordinates for all posible edges (12) and 3 dummy normals in the center
-    xyz = np.zeros((n_edges, 15, 3))
-    normals = np.zeros((n_edges, 15, 3))
-
-    xyz[:, :12][valid_edges] = xyz_on_edge
-    normals[:, :12][valid_edges] = gradients
-
-    BIAS_STRENGTH = 0.1
-
-    xyz_aux = np.copy(xyz[:, :12])
-
-    # Numpy zero values to nans
-    xyz_aux[np.isclose(xyz_aux, 0)] = np.nan
-    # Mean ignoring nans
-    mass_points = np.nanmean(xyz_aux, axis=1)
-
-    xyz[:, 12] = mass_points
-    xyz[:, 13] = mass_points
-    xyz[:, 14] = mass_points
-
-    normals[:, 12] = np.array([BIAS_STRENGTH, 0, 0])
-    normals[:, 13] = np.array([0, BIAS_STRENGTH, 0])
-    normals[:, 14] = np.array([0, 0, BIAS_STRENGTH])
-
-    # Remove unused voxels
-    bo = valid_edges.sum(axis=1, dtype=bool)
-    xyz = xyz[bo]
-    normals = normals[bo]
-
-    # Compute LSTSQS in all voxels at the same time
-    A1 = normals
-    b1 = xyz
-    bb1 = (A1 * b1).sum(axis=2)
-    s1 = np.einsum("ijk, ilj->ikl", A1, np.transpose(A1, (0, 2, 1)))
-    s2 = np.linalg.inv(s1)
-    s3 = np.einsum("ijk,ik->ij", np.transpose(A1, (0, 2, 1)), bb1)
-    v_pro = np.einsum("ijk, ij->ik", s2, s3)
-
-    # endregion
-
-    # endregion
-
-    # region triangulate
-    grid_centers = last_octree_level.grid_centers
-    valid_voxels = valid_edges.sum(axis=1, dtype=bool)
-
-    temp_ids = octree_list[-1].last_output_center.ids_block  # ! I need this because setters in python sucks
-    temp_ids[valid_voxels] = 5
-    octree_list[-1].last_output_center.ids_block = temp_ids  # paint valid voxels
-
-    dc_data = DualContouringData(
-        xyz_on_edge=xyz_on_edge,
-        xyz_on_centers=grid_centers.values,
-        dxdydz=grid_centers.octree_dxdydz,
-        valid_edges=valid_edges,
-        exported_fields_on_edges=None,
-        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
-    )
-
-    indices = triangulate_dual_contouring(dc_data)
-    # endregion
-
-    if plot_pyvista or False:
-        # ! I leave this test for the assert as comparison to the other implementation. The model looks bad
-        # ! with this level of BIAS
-        center_mass = xyz[:, 12:].reshape(-1, 3)
-        normals = normals[:, 12:].reshape(-1, 3)
-        _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_centers,
-                      xyz_on_edge, gradients, a=center_mass, b=normals,
-                      v_pro=v_pro, indices=indices, plot_marching_cubes=True
-                      )
 
 
 @pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="Only numpy supported")
