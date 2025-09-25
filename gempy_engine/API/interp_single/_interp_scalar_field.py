@@ -51,7 +51,7 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
     
     BackendTensor.pykeops_enabled = False
     match weights_cached:
-        case None:
+        case None :
             weights = _solve_and_store_weights(
                 solver_input=solver_input,
                 kernel_options=options.kernel_options,
