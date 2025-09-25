@@ -1,32 +1,25 @@
 import copy
+import numpy as np
+import os
+import pytest
 from typing import List
 
-import pytest
-
-from gempy_engine.API.interp_single._interp_scalar_field import _evaluate_sys_eq
-from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
+import gempy_engine.API.interp_single.interp_features as interp
+from gempy_engine.API.dual_contouring._dual_contouring import compute_dual_contouring
 from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields
+from gempy_engine.API.interp_single.interp_features import interpolate_n_octree_levels, interpolate_and_segment
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.core.data.engine_grid import EngineGrid, RegularGrid
-import numpy as np
-import os
-
-import gempy_engine.API.interp_single.interp_features as interp
-
-from gempy_engine.API.dual_contouring._dual_contouring import compute_dual_contouring
-from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
-from gempy_engine.modules.activator.activator_interface import activate_formation_block
-from gempy_engine.core.data.internal_structs import SolverInput
-
-from gempy_engine.core.data.solutions import Solutions
-from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
+from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.dual_contouring_data import DualContouringData
-from gempy_engine.core.data.octree_level import OctreeLevel
+from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
+from gempy_engine.core.data.engine_grid import EngineGrid, RegularGrid
+from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
-from gempy_engine.API.interp_single.interp_features import interpolate_n_octree_levels, interpolate_and_segment
+from gempy_engine.core.data.octree_level import OctreeLevel
+from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.dual_contouring.dual_contouring_interface import QEF, find_intersection_on_edge, triangulate_dual_contouring
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 from gempy_engine.plugins.plotting import helper_functions_pyvista
@@ -39,14 +32,6 @@ try:
     import pyvista as pv
 except ImportError:
     plot_pyvista = False
-
-
-# pytest ignore
-
-# pytestmark = pytest.mark.skip("old _dual_contouring.triangulate_dual_contour has been deprecated. Also"
-#                               "output corners have been deprecated and it is intead a subgrid. Updating"
-#                               "this tests are a lot of work and for now dual contouring is tested in a"
-#                               "higher level test.")
 
 
 def _grab_xyz_edges(last_octree_level: OctreeLevel) -> tuple:
@@ -75,30 +60,12 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    # corners = last_octree_level.outputs_corners[0]
-    # # First find xyz on edges:
-    # xyz, edges = find_intersection_on_edge(
-    #     _xyz_corners=last_octree_level.grid_corners.values,
-    #     scalar_field_on_corners=corners.exported_fields.scalar_field,
-    #     scalar_at_sp=corners.scalar_field_at_sp,
-    #     masking=None
-    # )
-    # result = xyz, edges
-    # intersection_xyz, valid_edges = result
-
     intersection_xyz, valid_edges = _grab_xyz_edges(last_octree_level)
-    interpolation_input.set_temp_grid(EngineGrid.from_xyz_coords(intersection_xyz))
-
-
-    output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
-
-    dc_data = DualContouringData(
-        xyz_on_edge=intersection_xyz,
-        valid_edges=valid_edges,
-        xyz_on_centers=last_octree_level.grid_centers.values,
-        dxdydz=last_octree_level.grid_centers.octree_dxdydz,
-        exported_fields_on_edges=output_on_edges[0].exported_fields,
-        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
+    dc_data = _gen_dc_data(
+        octree_level=last_octree_level,
+        interpolation_input=interpolation_input,
+        data_shape=data_shape,
+        options=options,
     )
 
     gradients = dc_data.gradients
@@ -124,6 +91,25 @@ def test_compute_dual_contouring_api(simple_model, simple_grid_3d_octree):
                                               gradient_pos=intersection_xyz,
                                               v_just_points=vertices, vertices=intersection_points)
     # endregion
+
+
+def _gen_dc_data(octree_level: OctreeLevel, interpolation_input: InterpolationInput,
+                 options: InterpolationOptions, data_shape: InputDataDescriptor) -> DualContouringData:
+    intersection_xyz, valid_edges = _grab_xyz_edges(octree_level)
+
+    interpolation_input.set_temp_grid(EngineGrid.from_xyz_coords(intersection_xyz))
+
+    output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
+
+    dc_data = DualContouringData(
+        xyz_on_edge=intersection_xyz,
+        valid_edges=valid_edges,
+        xyz_on_centers=octree_level.grid_centers.octree_grid.values,
+        dxdydz=octree_level.grid_centers.octree_dxdydz,
+        exported_fields_on_edges=output_on_edges[0].exported_fields,
+        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
+    )
+    return dc_data
 
 
 @pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="Only numpy supported")
@@ -154,29 +140,40 @@ def test_compute_mesh_extraction_fancy_triangulation(simple_model, simple_grid_3
 
     octree_level_for_surface: OctreeLevel = octree_list[options.number_octree_levels_surface - 1]
 
-    corners = octree_level_for_surface.outputs_corners[0]
-    # First find xyz on edges:
-    xyz, edges = find_intersection_on_edge(
-        _xyz_corners=octree_level_for_surface.grid_corners.values,
-        scalar_field_on_corners=corners.exported_fields.scalar_field,
-        scalar_at_sp=corners.scalar_field_at_sp,
-        masking=None
+    # corners = octree_level_for_surface.outputs_corners[0]
+    # # First find xyz on edges:
+    # xyz, edges = find_intersection_on_edge(
+    #     _xyz_corners=octree_level_for_surface.grid_corners.values,
+    #     scalar_field_on_corners=corners.exported_fields.scalar_field,
+    #     scalar_at_sp=corners.scalar_field_at_sp,
+    #     masking=None
+    # )
+    # result = xyz, edges
+    # intersection_xyz, valid_edges = result
+    # 
+    # last_octree_level: OctreeLevel = octree_list[-1]
+    # intersection_xyz, valid_edges = _grab_xyz_edges(octree_level_for_surface)
+    # interpolation_input.set_temp_grid(EngineGrid.from_xyz_coords(intersection_xyz))
+    # 
+    # output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
+    # 
+    # dc_data = DualContouringData(
+    #     xyz_on_edge=intersection_xyz,
+    #     valid_edges=valid_edges,
+    #     xyz_on_centers=octree_level_for_surface.grid_centers.values,
+    #     dxdydz=octree_level_for_surface.grid_centers.octree_dxdydz,
+    #     exported_fields_on_edges=output_on_edges[0].exported_fields,
+    #     n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
+    # )
+
+    # dc_data = _gen_dc_data(data_shape, interpolation_input, intersection_xyz, last_octree_level, options, valid_edges)
+
+    dc_data = _gen_dc_data(
+        octree_level=octree_level_for_surface,
+        interpolation_input=interpolation_input,
+        data_shape=data_shape,
+        options=options,
     )
-    result = xyz, edges
-    intersection_xyz, valid_edges = result
-
-    interpolation_input.set_temp_grid(EngineGrid.from_xyz_coords(intersection_xyz))
-    output_on_edges: List[InterpOutput] = interpolate_all_fields(interpolation_input, options, data_shape)
-
-    dc_data = DualContouringData(
-        xyz_on_edge=intersection_xyz,
-        valid_edges=valid_edges,
-        xyz_on_centers=octree_level_for_surface.grid_centers.values,
-        dxdydz=octree_level_for_surface.grid_centers.octree_dxdydz,
-        exported_fields_on_edges=output_on_edges[0].exported_fields,
-        n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
-    )
-
     dc_meshes: List[DualContouringMesh] = compute_dual_contouring(dc_data)
     dc_data = dc_meshes[0].dc_data
     valid_voxels = dc_data.valid_voxels
@@ -334,7 +331,7 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
     options.number_octree_levels = 5
     options.number_octree_levels_surface = 5
     options.compute_scalar_gradient = True
-    
+
     octree_list = interpolate_n_octree_levels(interpolation_input, options, data_shape)
 
     last_octree_level: OctreeLevel = octree_list[-1]
@@ -659,15 +656,6 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
                   ):
     p = pv.Plotter()
 
-    # Plot Actual mesh (from marching cubes)
-    if plot_marching_cubes:
-        output_1_centers = last_octree_level.output_centers
-        resolution = [20, 20, 20]
-        mesh = _compute_actual_mesh(simple_model, ids, grid_0_centers, resolution,
-                                    output_1_centers.scalar_field_at_sp, output_1_centers.weights)
-
-        p.add_mesh(mesh, opacity=.8, silhouette=True)
-
     # Plot Regular grid Octree
     regular_grid_values = octree_list[n].grid_centers.octree_grid.values_vtk_format
     regular_grid_scalar = get_regular_grid_value_for_level(octree_list, n)
@@ -711,40 +699,3 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
     p.add_axes()
     p.show()
 
-
-def _compute_actual_mesh(simple_model, ids, grid, resolution, scalar_at_surface_points, weights):
-    raise NotImplementedError("This is broken since a while")
-    interpolation_input = simple_model[0]
-    options = simple_model[1]
-    shape: InputDataDescriptor = simple_model[2]
-
-    from gempy_engine.core.data.engine_grid import EngineGrid, RegularGrid
-
-    # region interpolate high res grid
-    grid_high_res:EngineGrid = EngineGrid.from_regular_grid(RegularGrid([0.25, .75, 0.25, .75, 0.25, .75], resolution))
-    interpolation_input.grid = grid_high_res
-    input1: SolverInput = input_preprocess(shape.tensors_structure, interpolation_input)
-    exported_fields_high_res = _evaluate_sys_eq(input1, weights, options)
-
-    exported_fields_high_res.set_structure_values(
-        reference_sp_position=shape.tensors_structure.reference_sp_position,
-        slice_feature=interpolation_input.slice_feature,
-        grid_size=interpolation_input.grid.len_all_grids)
-
-    res = activate_formation_block(exported_fields_high_res, ids, sigmoid_slope=50000)
-    result = res, exported_fields_high_res, grid_high_res.octree_dxdydz
-    values_block_high_res, scalar_high_res, dxdydz = result
-    # endregion
-
-    from skimage.measure import marching_cubes
-    import pyvista as pv
-    spacing = np.array(dxdydz)/8
-    vert, edges, _, _ = marching_cubes(
-        volume=(scalar_high_res.scalar_field[:-8].reshape(resolution)),
-        level=scalar_at_surface_points[0],
-        spacing=spacing
-    )
-    loc_0 = np.array([0.25, .25, .25]) + np.array(spacing) / 2
-    vert += np.array(loc_0).reshape(1, 3)
-    mesh = pv.PolyData(vert, np.insert(edges, 0, 3, axis=1).ravel())
-    return mesh
