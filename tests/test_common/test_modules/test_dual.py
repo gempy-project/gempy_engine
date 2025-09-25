@@ -245,7 +245,7 @@ def test_compute_dual_contouring_complex(unconformity_complex_one_layer, n_oct_l
     dc_data = solutions.dc_meshes[0].dc_data
 
     if plot_pyvista or False:
-        output_corners: InterpOutput = solutions.octrees_output[-1].outputs_corners[-1]
+        output_corners: InterpOutput = solutions.octrees_output[-1].outputs_centers[-1]
         vertices = output_corners.grid.values
 
         intersection_xyz = dc_data.xyz_on_edge
@@ -278,11 +278,11 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    corners = last_octree_level.outputs_corners[0]
+    corners = last_octree_level.outputs_centers[0]
     # First find xyz on edges:
     xyz, edges = find_intersection_on_edge(
-        _xyz_corners=last_octree_level.grid_corners.values,
-        scalar_field_on_corners=corners.exported_fields.scalar_field,
+        _xyz_corners=last_octree_level.grid_centers.corners_grid.values,
+        scalar_field_on_corners=corners.exported_fields.scalar_field[corners.grid.corners_grid_slice],
         scalar_at_sp=corners.scalar_field_at_sp,
         masking=None
     )
@@ -295,7 +295,7 @@ def test_compute_dual_contouring_several_meshes(simple_model_3_layers, simple_gr
     dc_data = DualContouringData(
         xyz_on_edge=intersection_xyz,
         valid_edges=valid_edges,
-        xyz_on_centers=last_octree_level.grid_centers.values,
+        xyz_on_centers=last_octree_level.grid_centers.octree_grid.values,
         dxdydz=last_octree_level.grid_centers.octree_dxdydz,
         exported_fields_on_edges=output_on_edges.exported_fields,
         n_surfaces_to_export=data_shape.tensors_structure.n_surfaces
@@ -336,9 +336,9 @@ def test_find_edges_intersection_step_by_step(simple_model, simple_grid_3d_octre
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    sfsp = last_octree_level.last_output_corners.scalar_field_at_sp
+    sfsp = last_octree_level.last_output_center.scalar_field_at_sp
 
-    xyz_on_edge, valid_edges = find_intersection_on_edge(last_octree_level.grid_corners.values, last_octree_level.output_corners.exported_fields.scalar_field, sfsp, )
+    xyz_on_edge, valid_edges = find_intersection_on_edge(last_octree_level.grid_centers.corners_grid.values, last_octree_level.last_output_center.exported_fields.scalar_field[last_octree_level.last_output_center.grid.corners_grid_slice], sfsp, )
 
     # endregion
 
@@ -450,9 +450,9 @@ def test_find_edges_intersection_pro(simple_model, simple_grid_3d_octree):
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    sfsp = last_octree_level.output_corners.scalar_field_at_sp
+    sfsp = last_octree_level.last_output_center.scalar_field_at_sp
     # sfsp = np.append(sfsp, -0.1)
-    xyz_on_edge, valid_edges = find_intersection_on_edge(last_octree_level.grid_corners.values, last_octree_level.output_corners.exported_fields.scalar_field, sfsp, )
+    xyz_on_edge, valid_edges = find_intersection_on_edge(last_octree_level.grid_centers.corners_grid.values, last_octree_level.last_output_center.exported_fields.scalar_field[last_octree_level.last_output_center.grid.corners_grid_slice], sfsp, )
     # endregion
 
     # region Get Normals
@@ -560,8 +560,8 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
 
     last_octree_level: OctreeLevel = octree_list[-1]
 
-    sfsp = last_octree_level.output_corners.scalar_field_at_sp
-    xyz_on_edge, valid_edges = find_intersection_on_edge(last_octree_level.grid_corners.values, last_octree_level.output_corners.exported_fields.scalar_field, sfsp, )
+    sfsp = last_octree_level.last_output_center.scalar_field_at_sp
+    xyz_on_edge, valid_edges = find_intersection_on_edge(last_octree_level.grid_centers.corners_grid.values, last_octree_level.last_output_center.exported_fields.scalar_field[last_octree_level.last_output_center.grid.corners_grid_slice], sfsp, )
     valid_voxels = valid_edges.sum(axis=1, dtype=bool)
 
     # endregion
@@ -591,7 +591,7 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
 
     BIAS_STRENGTH = 1
 
-    mass_points = last_octree_level.grid_centers.values
+    mass_points = last_octree_level.grid_centers.octree_grid.values
 
     xyz[:, 12] = mass_points
     xyz[:, 13] = mass_points
@@ -622,13 +622,13 @@ def test_find_edges_intersection_bias_on_center_of_the_cell(simple_model, simple
     # region triangulate
     grid_centers = last_octree_level.grid_centers
 
-    temp_ids = octree_list[-1].output_centers.ids_block  # ! I need this because setters in python sucks
+    temp_ids = octree_list[-1].last_output_center.ids_block  # ! I need this because setters in python sucks
     temp_ids[valid_voxels] = 5
-    octree_list[-1].output_centers.ids_block = temp_ids  # paint valid voxels
+    octree_list[-1].last_output_center.ids_block = temp_ids  # paint valid voxels
 
     dc_data = DualContouringData(
         xyz_on_edge=xyz_on_edge,
-        xyz_on_centers=grid_centers.values,
+        xyz_on_centers=grid_centers.octree_grid.values,
         dxdydz=grid_centers.octree_dxdydz,
         valid_edges=valid_edges,
         exported_fields_on_edges=None,
