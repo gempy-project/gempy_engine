@@ -6,8 +6,9 @@ from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.utils import gempy_profiler_decorator
-from ...modules.dual_contouring._parallel_triangulation import _should_use_parallel_processing, _process_surface_batch, _init_worker
-from ...modules.dual_contouring._sequential_triangulation import _sequential_triangulation
+from ._parallel_triangulation import _should_use_parallel_processing, _process_surface_batch, _init_worker
+from ._sequential_triangulation import _sequential_triangulation
+from ._gen_vertices import _compute_vertices
 
 # Multiprocessing imports
 try:
@@ -41,13 +42,8 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
     for i in range(dc_data_per_stack.n_surfaces_to_export):
         # @off
         if parallel_results is not None:
-            _, vertices_numpy = _sequential_triangulation(
-                dc_data_per_stack,
-                debug, 
-                i, 
-                left_right_codes, 
-                valid_edges_per_surface,
-                compute_indices=False 
+            _, vertices_numpy = _compute_vertices(
+                dc_data_per_stack, debug, i, valid_edges_per_surface
             )
             indices_numpy = parallel_results[i]
         else:

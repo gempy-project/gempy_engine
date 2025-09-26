@@ -1,11 +1,10 @@
-import copy
 import numpy as np
 import os
 import pytest
 from typing import List
 
 import gempy_engine.API.interp_single.interp_features as interp
-from gempy_engine.API.dual_contouring._dual_contouring import compute_dual_contouring
+from gempy_engine.modules.dual_contouring._dual_contouring import compute_dual_contouring
 from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields
 from gempy_engine.API.interp_single.interp_features import interpolate_n_octree_levels, interpolate_and_segment
 from gempy_engine.API.model.model_api import compute_model
@@ -20,7 +19,8 @@ from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.core.data.solutions import Solutions
-from gempy_engine.modules.dual_contouring.dual_contouring_interface import QEF, find_intersection_on_edge, triangulate_dual_contouring
+from gempy_engine.modules.dual_contouring.dual_contouring_interface import QEF, find_intersection_on_edge
+from gempy_engine.modules.dual_contouring._triangulate import triangulate_dual_contouring
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 from gempy_engine.plugins.plotting import helper_functions_pyvista
 from tests.conftest import TEST_SPEED, plot_pyvista
