@@ -135,7 +135,7 @@ def dual_contouring_multi_scalar(
 
     # endregion
     # Check for repeated voxels across stacks
-    if (options.debug or len(all_left_right_codes) > 1) and False:
+    if (options.debug or len(all_left_right_codes) > 1) and True:
         voxel_overlaps = find_repeated_voxels_across_stacks(foo)
         if voxel_overlaps and options.debug:
             print(f"Found voxel overlaps between stacks: {voxel_overlaps}")
