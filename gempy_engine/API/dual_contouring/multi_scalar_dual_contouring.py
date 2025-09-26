@@ -139,11 +139,18 @@ def dual_contouring_multi_scalar(
         voxel_overlaps = find_repeated_voxels_across_stacks(foo)
         if voxel_overlaps and options.debug:
             print(f"Found voxel overlaps between stacks: {voxel_overlaps}")
-            idx_j = voxel_overlaps["stack_0_vs_stack_3"]["indices_in_stack_j"]
-            idx_i = voxel_overlaps["stack_0_vs_stack_3"]["indices_in_stack_i"]
-            meshes[1].vertices[idx_j] = meshes[0].vertices[idx_i]
+            _f(all_meshes, 1, 0, voxel_overlaps)
+            _f(all_meshes, 2, 0, voxel_overlaps)
+            _f(all_meshes, 3, 0, voxel_overlaps)
+            _f(all_meshes, 4, 0, voxel_overlaps)
+            _f(all_meshes, 5, 0, voxel_overlaps)
 
     return all_meshes
+
+
+def _f(all_meshes: list[DualContouringMesh], destination: int, origin: int, voxel_overlaps: dict):
+    key = f"stack_{origin}_vs_stack_{destination}"
+    all_meshes[destination].vertices[voxel_overlaps[key]["indices_in_stack_j"]] = all_meshes[origin].vertices[voxel_overlaps[key]["indices_in_stack_i"]]
 
 
 def find_repeated_voxels_across_stacks(all_left_right_codes: List[np.ndarray]) -> dict:
