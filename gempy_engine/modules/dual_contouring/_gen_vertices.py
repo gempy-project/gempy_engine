@@ -9,15 +9,15 @@ from ...core.data.dual_contouring_data import DualContouringData
 
 def _compute_vertices(dc_data_per_stack: DualContouringData,
                       debug: bool,
-                      i: int,
+                      surface_i: int,
                       valid_edges_per_surface) -> tuple[DualContouringData, Any]:
     """Compute vertices for a specific surface."""
-    valid_edges: np.ndarray = valid_edges_per_surface[i]
-    next_surface_edge_idx: int = valid_edges_per_surface[:i + 1].sum()
-    if i == 0:
+    valid_edges: np.ndarray = valid_edges_per_surface[surface_i]
+    next_surface_edge_idx: int = valid_edges_per_surface[:surface_i + 1].sum()
+    if surface_i == 0:
         last_surface_edge_idx = 0
     else:
-        last_surface_edge_idx: int = valid_edges_per_surface[:i].sum()
+        last_surface_edge_idx: int = valid_edges_per_surface[:surface_i].sum()
     slice_object: slice = slice(last_surface_edge_idx, next_surface_edge_idx)
 
     dc_data_per_surface = DualContouringData(

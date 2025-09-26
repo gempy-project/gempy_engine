@@ -66,12 +66,12 @@ def dual_contouring_multi_scalar(
         octree_leaves=octree_leaves,
         masking_option=options.evaluation_options.mesh_extraction_masking_options
     )
-
+    
     # Process each scalar field
+    all_active_cells = []
     all_stack_intersection = []
     all_valid_edges = []
     all_left_right_codes = []
-
     # region Interp on edges
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
         _validate_stack_relations(data_descriptor, n_scalar_field)
@@ -101,6 +101,7 @@ def dual_contouring_multi_scalar(
     # endregion
 
     # region Vertex gen and triangulation
+    foo = []
     # Generate meshes for each scalar field
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
         output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
@@ -124,19 +125,78 @@ def dual_contouring_multi_scalar(
             left_right_codes=all_left_right_codes[n_scalar_field],
             debug=options.debug
         )
+        
+        for m in meshes:
+            foo.append(m.left_right)
 
         # TODO: If the order of the meshes does not match the order of scalar_field_at_surface points, reorder them here
         if meshes is not None:
             all_meshes.extend(meshes)
 
-    _vertex_select_last_pass(all_mask_arrays)
     # endregion
+    # Check for repeated voxels across stacks
+    if options.debug or len(all_left_right_codes) > 1:
+        voxel_overlaps = find_repeated_voxels_across_stacks(foo)
+        if voxel_overlaps and options.debug:
+            print(f"Found voxel overlaps between stacks: {voxel_overlaps}")
+            idx_j = voxel_overlaps["stack_0_vs_stack_3"]["indices_in_stack_j"]
+            idx_i = voxel_overlaps["stack_0_vs_stack_3"]["indices_in_stack_i"]
+            meshes[1].vertices[idx_j] = meshes[0].vertices[idx_i]
 
     return all_meshes
 
 
-def _vertex_select_last_pass(mask, ):
-    pass
+def find_repeated_voxels_across_stacks(all_left_right_codes: List[np.ndarray]) -> dict:
+    """
+    Find repeated voxels using NumPy operations - better for very large arrays.
+
+    Args:
+        all_left_right_codes: List of left_right_codes arrays, one per stack
+
+    Returns:
+        Dictionary with detailed overlap analysis
+    """
+
+    if not all_left_right_codes:
+        return {}
+
+    # Generate voxel codes for each stack
+
+    from gempy_engine.modules.dual_contouring.fancy_triangulation import _StaticTriangulationData
+    stack_codes = []
+    for left_right_codes in all_left_right_codes:
+        if left_right_codes.size > 0:
+            voxel_codes = (left_right_codes * _StaticTriangulationData.get_pack_directions_into_bits()).sum(axis=1)
+            stack_codes.append(voxel_codes)
+        else:
+            stack_codes.append(np.array([]))
+
+    overlaps = {}
+
+    # Check each pair of stacks
+    for i in range(len(stack_codes)):
+        for j in range(i + 1, len(stack_codes)):
+            if stack_codes[i].size == 0 or stack_codes[j].size == 0:
+                continue
+
+            # Find common voxel codes using numpy
+            common_codes = np.intersect1d(stack_codes[i], stack_codes[j])
+
+            if len(common_codes) > 0:
+                # Get indices of common voxels in each stack
+                indices_i = np.isin(stack_codes[i], common_codes)
+                indices_j = np.isin(stack_codes[j], common_codes)
+
+                overlaps[f"stack_{i}_vs_stack_{j}"] = {
+                        'common_voxel_codes'   : common_codes,
+                        'count'                : len(common_codes),
+                        'indices_in_stack_i'   : np.where(indices_i)[0],
+                        'indices_in_stack_j'   : np.where(indices_j)[0],
+                        'common_binary_codes_i': all_left_right_codes[i][indices_i],
+                        'common_binary_codes_j': all_left_right_codes[j][indices_j]
+                }
+
+    return overlaps
 
 
 def _validate_stack_relations(data_descriptor: InputDataDescriptor, n_scalar_field: int) -> None:
