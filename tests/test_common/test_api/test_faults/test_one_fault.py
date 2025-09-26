@@ -76,7 +76,7 @@ def test_one_fault_model_pykeops(one_fault_model):
     A_matrix = yield_covariance(solver_input, options.kernel_options)
 
 
-def test_one_fault_model_thickness(one_fault_model, n_oct_levels=2):
+def test_one_fault_model_thickness(one_fault_model, n_oct_levels=5):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -94,12 +94,12 @@ def test_one_fault_model_thickness(one_fault_model, n_oct_levels=2):
     # TODO: Grab second scalar and create fault kernel
     outputs: list[OctreeLevel] = solutions.octrees_output
 
-    if False:
+    if True:
         plot_block_and_input_2d(0, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
         plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
 
-    if plot_pyvista or False:
+    if plot_pyvista or True:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes

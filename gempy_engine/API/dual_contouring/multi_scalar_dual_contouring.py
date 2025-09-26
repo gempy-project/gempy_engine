@@ -68,7 +68,6 @@ def dual_contouring_multi_scalar(
     )
     
     # Process each scalar field
-    all_active_cells = []
     all_stack_intersection = []
     all_valid_edges = []
     all_left_right_codes = []

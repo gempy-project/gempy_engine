@@ -9,7 +9,7 @@ from gempy_engine.plugins.plotting import helper_functions_pyvista
 from tests.conftest import plot_pyvista
 
 
-def test_dual_contouring_on_fault_model(one_fault_model, n_oct_levels=5):
+def test_dual_contouring_on_fault_model(one_fault_model, n_oct_levels=4):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
