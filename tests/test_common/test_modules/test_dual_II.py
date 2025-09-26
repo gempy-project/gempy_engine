@@ -22,6 +22,7 @@ def test_dual_contouring_on_fault_model(one_fault_model, n_oct_levels=4):
     options.evaluation_options.mesh_extraction_fancy = True
 
     options.evaluation_options.number_octree_levels = n_oct_levels
+    options.evaluation_options.number_octree_levels_surface = n_oct_levels
 
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
@@ -29,6 +30,7 @@ def test_dual_contouring_on_fault_model(one_fault_model, n_oct_levels=4):
 
     if plot_pyvista or True:
         helper_functions_pyvista.plot_pyvista(
-            solutions.octrees_output,
+            # octree_list=solutions.octrees_output,
+            octree_list=None,
             dc_meshes=solutions.dc_meshes
         )
