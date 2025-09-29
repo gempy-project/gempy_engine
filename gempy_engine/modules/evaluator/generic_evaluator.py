@@ -1,4 +1,5 @@
 import numpy as np
+import gc
 from typing import Optional
 
 from gempy_engine.core.backend_tensor import BackendTensor
@@ -57,6 +58,10 @@ def generic_evaluator(
             if gz_field is not None:
                 gz_field[slice_array] = gz_chunk  # type: ignore
 
+    # Force garbage collection every few chunks to prevent memory buildup
+    if (i + 1) % 5 == 0 or i == n_chunks - 1:
+        gc.collect()
+        
     if n_chunks > 5:
         print(f"Chunking done: {n_chunks} chunks")
 
@@ -75,7 +80,9 @@ def _eval_on(
     try:
         scalar_field = (eval_kernel.T @ weights).reshape(-1)
     except ValueError:
-        pass
+        scalar_field = None
+    
+    del eval_kernel
 
     gx_field: Optional[np.ndarray] = None
     gy_field: Optional[np.ndarray] = None
@@ -85,17 +92,21 @@ def _eval_on(
         eval_gx = yield_evaluation_grad_kernel(
             solver_input, options.kernel_options, axis=0, slice_array=slice_array
         )
+        gx_field = (eval_gx.T @ weights).reshape(-1)  # Use BEFORE deleting
+        del eval_gx  # Clean up immediately after use
+        
         eval_gy = yield_evaluation_grad_kernel(
             solver_input, options.kernel_options, axis=1, slice_array=slice_array
         )
-        gx_field = (eval_gx.T @ weights).reshape(-1)
-        gy_field = (eval_gy.T @ weights).reshape(-1)
+        gy_field = (eval_gy.T @ weights).reshape(-1)  # Use BEFORE deleting
+        del eval_gy  # Clean up immediately after use
 
         if options.number_dimensions == 3:
             eval_gz = yield_evaluation_grad_kernel(
                 solver_input, options.kernel_options, axis=2, slice_array=slice_array
             )
-            gz_field = (eval_gz.T @ weights).reshape(-1)
+            gz_field = (eval_gz.T @ weights).reshape(-1)  # Use BEFORE deleting
+            del eval_gz  # Clean up immediately after use
         elif options.number_dimensions != 2:
             raise ValueError("`number_dimensions` must be 2 or 3")
 
