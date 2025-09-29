@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict, Optional
 
 import numpy as np
 
@@ -8,7 +8,7 @@ from ...core.data.stacks_structure import StacksStructure
 
 def _apply_fault_relations_to_overlaps(
         all_meshes: List[DualContouringMesh],
-        voxel_overlaps: dict,
+        voxel_overlaps: Dict[str, dict],
         stacks_structure: StacksStructure
 ) -> None:
     """
@@ -16,33 +16,52 @@ def _apply_fault_relations_to_overlaps(
 
     Args:
         all_meshes: List of dual contouring meshes
-        faults_relations: Boolean matrix indicating fault relationships between stacks
         voxel_overlaps: Dictionary containing overlap information between stacks
-        n_stacks: Total number of stacks
+        stacks_structure: Structure containing fault relations and stack information
     """
-    faults_relations = stacks_structure.faults_relations
-    n_stacks = stacks_structure.n_stacks
-    number_surfaces_per_stack = stacks_structure.number_of_surfaces_per_stack_vector
-
-    if faults_relations is None:
+    if stacks_structure.faults_relations is None:
         return
 
-    # Iterate through fault relations matrix
+    faults_relations = stacks_structure.faults_relations
+    n_stacks = stacks_structure.n_stacks
+    surfaces_per_stack = stacks_structure.number_of_surfaces_per_stack_vector
+
+    # Process fault relations
+    for origin_stack, destination_stack in _get_fault_pairs(faults_relations, n_stacks):
+        surface_range = _get_surface_range(surfaces_per_stack, destination_stack)
+        
+        for surface_n in surface_range:
+            overlap_key = f"stack_{origin_stack}_vs_stack_{surface_n}"
+            
+            if overlap_key in voxel_overlaps:
+                _apply_vertex_sharing(
+                    all_meshes, 
+                    origin_stack, 
+                    surface_n, 
+                    voxel_overlaps[overlap_key]
+                )
+
+
+def _get_fault_pairs(faults_relations: np.ndarray, n_stacks: int):
+    """Generate pairs of stacks that have fault relations."""
     for origin_stack in range(n_stacks):
         for destination_stack in range(n_stacks):
             if faults_relations[origin_stack, destination_stack]:
-                for surface_n in range(number_surfaces_per_stack[destination_stack], number_surfaces_per_stack[destination_stack + 1]):
-                    overlap_key = f"stack_{origin_stack}_vs_stack_{surface_n}"
+                yield origin_stack, destination_stack
 
-                    # Check if there are actual overlaps between these stacks
-                    if overlap_key in voxel_overlaps:
-                        _apply_vertex_sharing(all_meshes, origin_stack, surface_n, voxel_overlaps[overlap_key])
+
+def _get_surface_range(surfaces_per_stack: np.ndarray, stack_index: int) -> range:
+    """Get the range of surfaces for a given stack."""
+    return range(
+        surfaces_per_stack[stack_index], 
+        surfaces_per_stack[stack_index + 1]
+    )
 
 
 def _apply_vertex_sharing(
         all_meshes: List[DualContouringMesh],
-        origin_mesh: int,
-        destination_mesh: int,
+        origin_mesh_idx: int,
+        destination_mesh_idx: int,
         overlap_data: dict
 ) -> None:
     """
@@ -50,78 +69,109 @@ def _apply_vertex_sharing(
 
     Args:
         all_meshes: List of dual contouring meshes
-        origin_mesh: Stack index that serves as the source of vertices
-        destination_mesh: Stack index that receives vertices from origin
+        origin_mesh_idx: Index of mesh that serves as the source of vertices
+        destination_mesh_idx: Index of mesh that receives vertices from origin
         overlap_data: Dictionary containing indices and overlap information
-        mesh_indices_offset: Starting mesh index for each stack
     """
-    # origin_mesh_idx = mesh_indices_offset[origin_stack]
-    # destination_mesh_idx = mesh_indices_offset[destination_stack]
-    origin_mesh_idx = origin_mesh
-    destination_mesh_idx = destination_mesh
-
-    # Ensure mesh indices are valid
-    if origin_mesh_idx >= len(all_meshes) or destination_mesh_idx >= len(all_meshes):
+    if not _are_valid_mesh_indices(all_meshes, origin_mesh_idx, destination_mesh_idx):
         return
 
-    # Apply the vertex sharing (same logic as original _f function)
     origin_mesh = all_meshes[origin_mesh_idx]
     destination_mesh = all_meshes[destination_mesh_idx]
 
-    indices_in_origin = overlap_data["indices_in_stack_i"]
-    indices_in_destination = overlap_data["indices_in_stack_j"]
+    # Share vertices from origin to destination
+    origin_indices = overlap_data["indices_in_stack_i"]
+    destination_indices = overlap_data["indices_in_stack_j"]
+    
+    destination_mesh.vertices[destination_indices] = origin_mesh.vertices[origin_indices]
 
-    destination_mesh.vertices[indices_in_destination] = origin_mesh.vertices[indices_in_origin]
+
+def _are_valid_mesh_indices(all_meshes: List[DualContouringMesh], *indices: int) -> bool:
+    """Check if all provided mesh indices are valid."""
+    return all(0 <= idx < len(all_meshes) for idx in indices)
 
 
-def find_repeated_voxels_across_stacks(all_left_right_codes: List[np.ndarray]) -> dict:
+def find_repeated_voxels_across_stacks(all_left_right_codes: List[np.ndarray]) -> Dict[str, dict]:
     """
-    Find repeated voxels using NumPy operations - better for very large arrays.
+    Find repeated voxels using NumPy operations for efficient processing of large arrays.
 
     Args:
         all_left_right_codes: List of left_right_codes arrays, one per stack
 
     Returns:
-        Dictionary with detailed overlap analysis
+        Dictionary with detailed overlap analysis between stack pairs
     """
-
     if not all_left_right_codes:
         return {}
 
-    # Generate voxel codes for each stack
+    stack_codes = _generate_voxel_codes(all_left_right_codes)
+    return _find_overlaps_between_stacks(stack_codes, all_left_right_codes)
 
+
+def _generate_voxel_codes(all_left_right_codes: List[np.ndarray]) -> List[np.ndarray]:
+    """Generate voxel codes for each stack using packed bit directions."""
     from gempy_engine.modules.dual_contouring.fancy_triangulation import _StaticTriangulationData
+    
+    pack_directions = _StaticTriangulationData.get_pack_directions_into_bits()
     stack_codes = []
+    
     for left_right_codes in all_left_right_codes:
         if left_right_codes.size > 0:
-            voxel_codes = (left_right_codes * _StaticTriangulationData.get_pack_directions_into_bits()).sum(axis=1)
+            voxel_codes = (left_right_codes * pack_directions).sum(axis=1)
             stack_codes.append(voxel_codes)
         else:
             stack_codes.append(np.array([]))
+    
+    return stack_codes
 
+
+def _find_overlaps_between_stacks(
+        stack_codes: List[np.ndarray], 
+        all_left_right_codes: List[np.ndarray]
+) -> Dict[str, dict]:
+    """Find overlaps between all pairs of stacks."""
     overlaps = {}
-
-    # Check each pair of stacks
+    
     for i in range(len(stack_codes)):
         for j in range(i + 1, len(stack_codes)):
-            if stack_codes[i].size == 0 or stack_codes[j].size == 0:
-                continue
-
-            # Find common voxel codes using numpy
-            common_codes = np.intersect1d(stack_codes[i], stack_codes[j])
-
-            if len(common_codes) > 0:
-                # Get indices of common voxels in each stack
-                indices_i = np.isin(stack_codes[i], common_codes)
-                indices_j = np.isin(stack_codes[j], common_codes)
-
-                overlaps[f"stack_{i}_vs_stack_{j}"] = {
-                        'common_voxel_codes'   : common_codes,
-                        'count'                : len(common_codes),
-                        'indices_in_stack_i'   : np.where(indices_i)[0],
-                        'indices_in_stack_j'   : np.where(indices_j)[0],
-                        'common_binary_codes_i': all_left_right_codes[i][indices_i],
-                        'common_binary_codes_j': all_left_right_codes[j][indices_j]
-                }
-
+            overlap_data = _process_stack_pair(
+                stack_codes[i], stack_codes[j], 
+                all_left_right_codes[i], all_left_right_codes[j], 
+                i, j
+            )
+            
+            if overlap_data:
+                overlaps[f"stack_{i}_vs_stack_{j}"] = overlap_data
+    
     return overlaps
+
+
+def _process_stack_pair(
+        codes_i: np.ndarray, 
+        codes_j: np.ndarray,
+        left_right_i: np.ndarray, 
+        left_right_j: np.ndarray,
+        stack_i: int, 
+        stack_j: int
+) -> Optional[dict]:
+    """Process a pair of stacks to find overlapping voxels."""
+    if codes_i.size == 0 or codes_j.size == 0:
+        return None
+    
+    common_codes = np.intersect1d(codes_i, codes_j)
+    
+    if len(common_codes) == 0:
+        return None
+    
+    # Find indices of common voxels in each stack
+    indices_i = np.isin(codes_i, common_codes)
+    indices_j = np.isin(codes_j, common_codes)
+    
+    return {
+        'common_voxel_codes': common_codes,
+        'count': len(common_codes),
+        'indices_in_stack_i': np.where(indices_i)[0],
+        'indices_in_stack_j': np.where(indices_j)[0],
+        'common_binary_codes_i': left_right_i[indices_i],
+        'common_binary_codes_j': left_right_j[indices_j]
+    }
