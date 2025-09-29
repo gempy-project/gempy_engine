@@ -3,14 +3,17 @@ from typing import Tuple, List
 
 import numpy as np
 
+from ._vertex_overlap import find_repeated_voxels_across_stacks, _apply_fault_relations_to_overlaps
 from .fancy_triangulation import get_left_right_array
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
+from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interp_output import InterpOutput
 from ...core.data.octree_level import OctreeLevel
 from ...core.data.options import MeshExtractionMaskingOptions
 from ...core.data.stack_relation_type import StackRelationType
+from ...core.data.stacks_structure import StacksStructure
 
 
 # region edges
@@ -109,8 +112,7 @@ def get_triangulation_codes(octree_list: List[OctreeLevel], options: Interpolati
             raise ValueError("Invalid combination of options")
 
 
-
-def get_masked_codes(left_right_codes: np.ndarray | None, mask: np.ndarray | None) -> np.ndarray | None:
+def get_masked_codes(left_right_codes: np.ndarray, mask: np.ndarray) -> np.ndarray:
     """
     Apply mask to left-right codes if both are available.
     
@@ -133,7 +135,7 @@ def get_masked_codes(left_right_codes: np.ndarray | None, mask: np.ndarray | Non
 def mask_generation(
         octree_leaves: OctreeLevel,
         masking_option: MeshExtractionMaskingOptions
-) -> np.ndarray | None:
+) -> np.ndarray:
     """
     Generate masks for mesh extraction based on masking options and stack relations.
     
@@ -197,3 +199,11 @@ def mask_generation(
 
 
 # endregion
+def apply_faults_vertex_overlap(all_meshes: list[DualContouringMesh],
+                                stack_structure: StacksStructure, 
+                                left_right_per_mesh: list[np.ndarray]):
+    voxel_overlaps = find_repeated_voxels_across_stacks(left_right_per_mesh)
+    
+    if voxel_overlaps:
+        print(f"Found voxel overlaps between stacks: {voxel_overlaps}")
+        _apply_fault_relations_to_overlaps(all_meshes, voxel_overlaps, stack_structure)

@@ -9,7 +9,7 @@ from gempy_engine.plugins.plotting import helper_functions_pyvista
 from tests.conftest import plot_pyvista
 
 
-def test_dual_contouring_on_fault_model(one_fault_model, n_oct_levels=4):
+def test_dual_contouring_on_fault_model(one_fault_model, n_oct_levels=5):
     interpolation_input: InterpolationInput
     structure: InputDataDescriptor
     options: InterpolationOptions
@@ -17,7 +17,7 @@ def test_dual_contouring_on_fault_model(one_fault_model, n_oct_levels=4):
     interpolation_input, structure, options = one_fault_model
 
     import numpy as np
-    interpolation_input.surface_points.sp_coords[:, 2] += np.random.uniform(-0.1, 0.1, interpolation_input.surface_points.sp_coords[:, 2].shape)
+    interpolation_input.surface_points.sp_coords[:, 2] += np.random.uniform(-0.02, 0.02, interpolation_input.surface_points.sp_coords[:, 2].shape)
     options.compute_scalar_gradient = False
     options.evaluation_options.dual_contouring = True
     options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
