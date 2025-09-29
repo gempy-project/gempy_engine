@@ -57,7 +57,11 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData,
                 left_right_codes=left_right_codes
             )
             
-            valid_left_right_codes = left_right_codes[dc_data_per_surface.valid_voxels]
+            # Handle None left_right_codes case
+            if left_right_codes is not None:
+                valid_left_right_codes = left_right_codes[dc_data_per_surface.valid_voxels]
+            else:
+                valid_left_right_codes = None
 
         if TRIMESH_LAST_PASS := True:
             vertices_numpy, indices_numpy = _last_pass(vertices_numpy, indices_numpy)
@@ -94,6 +98,9 @@ def _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug, num_w
     surface_indices = list(range(dc_data_per_stack.n_surfaces_to_export))
     chunks = [surface_indices[i:i + chunk_size] for i in range(0, len(surface_indices), chunk_size)]
 
+    # Handle None left_right_codes case - ensure we pass a serializable value
+    serializable_left_right_codes = left_right_codes
+
     try:
         # Use spawn context for better PyTorch compatibility
         ctx = mp.get_context("spawn") if MULTIPROCESSING_AVAILABLE else mp
@@ -104,7 +111,7 @@ def _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug, num_w
             for chunk in chunks:
                 result = pool.apply_async(
                     _process_surface_batch,
-                    (chunk, dc_data_dict, left_right_codes, debug)
+                    (chunk, dc_data_dict, serializable_left_right_codes, debug)
                 )
                 async_results.append(result)
 
