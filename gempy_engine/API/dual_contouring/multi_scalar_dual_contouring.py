@@ -1,34 +1,33 @@
 import copy
-import warnings
 from typing import List, Any
 
 import numpy as np
 
-from gempy_engine.core.backend_tensor import BackendTensor
-from ._dual_contouring import compute_dual_contouring
+from gempy_engine.modules.dual_contouring._dual_contouring import compute_dual_contouring
 from ._experimental_water_tight_DC_1 import _experimental_water_tight
-from ._interpolate_on_edges import interpolate_on_edges_for_dual_contouring
 from ._mask_buffer import MaskBuffer
+from ..interp_single.interp_features import interpolate_all_fields_no_octree
+from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.dual_contouring_mesh import DualContouringMesh
+from ...core.data.engine_grid import EngineGrid
+from ...core.data.generic_grid import GenericGrid
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.octree_level import OctreeLevel
-from ...core.data.options import MeshExtractionMaskingOptions
-from ...core.data.stack_relation_type import StackRelationType
 from ...core.utils import gempy_profiler_decorator
-from ...modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge
-from ...modules.dual_contouring.fancy_triangulation import get_left_right_array
+from ...modules.dual_contouring.dual_contouring_interface import (find_intersection_on_edge, get_triangulation_codes,
+                                                                  get_masked_codes, mask_generation)
 
 
 @gempy_profiler_decorator
 def dual_contouring_multi_scalar(
-    data_descriptor: InputDataDescriptor,
-    interpolation_input: InterpolationInput,
-    options: InterpolationOptions,
-    octree_list: List[OctreeLevel]
+        data_descriptor: InputDataDescriptor,
+        interpolation_input: InterpolationInput,
+        options: InterpolationOptions,
+        octree_list: List[OctreeLevel]
 ) -> List[DualContouringMesh]:
     """
     Perform dual contouring for multiple scalar fields.
@@ -51,32 +50,37 @@ def dual_contouring_multi_scalar(
     dual_contouring_options = copy.deepcopy(options)
     dual_contouring_options.evaluation_options.compute_scalar_gradient = True
 
+    # * (Miguel Sep25) This will be probably deprecated
     if options.debug_water_tight:
         _experimental_water_tight(
             all_meshes, data_descriptor, interpolation_input, octree_leaves, dual_contouring_options
         )
         return all_meshes
 
-    # Determine triangulation strategy
-    left_right_codes = _get_triangulation_codes(octree_list, options)
+    # * 1) Triangulation code
+    left_right_codes = get_triangulation_codes(octree_list, options)
 
-    # Generate masks for all scalar fields
-    all_mask_arrays: np.ndarray = _mask_generation(
+    # * 2) Dual contouring mask
+    # ? I guess this mask is different that erosion mask
+    all_mask_arrays: np.ndarray = mask_generation(
         octree_leaves=octree_leaves,
         masking_option=options.evaluation_options.mesh_extraction_masking_options
     )
-
+    
     # Process each scalar field
     all_stack_intersection = []
     all_valid_edges = []
     all_left_right_codes = []
-
+    # region Interp on edges
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
         _validate_stack_relations(data_descriptor, n_scalar_field)
-
         mask: np.ndarray = all_mask_arrays[n_scalar_field]
-        left_right_codes_per_stack = _get_masked_codes(left_right_codes, mask)
+        
+        # * 3) Masking  Left_right_codes
+        left_right_codes_per_stack = get_masked_codes(left_right_codes, mask)
+        all_left_right_codes.append(left_right_codes_per_stack)
 
+        # * 4) Find edges 
         output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
         intersection_xyz, valid_edges = find_intersection_on_edge(
             _xyz_corners=octree_leaves.grid_centers.corners_grid.values,
@@ -87,132 +91,161 @@ def dual_contouring_multi_scalar(
 
         all_stack_intersection.append(intersection_xyz)
         all_valid_edges.append(valid_edges)
-        all_left_right_codes.append(left_right_codes_per_stack)
 
-    # Interpolate on edges for all stacks
+    # * 5) Interpolate on edges for all stacks
     output_on_edges = _interp_on_edges(
         all_stack_intersection, data_descriptor, dual_contouring_options, interpolation_input
     )
+    
+    # endregion
 
+    # region Vertex gen and triangulation
+    foo = []
     # Generate meshes for each scalar field
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
         output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
         mask = all_mask_arrays[n_scalar_field]
-        
+
         dc_data = DualContouringData(
             xyz_on_edge=all_stack_intersection[n_scalar_field],
             valid_edges=all_valid_edges[n_scalar_field],
             xyz_on_centers=(
-                octree_leaves.grid_centers.octree_grid.values if mask is None 
-                else octree_leaves.grid_centers.octree_grid.values[mask]
+                    octree_leaves.grid_centers.octree_grid.values if mask is None
+                    else octree_leaves.grid_centers.octree_grid.values[mask]
             ),
             dxdydz=octree_leaves.grid_centers.octree_dxdydz,
             exported_fields_on_edges=output_on_edges[n_scalar_field].exported_fields,
             n_surfaces_to_export=output.scalar_field_at_sp.shape[0],
             tree_depth=options.number_octree_levels,
         )
-        
+
         meshes: List[DualContouringMesh] = compute_dual_contouring(
             dc_data_per_stack=dc_data,
             left_right_codes=all_left_right_codes[n_scalar_field],
             debug=options.debug
         )
+        
+        for m in meshes:
+            foo.append(m.left_right)
 
         # TODO: If the order of the meshes does not match the order of scalar_field_at_surface points, reorder them here
         if meshes is not None:
             all_meshes.extend(meshes)
 
+    # endregion
+    # Check for repeated voxels across stacks
+    if (options.debug or len(all_left_right_codes) > 1) and False:
+        voxel_overlaps = find_repeated_voxels_across_stacks(foo)
+        if voxel_overlaps and options.debug:
+            print(f"Found voxel overlaps between stacks: {voxel_overlaps}")
+            _f(all_meshes, 1, 0, voxel_overlaps)
+            _f(all_meshes, 2, 0, voxel_overlaps)
+            _f(all_meshes, 3, 0, voxel_overlaps)
+            _f(all_meshes, 4, 0, voxel_overlaps)
+            _f(all_meshes, 5, 0, voxel_overlaps)
+
     return all_meshes
 
 
-def _get_triangulation_codes(octree_list: List[OctreeLevel], options: InterpolationOptions) -> np.ndarray | None:
+def _f(all_meshes: list[DualContouringMesh], destination: int, origin: int, voxel_overlaps: dict):
+    key = f"stack_{origin}_vs_stack_{destination}"
+    all_meshes[destination].vertices[voxel_overlaps[key]["indices_in_stack_j"]] = all_meshes[origin].vertices[voxel_overlaps[key]["indices_in_stack_i"]]
+
+
+def find_repeated_voxels_across_stacks(all_left_right_codes: List[np.ndarray]) -> dict:
     """
-    Determine the appropriate triangulation codes based on options and octree structure.
-    
+    Find repeated voxels using NumPy operations - better for very large arrays.
+
     Args:
-        octree_list: List of octree levels
-        options: Interpolation options
-        
+        all_left_right_codes: List of left_right_codes arrays, one per stack
+
     Returns:
-        Left-right codes array if fancy triangulation is enabled and supported, None otherwise
+        Dictionary with detailed overlap analysis
     """
-    is_pure_octree = bool(np.all(octree_list[0].grid_centers.octree_grid_shape == 2))
-    
-    match (options.evaluation_options.mesh_extraction_fancy, is_pure_octree):
-        case (True, True):
-            return get_left_right_array(octree_list)
-        case (True, False):
-            warnings.warn(
-                "Fancy triangulation only works with regular grid of resolution [2,2,2]. "
-                "Defaulting to regular triangulation"
-            )
-            return None
-        case (False, _):
-            return None
-        case _:
-            raise ValueError("Invalid combination of options")
+
+    if not all_left_right_codes:
+        return {}
+
+    # Generate voxel codes for each stack
+
+    from gempy_engine.modules.dual_contouring.fancy_triangulation import _StaticTriangulationData
+    stack_codes = []
+    for left_right_codes in all_left_right_codes:
+        if left_right_codes.size > 0:
+            voxel_codes = (left_right_codes * _StaticTriangulationData.get_pack_directions_into_bits()).sum(axis=1)
+            stack_codes.append(voxel_codes)
+        else:
+            stack_codes.append(np.array([]))
+
+    overlaps = {}
+
+    # Check each pair of stacks
+    for i in range(len(stack_codes)):
+        for j in range(i + 1, len(stack_codes)):
+            if stack_codes[i].size == 0 or stack_codes[j].size == 0:
+                continue
+
+            # Find common voxel codes using numpy
+            common_codes = np.intersect1d(stack_codes[i], stack_codes[j])
+
+            if len(common_codes) > 0:
+                # Get indices of common voxels in each stack
+                indices_i = np.isin(stack_codes[i], common_codes)
+                indices_j = np.isin(stack_codes[j], common_codes)
+
+                overlaps[f"stack_{i}_vs_stack_{j}"] = {
+                        'common_voxel_codes'   : common_codes,
+                        'count'                : len(common_codes),
+                        'indices_in_stack_i'   : np.where(indices_i)[0],
+                        'indices_in_stack_j'   : np.where(indices_j)[0],
+                        'common_binary_codes_i': all_left_right_codes[i][indices_i],
+                        'common_binary_codes_j': all_left_right_codes[j][indices_j]
+                }
+
+    return overlaps
 
 
 def _validate_stack_relations(data_descriptor: InputDataDescriptor, n_scalar_field: int) -> None:
     """
     Validate stack relations for the given scalar field.
-    
+
     Args:
         data_descriptor: Input data descriptor containing stack relations
         n_scalar_field: Current scalar field index
-        
+
     Raises:
         NotImplementedError: If unsupported combination of Erosion and Onlap is detected
     """
     if n_scalar_field == 0:
         return
-        
+
     previous_stack_is_onlap = data_descriptor.stack_relation[n_scalar_field - 1] == 'Onlap'
     was_erosion_before = data_descriptor.stack_relation[n_scalar_field - 1] == 'Erosion'
-    
+
     if previous_stack_is_onlap and was_erosion_before:
         # TODO (July, 2023): Is this still valid? I thought we have all the combinations
         raise NotImplementedError("Erosion and Onlap are not supported yet")
 
 
-def _get_masked_codes(left_right_codes: np.ndarray | None, mask: np.ndarray | None) -> np.ndarray | None:
-    """
-    Apply mask to left-right codes if both are available.
-    
-    Args:
-        left_right_codes: Original left-right codes array
-        mask: Boolean mask array
-        
-    Returns:
-        Masked codes if both inputs are not None, otherwise original codes
-    """
-    if mask is not None and left_right_codes is not None:
-        return left_right_codes[mask]
-    return left_right_codes
-
-
 def _interp_on_edges(
-    all_stack_intersection: List[Any],
-    data_descriptor: InputDataDescriptor,
-    dual_contouring_options: InterpolationOptions,
-    interpolation_input: InterpolationInput
+        all_stack_intersection: List[Any],
+        data_descriptor: InputDataDescriptor,
+        dual_contouring_options: InterpolationOptions,
+        interpolation_input: InterpolationInput
 ) -> List[InterpOutput]:
     """
     Interpolate scalar fields on edge intersection points.
-    
+
     Args:
         all_stack_intersection: List of intersection points for all stacks
         data_descriptor: Input data descriptor
         dual_contouring_options: Dual contouring specific options
         interpolation_input: Interpolation input data
-        
+
     Returns:
         List of interpolation outputs for each stack
     """
-    from ...core.data.engine_grid import EngineGrid
-    from ...core.data.generic_grid import GenericGrid
-    from ..interp_single.interp_features import interpolate_all_fields_no_octree
-    
+
     # Set temporary grid with concatenated intersection points
     interpolation_input.set_temp_grid(
         EngineGrid(
@@ -230,73 +263,7 @@ def _interp_on_edges(
         options=dual_contouring_options,
         data_descriptor=data_descriptor
     )
-    
+
     # Restore original grid
     interpolation_input.set_grid_to_original()
     return output_on_edges
-
-
-def _mask_generation(
-    octree_leaves: OctreeLevel,
-    masking_option: MeshExtractionMaskingOptions
-) -> np.ndarray | None:
-    """
-    Generate masks for mesh extraction based on masking options and stack relations.
-    
-    Args:
-        octree_leaves: Octree leaf level containing scalar field outputs
-        masking_option: Mesh extraction masking configuration
-        
-    Returns:
-        Matrix of boolean masks for each scalar field
-        
-    Raises:
-        NotImplementedError: For unsupported masking options
-        ValueError: For invalid option combinations
-    """
-    all_scalar_fields_outputs: List[InterpOutput] = octree_leaves.outputs_centers
-    n_scalar_fields = len(all_scalar_fields_outputs)
-    outputs_ = all_scalar_fields_outputs[0]
-    slice_corners = outputs_.grid.corners_grid_slice
-    grid_size = outputs_.cornersGrid_values.shape[0]
-    
-    mask_matrix = BackendTensor.t.zeros((n_scalar_fields, grid_size // 8), dtype=bool)
-    onlap_chain_counter = 0
-
-    for i in range(n_scalar_fields):
-        stack_relation = all_scalar_fields_outputs[i].scalar_fields.stack_relation
-        
-        match (masking_option, stack_relation):
-            case MeshExtractionMaskingOptions.RAW, _:
-                mask_matrix[i] = BackendTensor.t.ones(grid_size // 8, dtype=bool)
-                
-            case MeshExtractionMaskingOptions.DISJOINT, _:
-                raise NotImplementedError(
-                    "Disjoint is not supported yet. Not even sure if there is anything to support"
-                )
-                
-            case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.ERODE:
-                mask_array = all_scalar_fields_outputs[i + onlap_chain_counter].squeezed_mask_array
-                x = mask_array[slice_corners].reshape((1, -1, 8))
-                mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
-                onlap_chain_counter = 0
-                
-            case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.BASEMENT:
-                mask_array = all_scalar_fields_outputs[i].squeezed_mask_array
-                x = mask_array[slice_corners].reshape((1, -1, 8))
-                mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
-                onlap_chain_counter = 0
-                
-            case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.ONLAP:
-                mask_array = all_scalar_fields_outputs[i].squeezed_mask_array
-                x = mask_array[slice_corners].reshape((1, -1, 8))
-                mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
-                onlap_chain_counter += 1
-                
-            case _, StackRelationType.FAULT:
-                mask_matrix[i] = BackendTensor.t.ones(grid_size // 8, dtype=bool)
-                
-            case _:
-                raise ValueError("Invalid combination of options")
-
-    return mask_matrix

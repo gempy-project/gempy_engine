@@ -1,11 +1,10 @@
-import copy
 import numpy as np
 import os
 import pytest
 from typing import List
 
 import gempy_engine.API.interp_single.interp_features as interp
-from gempy_engine.API.dual_contouring._dual_contouring import compute_dual_contouring
+from gempy_engine.modules.dual_contouring._dual_contouring import compute_dual_contouring
 from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields
 from gempy_engine.API.interp_single.interp_features import interpolate_n_octree_levels, interpolate_and_segment
 from gempy_engine.API.model.model_api import compute_model
@@ -20,7 +19,8 @@ from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.core.data.solutions import Solutions
-from gempy_engine.modules.dual_contouring.dual_contouring_interface import QEF, find_intersection_on_edge, triangulate_dual_contouring
+from gempy_engine.modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge
+from gempy_engine.modules.dual_contouring._triangulate import triangulate_dual_contouring
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_regular_grid_value_for_level
 from gempy_engine.plugins.plotting import helper_functions_pyvista
 from tests.conftest import TEST_SPEED, plot_pyvista
@@ -597,3 +597,51 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
     p.add_axes()
     p.show()
 
+
+class QEF:
+    """Represents and solves the quadratic error function"""
+
+    def __init__(self, A, b, fixed_values):
+        self.A = A
+        self.b = b
+        self.fixed_values = fixed_values
+
+    def evaluate(self, x):
+        """Evaluates the function at a given point.
+        This is what the solve method is trying to minimize.
+        NB: Doesn't work with fixed axes."""
+        x = BackendTensor.tfnp.array(x)
+        return BackendTensor.tfnp.linalg.norm(BackendTensor.tfnp.matmul(self.A, x) - self.b)
+
+    def eval_with_pos(self, x):
+        """Evaluates the QEF at a position, returning the same format solve does."""
+        return self.evaluate(x), x
+
+    @staticmethod
+    def make_3d(positions, normals):
+        """Returns a QEF that measures the the error from a bunch of normals, each emanating
+         from given positions"""
+        A = BackendTensor.tfnp.array(normals)
+        b = [v[0] * n[0] + v[1] * n[1] + v[2] * n[2] for v, n in zip(positions, normals)]
+        fixed_values = [None] * A.shape[1]
+        return QEF(A, b, fixed_values)
+
+    def solve(self):
+        """Finds the point that minimizes the error of this QEF,
+        and returns a tuple of the error squared and the point itself"""
+        result, residual, rank, s = BackendTensor.tfnp.linalg.lstsq(self.A, self.b)
+        if len(residual) == 0:
+            residual = self.evaluate(result)
+        else:
+            residual = residual[0]
+        # Result only contains the solution for the unfixed axis,
+        # we need to add back all the ones we previously fixed.
+        position = []
+        i = 0
+        for value in self.fixed_values:
+            if value is None:
+                position.append(result[i])
+                i += 1
+            else:
+                position.append(value)
+        return residual, position

@@ -6,33 +6,33 @@ from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.utils import gempy_profiler_decorator
-from ...modules.dual_contouring._parallel_triangulation import _should_use_parallel_processing, _process_surface_batch, _init_worker
-from ...modules.dual_contouring._sequential_triangulation import _sequential_triangulation
+from ._parallel_triangulation import _should_use_parallel_processing, _process_surface_batch, _init_worker
+from ._sequential_triangulation import _sequential_triangulation
+from ._gen_vertices import _compute_vertices
 
 # Multiprocessing imports
 try:
     import torch.multiprocessing as mp
+
     MULTIPROCESSING_AVAILABLE = True
 except ImportError:
     import multiprocessing as mp
+
     MULTIPROCESSING_AVAILABLE = False
 
 
-
-
-
 @gempy_profiler_decorator
-def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_codes=None, debug: bool = False) -> List[DualContouringMesh]:
+def compute_dual_contouring(dc_data_per_stack: DualContouringData,
+                            left_right_codes=None, debug: bool = False) -> List[DualContouringMesh]:
     valid_edges_per_surface = dc_data_per_stack.valid_edges.reshape((dc_data_per_stack.n_surfaces_to_export, -1, 12))
 
     # Check if we should use parallel processing
     use_parallel = _should_use_parallel_processing(dc_data_per_stack.n_surfaces_to_export, BackendTensor.engine_backend)
     parallel_results = None
-    
-    if use_parallel and False: # ! (Miguel Sep 25) I do not see a speedup
+
+    if use_parallel and False:  # ! (Miguel Sep 25) I do not see a speedup
         print(f"Using parallel processing for {dc_data_per_stack.n_surfaces_to_export} surfaces")
         parallel_results = _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug)
-        
 
     # Fall back to sequential processing
     print(f"Using sequential processing for {dc_data_per_stack.n_surfaces_to_export} surfaces")
@@ -41,24 +41,27 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
     for i in range(dc_data_per_stack.n_surfaces_to_export):
         # @off
         if parallel_results is not None:
-            _, vertices_numpy = _sequential_triangulation(
-                dc_data_per_stack,
-                debug, 
-                i, 
-                left_right_codes, 
-                valid_edges_per_surface,
-                compute_indices=False 
+            _, vertices_numpy = _compute_vertices(
+                dc_data_per_stack=dc_data_per_stack,
+                debug=debug,
+                surface_i=i,
+                valid_edges_per_surface=valid_edges_per_surface
             )
             indices_numpy = parallel_results[i]
         else:
-            indices_numpy, vertices_numpy = _sequential_triangulation(
-                dc_data_per_stack,
-                debug, 
-                i, 
-                left_right_codes, 
-                valid_edges_per_surface,
-                compute_indices=True
+            dc_data_per_surface, indices_numpy, vertices_numpy = _sequential_triangulation(
+                dc_data_per_stack=dc_data_per_stack,
+                debug=debug,
+                i=i,
+                valid_edges_per_surface=valid_edges_per_surface,
+                left_right_codes=left_right_codes
             )
+            
+            # Handle None left_right_codes case
+            if left_right_codes is not None:
+                valid_left_right_codes = left_right_codes[dc_data_per_surface.valid_voxels]
+            else:
+                valid_left_right_codes = None
 
         if TRIMESH_LAST_PASS := True:
             vertices_numpy, indices_numpy = _last_pass(vertices_numpy, indices_numpy)
@@ -67,12 +70,11 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData, left_right_co
             DualContouringMesh(
                 vertices_numpy,
                 indices_numpy,
-                dc_data_per_stack
+                dc_data_per_stack,
+                left_right=valid_left_right_codes
             )
         )
     return stack_meshes
-
-
 
 
 def _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug, num_workers=None, chunk_size=2):
@@ -96,6 +98,9 @@ def _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug, num_w
     surface_indices = list(range(dc_data_per_stack.n_surfaces_to_export))
     chunks = [surface_indices[i:i + chunk_size] for i in range(0, len(surface_indices), chunk_size)]
 
+    # Handle None left_right_codes case - ensure we pass a serializable value
+    serializable_left_right_codes = left_right_codes
+
     try:
         # Use spawn context for better PyTorch compatibility
         ctx = mp.get_context("spawn") if MULTIPROCESSING_AVAILABLE else mp
@@ -106,7 +111,7 @@ def _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug, num_w
             for chunk in chunks:
                 result = pool.apply_async(
                     _process_surface_batch,
-                    (chunk, dc_data_dict, left_right_codes, debug)
+                    (chunk, dc_data_dict, serializable_left_right_codes, debug)
                 )
                 async_results.append(result)
 
@@ -121,6 +126,7 @@ def _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug, num_w
     except Exception as e:
         print(f"Parallel processing failed: {e}. Falling back to sequential processing.")
         return None
+
 
 def _last_pass(vertices, indices):
     # Check if trimesh is available

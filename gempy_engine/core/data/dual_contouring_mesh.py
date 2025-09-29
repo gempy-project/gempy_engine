@@ -10,6 +10,7 @@ class DualContouringMesh:
     vertices: np.ndarray
     edges: np.ndarray
     dc_data: Optional[DualContouringData] = None  # * In principle we need this just for testing
+    left_right: Optional[np.ndarray] = None 
 
     def __repr__(self):
         return f"DualContouringMesh({self.vertices.shape[0]} vertices, {self.edges.shape[0]} edges)"

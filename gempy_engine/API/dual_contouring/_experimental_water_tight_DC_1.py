@@ -2,7 +2,7 @@ from typing import List
 
 import numpy as np
 
-from gempy_engine.API.dual_contouring._dual_contouring import compute_dual_contouring
+from gempy_engine.modules.dual_contouring._dual_contouring import compute_dual_contouring
 from gempy_engine.API.dual_contouring._interpolate_on_edges import interpolate_on_edges_for_dual_contouring
 from gempy_engine.core.data.dual_contouring_data import DualContouringData
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
