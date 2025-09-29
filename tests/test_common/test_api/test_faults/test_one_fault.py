@@ -99,7 +99,7 @@ def test_one_fault_model_thickness(one_fault_model, n_oct_levels=5):
         plot_block_and_input_2d(1, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
         plot_block_and_input_2d(2, interpolation_input, outputs, structure.stack_structure, ValueType.squeeze_mask)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes
