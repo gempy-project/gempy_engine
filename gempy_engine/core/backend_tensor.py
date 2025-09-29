@@ -46,11 +46,14 @@ class BackendTensor:
                 return "CPU"
 
     @classmethod
-    def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = False, dtype: Optional[str] = None):
-        cls._change_backend(engine_backend, use_pykeops=PYKEOPS, use_gpu=use_gpu, dtype=dtype)
+    def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = False,
+                             dtype: Optional[str] = None, grads:bool = False):
+        cls._change_backend(engine_backend, use_pykeops=PYKEOPS, use_gpu=use_gpu, dtype=dtype,
+                            grads=grads)
 
     @classmethod
-    def _change_backend(cls, engine_backend: AvailableBackends, use_pykeops: bool = False, use_gpu: bool = True, dtype: Optional[str] = None):
+    def _change_backend(cls, engine_backend: AvailableBackends, use_pykeops: bool = False,
+                        use_gpu: bool = True, dtype: Optional[str] = None, grads:bool = False):
         cls.dtype = DEFAULT_TENSOR_DTYPE if dtype is None else dtype
         cls.dtype_obj = cls.dtype
         match engine_backend:
@@ -99,6 +102,21 @@ class BackendTensor:
                 cls.dtype_obj = pytorch_copy.float32 if cls.dtype == "float32" else pytorch_copy.float64
                 cls.tensor_types = pytorch_copy.Tensor
 
+                torch.set_num_threads(torch.get_num_threads())  # Use all available threads
+                cls.COMPUTE_GRADS = grads  # Store the grads setting
+                if grads is False:
+                    cls._torch_no_grad_context = torch.no_grad()
+                    cls._torch_no_grad_context.__enter__()
+                else:
+                    # If there was a previous context, exit it first
+                    if hasattr(cls, '_torch_no_grad_context') and cls._torch_no_grad_context is not None:
+                        try:
+                            cls._torch_no_grad_context.__exit__(None, None, None)
+                        except:
+                            pass  # Context might already be exited
+                    cls._torch_no_grad_context = None
+                    torch.set_grad_enabled(True)
+                    
                 cls.use_pykeops = use_pykeops  # TODO: Make this compatible with pykeops
                 if (use_pykeops):
                     import pykeops
