@@ -3,14 +3,13 @@ from typing import List
 import numpy as np
 
 from ...core.data.dual_contouring_mesh import DualContouringMesh
-
+from ...core.data.stacks_structure import StacksStructure
 
 
 def _apply_fault_relations_to_overlaps(
         all_meshes: List[DualContouringMesh],
-        faults_relations: np.ndarray,
         voxel_overlaps: dict,
-        n_stacks: int
+        stacks_structure: StacksStructure
 ) -> None:
     """
     Apply fault relations to voxel overlaps by updating mesh vertices.
@@ -21,70 +20,48 @@ def _apply_fault_relations_to_overlaps(
         voxel_overlaps: Dictionary containing overlap information between stacks
         n_stacks: Total number of stacks
     """
+    faults_relations = stacks_structure.faults_relations
+    n_stacks = stacks_structure.n_stacks
+    number_surfaces_per_stack = stacks_structure.number_of_surfaces_per_stack_vector
+
     if faults_relations is None:
         return
-
-    # Calculate mesh indices offset for each stack
-    mesh_indices_offset = _calculate_mesh_indices_offset(all_meshes, n_stacks)
 
     # Iterate through fault relations matrix
     for origin_stack in range(n_stacks):
         for destination_stack in range(n_stacks):
-            # If there's a fault relation from origin to destination
             if faults_relations[origin_stack, destination_stack]:
-                overlap_key = f"stack_{origin_stack}_vs_stack_{destination_stack}"
+                for surface_n in range(number_surfaces_per_stack[destination_stack], number_surfaces_per_stack[destination_stack + 1]):
+                    overlap_key = f"stack_{origin_stack}_vs_stack_{surface_n}"
 
-                # Check if there are actual overlaps between these stacks
-                if overlap_key in voxel_overlaps:
-                    _apply_vertex_sharing(
-                        all_meshes,
-                        origin_stack,
-                        destination_stack,
-                        voxel_overlaps[overlap_key],
-                        mesh_indices_offset
-                    )
-
-
-def _calculate_mesh_indices_offset(all_meshes: List[DualContouringMesh], n_stacks: int) -> List[int]:
-    """
-    Calculate the starting mesh index for each stack.
-
-    Args:
-        all_meshes: List of all dual contouring meshes
-        n_stacks: Total number of stacks
-
-    Returns:
-        List of starting mesh indices for each stack
-    """
-    # For now, assume each stack has one mesh (this may need adjustment based on actual structure)
-    # This is a simplified approach - you may need to adjust based on how meshes are organized
-    mesh_indices_offset = list(range(n_stacks))
-    return mesh_indices_offset
+                    # Check if there are actual overlaps between these stacks
+                    if overlap_key in voxel_overlaps:
+                        _apply_vertex_sharing(all_meshes, origin_stack, surface_n, voxel_overlaps[overlap_key])
 
 
 def _apply_vertex_sharing(
         all_meshes: List[DualContouringMesh],
-        origin_stack: int,
-        destination_stack: int,
-        overlap_data: dict,
-        mesh_indices_offset: List[int]
+        origin_mesh: int,
+        destination_mesh: int,
+        overlap_data: dict
 ) -> None:
     """
     Apply vertex sharing between origin and destination meshes based on overlap data.
 
     Args:
         all_meshes: List of dual contouring meshes
-        origin_stack: Stack index that serves as the source of vertices
-        destination_stack: Stack index that receives vertices from origin
+        origin_mesh: Stack index that serves as the source of vertices
+        destination_mesh: Stack index that receives vertices from origin
         overlap_data: Dictionary containing indices and overlap information
         mesh_indices_offset: Starting mesh index for each stack
     """
-    origin_mesh_idx = mesh_indices_offset[origin_stack]
-    destination_mesh_idx = mesh_indices_offset[destination_stack]
+    # origin_mesh_idx = mesh_indices_offset[origin_stack]
+    # destination_mesh_idx = mesh_indices_offset[destination_stack]
+    origin_mesh_idx = origin_mesh
+    destination_mesh_idx = destination_mesh
 
     # Ensure mesh indices are valid
-    if (origin_mesh_idx >= len(all_meshes) or
-            destination_mesh_idx >= len(all_meshes)):
+    if origin_mesh_idx >= len(all_meshes) or destination_mesh_idx >= len(all_meshes):
         return
 
     # Apply the vertex sharing (same logic as original _f function)
@@ -95,20 +72,6 @@ def _apply_vertex_sharing(
     indices_in_destination = overlap_data["indices_in_stack_j"]
 
     destination_mesh.vertices[indices_in_destination] = origin_mesh.vertices[indices_in_origin]
-
-
-def _f(all_meshes: list[DualContouringMesh], destination: int, origin: int, voxel_overlaps: dict):
-    """
-    Legacy function - kept for backward compatibility.
-    Consider using _apply_fault_relations_to_overlaps for new implementations.
-    """
-    key = f"stack_{origin}_vs_stack_{destination}"
-    if key in voxel_overlaps:
-        all_meshes[destination].vertices[voxel_overlaps[key]["indices_in_stack_j"]] = all_meshes[origin].vertices[voxel_overlaps[key]["indices_in_stack_i"]]
-
-# def _f(all_meshes: list[DualContouringMesh], destination: int, origin: int, voxel_overlaps: dict):
-#     key = f"stack_{origin}_vs_stack_{destination}"
-#     all_meshes[destination].vertices[voxel_overlaps[key]["indices_in_stack_j"]] = all_meshes[origin].vertices[voxel_overlaps[key]["indices_in_stack_i"]]
 
 
 def find_repeated_voxels_across_stacks(all_left_right_codes: List[np.ndarray]) -> dict:

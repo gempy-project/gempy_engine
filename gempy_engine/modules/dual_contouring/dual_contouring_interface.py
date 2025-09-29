@@ -13,6 +13,7 @@ from ...core.data.interp_output import InterpOutput
 from ...core.data.octree_level import OctreeLevel
 from ...core.data.options import MeshExtractionMaskingOptions
 from ...core.data.stack_relation_type import StackRelationType
+from ...core.data.stacks_structure import StacksStructure
 
 
 # region edges
@@ -199,11 +200,10 @@ def mask_generation(
 
 # endregion
 def apply_faults_vertex_overlap(all_meshes: list[DualContouringMesh],
-                                data_descriptor: InputDataDescriptor, 
+                                stack_structure: StacksStructure, 
                                 left_right_per_mesh: list[np.ndarray]):
-    faults_relations = data_descriptor.stack_structure.faults_relations
     voxel_overlaps = find_repeated_voxels_across_stacks(left_right_per_mesh)
     
     if voxel_overlaps:
         print(f"Found voxel overlaps between stacks: {voxel_overlaps}")
-        _apply_fault_relations_to_overlaps(all_meshes, faults_relations, voxel_overlaps, data_descriptor.stack_structure.n_stacks)
+        _apply_fault_relations_to_overlaps(all_meshes, voxel_overlaps, stack_structure)
