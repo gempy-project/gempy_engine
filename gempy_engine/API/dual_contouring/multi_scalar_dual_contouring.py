@@ -133,7 +133,7 @@ def dual_contouring_multi_scalar(
             all_meshes.extend(meshes)
 
     # endregion
-    if (options.debug or len(all_left_right_codes) > 1) and True:
+    if (options.debug or len(all_left_right_codes) > 1) and False:
         apply_faults_vertex_overlap(all_meshes, data_descriptor.stack_structure, left_right_per_mesh)
 
     return all_meshes
