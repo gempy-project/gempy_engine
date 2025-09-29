@@ -19,7 +19,7 @@ from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.octree_level import OctreeLevel
 from ...core.utils import gempy_profiler_decorator
 from ...modules.dual_contouring.dual_contouring_interface import (find_intersection_on_edge, get_triangulation_codes,
-                                                                  get_masked_codes, mask_generation)
+                                                                  get_masked_codes, mask_generation,apply_faults_vertex_overlap)
 
 
 @gempy_profiler_decorator
@@ -100,7 +100,7 @@ def dual_contouring_multi_scalar(
     # endregion
 
     # region Vertex gen and triangulation
-    foo = []
+    left_right_per_mesh = []
     # Generate meshes for each scalar field
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
         output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
@@ -126,83 +126,21 @@ def dual_contouring_multi_scalar(
         )
         
         for m in meshes:
-            foo.append(m.left_right)
+            left_right_per_mesh.append(m.left_right)
 
         # TODO: If the order of the meshes does not match the order of scalar_field_at_surface points, reorder them here
         if meshes is not None:
             all_meshes.extend(meshes)
 
     # endregion
-    # Check for repeated voxels across stacks
-    if (options.debug or len(all_left_right_codes) > 1) and False:
-        voxel_overlaps = find_repeated_voxels_across_stacks(foo)
-        if voxel_overlaps and options.debug:
-            print(f"Found voxel overlaps between stacks: {voxel_overlaps}")
-            _f(all_meshes, 1, 0, voxel_overlaps)
-            _f(all_meshes, 2, 0, voxel_overlaps)
-            _f(all_meshes, 3, 0, voxel_overlaps)
-            _f(all_meshes, 4, 0, voxel_overlaps)
-            _f(all_meshes, 5, 0, voxel_overlaps)
+    if (options.debug or len(all_left_right_codes) > 1) and True:
+        apply_faults_vertex_overlap(all_meshes, data_descriptor, left_right_per_mesh)
 
     return all_meshes
 
-
-def _f(all_meshes: list[DualContouringMesh], destination: int, origin: int, voxel_overlaps: dict):
-    key = f"stack_{origin}_vs_stack_{destination}"
-    all_meshes[destination].vertices[voxel_overlaps[key]["indices_in_stack_j"]] = all_meshes[origin].vertices[voxel_overlaps[key]["indices_in_stack_i"]]
+    # ... existing code ...
 
 
-def find_repeated_voxels_across_stacks(all_left_right_codes: List[np.ndarray]) -> dict:
-    """
-    Find repeated voxels using NumPy operations - better for very large arrays.
-
-    Args:
-        all_left_right_codes: List of left_right_codes arrays, one per stack
-
-    Returns:
-        Dictionary with detailed overlap analysis
-    """
-
-    if not all_left_right_codes:
-        return {}
-
-    # Generate voxel codes for each stack
-
-    from gempy_engine.modules.dual_contouring.fancy_triangulation import _StaticTriangulationData
-    stack_codes = []
-    for left_right_codes in all_left_right_codes:
-        if left_right_codes.size > 0:
-            voxel_codes = (left_right_codes * _StaticTriangulationData.get_pack_directions_into_bits()).sum(axis=1)
-            stack_codes.append(voxel_codes)
-        else:
-            stack_codes.append(np.array([]))
-
-    overlaps = {}
-
-    # Check each pair of stacks
-    for i in range(len(stack_codes)):
-        for j in range(i + 1, len(stack_codes)):
-            if stack_codes[i].size == 0 or stack_codes[j].size == 0:
-                continue
-
-            # Find common voxel codes using numpy
-            common_codes = np.intersect1d(stack_codes[i], stack_codes[j])
-
-            if len(common_codes) > 0:
-                # Get indices of common voxels in each stack
-                indices_i = np.isin(stack_codes[i], common_codes)
-                indices_j = np.isin(stack_codes[j], common_codes)
-
-                overlaps[f"stack_{i}_vs_stack_{j}"] = {
-                        'common_voxel_codes'   : common_codes,
-                        'count'                : len(common_codes),
-                        'indices_in_stack_i'   : np.where(indices_i)[0],
-                        'indices_in_stack_j'   : np.where(indices_j)[0],
-                        'common_binary_codes_i': all_left_right_codes[i][indices_i],
-                        'common_binary_codes_j': all_left_right_codes[j][indices_j]
-                }
-
-    return overlaps
 
 
 def _validate_stack_relations(data_descriptor: InputDataDescriptor, n_scalar_field: int) -> None:
