@@ -119,11 +119,11 @@ class RawArraysSolution:
 
         vertex: list[np.ndarray] = self.vertices
         simplex_list: list[np.ndarray] = self.edges
-
+        
         idx_max = 0
-        for simplex_array in simplex_list:
+        for i, simplex_array in enumerate(simplex_list):
             simplex_array += idx_max
-            idx_max = simplex_array.max() + 1
+            idx_max += vertex[i].shape[0]  # Add the number of vertices in this mesh
 
         vertex_id_array = [np.full(v.shape[0], i + 1) for i, v in enumerate(vertex)]
         cell_id_array = [np.full(v.shape[0], i + 1) for i, v in enumerate(simplex_list)]
