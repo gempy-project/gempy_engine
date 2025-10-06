@@ -1,5 +1,6 @@
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.octree_level import OctreeLevel
+from gempy_engine.modules.dual_contouring._aux import _calc_mesh_normals, _correct_normals
 
 
 def get_left_right_array(octree_list: list[OctreeLevel]):
@@ -102,7 +103,7 @@ class _StaticTriangulationData:
         return 2 ** _StaticTriangulationData.depth
 
 
-def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals):
+def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, vertex):
     # * Variables
     # depending on depth
     _StaticTriangulationData.depth = tree_depth
@@ -116,6 +117,7 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals):
     # ----------
 
     indices = []
+    normals = []
     all = [
             0,
             3,
@@ -128,7 +130,7 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals):
     for n in all:
         # TODO: Make sure that changing the edge_vector we do not change
         left_right_array_active_edge = left_right_array[valid_edges[:, n]]
-        _ = compute_triangles_for_edge(
+        indices_patch, normals_patch = compute_triangles_for_edge(
             edge_vector_a=edge_vector_a[n],
             edge_vector_b=edge_vector_b[n],
             edge_vector_c=edge_vector_c[n],
@@ -137,7 +139,17 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals):
             voxel_normals=voxel_normals,
             n=n
         )
-        indices.append(_)
+
+        # if indices_patch.shape[0] > 0:
+        #     norms = _calc_mesh_normals(vertex, indices_patch)
+
+        indices.append(indices_patch)
+        normals.append(normals_patch)
+
+    indices = BackendTensor.t.concatenate(indices, axis=0)
+    normals_from_edges = BackendTensor.t.concatenate(normals, axis=0)
+    # norms_from_mesh = _calc_mesh_normals(vertex, indices)
+    _correct_normals(vertex, indices, normals_from_edges)
 
     return indices
 
@@ -228,35 +240,56 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
     z = (code__c_p * indices_array).T[code__c_p.T]
     # endregion
 
+    indices = BackendTensor.tfnp.stack([x, y, z], axis=1)
+    # return indices
 
     voxel_normals[:, :, 2]
-    if n == 3:
+    if n == 8:
+        normal = voxel_normals[z, 8, :]
+    elif n == 11:
+        normal = voxel_normals[z, 11, :]
+    elif n == 0:
+        normal = voxel_normals[x, 0, :]
+    elif n == 3:
         # normal = (code__a_p * voxel_normals[:, [0]]).T[code__a_p.T]
-        normal = voxel_normals[x,3,0]
-    elif n==0:
-        normal = voxel_normals[x,0,0]
-    elif n==4:
-        normal = voxel_normals[y,4,1]
-    elif n==7:
-        normal = voxel_normals[y,7,1]
-    elif n==8:
-        normal = voxel_normals[z,8,2]
-    elif n==11:
-        normal = voxel_normals[z,11,2]
+        normal = voxel_normals[x, 3, :]
+        # if normal.shape[0] == 6:
+        # normal = BackendTensor.tfnp.array([ 1, 1, 1, -1, -1, -1])
+    elif n == 4:
+        normal = voxel_normals[y, 4, :]
+    elif n == 7:
+        normal = voxel_normals[y, 7, :]
     else:
-        raise ValueError("n must be smaller than 12")
+        normal = BackendTensor.tfnp.ones(x.shape[0], dtype=BackendTensor.tfnp.float32)
+    return indices, normal
+    # if n == 8:
+    #     normal = voxel_normals[z, :, 2].sum(1)
+    # elif n == 11:
+    #     normal = voxel_normals[z, :, 2].sum(1)
+    # 
+    # elif n == 0:
+    #     normal = voxel_normals[x, :, 0].sum(1)
+    # elif n == 3:
+    #     # normal = (code__a_p * voxel_normals[:, [0]]).T[code__a_p.T]
+    #     normal = -voxel_normals[x, :, 0].sum(1)
+    # # elif n == 4:
+    # #     normal = voxel_normals[y, :, 1].sum(1)
+    # # elif n == 7:
+    # #     normal = voxel_normals[y, :, 1].sum(1)
+    # else:
+    #     normal = BackendTensor.tfnp.ones(x.shape[0], dtype=BackendTensor.tfnp.float32)
+    # raise ValueError("n must be smaller than 12")
 
     # flip triangle order if normal is negative
     # Create masks for positive and negative normals
-    # if normal.shape[0] == 7:
-    #     normal = BackendTensor.tfnp.array([-1, -1, 1, -1, 
-    #                                        1,
-    #                                        -1 ,-1])
+    # if normal.shape[0] == 6:
+    #     normal = BackendTensor.tfnp.array([ 1, 1, 1, -1,
+    #                                        -1,
+    #                                        -1])
     # Check if normal has nans
     if BackendTensor.tfnp.isnan(normal).any():
         raise ValueError("Normal contains NaNs")
-    
-    
+
     positive_mask = normal >= 0
     negative_mask = normal < 0
 

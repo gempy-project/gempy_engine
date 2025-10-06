@@ -19,7 +19,7 @@ def _sequential_triangulation(dc_data_per_stack: DualContouringData,
                               valid_edges_per_surface,
                               ) -> tuple[DualContouringData, Any, Any]:
     """Orchestrator function that combines vertex computation and triangulation."""
-    dc_data_per_surface, vertices_numpy = _compute_vertices(
+    dc_data_per_surface, vertices = _compute_vertices(
         dc_data_per_stack=dc_data_per_stack, 
         debug=debug,
         surface_i=i,
@@ -37,13 +37,17 @@ def _sequential_triangulation(dc_data_per_stack: DualContouringData,
     indices_numpy = _compute_triangulation(
         dc_data_per_surface=dc_data_per_surface, 
         left_right_codes=left_right_codes,
-        edges_normals=edges_normals
+        edges_normals=edges_normals,
+        vertex= vertices
     )
 
+
+    vertices_numpy = BackendTensor.t.to_numpy(vertices)
     return dc_data_per_surface, indices_numpy, vertices_numpy
 
 
-def _compute_triangulation(dc_data_per_surface: DualContouringData, left_right_codes, edges_normals) -> Any:
+def _compute_triangulation(dc_data_per_surface: DualContouringData, 
+                           left_right_codes, edges_normals, vertex) -> Any:
     """Compute triangulation indices for a specific surface."""
 
     if left_right_codes is None:
@@ -66,6 +70,7 @@ def _compute_triangulation(dc_data_per_surface: DualContouringData, left_right_c
             safe_normals[nan_mask] = 0
 
             # Compute the sum of non-NaN elements
+            safe_normals[:,:,0]
             sum_normals = BackendTensor.t.sum(safe_normals, 1)
 
             # Calculate the mean, avoiding division by zero
@@ -82,13 +87,17 @@ def _compute_triangulation(dc_data_per_surface: DualContouringData, left_right_c
         tree_depth_per_surface = dc_data_per_surface.tree_depth
 
         voxels_normals = edges_normals[valid_voxels]
+        # nan_mask = BackendTensor.t.isnan(voxels_normals)
+        # voxels_normals[nan_mask] = 0
+
         indices = triangulate(
             left_right_array=left_right_per_surface,
             valid_edges=valid_voxels_per_surface,
             tree_depth=tree_depth_per_surface,
-            voxel_normals=voxels_normals
+            voxel_normals=voxels_normals,
+            vertex=vertex
         )
-        indices = BackendTensor.t.concatenate(indices, axis=0)
+        # indices = BackendTensor.t.concatenate(indices, axis=0)
 
     # @on
     indices_numpy = BackendTensor.t.to_numpy(indices)

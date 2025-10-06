@@ -14,7 +14,6 @@ def _compute_vertices(dc_data_per_stack: DualContouringData,
                       valid_edges_per_surface) -> tuple[DualContouringData, Any]:
     """Compute vertices for a specific surface."""
     valid_edges: np.ndarray = valid_edges_per_surface[surface_i]
-    next_surface_edge_idx: int = valid_edges_per_surface[:surface_i + 1].sum()
    
     slice_object = _surface_slicer(surface_i, valid_edges_per_surface)
 
@@ -38,8 +37,7 @@ def _generate_vertices(dc_data_per_surface: DualContouringData, debug: bool, sli
         slice_surface=slice_object,
         debug=debug
     )
-    vertices_numpy = BackendTensor.t.to_numpy(vertices)
-    return vertices_numpy
+    return vertices
 
 
 def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, slice_surface: slice, debug: bool = False):
