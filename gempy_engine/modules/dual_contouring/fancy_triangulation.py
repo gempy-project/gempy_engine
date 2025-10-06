@@ -149,9 +149,9 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, v
     indices = BackendTensor.t.concatenate(indices, axis=0)
     normals_from_edges = BackendTensor.t.concatenate(normals, axis=0)
     # norms_from_mesh = _calc_mesh_normals(vertex, indices)
-    _correct_normals(vertex, indices, normals_from_edges)
+    indices_corrected, _ = _correct_normals(vertex, indices, normals_from_edges)
 
-    return indices
+    return indices_corrected
 
 
 def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
@@ -245,20 +245,20 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
 
     voxel_normals[:, :, 2]
     if n == 8:
-        normal = voxel_normals[z, 8, :]
+        normal = voxel_normals[z, :, :].sum(1)
     elif n == 11:
-        normal = voxel_normals[z, 11, :]
+        normal = voxel_normals[z, :, :].sum(1)
     elif n == 0:
-        normal = voxel_normals[x, 0, :]
+        normal = voxel_normals[x, :, :].sum(1)
     elif n == 3:
         # normal = (code__a_p * voxel_normals[:, [0]]).T[code__a_p.T]
-        normal = voxel_normals[x, 3, :]
+        normal = voxel_normals[x, :, :].sum(1)
         # if normal.shape[0] == 6:
         # normal = BackendTensor.tfnp.array([ 1, 1, 1, -1, -1, -1])
     elif n == 4:
-        normal = voxel_normals[y, 4, :]
+        normal = voxel_normals[y, :, :].sum(1)
     elif n == 7:
-        normal = voxel_normals[y, 7, :]
+        normal = voxel_normals[y, :, :].sum(1)
     else:
         normal = BackendTensor.tfnp.ones(x.shape[0], dtype=BackendTensor.tfnp.float32)
     return indices, normal

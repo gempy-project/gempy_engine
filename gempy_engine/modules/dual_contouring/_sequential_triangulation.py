@@ -31,7 +31,7 @@ def _sequential_triangulation(dc_data_per_stack: DualContouringData,
     # * Average gradient for the edges
     valid_edges = valid_edges_per_surface[i]
     edges_normals = BackendTensor.t.zeros((valid_edges.shape[0], 12, 3), dtype=BackendTensor.dtype_obj)
-    edges_normals[:] = np.nan
+    edges_normals[:] = 0
     edges_normals[valid_edges] = dc_data_per_stack.gradients[slice_object]
 
     indices_numpy = _compute_triangulation(

@@ -71,8 +71,7 @@ def _correct_normals(vertices_numpy, indices_numpy, edges_normals):
     flip_mask = dot_products < 0
 
     # Flip triangles by swapping vertex indices 1 and 2
-    indices_corrected = indices_numpy.copy()
-    indices_corrected[flip_mask, 1], indices_corrected[flip_mask, 2] = \
-        indices_numpy[flip_mask, 2].copy(), indices_numpy[flip_mask, 1].copy()
+    indices_corrected = indices_numpy.clone()
+    indices_corrected[flip_mask, 1], indices_corrected[flip_mask, 2] = indices_numpy[flip_mask, 2].clone(), indices_numpy[flip_mask, 1].clone()
 
     return indices_corrected, mesh_normals
