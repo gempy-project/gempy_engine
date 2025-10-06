@@ -116,7 +116,14 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals):
     # ----------
 
     indices = []
-    all = [0, 3, 4, 7, 8, 11]
+    all = [
+            0,
+            3,
+            4,
+            7,
+            8,
+            11
+    ]
 
     for n in all:
         # TODO: Make sure that changing the edge_vector we do not change
@@ -221,17 +228,35 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
     z = (code__c_p * indices_array).T[code__c_p.T]
     # endregion
 
-    if n < 4:
-        normal = (code__a_p * voxel_normals[:, [0]]).T[code__a_p.T]
-    elif n < 8:
-        normal = (code__b_p * voxel_normals[:, [1]]).T[code__b_p.T]
-    elif n < 12:
-        normal = (code__c_p * voxel_normals[:, [2]]).T[code__c_p.T]
+
+    voxel_normals[:, :, 2]
+    if n == 3:
+        # normal = (code__a_p * voxel_normals[:, [0]]).T[code__a_p.T]
+        normal = voxel_normals[x,3,0]
+    elif n==0:
+        normal = voxel_normals[x,0,0]
+    elif n==4:
+        normal = voxel_normals[y,4,1]
+    elif n==7:
+        normal = voxel_normals[y,7,1]
+    elif n==8:
+        normal = voxel_normals[z,8,2]
+    elif n==11:
+        normal = voxel_normals[z,11,2]
     else:
         raise ValueError("n must be smaller than 12")
 
     # flip triangle order if normal is negative
     # Create masks for positive and negative normals
+    # if normal.shape[0] == 7:
+    #     normal = BackendTensor.tfnp.array([-1, -1, 1, -1, 
+    #                                        1,
+    #                                        -1 ,-1])
+    # Check if normal has nans
+    if BackendTensor.tfnp.isnan(normal).any():
+        raise ValueError("Normal contains NaNs")
+    
+    
     positive_mask = normal >= 0
     negative_mask = normal < 0
 

@@ -81,11 +81,12 @@ def _compute_triangulation(dc_data_per_surface: DualContouringData, left_right_c
         voxel_normal_per_surface = voxel_normal
         tree_depth_per_surface = dc_data_per_surface.tree_depth
 
+        voxels_normals = edges_normals[valid_voxels]
         indices = triangulate(
             left_right_array=left_right_per_surface,
             valid_edges=valid_voxels_per_surface,
             tree_depth=tree_depth_per_surface,
-            voxel_normals=voxel_normal_per_surface
+            voxel_normals=voxels_normals
         )
         indices = BackendTensor.t.concatenate(indices, axis=0)
 
