@@ -2,6 +2,7 @@ from typing import Any
 
 import numpy as np
 
+from ._aux import _surface_slicer
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
@@ -14,18 +15,15 @@ def _compute_vertices(dc_data_per_stack: DualContouringData,
     """Compute vertices for a specific surface."""
     valid_edges: np.ndarray = valid_edges_per_surface[surface_i]
     next_surface_edge_idx: int = valid_edges_per_surface[:surface_i + 1].sum()
-    if surface_i == 0:
-        last_surface_edge_idx = 0
-    else:
-        last_surface_edge_idx: int = valid_edges_per_surface[:surface_i].sum()
-    slice_object: slice = slice(last_surface_edge_idx, next_surface_edge_idx)
+   
+    slice_object = _surface_slicer(surface_i, valid_edges_per_surface)
 
     dc_data_per_surface = DualContouringData(
         xyz_on_edge=dc_data_per_stack.xyz_on_edge,
         valid_edges=valid_edges,
         xyz_on_centers=dc_data_per_stack.xyz_on_centers,
         dxdydz=dc_data_per_stack.dxdydz,
-        exported_fields_on_edges=dc_data_per_stack.exported_fields_on_edges,
+        gradients=dc_data_per_stack.gradients,
         n_surfaces_to_export=dc_data_per_stack.n_surfaces_to_export,
         tree_depth=dc_data_per_stack.tree_depth
     )
@@ -46,7 +44,7 @@ def _generate_vertices(dc_data_per_surface: DualContouringData, debug: bool, sli
 
 def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, slice_surface: slice, debug: bool = False):
     # @off
-    n_edges = dc_data_per_stack.n_edges
+    n_edges = dc_data_per_stack.n_valid_edges
     valid_edges = dc_data_per_stack.valid_edges
     valid_voxels = dc_data_per_stack.valid_voxels
     xyz_on_edge = dc_data_per_stack.xyz_on_edge[slice_surface]

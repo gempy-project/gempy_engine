@@ -3,6 +3,7 @@ from typing import Any
 import numpy as np
 import warnings
 
+from ._aux import _surface_slicer
 from ...config import AvailableBackends
 from ._gen_vertices import _compute_vertices
 from ...core.backend_tensor import BackendTensor
@@ -18,7 +19,12 @@ def _sequential_triangulation(dc_data_per_stack: DualContouringData,
                               valid_edges_per_surface,
                               ) -> tuple[DualContouringData, Any, Any]:
     """Orchestrator function that combines vertex computation and triangulation."""
-    dc_data_per_surface, vertices_numpy = _compute_vertices(dc_data_per_stack, debug, i, valid_edges_per_surface)
+    dc_data_per_surface, vertices_numpy = _compute_vertices(
+        dc_data_per_stack=dc_data_per_stack, 
+        debug=debug,
+        surface_i=i,
+        valid_edges_per_surface=valid_edges_per_surface
+    )
 
     slice_object = _surface_slicer(i, valid_edges_per_surface)
 
@@ -87,13 +93,4 @@ def _compute_triangulation(dc_data_per_surface: DualContouringData, left_right_c
     indices_numpy = BackendTensor.t.to_numpy(indices)
     return indices_numpy
 
-
-def _surface_slicer(i: int, valid_edges_per_surface) -> slice:
-    next_surface_edge_idx: int = valid_edges_per_surface[:i + 1].sum()
-    if i == 0:
-        last_surface_edge_idx = 0
-    else:
-        last_surface_edge_idx: int = valid_edges_per_surface[:i].sum()
-    slice_object: slice = slice(last_surface_edge_idx, next_surface_edge_idx)
-    return slice_object
 
