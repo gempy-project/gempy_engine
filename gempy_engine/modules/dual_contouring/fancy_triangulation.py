@@ -140,8 +140,6 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, v
             n=n
         )
 
-        # if indices_patch.shape[0] > 0:
-        #     norms = _calc_mesh_normals(vertex, indices_patch)
 
         indices.append(indices_patch)
         normals.append(normals_patch)
@@ -244,7 +242,7 @@ def _compress_binary_indices(left_right_array_active_edge, edge_vector_a, edge_v
     return compressed_binary_idx_0, compressed_binary_idx_1, compressed_binary_idx_2
 
 
-def _map_and_filter_voxels(voxel_code, compressed_idx_0, compressed_idx_1, compressed_idx_2):
+def _map_and_filter_voxels_(voxel_code, compressed_idx_0, compressed_idx_1, compressed_idx_2):
     """Map compressed binary codes to all leaf codes and filter by extent."""
     # Map remaining compressed binary code to all the binary codes at leaves
     mapped_voxel_0 = (voxel_code - compressed_idx_0)
@@ -261,6 +259,29 @@ def _map_and_filter_voxels(voxel_code, compressed_idx_0, compressed_idx_1, compr
     code__a_p = BackendTensor.tfnp.array(mapped_voxel_0[:, valid_edges_within_extent] == 0)
     code__b_p = BackendTensor.tfnp.array(mapped_voxel_1[:, valid_edges_within_extent] == 0)
     code__c_p = BackendTensor.tfnp.array(mapped_voxel_2[:, valid_edges_within_extent] == 0)
+
+    return code__a_p, code__b_p, code__c_p
+
+def _map_and_filter_voxels(voxel_code, compressed_idx_0, compressed_idx_1, compressed_idx_2):
+    """Map compressed binary codes to all leaf codes and filter by extent (optimized)."""
+
+    # Instead of checking .all() on large arrays, we can use .any() on equality checks
+    # which is more efficient because:
+    # 1. We're looking for matches (== 0) rather than all non-matches (!= 0)
+    # 2. .any() can short-circuit on the first True
+
+    # Find which voxels match each compressed index (these ARE the valid edges)
+    code__a_prod_edge = BackendTensor.tfnp.any(voxel_code == compressed_idx_0, axis=0)
+    code__b_prod_edge = BackendTensor.tfnp.any(voxel_code == compressed_idx_1, axis=0)
+    code__c_prod_edge = BackendTensor.tfnp.any(voxel_code == compressed_idx_2, axis=0)
+
+    # Valid edges are those that have all three coordinates matching some voxel
+    valid_edges_within_extent = code__a_prod_edge & code__b_prod_edge & code__c_prod_edge
+
+    # Now only compute the expensive equality checks for valid edges
+    code__a_p = (voxel_code == compressed_idx_0[ valid_edges_within_extent])
+    code__b_p = (voxel_code == compressed_idx_1[ valid_edges_within_extent])
+    code__c_p = (voxel_code == compressed_idx_2[ valid_edges_within_extent])
 
     return code__a_p, code__b_p, code__c_p
 
