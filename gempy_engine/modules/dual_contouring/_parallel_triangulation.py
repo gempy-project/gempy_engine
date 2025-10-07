@@ -97,7 +97,7 @@ def _process_single_surface(i, dc_data_per_stack, valid_edges_per_surface, left_
             valid_edges=valid_edges,
             xyz_on_centers=dc_data_per_stack.xyz_on_centers,
             dxdydz=dc_data_per_stack.dxdydz,
-            exported_fields_on_edges=dc_data_per_stack.exported_fields_on_edges,
+            gradients=dc_data_per_stack.gradients,
             n_surfaces_to_export=dc_data_per_stack.n_surfaces_to_export,
             tree_depth=dc_data_per_stack.tree_depth
         )
@@ -147,7 +147,8 @@ def _process_single_surface(i, dc_data_per_stack, valid_edges_per_surface, left_
                 left_right_array=left_right_per_surface,
                 valid_edges=valid_voxels_per_surface,
                 tree_depth=tree_depth_per_surface,
-                voxel_normals=voxel_normal
+                voxel_normals=voxel_normal,
+                vertex=vertex
             )
             indices = BackendTensor.t.concatenate(indices, axis=0)
 
