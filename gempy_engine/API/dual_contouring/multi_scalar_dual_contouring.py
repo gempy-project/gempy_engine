@@ -69,7 +69,7 @@ def dual_contouring_multi_scalar(
     )
     
     # Process each scalar field
-    all_stack_intersection = []
+    all_surfaces_intersection = []
     all_valid_edges = []
     all_left_right_codes = []
     # region Interp on edges
@@ -90,12 +90,12 @@ def dual_contouring_multi_scalar(
             masking=mask
         )
 
-        all_stack_intersection.append(intersection_xyz)
+        all_surfaces_intersection.append(intersection_xyz)
         all_valid_edges.append(valid_edges)
 
     # * 5) Interpolate on edges for all stacks
     output_on_edges = _interp_on_edges(
-        all_stack_intersection, data_descriptor, dual_contouring_options, interpolation_input
+        all_surfaces_intersection, data_descriptor, dual_contouring_options, interpolation_input
     )
     
     # endregion
@@ -105,21 +105,21 @@ def dual_contouring_multi_scalar(
     # Generate meshes for each scalar field
     if LEGACY:=False:
         for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
-            _compute_meshes_legacy(all_left_right_codes, all_mask_arrays, all_meshes, all_stack_intersection, all_valid_edges, left_right_per_mesh, n_scalar_field, octree_leaves, options, output_on_edges)
+            _compute_meshes_legacy(all_left_right_codes, all_mask_arrays, all_meshes, all_surfaces_intersection, all_valid_edges, left_right_per_mesh, n_scalar_field, octree_leaves, options, output_on_edges)
     else:
         dc_data_per_surface_all = []
         for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
             output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
             mask = all_mask_arrays[n_scalar_field]
             n_surfaces_to_export = output.scalar_field_at_sp.shape[0]
-            for surface_i in n_surfaces_to_export:
+            for surface_i in range(n_surfaces_to_export):
                 valid_edges = all_valid_edges[n_scalar_field]
                 valid_edges_per_surface =valid_edges.reshape((n_surfaces_to_export, -1, 12))
                 slice_object = _surface_slicer(surface_i, valid_edges_per_surface)
 
                 dc_data_per_surface = DualContouringData(
-                    xyz_on_edge=all_stack_intersection[n_scalar_field].xyz_on_edge[slice_object],
-                    valid_edges=valid_edges[surface_i],
+                    xyz_on_edge=all_surfaces_intersection[n_scalar_field][slice_object],
+                    valid_edges=valid_edges_per_surface[surface_i],
                     xyz_on_centers=(
                             octree_leaves.grid_centers.octree_grid.values if mask is None
                             else octree_leaves.grid_centers.octree_grid.values[mask]
@@ -133,9 +133,9 @@ def dual_contouring_multi_scalar(
                 dc_data_per_surface_all.append(dc_data_per_surface)
 
         from gempy_engine.modules.dual_contouring._dual_contouring_v2 import compute_dual_contouring_v2
-        compute_dual_contouring_v2(
+        all_meshes = compute_dual_contouring_v2(
             dc_data_list=dc_data_per_surface_all,
-            left_right_codes=left_right_codes[0],
+            left_right_codes=all_left_right_codes[0],
         )
     # endregion
     if (options.debug or len(all_left_right_codes) > 1) and False:
@@ -146,7 +146,10 @@ def dual_contouring_multi_scalar(
     # ... existing code ...
 
 
-def _compute_meshes_legacy(all_left_right_codes: list[Any], all_mask_arrays: ndarray, all_meshes: list[DualContouringMesh], all_stack_intersection: list[Any], all_valid_edges: list[Any], left_right_per_mesh: list[Any], n_scalar_field: int, octree_leaves: OctreeLevel, options: InterpolationOptions, output_on_edges: list[ndarray]):
+def _compute_meshes_legacy(all_left_right_codes: list[Any], all_mask_arrays: np.ndarray,
+                           all_meshes: list[DualContouringMesh], all_stack_intersection: list[Any],
+                           all_valid_edges: list[Any], left_right_per_mesh: list[Any], n_scalar_field: int,
+                           octree_leaves: OctreeLevel, options: InterpolationOptions, output_on_edges: list[np.ndarray]):
     output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
     mask = all_mask_arrays[n_scalar_field]
 
