@@ -28,7 +28,10 @@ def compute_dual_contouring_v2(dc_data_list: list[DualContouringData],
 
     if parallel_results is not None:
         return parallel_results
-    
+
+
+    # Fall back to sequential processing
+    print(f"Using sequential processing for {n_surfaces_to_export} surfaces")
     stack_meshes: List[DualContouringMesh] = []
 
     for dc_data in dc_data_list:
@@ -47,8 +50,6 @@ def _parallel_process(dc_data_list: list[DualContouringData], left_right_codes):
         print(f"Using parallel processing for {n_surfaces_to_export} surfaces")
         parallel_results = _parallel_process_surfaces_v2(dc_data_list, left_right_codes)
 
-    # Fall back to sequential processing
-    print(f"Using sequential processing for {n_surfaces_to_export} surfaces")
     return parallel_results
 
 
@@ -79,7 +80,7 @@ def _parallel_process_surfaces_v2(dc_data_list: list[DualContouringData], left_r
 
     try:
         # Use spawn context for better PyTorch compatibility
-        ctx = mp.get_context("spawn") if MULTIPROCESSING_AVAILABLE else mp
+        ctx = mp.get_context("fork") if MULTIPROCESSING_AVAILABLE else mp
 
         with ctx.Pool(processes=num_workers, initializer=_init_worker) as pool:
             # Submit all chunks
