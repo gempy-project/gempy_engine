@@ -105,7 +105,7 @@ def dual_contouring_multi_scalar(
     # Generate meshes for each scalar field
     if LEGACY:=False:
         for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
-            _compute_meshes_legacy(all_left_right_codes, all_mask_arrays, all_meshes, all_surfaces_intersection, all_valid_edges, left_right_per_mesh, n_scalar_field, octree_leaves, options, output_on_edges)
+            _compute_meshes_legacy(all_left_right_codes, all_mask_arrays, all_meshes, all_surfaces_intersection, all_valid_edges, n_scalar_field, octree_leaves, options, output_on_edges)
     else:
         dc_data_per_surface_all = []
         for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
@@ -148,7 +148,7 @@ def dual_contouring_multi_scalar(
 
 def _compute_meshes_legacy(all_left_right_codes: list[Any], all_mask_arrays: np.ndarray,
                            all_meshes: list[DualContouringMesh], all_stack_intersection: list[Any],
-                           all_valid_edges: list[Any], left_right_per_mesh: list[Any], n_scalar_field: int,
+                           all_valid_edges: list[Any], n_scalar_field: int,
                            octree_leaves: OctreeLevel, options: InterpolationOptions, output_on_edges: list[np.ndarray]):
     output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
     mask = all_mask_arrays[n_scalar_field]
@@ -172,8 +172,6 @@ def _compute_meshes_legacy(all_left_right_codes: list[Any], all_mask_arrays: np.
         debug=options.debug
     )
 
-    for m in meshes:
-        left_right_per_mesh.append(m.left_right)
 
     # TODO: If the order of the meshes does not match the order of scalar_field_at_surface points, reorder them here
     if meshes is not None:

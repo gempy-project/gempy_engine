@@ -70,8 +70,7 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData,
             DualContouringMesh(
                 vertices_numpy,
                 indices_numpy,
-                dc_data_per_stack,
-                left_right=valid_left_right_codes
+                dc_data_per_stack
             )
         )
     return stack_meshes
