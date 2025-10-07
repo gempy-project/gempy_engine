@@ -1,14 +1,14 @@
 import os
 from typing import List
 
+from ._gen_vertices import _generate_vertices
+from ._parallel_triangulation import _should_use_parallel_processing, _init_worker
+from ._sequential_triangulation import _compute_triangulation
 from ... import optional_dependencies
 from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.utils import gempy_profiler_decorator
-from ._parallel_triangulation import _should_use_parallel_processing, _process_surface_batch, _init_worker
-from ._sequential_triangulation import _sequential_triangulation, _compute_triangulation
-from ._gen_vertices import _compute_vertices, _generate_vertices
 
 # Multiprocessing imports
 try:
@@ -31,7 +31,7 @@ def compute_dual_contouring_v2(dc_data_list: list[DualContouringData],
 
 
     # Fall back to sequential processing
-    print(f"Using sequential processing for {n_surfaces_to_export} surfaces")
+    print(f"Using sequential processing for {len(dc_data_list)} surfaces")
     stack_meshes: List[DualContouringMesh] = []
 
     for dc_data in dc_data_list:
@@ -46,7 +46,7 @@ def _parallel_process(dc_data_list: list[DualContouringData], left_right_codes):
     use_parallel = _should_use_parallel_processing(n_surfaces_to_export, BackendTensor.engine_backend)
     parallel_results = None
 
-    if use_parallel and True:  # ! (Miguel Sep 25) I do not see a speedup
+    if use_parallel and False:  # ! (Miguel Sep 25) I do not see a speedup
         print(f"Using parallel processing for {n_surfaces_to_export} surfaces")
         parallel_results = _parallel_process_surfaces_v2(dc_data_list, left_right_codes)
 
@@ -59,6 +59,7 @@ def _parallel_process_surfaces_v2(dc_data_list: list[DualContouringData], left_r
 
     if num_workers is None:
         num_workers = max(1, min(os.cpu_count() // 2, n_surfaces // 2))
+        num_workers=3
 
     # Prepare data for serialization - convert each DualContouringData to dict
     dc_data_dicts = []
