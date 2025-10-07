@@ -116,7 +116,7 @@ def _generate_voxel_codes(all_left_right_codes: List[np.ndarray]) -> List[np.nda
     stack_codes = []
     
     for left_right_codes in all_left_right_codes:
-        if left_right_codes.size > 0:
+        if len(left_right_codes) > 0:
             voxel_codes = (left_right_codes * pack_directions).sum(axis=1)
             stack_codes.append(voxel_codes)
         else:
