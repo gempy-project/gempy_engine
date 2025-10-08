@@ -103,7 +103,7 @@ def dual_contouring_multi_scalar(
     # region Vertex gen and triangulation
     left_right_per_mesh = []
     # Generate meshes for each scalar field
-    if LEGACY:=True:
+    if LEGACY:=False:
         for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
             _compute_meshes_legacy(all_left_right_codes, all_mask_arrays, all_meshes, all_surfaces_intersection, all_valid_edges, n_scalar_field, octree_leaves, options, output_on_edges)
     else:
@@ -132,14 +132,15 @@ def dual_contouring_multi_scalar(
                 )
                 
                 dc_data_per_surface_all.append(dc_data_per_surface)
+                left_right_per_mesh.append(all_left_right_codes[0][dc_data_per_surface.valid_voxels])
 
         from gempy_engine.modules.dual_contouring._dual_contouring_v2 import compute_dual_contouring_v2
         all_meshes = compute_dual_contouring_v2(
             dc_data_list=dc_data_per_surface_all,
         )
     # endregion
-    if (options.debug or len(all_left_right_codes) > 1) and True:
-        apply_faults_vertex_overlap(all_meshes, data_descriptor.stack_structure, all_left_right_codes)
+        if (options.debug or len(all_left_right_codes) > 1) and True:
+            apply_faults_vertex_overlap(all_meshes, data_descriptor.stack_structure, left_right_per_mesh)
 
     return all_meshes
 
