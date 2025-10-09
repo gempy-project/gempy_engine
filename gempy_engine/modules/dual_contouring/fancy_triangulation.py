@@ -140,8 +140,6 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, v
             n=n
         )
 
-        # if indices_patch.shape[0] > 0:
-        #     norms = _calc_mesh_normals(vertex, indices_patch)
 
         indices.append(indices_patch)
         normals.append(normals_patch)
@@ -172,7 +170,40 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
         case _:
             raise ValueError("Unsupported backend")
 
-    # region: Removing edges that does not have voxel next to it. Depending on the evaluated edge, the voxels checked are different
+    # Step 1: Filter edges with valid neighbors
+    left_right_array_active_edge = _filter_edges_with_neighbors(
+        edge_vector_a, edge_vector_b, edge_vector_c,
+        left_right_array_active_edge, dtype
+    )
+
+    # Step 2: Compress binary indices
+    compressed_idx_0, compressed_idx_1, compressed_idx_2 = _compress_binary_indices(
+        left_right_array_active_edge,
+        edge_vector_a, edge_vector_b, edge_vector_c
+    )
+
+    # Step 3: Map voxels and filter by extent
+    code__a_p, code__b_p, code__c_p = _map_and_filter_voxels(
+        voxel_code,
+        compressed_idx_0, compressed_idx_1, compressed_idx_2
+    )
+
+    # Step 4: Convert boolean masks to indices
+    x, y, z = _convert_masks_to_indices(code__a_p, code__b_p, code__c_p)
+
+    # Step 5: Calculate normals and order triangles
+    normals = _calculate_normals_and_order_triangles(
+        x, y, z, voxel_normals, n
+    )
+
+    indices = BackendTensor.tfnp.stack([x, y, z], axis=1)
+    return indices, normals
+
+
+def _filter_edges_with_neighbors(edge_vector_a, edge_vector_b, edge_vector_c,
+                                 left_right_array_active_edge, dtype):
+    """Remove edges that don't have voxels next to them."""
+
     def check_voxels_exist_next_to_edge(coord_col, edge_vector, _left_right_array_active_edge):
         match edge_vector:
             case 0:
@@ -182,132 +213,97 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
             case -1:
                 _valid_edges = _left_right_array_active_edge[:, coord_col] != 0
             case _:
-                raise ValueError("edge_vector_a must be -1, 0 or 1")
+                raise ValueError("edge_vector must be -1, 0 or 1")
         return _valid_edges
 
     valid_edges_x = check_voxels_exist_next_to_edge(0, edge_vector_a, left_right_array_active_edge)
     valid_edges_y = check_voxels_exist_next_to_edge(1, edge_vector_b, left_right_array_active_edge)
     valid_edges_z = check_voxels_exist_next_to_edge(2, edge_vector_c, left_right_array_active_edge)
 
-    valid_edges_with_neighbour_voxels = valid_edges_x * valid_edges_y * valid_edges_z  # * In the sense of not being on the side of the model
-    left_right_array_active_edge = left_right_array_active_edge[valid_edges_with_neighbour_voxels]
-    # * At this point left_right_array_active_edge contains the voxel code of those voxels that have the evaluated
-    # * edge cut AND that have nearby voxels
-    # endregion
+    valid_edges_with_neighbour_voxels = valid_edges_x * valid_edges_y * valid_edges_z
+    return left_right_array_active_edge[valid_edges_with_neighbour_voxels]
 
-    # region: Compress remaining voxel codes per direction
-    # * These are the codes that describe each vertex of the triangle
+
+def _compress_binary_indices(left_right_array_active_edge, edge_vector_a, edge_vector_b, edge_vector_c):
+    """Compress voxel codes per direction."""
     edge_vector_0 = BackendTensor.tfnp.array([edge_vector_a, 0, 0])
     edge_vector_1 = BackendTensor.tfnp.array([0, edge_vector_b, 0])
     edge_vector_2 = BackendTensor.tfnp.array([0, 0, edge_vector_c])
 
-    binary_idx_0 = left_right_array_active_edge + edge_vector_0  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 3-directions)
-    binary_idx_1 = left_right_array_active_edge + edge_vector_1  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 3-directions)
-    binary_idx_2 = left_right_array_active_edge + edge_vector_2  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 3-directions)
+    binary_idx_0 = left_right_array_active_edge + edge_vector_0
+    binary_idx_1 = left_right_array_active_edge + edge_vector_1
+    binary_idx_2 = left_right_array_active_edge + edge_vector_2
 
-    compressed_binary_idx_0 = (binary_idx_0 * _StaticTriangulationData.get_pack_directions_into_bits()).sum(axis=1)  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 1)
-    compressed_binary_idx_1 = (binary_idx_1 * _StaticTriangulationData.get_pack_directions_into_bits()).sum(axis=1)  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 1)
-    compressed_binary_idx_2 = (binary_idx_2 * _StaticTriangulationData.get_pack_directions_into_bits()).sum(axis=1)  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 1)
-    # endregion
+    pack_directions = _StaticTriangulationData.get_pack_directions_into_bits()
+    compressed_binary_idx_0 = (binary_idx_0 * pack_directions).sum(axis=1)
+    compressed_binary_idx_1 = (binary_idx_1 * pack_directions).sum(axis=1)
+    compressed_binary_idx_2 = (binary_idx_2 * pack_directions).sum(axis=1)
 
-    # region: Map remaining compressed binary code to all the binary codes at leaves
-    mapped_voxel_0 = (voxel_code - compressed_binary_idx_0)  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges)
-    mapped_voxel_1 = (voxel_code - compressed_binary_idx_1)  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges)
-    mapped_voxel_2 = (voxel_code - compressed_binary_idx_2)  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges)
-    # endregion
+    return compressed_binary_idx_0, compressed_binary_idx_1, compressed_binary_idx_2
 
-    # region: Find and remove edges at the border of the extent
-    code__a_prod_edge = ~BackendTensor.tfnp.all(mapped_voxel_0, axis=0)  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 1)
-    code__b_prod_edge = ~BackendTensor.tfnp.all(mapped_voxel_1, axis=0)  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 1)
-    code__c_prod_edge = ~BackendTensor.tfnp.all(mapped_voxel_2, axis=0)  # (n_voxels - active_voxels_for_given_edge - invalid_edges, 1)
 
-    valid_edges_within_extent = code__a_prod_edge * code__b_prod_edge * code__c_prod_edge  # * Valid in the sense that there are valid voxels around
+def _map_and_filter_voxels_(voxel_code, compressed_idx_0, compressed_idx_1, compressed_idx_2):
+    """Map compressed binary codes to all leaf codes and filter by extent."""
+    # Map remaining compressed binary code to all the binary codes at leaves
+    mapped_voxel_0 = (voxel_code - compressed_idx_0)
+    mapped_voxel_1 = (voxel_code - compressed_idx_1)
+    mapped_voxel_2 = (voxel_code - compressed_idx_2)
 
-    code__a_p = BackendTensor.tfnp.array(mapped_voxel_0[:, valid_edges_within_extent] == 0)  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
-    code__b_p = BackendTensor.tfnp.array(mapped_voxel_1[:, valid_edges_within_extent] == 0)  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
-    code__c_p = BackendTensor.tfnp.array(mapped_voxel_2[:, valid_edges_within_extent] == 0)  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
+    # Find and remove edges at the border of the extent
+    code__a_prod_edge = ~BackendTensor.tfnp.all(mapped_voxel_0, axis=0)
+    code__b_prod_edge = ~BackendTensor.tfnp.all(mapped_voxel_1, axis=0)
+    code__c_prod_edge = ~BackendTensor.tfnp.all(mapped_voxel_2, axis=0)
 
-    if False:
-        debug_code_p = code__a_p + code__b_p + code__c_p  # (n_voxels, n_voxels - active_voxels_for_given_edge - invalid_edges - edges_at_extent_border)
-        # 15 and 17 does not have y
+    valid_edges_within_extent = code__a_prod_edge * code__b_prod_edge * code__c_prod_edge
 
-    # endregion
+    code__a_p = BackendTensor.tfnp.array(mapped_voxel_0[:, valid_edges_within_extent] == 0)
+    code__b_p = BackendTensor.tfnp.array(mapped_voxel_1[:, valid_edges_within_extent] == 0)
+    code__c_p = BackendTensor.tfnp.array(mapped_voxel_2[:, valid_edges_within_extent] == 0)
 
-    # region Convert remaining compressed binary codes to ints
+    return code__a_p, code__b_p, code__c_p
+
+def _map_and_filter_voxels(voxel_code, compressed_idx_0, compressed_idx_1, compressed_idx_2):
+    """Map compressed binary codes to all leaf codes and filter by extent (optimized)."""
+
+    # Instead of checking .all() on large arrays, we can use .any() on equality checks
+    # which is more efficient because:
+    # 1. We're looking for matches (== 0) rather than all non-matches (!= 0)
+    # 2. .any() can short-circuit on the first True
+
+    # Find which voxels match each compressed index (these ARE the valid edges)
+    code__a_prod_edge = BackendTensor.tfnp.any(voxel_code == compressed_idx_0, axis=0)
+    code__b_prod_edge = BackendTensor.tfnp.any(voxel_code == compressed_idx_1, axis=0)
+    code__c_prod_edge = BackendTensor.tfnp.any(voxel_code == compressed_idx_2, axis=0)
+
+    # Valid edges are those that have all three coordinates matching some voxel
+    valid_edges_within_extent = code__a_prod_edge & code__b_prod_edge & code__c_prod_edge
+
+    # Now only compute the expensive equality checks for valid edges
+    code__a_p = (voxel_code == compressed_idx_0[ valid_edges_within_extent])
+    code__b_p = (voxel_code == compressed_idx_1[ valid_edges_within_extent])
+    code__c_p = (voxel_code == compressed_idx_2[ valid_edges_within_extent])
+
+    return code__a_p, code__b_p, code__c_p
+
+
+def _convert_masks_to_indices(code__a_p, code__b_p, code__c_p):
+    """Convert boolean masks to integer indices."""
     indices_array = BackendTensor.tfnp.arange(code__a_p.shape[0]).reshape(-1, 1)
     x = (code__a_p * indices_array).T[code__a_p.T]
     y = (code__b_p * indices_array).T[code__b_p.T]
     z = (code__c_p * indices_array).T[code__c_p.T]
-    # endregion
+    return x, y, z
 
-    indices = BackendTensor.tfnp.stack([x, y, z], axis=1)
-    # return indices
 
-    voxel_normals[:, :, 2]
-    if n == 8:
+def _calculate_normals_and_order_triangles(x, y, z, voxel_normals, n):
+    """Calculate normals and order triangles based on normal direction."""
+    # Get normals based on edge type
+    if n in [8, 11]:
         normal = voxel_normals[z, :, :].sum(1)
-    elif n == 11:
-        normal = voxel_normals[z, :, :].sum(1)
-    elif n == 0:
+    elif n in [0, 3]:
         normal = voxel_normals[x, :, :].sum(1)
-    elif n == 3:
-        # normal = (code__a_p * voxel_normals[:, [0]]).T[code__a_p.T]
-        normal = voxel_normals[x, :, :].sum(1)
-        # if normal.shape[0] == 6:
-        # normal = BackendTensor.tfnp.array([ 1, 1, 1, -1, -1, -1])
-    elif n == 4:
-        normal = voxel_normals[y, :, :].sum(1)
-    elif n == 7:
+    elif n in [4, 7]:
         normal = voxel_normals[y, :, :].sum(1)
     else:
         normal = BackendTensor.tfnp.ones(x.shape[0], dtype=BackendTensor.tfnp.float32)
-    return indices, normal
-    # if n == 8:
-    #     normal = voxel_normals[z, :, 2].sum(1)
-    # elif n == 11:
-    #     normal = voxel_normals[z, :, 2].sum(1)
-    # 
-    # elif n == 0:
-    #     normal = voxel_normals[x, :, 0].sum(1)
-    # elif n == 3:
-    #     # normal = (code__a_p * voxel_normals[:, [0]]).T[code__a_p.T]
-    #     normal = -voxel_normals[x, :, 0].sum(1)
-    # # elif n == 4:
-    # #     normal = voxel_normals[y, :, 1].sum(1)
-    # # elif n == 7:
-    # #     normal = voxel_normals[y, :, 1].sum(1)
-    # else:
-    #     normal = BackendTensor.tfnp.ones(x.shape[0], dtype=BackendTensor.tfnp.float32)
-    # raise ValueError("n must be smaller than 12")
-
-    # flip triangle order if normal is negative
-    # Create masks for positive and negative normals
-    # if normal.shape[0] == 6:
-    #     normal = BackendTensor.tfnp.array([ 1, 1, 1, -1,
-    #                                        -1,
-    #                                        -1])
-    # Check if normal has nans
-    if BackendTensor.tfnp.isnan(normal).any():
-        raise ValueError("Normal contains NaNs")
-
-    positive_mask = normal >= 0
-    negative_mask = normal < 0
-
-    # Extract indices for positive normals (keep original order)
-    x_pos = x[positive_mask]
-    y_pos = y[positive_mask]
-    z_pos = z[positive_mask]
-
-    # Extract indices for negative normals (flip order: x, z, y instead of x, y, z)
-    x_neg = x[negative_mask]
-    y_neg = y[negative_mask]
-    z_neg = z[negative_mask]
-
-    # Combine all indices
-    all_x = BackendTensor.tfnp.concatenate([x_pos, x_neg], axis=0)
-    all_y = BackendTensor.tfnp.concatenate([y_pos, z_neg], axis=0)  # Note: z_neg for flipped triangles
-    all_z = BackendTensor.tfnp.concatenate([z_pos, y_neg], axis=0)  # Note: y_neg for flipped triangles
-
-    # Stack into final indices array
-    indices = BackendTensor.tfnp.stack([all_x, all_y, all_z], axis=1)
-    return indices
+    return normal
