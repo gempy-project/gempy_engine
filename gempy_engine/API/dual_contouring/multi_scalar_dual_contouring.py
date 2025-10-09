@@ -125,6 +125,7 @@ def dual_contouring_multi_scalar(
                             else octree_leaves.grid_centers.octree_grid.values[mask]
                     ),
                     dxdydz=octree_leaves.grid_centers.octree_dxdydz,
+                    left_right_codes=all_left_right_codes[n_scalar_field],
                     gradients=output_on_edges[n_scalar_field][slice_object],
                     n_surfaces_to_export=n_scalar_field,
                     tree_depth=options.number_octree_levels
@@ -135,7 +136,6 @@ def dual_contouring_multi_scalar(
         from gempy_engine.modules.dual_contouring._dual_contouring_v2 import compute_dual_contouring_v2
         all_meshes = compute_dual_contouring_v2(
             dc_data_list=dc_data_per_surface_all,
-            left_right_codes=all_left_right_codes[0],
         )
     # endregion
     if (options.debug or len(all_left_right_codes) > 1) and False:
@@ -168,7 +168,7 @@ def _compute_meshes_legacy(all_left_right_codes: list[Any], all_mask_arrays: np.
 
     meshes: List[DualContouringMesh] = compute_dual_contouring(
         dc_data_per_stack=dc_data,
-        left_right_codes=all_left_right_codes[0],
+        left_right_codes=all_left_right_codes[n_scalar_field],
         debug=options.debug
     )
 

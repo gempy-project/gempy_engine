@@ -22,9 +22,8 @@ except ImportError:
 
 
 @gempy_profiler_decorator
-def compute_dual_contouring_v2(dc_data_list: list[DualContouringData],
-                            left_right_codes=None) -> List[DualContouringMesh]:
-    parallel_results = _parallel_process(dc_data_list, left_right_codes)
+def compute_dual_contouring_v2(dc_data_list: list[DualContouringData], ) -> List[DualContouringMesh]:
+    parallel_results = _parallel_process(dc_data_list)
 
     if parallel_results is not None:
         return parallel_results
@@ -35,12 +34,12 @@ def compute_dual_contouring_v2(dc_data_list: list[DualContouringData],
     stack_meshes: List[DualContouringMesh] = []
 
     for dc_data in dc_data_list:
-        mesh = _process_one_surface(dc_data, left_right_codes)
+        mesh = _process_one_surface(dc_data, dc_data.left_right_codes)
         stack_meshes.append(mesh)
     return stack_meshes
 
 
-def _parallel_process(dc_data_list: list[DualContouringData], left_right_codes):
+def _parallel_process(dc_data_list: list[DualContouringData]):
     # Check if we should use parallel processing
     n_surfaces_to_export = len(dc_data_list)
     use_parallel = _should_use_parallel_processing(n_surfaces_to_export, BackendTensor.engine_backend)
@@ -48,12 +47,12 @@ def _parallel_process(dc_data_list: list[DualContouringData], left_right_codes):
 
     if use_parallel and False:  # ! (Miguel Sep 25) I do not see a speedup
         print(f"Using parallel processing for {n_surfaces_to_export} surfaces")
-        parallel_results = _parallel_process_surfaces_v2(dc_data_list, left_right_codes)
+        parallel_results = _parallel_process_surfaces_v2(dc_data_list)
 
     return parallel_results
 
 
-def _parallel_process_surfaces_v2(dc_data_list: list[DualContouringData], left_right_codes, num_workers=None, chunk_size=2):
+def _parallel_process_surfaces_v2(dc_data_list: list[DualContouringData], num_workers=None, chunk_size=2):
     """Process surfaces in parallel using multiprocessing."""
     n_surfaces = len(dc_data_list)
 
@@ -70,6 +69,7 @@ def _parallel_process_surfaces_v2(dc_data_list: list[DualContouringData], left_r
                 'xyz_on_centers'      : dc_data.xyz_on_centers,
                 'dxdydz'              : dc_data.dxdydz,
                 'gradients'           : dc_data.gradients,
+                'left_right_codes'    : dc_data.left_right_codes,
                 'n_surfaces_to_export': dc_data.n_surfaces_to_export,
                 'tree_depth'          : dc_data.tree_depth
         }
@@ -89,7 +89,7 @@ def _parallel_process_surfaces_v2(dc_data_list: list[DualContouringData], left_r
             for chunk in chunks:
                 result = pool.apply_async(
                     _process_surface_batch_v2,
-                    (chunk, dc_data_dicts, left_right_codes)
+                    (chunk, dc_data_dicts )
                 )
                 async_results.append(result)
 
@@ -120,11 +120,12 @@ def _process_surface_batch_v2(surface_indices, dc_data_dicts, left_right_codes):
             xyz_on_centers=dc_data_dict['xyz_on_centers'],
             dxdydz=dc_data_dict['dxdydz'],
             gradients=dc_data_dict['gradients'],
+            left_right_codes=dc_data_dict['left_right_codes'],
             n_surfaces_to_export=dc_data_dict['n_surfaces_to_export'],
             tree_depth=dc_data_dict['tree_depth']
         )
         # Process the surface
-        mesh = _process_one_surface(dc_data, left_right_codes)
+        mesh = _process_one_surface(dc_data, dc_data.left_right_codes)
         results.append(mesh)
 
     return results

@@ -12,11 +12,11 @@ class DualContouringData:
     dxdydz: np.ndarray | tuple[float, float, float]
 
     n_surfaces_to_export: int
+    left_right_codes: np.ndarray
     gradients: np.ndarray = None
 
     tree_depth: int = -1
     # Water tight 
-    mask: np.ndarray = None
 
     bias_center_mass: np.ndarray = None  # * Only for testing
     bias_normals: np.ndarray = None  # * Only for testing
