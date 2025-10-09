@@ -8,7 +8,6 @@ from .fancy_triangulation import get_left_right_array
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_mesh import DualContouringMesh
-from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interp_output import InterpOutput
 from ...core.data.octree_level import OctreeLevel
 from ...core.data.options import MeshExtractionMaskingOptions
@@ -205,5 +204,5 @@ def apply_faults_vertex_overlap(all_meshes: list[DualContouringMesh],
     voxel_overlaps = find_repeated_voxels_across_stacks(left_right_per_mesh)
     
     if voxel_overlaps:
-        print(f"Found voxel overlaps between stacks: {voxel_overlaps}")
+        print(f"Found voxel overlaps between stacks: {voxel_overlaps.keys()}")
         _apply_fault_relations_to_overlaps(all_meshes, voxel_overlaps, stack_structure)

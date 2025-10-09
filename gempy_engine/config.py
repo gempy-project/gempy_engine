@@ -32,6 +32,7 @@ DEFAULT_TENSOR_DTYPE = os.getenv('DEFAULT_TENSOR_DTYPE', 'float64')
 LINE_PROFILER_ENABLED = os.getenv('LINE_PROFILER_ENABLED', 'False') == 'True'
 SET_RAW_ARRAYS_IN_SOLUTION = os.getenv('SET_RAW_ARRAYS_IN_SOLUTION', 'True') == 'True'
 NOT_MAKE_INPUT_DEEP_COPY = os.getenv('NOT_MAKE_INPUT_DEEP_COPY', 'False') == 'True'
+DUAL_CONTOURING_VERTEX_OVERLAP = os.getenv('NOT_MAKE_INPUT_DEEP_COPY', 'False') == 'True'
 
 is_numpy_installed = find_spec("numpy") is not None
 is_tensorflow_installed = find_spec("tensorflow") is not None

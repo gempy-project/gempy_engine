@@ -35,10 +35,10 @@ def _apply_fault_relations_to_overlaps(
             
             if overlap_key in voxel_overlaps:
                 _apply_vertex_sharing(
-                    all_meshes, 
-                    origin_stack, 
-                    surface_n, 
-                    voxel_overlaps[overlap_key]
+                    all_meshes=all_meshes, 
+                    origin_mesh_idx=origin_stack, 
+                    destination_mesh_idx=surface_n, 
+                    overlap_data=voxel_overlaps[overlap_key]
                 )
 
 
@@ -135,9 +135,10 @@ def _find_overlaps_between_stacks(
     for i in range(len(stack_codes)):
         for j in range(i + 1, len(stack_codes)):
             overlap_data = _process_stack_pair(
-                stack_codes[i], stack_codes[j], 
-                all_left_right_codes[i], all_left_right_codes[j], 
-                i, j
+                codes_i=stack_codes[i], 
+                codes_j=stack_codes[j], 
+                left_right_i=all_left_right_codes[i], 
+                left_right_j=all_left_right_codes[j], 
             )
             
             if overlap_data:
@@ -151,8 +152,6 @@ def _process_stack_pair(
         codes_j: np.ndarray,
         left_right_i: np.ndarray, 
         left_right_j: np.ndarray,
-        stack_i: int, 
-        stack_j: int
 ) -> Optional[dict]:
     """Process a pair of stacks to find overlapping voxels."""
     if codes_i.size == 0 or codes_j.size == 0:
