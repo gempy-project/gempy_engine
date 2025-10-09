@@ -103,6 +103,8 @@ def dual_contouring_multi_scalar(
     
     # endregion
 
+    compute_overlap = (len(all_left_right_codes) > 1) and DUAL_CONTOURING_VERTEX_OVERLAP
+    
     # region Vertex gen and triangulation
     left_right_per_mesh = []
     # Generate meshes for each scalar field
@@ -135,13 +137,14 @@ def dual_contouring_multi_scalar(
                 )
                 
                 dc_data_per_surface_all.append(dc_data_per_surface)
-                left_right_per_mesh.append(all_left_right_codes[n_scalar_field][dc_data_per_surface.valid_voxels])
+                if (compute_overlap):
+                    left_right_per_mesh.append(all_left_right_codes[n_scalar_field][dc_data_per_surface.valid_voxels])
 
         all_meshes = compute_dual_contouring_v2(
             dc_data_list=dc_data_per_surface_all,
         )
     # endregion
-        if (len(all_left_right_codes) > 1) and DUAL_CONTOURING_VERTEX_OVERLAP:
+        if compute_overlap:
             apply_faults_vertex_overlap(all_meshes, data_descriptor.stack_structure, left_right_per_mesh)
 
     return all_meshes
