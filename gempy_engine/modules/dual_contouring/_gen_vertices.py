@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 
@@ -40,13 +40,17 @@ def _generate_vertices(dc_data_per_surface: DualContouringData, debug: bool, sli
     return vertices
 
 
-def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, slice_surface: slice, debug: bool = False):
+def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, slice_surface: Optional[slice] = None, debug: bool = False):
     # @off
     n_edges = dc_data_per_stack.n_valid_edges
     valid_edges = dc_data_per_stack.valid_edges
     valid_voxels = dc_data_per_stack.valid_voxels
-    xyz_on_edge = dc_data_per_stack.xyz_on_edge[slice_surface]
-    gradients = dc_data_per_stack.gradients[slice_surface]
+    if slice_surface is not None:
+        xyz_on_edge = dc_data_per_stack.xyz_on_edge[slice_surface]
+        gradients = dc_data_per_stack.gradients[slice_surface]
+    else: 
+        xyz_on_edge = dc_data_per_stack.xyz_on_edge
+        gradients = dc_data_per_stack.gradients 
     # @on
 
     # * Coordinates for all posible edges (12) and 3 dummy edges_normals in the center

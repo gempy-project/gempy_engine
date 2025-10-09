@@ -30,7 +30,7 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData,
     use_parallel = _should_use_parallel_processing(dc_data_per_stack.n_surfaces_to_export, BackendTensor.engine_backend)
     parallel_results = None
 
-    if use_parallel and False:  # ! (Miguel Sep 25) I do not see a speedup
+    if use_parallel and True:  # ! (Miguel Sep 25) I do not see a speedup
         print(f"Using parallel processing for {dc_data_per_stack.n_surfaces_to_export} surfaces")
         parallel_results = _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug)
 
@@ -70,8 +70,7 @@ def compute_dual_contouring(dc_data_per_stack: DualContouringData,
             DualContouringMesh(
                 vertices_numpy,
                 indices_numpy,
-                dc_data_per_stack,
-                left_right=valid_left_right_codes
+                dc_data_per_stack
             )
         )
     return stack_meshes
@@ -88,10 +87,9 @@ def _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug, num_w
             'valid_edges'             : dc_data_per_stack.valid_edges,
             'xyz_on_centers'          : dc_data_per_stack.xyz_on_centers,
             'dxdydz'                  : dc_data_per_stack.dxdydz,
-            'exported_fields_on_edges': dc_data_per_stack.exported_fields_on_edges,
+            'gradients': dc_data_per_stack.gradients,
             'n_surfaces_to_export'    : dc_data_per_stack.n_surfaces_to_export,
             'tree_depth'              : dc_data_per_stack.tree_depth,
-            # 'gradients': getattr(dc_data_per_stack, 'gradients', None)
     }
 
     # Create surface index chunks

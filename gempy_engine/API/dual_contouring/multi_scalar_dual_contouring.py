@@ -18,6 +18,7 @@ from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.octree_level import OctreeLevel
 from ...core.utils import gempy_profiler_decorator
+from ...modules.dual_contouring._aux import _surface_slicer
 from ...modules.dual_contouring.dual_contouring_interface import (find_intersection_on_edge, get_triangulation_codes,
                                                                   get_masked_codes, mask_generation,apply_faults_vertex_overlap)
 
@@ -68,7 +69,7 @@ def dual_contouring_multi_scalar(
     )
     
     # Process each scalar field
-    all_stack_intersection = []
+    all_surfaces_intersection = []
     all_valid_edges = []
     all_left_right_codes = []
     # region Interp on edges
@@ -89,12 +90,12 @@ def dual_contouring_multi_scalar(
             masking=mask
         )
 
-        all_stack_intersection.append(intersection_xyz)
+        all_surfaces_intersection.append(intersection_xyz)
         all_valid_edges.append(valid_edges)
 
     # * 5) Interpolate on edges for all stacks
     output_on_edges = _interp_on_edges(
-        all_stack_intersection, data_descriptor, dual_contouring_options, interpolation_input
+        all_surfaces_intersection, data_descriptor, dual_contouring_options, interpolation_input
     )
     
     # endregion
@@ -102,36 +103,40 @@ def dual_contouring_multi_scalar(
     # region Vertex gen and triangulation
     left_right_per_mesh = []
     # Generate meshes for each scalar field
-    for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
-        output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
-        mask = all_mask_arrays[n_scalar_field]
+    if LEGACY:=False:
+        for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
+            _compute_meshes_legacy(all_left_right_codes, all_mask_arrays, all_meshes, all_surfaces_intersection, all_valid_edges, n_scalar_field, octree_leaves, options, output_on_edges)
+    else:
+        dc_data_per_surface_all = []
+        for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
+            output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
+            mask = all_mask_arrays[n_scalar_field]
+            n_surfaces_to_export = output.scalar_field_at_sp.shape[0]
+            for surface_i in range(n_surfaces_to_export):
+                valid_edges = all_valid_edges[n_scalar_field]
+                valid_edges_per_surface =valid_edges.reshape((n_surfaces_to_export, -1, 12))
+                slice_object = _surface_slicer(surface_i, valid_edges_per_surface)
 
-        dc_data = DualContouringData(
-            xyz_on_edge=all_stack_intersection[n_scalar_field],
-            valid_edges=all_valid_edges[n_scalar_field],
-            xyz_on_centers=(
-                    octree_leaves.grid_centers.octree_grid.values if mask is None
-                    else octree_leaves.grid_centers.octree_grid.values[mask]
-            ),
-            dxdydz=octree_leaves.grid_centers.octree_dxdydz,
-            gradients=output_on_edges[n_scalar_field],
-            n_surfaces_to_export=output.scalar_field_at_sp.shape[0],
-            tree_depth=options.number_octree_levels,
+                dc_data_per_surface = DualContouringData(
+                    xyz_on_edge=all_surfaces_intersection[n_scalar_field][slice_object],
+                    valid_edges=valid_edges_per_surface[surface_i],
+                    xyz_on_centers=(
+                            octree_leaves.grid_centers.octree_grid.values if mask is None
+                            else octree_leaves.grid_centers.octree_grid.values[mask]
+                    ),
+                    dxdydz=octree_leaves.grid_centers.octree_dxdydz,
+                    left_right_codes=all_left_right_codes[n_scalar_field],
+                    gradients=output_on_edges[n_scalar_field][slice_object],
+                    n_surfaces_to_export=n_scalar_field,
+                    tree_depth=options.number_octree_levels
+                )
+                
+                dc_data_per_surface_all.append(dc_data_per_surface)
+
+        from gempy_engine.modules.dual_contouring._dual_contouring_v2 import compute_dual_contouring_v2
+        all_meshes = compute_dual_contouring_v2(
+            dc_data_list=dc_data_per_surface_all,
         )
-
-        meshes: List[DualContouringMesh] = compute_dual_contouring(
-            dc_data_per_stack=dc_data,
-            left_right_codes=all_left_right_codes[n_scalar_field],
-            debug=options.debug
-        )
-        
-        for m in meshes:
-            left_right_per_mesh.append(m.left_right)
-
-        # TODO: If the order of the meshes does not match the order of scalar_field_at_surface points, reorder them here
-        if meshes is not None:
-            all_meshes.extend(meshes)
-
     # endregion
     if (options.debug or len(all_left_right_codes) > 1) and False:
         apply_faults_vertex_overlap(all_meshes, data_descriptor.stack_structure, left_right_per_mesh)
@@ -141,6 +146,36 @@ def dual_contouring_multi_scalar(
     # ... existing code ...
 
 
+def _compute_meshes_legacy(all_left_right_codes: list[Any], all_mask_arrays: np.ndarray,
+                           all_meshes: list[DualContouringMesh], all_stack_intersection: list[Any],
+                           all_valid_edges: list[Any], n_scalar_field: int,
+                           octree_leaves: OctreeLevel, options: InterpolationOptions, output_on_edges: list[np.ndarray]):
+    output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
+    mask = all_mask_arrays[n_scalar_field]
+
+    dc_data = DualContouringData(
+        xyz_on_edge=all_stack_intersection[n_scalar_field],
+        valid_edges=all_valid_edges[n_scalar_field],
+        xyz_on_centers=(
+                octree_leaves.grid_centers.octree_grid.values if mask is None
+                else octree_leaves.grid_centers.octree_grid.values[mask]
+        ),
+        dxdydz=octree_leaves.grid_centers.octree_dxdydz,
+        gradients=output_on_edges[n_scalar_field],
+        n_surfaces_to_export=output.scalar_field_at_sp.shape[0],
+        tree_depth=options.number_octree_levels,
+    )
+
+    meshes: List[DualContouringMesh] = compute_dual_contouring(
+        dc_data_per_stack=dc_data,
+        left_right_codes=all_left_right_codes[n_scalar_field],
+        debug=options.debug
+    )
+
+
+    # TODO: If the order of the meshes does not match the order of scalar_field_at_surface points, reorder them here
+    if meshes is not None:
+        all_meshes.extend(meshes)
 
 
 def _validate_stack_relations(data_descriptor: InputDataDescriptor, n_scalar_field: int) -> None:

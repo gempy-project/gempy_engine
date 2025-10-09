@@ -140,7 +140,6 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, v
             n=n
         )
 
-
         indices.append(indices_patch)
         normals.append(normals_patch)
 
@@ -241,57 +240,60 @@ def _compress_binary_indices(left_right_array_active_edge, edge_vector_a, edge_v
 
     return compressed_binary_idx_0, compressed_binary_idx_1, compressed_binary_idx_2
 
-
-def _map_and_filter_voxels_(voxel_code, compressed_idx_0, compressed_idx_1, compressed_idx_2):
-    """Map compressed binary codes to all leaf codes and filter by extent."""
-    # Map remaining compressed binary code to all the binary codes at leaves
-    mapped_voxel_0 = (voxel_code - compressed_idx_0)
-    mapped_voxel_1 = (voxel_code - compressed_idx_1)
-    mapped_voxel_2 = (voxel_code - compressed_idx_2)
-
-    # Find and remove edges at the border of the extent
-    code__a_prod_edge = ~BackendTensor.tfnp.all(mapped_voxel_0, axis=0)
-    code__b_prod_edge = ~BackendTensor.tfnp.all(mapped_voxel_1, axis=0)
-    code__c_prod_edge = ~BackendTensor.tfnp.all(mapped_voxel_2, axis=0)
-
-    valid_edges_within_extent = code__a_prod_edge * code__b_prod_edge * code__c_prod_edge
-
-    code__a_p = BackendTensor.tfnp.array(mapped_voxel_0[:, valid_edges_within_extent] == 0)
-    code__b_p = BackendTensor.tfnp.array(mapped_voxel_1[:, valid_edges_within_extent] == 0)
-    code__c_p = BackendTensor.tfnp.array(mapped_voxel_2[:, valid_edges_within_extent] == 0)
-
-    return code__a_p, code__b_p, code__c_p
-
 def _map_and_filter_voxels(voxel_code, compressed_idx_0, compressed_idx_1, compressed_idx_2):
-    """Map compressed binary codes to all leaf codes and filter by extent (optimized)."""
+    """Map compressed binary codes to all leaf codes and filter by extent (optimized v3)."""
 
-    # Instead of checking .all() on large arrays, we can use .any() on equality checks
-    # which is more efficient because:
-    # 1. We're looking for matches (== 0) rather than all non-matches (!= 0)
-    # 2. .any() can short-circuit on the first True
+    # If voxel_code is sorted (or we can sort it once), we can use searchsorted
+    # which is O(n log m) instead of O(n*m) for broadcasting
+    voxel_code_flat = voxel_code.ravel()
 
-    # Find which voxels match each compressed index (these ARE the valid edges)
-    code__a_prod_edge = BackendTensor.tfnp.any(voxel_code == compressed_idx_0, axis=0)
-    code__b_prod_edge = BackendTensor.tfnp.any(voxel_code == compressed_idx_1, axis=0)
-    code__c_prod_edge = BackendTensor.tfnp.any(voxel_code == compressed_idx_2, axis=0)
+    # Check membership using isin (optimized for this use case)
+    code__a_prod_edge = BackendTensor.tfnp.isin(compressed_idx_0, voxel_code_flat)
+    code__b_prod_edge = BackendTensor.tfnp.isin(compressed_idx_1, voxel_code_flat)
+    code__c_prod_edge = BackendTensor.tfnp.isin(compressed_idx_2, voxel_code_flat)
 
-    # Valid edges are those that have all three coordinates matching some voxel
     valid_edges_within_extent = code__a_prod_edge & code__b_prod_edge & code__c_prod_edge
 
-    # Now only compute the expensive equality checks for valid edges
-    code__a_p = (voxel_code == compressed_idx_0[ valid_edges_within_extent])
-    code__b_p = (voxel_code == compressed_idx_1[ valid_edges_within_extent])
-    code__c_p = (voxel_code == compressed_idx_2[ valid_edges_within_extent])
+    # Early exit if no valid edges
+    if not BackendTensor.tfnp.any(valid_edges_within_extent):
+        empty = BackendTensor.tfnp.zeros((voxel_code.shape[0], 0), dtype=bool)
+        return empty, empty, empty
+
+    # Filter to valid edges only
+    compressed_idx_0_valid = compressed_idx_0[valid_edges_within_extent]
+    compressed_idx_1_valid = compressed_idx_1[valid_edges_within_extent]
+    compressed_idx_2_valid = compressed_idx_2[valid_edges_within_extent]
+
+    # Final equality checks - these are unavoidable but at least filtered
+    code__a_p = (voxel_code == compressed_idx_0_valid)
+    code__b_p = (voxel_code == compressed_idx_1_valid)
+    code__c_p = (voxel_code == compressed_idx_2_valid)
 
     return code__a_p, code__b_p, code__c_p
 
-
 def _convert_masks_to_indices(code__a_p, code__b_p, code__c_p):
-    """Convert boolean masks to integer indices."""
-    indices_array = BackendTensor.tfnp.arange(code__a_p.shape[0]).reshape(-1, 1)
-    x = (code__a_p * indices_array).T[code__a_p.T]
-    y = (code__b_p * indices_array).T[code__b_p.T]
-    z = (code__c_p * indices_array).T[code__c_p.T]
+    """Convert boolean masks to integer indices (optimized)."""
+    # Use where/nonzero to find True indices
+    # For each column, we expect exactly one True value
+
+    # Get the row indices where each column has True
+    # This returns tuples of (row_indices, col_indices)
+    x_rows, x_cols = BackendTensor.tfnp.where(code__a_p)
+    y_rows, y_cols = BackendTensor.tfnp.where(code__b_p)
+    z_rows, z_cols = BackendTensor.tfnp.where(code__c_p)
+
+    # Since each column should have exactly one True, the row_indices
+    # are already in the right order corresponding to columns 0, 1, 2, ...
+    # But to be safe, we can create an array and fill it
+    n_edges = code__a_p.shape[1]
+    x = BackendTensor.tfnp.zeros(n_edges, dtype=BackendTensor.tfnp.int64)
+    y = BackendTensor.tfnp.zeros(n_edges, dtype=BackendTensor.tfnp.int64)
+    z = BackendTensor.tfnp.zeros(n_edges, dtype=BackendTensor.tfnp.int64)
+
+    x[x_cols] = x_rows
+    y[y_cols] = y_rows
+    z[z_cols] = z_rows
+
     return x, y, z
 
 
