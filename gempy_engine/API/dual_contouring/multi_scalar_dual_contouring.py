@@ -135,7 +135,7 @@ def dual_contouring_multi_scalar(
                 )
                 
                 dc_data_per_surface_all.append(dc_data_per_surface)
-                left_right_per_mesh.append(all_left_right_codes[0][dc_data_per_surface.valid_voxels])
+                left_right_per_mesh.append(all_left_right_codes[n_scalar_field][dc_data_per_surface.valid_voxels])
 
         all_meshes = compute_dual_contouring_v2(
             dc_data_list=dc_data_per_surface_all,
