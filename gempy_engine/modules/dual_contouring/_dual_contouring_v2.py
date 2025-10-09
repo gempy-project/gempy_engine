@@ -1,7 +1,7 @@
 import os
 from typing import List
 
-from ._gen_vertices import _generate_vertices
+from ._gen_vertices import generate_dual_contouring_vertices
 from ._parallel_triangulation import _should_use_parallel_processing, _init_worker
 from ._sequential_triangulation import _compute_triangulation
 from ... import optional_dependencies
@@ -130,8 +130,7 @@ def _process_surface_batch_v2(surface_indices, dc_data_dicts, left_right_codes):
 
     return results
 def _process_one_surface(dc_data: DualContouringData, left_right_codes) -> DualContouringMesh:
-    vertices = _generate_vertices(dc_data, False, None)
-
+    vertices = generate_dual_contouring_vertices(dc_data, slice_surface=None, debug=False)
     # * Average gradient for the edges
     valid_edges = dc_data.valid_edges
     edges_normals = BackendTensor.t.zeros((valid_edges.shape[0], 12, 3), dtype=BackendTensor.dtype_obj)

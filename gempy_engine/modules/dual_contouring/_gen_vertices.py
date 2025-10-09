@@ -14,7 +14,7 @@ def _compute_vertices(dc_data_per_stack: DualContouringData,
                       valid_edges_per_surface) -> tuple[DualContouringData, Any]:
     """Compute vertices for a specific surface."""
     valid_edges: np.ndarray = valid_edges_per_surface[surface_i]
-   
+
     slice_object = _surface_slicer(surface_i, valid_edges_per_surface)
 
     dc_data_per_surface = DualContouringData(
@@ -27,17 +27,8 @@ def _compute_vertices(dc_data_per_stack: DualContouringData,
         tree_depth=dc_data_per_stack.tree_depth
     )
 
-    vertices_numpy = _generate_vertices(dc_data_per_surface, debug, slice_object)
+    vertices_numpy = generate_dual_contouring_vertices(dc_data_per_surface, slice_object, debug)
     return dc_data_per_surface, vertices_numpy
-
-
-def _generate_vertices(dc_data_per_surface: DualContouringData, debug: bool, slice_object: slice) -> Any:
-    vertices: np.ndarray = generate_dual_contouring_vertices(
-        dc_data_per_stack=dc_data_per_surface,
-        slice_surface=slice_object,
-        debug=debug
-    )
-    return vertices
 
 
 def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, slice_surface: Optional[slice] = None, debug: bool = False):
@@ -48,10 +39,10 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
     if slice_surface is not None:
         xyz_on_edge = dc_data_per_stack.xyz_on_edge[slice_surface]
         gradients = dc_data_per_stack.gradients[slice_surface]
-    else: 
+    else:
         xyz_on_edge = dc_data_per_stack.xyz_on_edge
-        gradients = dc_data_per_stack.gradients 
-    # @on
+        gradients = dc_data_per_stack.gradients
+        # @on
 
     # * Coordinates for all posible edges (12) and 3 dummy edges_normals in the center
     edges_xyz = BackendTensor.tfnp.zeros((n_edges, 15, 3), dtype=BackendTensor.dtype_obj)

@@ -4,9 +4,12 @@ from typing import List, Any
 import numpy as np
 
 from gempy_engine.modules.dual_contouring._dual_contouring import compute_dual_contouring
+
+from ...modules.dual_contouring._dual_contouring_v2 import compute_dual_contouring_v2
 from ._experimental_water_tight_DC_1 import _experimental_water_tight
 from ._mask_buffer import MaskBuffer
 from ..interp_single.interp_features import interpolate_all_fields_no_octree
+from ...config import DUAL_CONTOURING_VERTEX_OVERLAP
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_data import DualContouringData
@@ -134,17 +137,14 @@ def dual_contouring_multi_scalar(
                 dc_data_per_surface_all.append(dc_data_per_surface)
                 left_right_per_mesh.append(all_left_right_codes[0][dc_data_per_surface.valid_voxels])
 
-        from gempy_engine.modules.dual_contouring._dual_contouring_v2 import compute_dual_contouring_v2
         all_meshes = compute_dual_contouring_v2(
             dc_data_list=dc_data_per_surface_all,
         )
     # endregion
-        if (options.debug or len(all_left_right_codes) > 1) and True:
+        if (len(all_left_right_codes) > 1) and DUAL_CONTOURING_VERTEX_OVERLAP:
             apply_faults_vertex_overlap(all_meshes, data_descriptor.stack_structure, left_right_per_mesh)
 
     return all_meshes
-
-    # ... existing code ...
 
 
 def _compute_meshes_legacy(all_left_right_codes: list[Any], all_mask_arrays: np.ndarray,
