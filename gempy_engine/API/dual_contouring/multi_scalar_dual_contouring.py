@@ -114,7 +114,7 @@ def dual_contouring_multi_scalar(
                     else octree_leaves.grid_centers.octree_grid.values[mask]
             ),
             dxdydz=octree_leaves.grid_centers.octree_dxdydz,
-            exported_fields_on_edges=output_on_edges[n_scalar_field].exported_fields,
+            gradients=output_on_edges[n_scalar_field],
             n_surfaces_to_export=output.scalar_field_at_sp.shape[0],
             tree_depth=options.number_octree_levels,
         )
@@ -170,7 +170,7 @@ def _interp_on_edges(
         data_descriptor: InputDataDescriptor,
         dual_contouring_options: InterpolationOptions,
         interpolation_input: InterpolationInput
-) -> List[InterpOutput]:
+) -> List[np.ndarray]:
     """
     Interpolate scalar fields on edge intersection points.
 
@@ -202,6 +202,21 @@ def _interp_on_edges(
         data_descriptor=data_descriptor
     )
 
+    
     # Restore original grid
     interpolation_input.set_grid_to_original()
-    return output_on_edges
+    
+    gradients = []
+    slicer_idx_start = 0
+    for e,o in enumerate(output_on_edges):
+        slicer_idx_end = slicer_idx_start + all_stack_intersection[e].shape[0]
+        slicer = slice(slicer_idx_start, slicer_idx_end)
+        ef = o.exported_fields
+        gradients.append(BackendTensor.t.stack((
+                ef.gx_field[slicer], 
+                ef.gy_field[slicer],
+                ef.gz_field[slicer] 
+        ), axis=0).T)  # ! When we are computing the edges for dual contouring there is no surface points
+        slicer_idx_start = slicer_idx_end
+    
+    return gradients

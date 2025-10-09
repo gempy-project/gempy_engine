@@ -3,6 +3,7 @@ from typing import Any
 import numpy as np
 import warnings
 
+from ._aux import _surface_slicer
 from ...config import AvailableBackends
 from ._gen_vertices import _compute_vertices
 from ...core.backend_tensor import BackendTensor
@@ -18,26 +19,35 @@ def _sequential_triangulation(dc_data_per_stack: DualContouringData,
                               valid_edges_per_surface,
                               ) -> tuple[DualContouringData, Any, Any]:
     """Orchestrator function that combines vertex computation and triangulation."""
-    dc_data_per_surface, vertices_numpy = _compute_vertices(dc_data_per_stack, debug, i, valid_edges_per_surface)
+    dc_data_per_surface, vertices = _compute_vertices(
+        dc_data_per_stack=dc_data_per_stack, 
+        debug=debug,
+        surface_i=i,
+        valid_edges_per_surface=valid_edges_per_surface
+    )
 
     slice_object = _surface_slicer(i, valid_edges_per_surface)
 
     # * Average gradient for the edges
     valid_edges = valid_edges_per_surface[i]
     edges_normals = BackendTensor.t.zeros((valid_edges.shape[0], 12, 3), dtype=BackendTensor.dtype_obj)
-    edges_normals[:] = np.nan
+    edges_normals[:] = 0
     edges_normals[valid_edges] = dc_data_per_stack.gradients[slice_object]
 
     indices_numpy = _compute_triangulation(
         dc_data_per_surface=dc_data_per_surface, 
         left_right_codes=left_right_codes,
-        edges_normals=edges_normals
+        edges_normals=edges_normals,
+        vertex= vertices
     )
 
+
+    vertices_numpy = BackendTensor.t.to_numpy(vertices)
     return dc_data_per_surface, indices_numpy, vertices_numpy
 
 
-def _compute_triangulation(dc_data_per_surface: DualContouringData, left_right_codes, edges_normals) -> Any:
+def _compute_triangulation(dc_data_per_surface: DualContouringData, 
+                           left_right_codes, edges_normals, vertex) -> Any:
     """Compute triangulation indices for a specific surface."""
 
     if left_right_codes is None:
@@ -60,6 +70,7 @@ def _compute_triangulation(dc_data_per_surface: DualContouringData, left_right_c
             safe_normals[nan_mask] = 0
 
             # Compute the sum of non-NaN elements
+            safe_normals[:,:,0]
             sum_normals = BackendTensor.t.sum(safe_normals, 1)
 
             # Calculate the mean, avoiding division by zero
@@ -75,25 +86,21 @@ def _compute_triangulation(dc_data_per_surface: DualContouringData, left_right_c
         voxel_normal_per_surface = voxel_normal
         tree_depth_per_surface = dc_data_per_surface.tree_depth
 
+        voxels_normals = edges_normals[valid_voxels]
+        # nan_mask = BackendTensor.t.isnan(voxels_normals)
+        # voxels_normals[nan_mask] = 0
+
         indices = triangulate(
             left_right_array=left_right_per_surface,
             valid_edges=valid_voxels_per_surface,
             tree_depth=tree_depth_per_surface,
-            voxel_normals=voxel_normal_per_surface
+            voxel_normals=voxels_normals,
+            vertex=vertex
         )
-        indices = BackendTensor.t.concatenate(indices, axis=0)
+        # indices = BackendTensor.t.concatenate(indices, axis=0)
 
     # @on
     indices_numpy = BackendTensor.t.to_numpy(indices)
     return indices_numpy
 
-
-def _surface_slicer(i: int, valid_edges_per_surface) -> slice:
-    next_surface_edge_idx: int = valid_edges_per_surface[:i + 1].sum()
-    if i == 0:
-        last_surface_edge_idx = 0
-    else:
-        last_surface_edge_idx: int = valid_edges_per_surface[:i].sum()
-    slice_object: slice = slice(last_surface_edge_idx, next_surface_edge_idx)
-    return slice_object
 
