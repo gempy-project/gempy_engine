@@ -17,8 +17,15 @@ try:
     MULTIPROCESSING_AVAILABLE = True
 except ImportError:
     import multiprocessing as mp
-
     MULTIPROCESSING_AVAILABLE = False
+
+# Import trimesh once at module level
+TRIMESH_AVAILABLE = False
+try:
+    trimesh = optional_dependencies.require_trimesh()
+    TRIMESH_AVAILABLE = True
+except ImportError:
+    trimesh = None
 
 
 @gempy_profiler_decorator
@@ -41,6 +48,9 @@ def compute_dual_contouring_v2(dc_data_list: list[DualContouringData], ) -> List
 
 def _parallel_process(dc_data_list: list[DualContouringData]):
     # Check if we should use parallel processing
+
+    return None  # * Not clear wins
+    
     n_surfaces_to_export = len(dc_data_list)
     use_parallel = _should_use_parallel_processing(n_surfaces_to_export, BackendTensor.engine_backend)
     parallel_results = None
@@ -153,11 +163,14 @@ def _process_one_surface(dc_data: DualContouringData, left_right_codes) -> DualC
 
 
 def _last_pass(vertices, indices):
-    # Check if trimesh is available
+    """Apply trimesh post-processing if available."""
+    if not TRIMESH_AVAILABLE:
+        return vertices, indices
+    
     try:
-        trimesh = optional_dependencies.require_trimesh()
         mesh = trimesh.Trimesh(vertices=vertices, faces=indices)
         mesh.fill_holes()
         return mesh.vertices, mesh.faces
-    except ImportError:
+    except Exception as e:
+        print(f"Warning: Trimesh post-processing failed: {e}")
         return vertices, indices

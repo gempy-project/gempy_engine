@@ -53,7 +53,7 @@ class BackendTensor:
 
     @classmethod
     def _change_backend(cls, engine_backend: AvailableBackends, use_pykeops: bool = False,
-                        use_gpu: bool = True, dtype: Optional[str] = None, grads:bool = False):
+                        use_gpu: bool = False, dtype: Optional[str] = None, grads:bool = False):
         cls.dtype = DEFAULT_TENSOR_DTYPE if dtype is None else dtype
         cls.dtype_obj = cls.dtype
         match engine_backend:
