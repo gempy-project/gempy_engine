@@ -16,6 +16,48 @@ The geophysics module in GemPy v3 provides an integrated framework for computing
 
 The geophysics computation workflow integrates seamlessly with GemPy's interpolation pipeline:Key components:
 
+**Conceptual diagram:**
+┌─────────────────┐
+│ Observation     │ ← Device 1: xyz position
+│ Points (n)      │ ← Device 2: xyz position
+└────────┬────────┘ ← Device n: xyz position
+│
+├─────────────────────────┐
+↓                         ↓
+┌────────────────┐      ┌────────────────────┐
+│ Voxel Grid     │      │ Geological Model   │
+│ around each    │      │ (GemPy interpolate)│
+│ observation    │      │                    │
+│ point          │      │  ┌──┬──┬──┐        │
+│                │      │  │ 1│ 2│ 3│ IDs    │
+│  ┌─┬─┬─┐       │      │  ├──┼──┼──┤        │
+│  │ │ │ │       │      │  │ 2│ 2│ 3│        │
+│  ├─┼─┼─┤       │      │  └──┴──┴──┘        │
+│  │ │●│ │       │      └────────────────────┘
+│  ├─┼─┼─┤       │                 │
+│  │ │ │ │       │                 │
+│  └─┴─┴─┘       │                 │
+└────────┬───────┘                 │
+│                         │
+↓                         ↓
+┌────────────────┐      ┌────────────────────┐
+│ Gravity        │      │ Density mapping    │
+│ Gradient (tz)  │      │ ID → ρ             │
+│ per voxel      │      │ [1→2.67, 2→3.3]    │
+└────────┬───────┘      └────────┬───────────┘
+│                       │
+└───────┬───────────────┘
+↓
+┌────────────────┐
+│   gz = Σ(ρ·tz) │  Forward calculation
+└────────┬───────┘
+↓
+┌────────────────┐
+│ Gravity at     │
+│ observation    │
+│ points         │
+└────────────────┘
+
 - **`GeophysicsInput`**: Data class containing physical property arrays (densities, susceptibilities) and pre-computed kernels (e.g., gravity gradients)
 - **`CenteredGrid`**: Defines the geometry of the computational grid around observation points
 - **Forward modeling functions**: Compute geophysical responses by combining interpolated geological IDs with physical properties
@@ -28,12 +70,55 @@ The geophysics calculations are performed within the main `compute_model()` API 
 
 The gravity forward calculation computes the vertical component of gravitational acceleration at observation points by summing contributions from voxelized density distributions in 3D space.
 
-### Components
 
-#### 1. Gravity Gradient Calculation (`gravity_gradient.py`)
+Key components:
 
-The `calculate_gravity_gradient()` function computes the gravitational kernel (tz component) for each voxel in the computational grid using analytical integration:
+- **`GeophysicsInput`**: Data class containing physical property arrays (densities, susceptibilities) and pre-computed kernels (e.g., gravity gradients)
+- **`CenteredGrid`**: Defines the geometry of the computational grid around observation points
+- **Forward modeling functions**: Compute geophysical responses by combining interpolated geological IDs with physical properties
 
+The geophysics calculations are performed within the main `compute_model()` API function, after the octree interpolation completes but before mesh extraction.
+
+## Gravity Implementation
+Observation point (gravimeter/sensor)
+        ●  ← measures gz (vertical component)
+        |
+        | gz = Σ(density_i × tz_i)
+        ↓
+════════════════════  Earth's surface
+        |
+     .-"─"-.
+   .'   |   '.         Density anomaly
+  /     |     \        (geological body)
+ ;    Δρ > 0   ;       
+  \     |     /
+   '.   |   .'
+     `-─-'
+        |
+Background density ρ₀
+
+Observation point P (x₀, y₀, z₀)
+         ●
+        ╱│╲
+       ╱ │ ╲  gz contributions from voxel corners
+      ╱  │  ╲
+     ╱   │   ╲
+    ╱    ↓    ╲
+┌─────────────────────┐
+│    ·       ·       · │  ← Voxel with 8 corners
+│  ·    ┌───┐    ·    │     Analytical integration
+│    ·  │ Δρ│  ·      │     over rectangular prism
+│  ·    └───┘    ·    │
+│    ·       ·       · │
+└─────────────────────┘
+
+tz = G·Σ[sign_i·(x log(y+r) + y log(x+r) - z arctan(xy/zr))]
+
+### Physical Basis
+
+The gravity forward calculation computes the vertical component of gravitational acceleration at observation points by summing contributions from voxelized density distributions in 3D space.
+
+**Gravity anomaly geometry:**
 **Input:**
 - `CenteredGrid`: Defines observation point centers, voxel resolutions, and spatial extents
 
