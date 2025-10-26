@@ -126,3 +126,9 @@ class Solutions:
 
             # Order self_scalar_field_at_surface_points
             self._ordered_elements.append(np.argsort(scalar_field_at_surface_points_data)[::-1])
+
+
+    @property
+    def tmi(self) -> np.ndarray:
+        """Alias for magnetics Total Magnetic Intensity (nT)."""
+        return self.magnetics

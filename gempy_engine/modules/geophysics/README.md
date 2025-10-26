@@ -257,14 +257,14 @@ Magnetic field modeling is more complex than gravity because it involves **vecto
 
 ### Key Differences from Gravity
 
-| Aspect | Gravity | Magnetics |
-|--------|---------|-----------|
-| **Field type** | Scalar (gz only) | Vector (3 components) |
-| **Physical property** | Density (ρ) | Susceptibility (χ) + Remanence (Mr) |
-| **Source** | Mass distribution | Magnetic dipoles |
-| **Ambient field** | None (constant g) | Earth's field (varies by location/time) |
-| **Measurement** | Vertical acceleration | Total field intensity |
-| **Kernel complexity** | Single component (tz) | Full tensor (9 components) |
+| Aspect                | Gravity               | Magnetics                               |
+|-----------------------|-----------------------|-----------------------------------------|
+| **Field type**        | Scalar (gz only)      | Vector (3 components)                   |
+| **Physical property** | Density (ρ)           | Susceptibility (χ) + Remanence (Mr)     |
+| **Source**            | Mass distribution     | Magnetic dipoles                        |
+| **Ambient field**     | None (constant g)     | Earth's field (varies by location/time) |
+| **Measurement**       | Vertical acceleration | Total field intensity                   |
+| **Kernel complexity** | Single component (tz) | Full tensor (9 components)              |
 
 ### Mathematical Framework
 

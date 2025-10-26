@@ -8,9 +8,9 @@ from .encoders.converters import numpy_array_short_validator
 
 @dataclass
 class GeophysicsInput:
-    # Gravity inputs
-    tz: Annotated[np.ndarray, numpy_array_short_validator]
-    densities: Annotated[np.ndarray, numpy_array_short_validator]
+    # Gravity inputs (optional to allow magnetics-only workflows)
+    tz: Optional[Annotated[np.ndarray, numpy_array_short_validator]] = None
+    densities: Optional[Annotated[np.ndarray, numpy_array_short_validator]] = None
 
     # Magnetics inputs (optional for Phase 1)
     # Pre-projected TMI kernel per voxel (per device geometry), shape: (n_voxels_per_device,)

@@ -47,10 +47,16 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
 
         if geophysics_input is not None:
             first_level_last_field: InterpOutput = output[0].outputs_centers[-1]
-            gravity = compute_gravity(
-                geophysics_input=geophysics_input,
-                root_ouput=first_level_last_field
-            )
+
+            # Gravity (optional)
+            if getattr(geophysics_input, 'tz', None) is not None and getattr(geophysics_input, 'densities', None) is not None:
+                gravity = compute_gravity(
+                    geophysics_input=geophysics_input,
+                    root_ouput=first_level_last_field
+                )
+            else:
+                gravity = None
+
             # Magnetics (optional)
             try:
                 if getattr(geophysics_input, 'mag_kernel', None) is not None and getattr(geophysics_input, 'susceptibilities', None) is not None:
