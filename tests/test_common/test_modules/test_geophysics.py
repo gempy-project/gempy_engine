@@ -48,9 +48,14 @@ def test_gravity(simple_model_interpolation_input, n_oct_levels=3):
     )
     
     solutions = compute_model(interpolation_input, options, structure, geophysics_input=geophysics_input)
-    
-    print(solutions.gravity)
 
+    # Expected: [-0.09757573171386501, -0.10282069913078262]
+    np.testing.assert_array_almost_equal(
+        solutions.gravity,
+        np.array([-0.09757573171386501, -0.10282069913078262]),
+        decimal=8
+    )
+    
     if plot_pyvista or False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
