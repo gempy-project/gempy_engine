@@ -140,4 +140,112 @@ def test_gravity_sphere_analytical_benchmark():
         rtol=0.15,  # 15% relative tolerance
         err_msg="Gravity calculation deviates significantly from analytical sphere solution"
     )
-    
+
+
+def test_gravity_line_profile_symmetry():
+    """
+    Benchmark test for gravity along a horizontal profile line.
+
+    Test geometry (top view, looking down at z=600):
+
+         x=0                    x=500                   x=1000
+          │                       │                        │
+          ●───────●───────●───────●───────●───────●───────●  ← observation line (z=600)
+          0      200     400     500     600     800    1000
+                               (profile)
+                                   ↑
+                              y=500 (all points)
+
+    Side view (x-z plane at y=500):
+
+          ●───────●───────●───────●───────●───────●───────●  z=600 observation line
+          ↓       ↓       ↓       ↓       ↓       ↓       ↓  (gz measured here)
+                                  │
+                              .-"─"-.
+                            .'   │   '.      Sphere: R=80m, Δρ=0.8 g/cm³
+                           /     │     \     Center at (500, 500, 500)
+                          ;    z=500    ;
+                           \     ●     /
+                            '.       .'
+                              `-._.-'
+
+    Tests:
+    1. Symmetry: g(500-x) ≈ g(500+x) for symmetric profile
+    2. Peak location: max(gz) occurs at x=500 (directly above anomaly)
+    3. Decay: gz decreases with horizontal distance from anomaly
+
+    This validates spatial accuracy and physical consistency of the forward calculation.
+    """
+    import numpy as np
+    from gempy_engine.core.data.centered_grid import CenteredGrid
+    from gempy_engine.modules.geophysics.gravity_gradient import calculate_gravity_gradient
+
+    # Create a line of observation points
+    x_profile = np.linspace(0, 1000, 21)  # 21 points along x
+    y_center = 500
+    z_observation = 600
+
+    centers = np.column_stack([
+            x_profile,
+            np.full_like(x_profile, y_center),
+            np.full_like(x_profile, z_observation)
+    ])
+
+    # Voxel grid parameters
+    geophysics_grid = CenteredGrid(
+        centers=centers,
+        resolution=np.array([15, 15, 15]),
+        radius=np.array([200, 200, 200])
+    )
+
+    gravity_gradient = calculate_gravity_gradient(geophysics_grid, ugal=True)
+
+    # Create symmetric density anomaly centered at x=500
+    voxel_centers = geophysics_grid.values
+    n_voxels_per_device = len(voxel_centers) // len(centers)
+
+    gravity_response = []
+    density_contrast = 0.8  # g/cm³
+    anomaly_center = np.array([500, 500, 500])
+    anomaly_radius = 80
+
+    for i in range(len(centers)):
+        voxel_slice = slice(i * n_voxels_per_device, (i + 1) * n_voxels_per_device)
+        voxel_positions = voxel_centers[voxel_slice]
+
+        # Spherical anomaly
+        distances = np.linalg.norm(voxel_positions - anomaly_center, axis=1)
+        densities = (distances <= anomaly_radius).astype(float) * density_contrast
+
+        grav = np.sum(densities * gravity_gradient)
+        gravity_response.append(grav)
+
+    gravity_response = -np.array(gravity_response)
+
+    # Test symmetry
+    center_idx = len(gravity_response) // 2
+    left_half = gravity_response[:center_idx]
+    right_half = gravity_response[center_idx + 1:][::-1]  # reversed
+
+    print("\n=== Line Profile Symmetry Test ===")
+    print(f"Profile positions (x): {x_profile}")
+    print(f"Gravity response (gz): {gravity_response}")
+    print(f"Peak index: {np.argmax(gravity_response)} (expected: {center_idx})")
+    print(f"Peak value: {gravity_response[center_idx]:.6f}")
+    print(f"Edge values: {gravity_response[0]:.6f}, {gravity_response[-1]:.6f}")
+
+    # Check peak is near center
+    assert np.argmax(gravity_response) == center_idx, "Gravity peak should be at profile center"
+
+    # Check approximate symmetry (within 10% due to discretization)
+    min_len = min(len(left_half), len(right_half))
+    np.testing.assert_allclose(
+        left_half[:min_len],
+        right_half[:min_len],
+        rtol=0.1,
+        err_msg="Gravity profile should be approximately symmetric"
+    )
+
+    # Check gravity decays away from anomaly
+    assert gravity_response[0] < gravity_response[center_idx], "Gravity should be stronger near anomaly"
+    assert gravity_response[-1] < gravity_response[center_idx], "Gravity should be stronger near anomaly"
