@@ -25,10 +25,12 @@ class Solutions:
     block_solution_type: RawArraysSolution.BlockSolutionType 
 
     def __init__(self, octrees_output: List[OctreeLevel], dc_meshes: List[DualContouringMesh] = None, fw_gravity: np.ndarray = None,
+                 fw_magnetics: np.ndarray = None,
                  block_solution_type: RawArraysSolution.BlockSolutionType = RawArraysSolution.BlockSolutionType.OCTREE):
         self.octrees_output = octrees_output
         self.dc_meshes = dc_meshes
         self.gravity = fw_gravity
+        self.magnetics = fw_magnetics
         self.block_solution_type = block_solution_type
 
         self._set_scalar_field_at_surface_points_and_elements_order(octrees_output)
