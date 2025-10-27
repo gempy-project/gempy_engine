@@ -51,28 +51,22 @@ def calculate_magnetic_gradient_components(centered_grid: CenteredGrid) -> np.nd
         over rectangular prism voxels using the formulas from Blakely (1995).
         The sign convention follows Talwani (z-axis positive downwards).
     """
-    # Extract grid geometry
-    grid_values = np.asarray(centered_grid.kernel_centers)
-    dxyz_right = np.asarray(centered_grid.kernel_dxyz_right)
-    dxyz_left = np.asarray(centered_grid.kernel_dxyz_left)
+    
+    voxel_centers = centered_grid.kernel_grid_centers
+    center_x, center_y, center_z = voxel_centers[:, 0], voxel_centers[:, 1], voxel_centers[:, 2]
 
-    if grid_values.ndim != 2 or grid_values.shape[0] < 1:
-        raise ValueError("CenteredGrid.kernel_centers must have at least one voxel.")
+    # Calculate the coordinates of the voxel corners
+    left_edges = centered_grid.left_voxel_edges
+    right_edges = centered_grid.right_voxel_edges
 
-    # Get voxel center coordinates (observation point is at origin in kernel space)
-    s_gr_x = grid_values[:, 0]
-    s_gr_y = grid_values[:, 1]
-    s_gr_z = -1 * grid_values[:, 2]  # Talwani takes z-axis positive downwards
+    x_corners = np.stack((center_x - left_edges[:, 0], center_x + right_edges[:, 0]), axis=1)
+    y_corners = np.stack((center_y - left_edges[:, 1], center_y + right_edges[:, 1]), axis=1)
+    z_corners = np.stack((center_z - left_edges[:, 2], center_z + right_edges[:, 2]), axis=1)
 
-    # Getting the coordinates of the corners of the voxel
-    x_cor = np.stack((s_gr_x - dxyz_left[:, 0], s_gr_x + dxyz_right[:, 0]), axis=1)
-    y_cor = np.stack((s_gr_y - dxyz_left[:, 1], s_gr_y + dxyz_right[:, 1]), axis=1)
-    z_cor = np.stack((s_gr_z + dxyz_left[:, 2], s_gr_z - dxyz_right[:, 2]), axis=1)
-
-    # Prepare them for vectorial operations (8 corners per voxel)
-    x_matrix = np.repeat(x_cor, 4, axis=1)
-    y_matrix = np.tile(np.repeat(y_cor, 2, axis=1), (1, 2))
-    z_matrix = np.tile(z_cor, (1, 4))
+    # Prepare coordinates for vector operations
+    x_matrix = np.repeat(x_corners, 4, axis=1)
+    y_matrix = np.tile(np.repeat(y_corners, 2, axis=1), (1, 2))
+    z_matrix = np.tile(z_corners, (1, 4))
 
     # Distance to each corner
     R = np.sqrt(x_matrix ** 2 + y_matrix ** 2 + z_matrix ** 2)

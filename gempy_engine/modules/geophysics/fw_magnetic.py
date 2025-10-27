@@ -1,5 +1,6 @@
 import numpy as np
 
+from .magnetic_gradient import _direction_cosines
 from ...core.data.geophysics_input import GeophysicsInput
 from ...core.data.interp_output import InterpOutput
 from ...core.backend_tensor import BackendTensor

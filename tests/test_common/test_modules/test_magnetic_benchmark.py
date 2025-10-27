@@ -2,7 +2,31 @@ import numpy as np
 import pytest
 
 from gempy_engine.core.data.centered_grid import CenteredGrid
-from gempy_engine.modules.geophysics.magnetic_gradient import calculate_magnetic_gradient_tensor
+from gempy_engine.modules.geophysics.fw_magnetic import compute_magnetic_forward
+from gempy_engine.modules.geophysics.magnetic_gradient import calculate_magnetic_gradient_tensor, calculate_magnetic_gradient_components
+
+
+def test_same_answer():
+    # Setup
+    grid = CenteredGrid(centers=[[500, 500, 600]], resolution=[10, 10, 10], radius=[100, 100, 100])
+    igrf_params = {"inclination": 90.0, "declination": 0.0, "intensity": 50000.0}
+    susceptibilities_per_unit = np.array([0.0, 0.01, 0.0])  # Unit 2 has chi=0.01
+    ids_grid = np.ones(1331, dtype=int) * 2  # All voxels are unit 2
+
+    # Path 1: Pre-projected (fast)
+    result = calculate_magnetic_gradient_tensor(grid, igrf_params, compute_tmi=True)
+    tmi_kernel = result['tmi_kernel']
+    chi_mapped = susceptibilities_per_unit[ids_grid - 1]  # Map units to voxels
+    tmi_path1 = np.sum(chi_mapped * tmi_kernel)
+
+    # Path 2: Raw V components (flexible)
+    V = calculate_magnetic_gradient_components(grid)
+    chi_voxels = susceptibilities_per_unit[ids_grid - 1]  # Same mapping
+    tmi_path2 = compute_magnetic_forward(V, chi_voxels, igrf_params, n_devices=1)
+
+    print(f"Path 1 (pre-projected): {tmi_path1:.6f} nT")
+    print(f"Path 2 (raw V):         {tmi_path2[0]:.6f} nT")
+    print(f"Difference:             {abs(tmi_path1 - tmi_path2[0]):.10f} nT")
 
 
 @pytest.mark.parametrize("inclination,declination,intensity_nT", [
@@ -58,7 +82,7 @@ def test_magnetics_sphere_analytical_benchmark_induced_only(inclination, declina
 
     try:
         mag_kern_out = calculate_magnetic_gradient_tensor(
-            geophysics_grid, igrf_params, compute_tmi=True
+            geophysics_grid, igrf_params, compute_tmi=True, units_nT=False
         )
     except TypeError:
         # Some implementations may return the kernel directly rather than a dict; handle both
