@@ -3,56 +3,17 @@ import numpy as np
 from gempy_engine.core.data.centered_grid import CenteredGrid
 
 
-def _direction_cosines(inclination_deg: float, declination_deg: float) -> np.ndarray:
-    """Compute unit vector of Earth's field from inclination/declination.
-
-    Convention:
-    - Inclination I: positive downward from horizontal, in degrees [-90, 90]
-    - Declination D: clockwise from geographic north toward east, in degrees [-180, 180]
-
-    Returns unit vector l = [lx, ly, lz].
-    """
-    I = np.deg2rad(inclination_deg)
-    D = np.deg2rad(declination_deg)
-    cI = np.cos(I)
-    sI = np.sin(I)
-    cD = np.cos(D)
-    sD = np.sin(D)
-    # North (x), East (y), Down (z) convention
-    l = np.array([cI * cD, cI * sD, sI], dtype=float)
-    # Already unit length by construction, but normalize defensively
-    n = np.linalg.norm(l)
-    if n == 0:
-        return np.array([1.0, 0.0, 0.0], dtype=float)
-    return l / n
-
-
 def calculate_magnetic_gradient_tensor(
-    centered_grid: CenteredGrid,
-    igrf_params: dict,
-    compute_tmi: bool = True,
-    units_nT: bool = True,
+        centered_grid: CenteredGrid,
+        igrf_params: dict,
+        compute_tmi: bool = True,
+        units_nT: bool = True,
 ):
     """
     Compute magnetic kernels for voxelized forward modeling around each observation point.
 
-    This MVP implementation provides a pre-projected Total Magnetic Intensity (TMI) scalar kernel
-    per voxel using a point-dipole approximation for each voxel. It mirrors the gravity workflow by
-    returning a per-device kernel that can be reused across devices with identical grid geometry.
-
-    Physics (induced-only, per voxel v considered as a dipole at its center):
-        m = chi * V * F/μ0 * l
-        B(r) = μ0/(4π r^3) * [3 (m·r^) r^ - m]
-        ΔT = B · l = (F / (4π r^3)) * V * chi * [3 (l·r^)^2 - 1]
-
-    Therefore, the kernel per unit susceptibility (chi = 1) is:
-        k_TMI = (F / (4π)) * V * [3 (l·r^)^2 - 1] / r^3   [same unit as F]
-
-    Where:
-        - F is the IGRF total intensity (we accept nT directly if units_nT=True)
-        - l is the unit vector of field direction from inclination/declination
-        - r is distance from device center to voxel center
-        - V is voxel volume
+    This implementation uses analytical rectangular prism integration (Blakely 1995)
+    for accurate magnetic field computation from finite voxels.
 
     Args:
         centered_grid: Grid definition with observation centers, resolution, and radii.
@@ -65,50 +26,51 @@ def calculate_magnetic_gradient_tensor(
           - 'tmi_kernel': np.ndarray, shape (n_voxels_per_device,) when compute_tmi=True
           - 'field_direction': np.ndarray, shape (3,)
           - 'inclination', 'declination', 'intensity'
-
-    Notes:
-        - Kernel is computed for the first device and assumed identical for all devices
-          (same relative voxel layout), consistent with gravity implementation/usage.
-        - Numerical safeguards added to avoid r=0 singularities.
     """
     if not compute_tmi:
-        # Placeholder for future full tensor computation
         raise NotImplementedError("Full magnetic gradient tensor computation is not implemented yet.")
 
-    # Extract grid geometry
-    centers = np.asarray(centered_grid.centers)
-    values = np.asarray(centered_grid.values)
-    resolution = np.asarray(centered_grid.resolution, dtype=float)
-    radius = np.asarray(centered_grid.radius, dtype=float)
+    # Extract grid geometry - use kernel_centers, kernel_dxyz_right, kernel_dxyz_left
+    grid_values = np.asarray(centered_grid.kernel_centers)
+    dxyz_right = np.asarray(centered_grid.kernel_dxyz_right)
+    dxyz_left = np.asarray(centered_grid.kernel_dxyz_left)
 
-    if centers.ndim != 2 or centers.shape[0] < 1:
-        raise ValueError("CenteredGrid.centers must have at least one device center.")
+    if grid_values.ndim != 2 or grid_values.shape[0] < 1:
+        raise ValueError("CenteredGrid.kernel_centers must have at least one voxel.")
 
-    n_devices = centers.shape[0]
-    n_voxels_total = values.shape[0]
-    if n_devices <= 0 or n_voxels_total % n_devices != 0:
-        raise ValueError("Values array length must be divisible by number of device centers.")
-    n_vox_per_device = n_voxels_total // n_devices
+    # Get voxel center coordinates (observation point is at origin in kernel space)
+    s_gr_x = grid_values[:, 0]
+    s_gr_y = grid_values[:, 1]
+    s_gr_z = -1 * grid_values[:, 2]  # Talwani takes z-axis positive downwards
 
-    # Slice first device voxel positions and compute relative vectors
-    c0 = centers[0]
-    vc0 = values[:n_vox_per_device]
-    r_vec = vc0 - c0
-    r = np.linalg.norm(r_vec, axis=1)
+    # Getting the coordinates of the corners of the voxel
+    x_cor = np.stack((s_gr_x - dxyz_left[:, 0], s_gr_x + dxyz_right[:, 0]), axis=1)
+    y_cor = np.stack((s_gr_y - dxyz_left[:, 1], s_gr_y + dxyz_right[:, 1]), axis=1)
+    z_cor = np.stack((s_gr_z + dxyz_left[:, 2], s_gr_z - dxyz_right[:, 2]), axis=1)
 
-    # Numerical safe-guard: avoid division by zero at device center
+    # Prepare them for vectorial operations
+    x_matrix = np.repeat(x_cor, 4, axis=1)
+    y_matrix = np.tile(np.repeat(y_cor, 2, axis=1), (1, 2))
+    z_matrix = np.tile(z_cor, (1, 4))
+
+    # Distance to each corner
+    R = np.sqrt(x_matrix ** 2 + y_matrix ** 2 + z_matrix ** 2)
+
+    # Add small epsilon to avoid log(0) and division by zero
     eps = 1e-12
-    r_safe = np.maximum(r, eps)
-    r_hat = r_vec / r_safe[:, None]
+    R = np.maximum(R, eps)
 
-    # Voxel volume (grid symmetric around device): V = (2*rx/nx)*(2*ry/ny)*(2*rz/nz)
-    # radius can be scalar or 3-array; ensure 3-array
-    if radius.size == 1:
-        rx = ry = rz = float(radius)
-    else:
-        rx, ry, rz = radius.astype(float)
-    nx, ny, nz = resolution.astype(float)
-    V = (2.0 * rx / nx) * (2.0 * ry / ny) * (2.0 * rz / nz)
+    # Gives the sign of each corner (depends on coordinate system)
+    s = np.array([-1, 1, 1, -1, 1, -1, -1, 1])
+
+    # Variables V1-6 represent integrals of volume for each voxel
+    # These are the 6 independent components of the magnetic gradient tensor
+    V1 = np.sum(-1 * s * np.arctan2((y_matrix * z_matrix), (x_matrix * R + eps)), axis=1)
+    V2 = np.sum(s * np.log(R + z_matrix + eps), axis=1)
+    V3 = np.sum(s * np.log(R + y_matrix + eps), axis=1)
+    V4 = np.sum(-1 * s * np.arctan2((x_matrix * z_matrix), (y_matrix * R + eps)), axis=1)
+    V5 = np.sum(s * np.log(R + x_matrix + eps), axis=1)
+    V6 = np.sum(-1 * s * np.arctan2((x_matrix * y_matrix), (z_matrix * R + eps)), axis=1)
 
     # IGRF direction and intensity
     I = float(igrf_params.get("inclination", 0.0))
@@ -117,22 +79,50 @@ def calculate_magnetic_gradient_tensor(
 
     l = _direction_cosines(I, D)
 
-    # Cosine between l and r_hat
-    cos_lr = np.clip(r_hat @ l, -1.0, 1.0)
+    # Now combine V1-V6 with field direction to compute TMI kernel
+    # The magnetic field components at the observation point due to a voxel with 
+    # unit magnetization M = [Mx, My, Mz] are:
+    #   Bx = Mx*V1 + My*V2 + Mz*V3
+    #   By = Mx*V2 + My*V4 + Mz*V5  
+    #   Bz = Mx*V3 + My*V5 + Mz*V6
+    #
+    # For induced magnetization: M = chi * B0 / mu0, where B0 = F * l
+    # So M_x = chi * F * l_x / mu0, etc.
+    #
+    # TMI anomaly = (Bx*l_x + By*l_y + Bz*l_z)
+    #
+    # Substituting and simplifying (chi cancels for kernel):
+    # TMI_kernel = (F/mu0) * [l_x*(l_x*V1 + l_y*V2 + l_z*V3) + 
+    #                         l_y*(l_x*V2 + l_y*V4 + l_z*V5) +
+    #                         l_z*(l_x*V3 + l_y*V5 + l_z*V6)]
+    #            = (F/mu0) * [l_x^2*V1 + l_y^2*V4 + l_z^2*V6 + 
+    #                         2*l_x*l_y*V2 + 2*l_x*l_z*V3 + 2*l_y*l_z*V5]
 
-    # Point-dipole TMI kernel per unit susceptibility chi=1
-    # k = V * F / (4π) * (3*cos^2 - 1) / r^3
-    factor = (3.0 * cos_lr * cos_lr - 1.0) / (r_safe ** 3)
-    kernel = (V * F / (4.0 * np.pi)) * factor
+    tmi_kernel = (
+            l[0] * l[0] * V1 +  # l_x^2 * T_xx
+            l[1] * l[1] * V4 +  # l_y^2 * T_yy
+            l[2] * l[2] * V6 +  # l_z^2 * T_zz
+            2 * l[0] * l[1] * V2 +  # 2 * l_x * l_y * T_xy
+            2 * l[0] * l[2] * V3 +  # 2 * l_x * l_z * T_xz
+            2 * l[1] * l[2] * V5  # 2 * l_y * l_z * T_yz
+    )
 
-    if not units_nT:
-        # Convert nT to Tesla if requested
-        kernel = kernel * 1e-9
+    # Apply physical constants and field intensity
+    # mu_0 / (4*pi) = 1e-7 in SI units
+    CM = 1e-7  # Tesla * m / Ampere (this is mu_0/(4*pi))
+
+    # Scale by field intensity
+    tmi_kernel = tmi_kernel * F * CM
+
+    if units_nT:
+        # Convert to nT
+        tmi_kernel = tmi_kernel * 1e9
+    # else: already in Tesla
 
     return {
-        "tmi_kernel": kernel.astype(float),
-        "field_direction": l,
-        "inclination": I,
-        "declination": D,
-        "intensity": F,
+            "tmi_kernel"     : tmi_kernel.astype(float),
+            "field_direction": l,
+            "inclination"    : I,
+            "declination"    : D,
+            "intensity"      : F,
     }
