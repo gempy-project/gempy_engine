@@ -455,14 +455,25 @@ def test_kernel_symmetry():
     result = calculate_magnetic_gradient_tensor(grid, igrf_params, compute_tmi=True)
     tmi_kernel = result['tmi_kernel']
 
-    # Reshape kernel to 3D grid
-    nx, ny, nz = 20, 20, 20
-    kernel_3d = tmi_kernel.reshape((nz, ny, nx))
+    # Calculate actual grid dimensions based on resolution
+    # For resolution [rx, ry, rz]: actual points are [rx+1, ry+1, rz+1]
+    nx = 2 * (20 // 2) + 1  # 21
+    ny = 2 * (20 // 2) + 1  # 21
+    nz = 20 + 1             # 21
+    
+    # Verify expected shape
+    expected_voxels = nx * ny * nz
+    assert tmi_kernel.shape[0] == expected_voxels, \
+        f"Expected {expected_voxels} voxels, got {tmi_kernel.shape[0]}"
+
+    # Reshape kernel to 3D grid (z, y, x ordering for numpy convention)
+    kernel_3d = tmi_kernel.reshape((nx, ny, nz))
+    kernel_3d[:,:,0]
 
     # For vertical field, kernel should be symmetric about vertical axis
     # Check horizontal slices are approximately radially symmetric
     mid_z = nz // 2
-    slice_mid = kernel_3d[mid_z, :, :]
+    slice_mid = kernel_3d[:, :, mid_z]
 
     # Check that corners are approximately equal (radial symmetry)
     corners = [
