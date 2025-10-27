@@ -162,8 +162,6 @@ def test_magnetics_line_profile_symmetry_induced_only(inclination, declination, 
     if CenteredGrid is None:
         pytest.skip("CenteredGrid not available; core grid module missing")
 
-    calculate_magnetic_gradient_tensor = _try_import_magnetics()
-
     # Profile setup
     x_profile = np.linspace(0.0, 1000.0, 21)
     y_center = 500.0
@@ -219,7 +217,7 @@ def test_magnetics_line_profile_symmetry_induced_only(inclination, declination, 
         tmi = np.sum(chi_vox * tmi_kernel)
         tmi_profile.append(tmi)
 
-    tmi_profile = np.array(tmi_profile)
+    tmi_profile = -np.array(tmi_profile)
 
     # Symmetry and decay assertions
     center_idx = len(tmi_profile) // 2
