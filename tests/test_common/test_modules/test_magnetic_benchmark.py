@@ -3,13 +3,69 @@ import pytest
 
 from gempy_engine.core.data.centered_grid import CenteredGrid
 from gempy_engine.modules.geophysics.fw_magnetic import compute_magnetic_forward
-from gempy_engine.modules.geophysics.magnetic_gradient import calculate_magnetic_gradient_tensor, calculate_magnetic_gradient_components
+from gempy_engine.modules.geophysics.magnetic_gradient import (
+    calculate_magnetic_gradient_tensor,
+    calculate_magnetic_gradient_components,
+    _direction_cosines
+)
 
 
-def test_same_answer():
+# =============================================================================
+# Unit Tests for Helper Functions
+# =============================================================================
+
+@pytest.mark.parametrize("inclination,declination,expected_lx,expected_ly,expected_lz", [
+    (0.0, 0.0, 1.0, 0.0, 0.0),      # Horizontal north
+    (90.0, 0.0, 0.0, 0.0, 1.0),     # Vertical down (north pole)
+    (-90.0, 0.0, 0.0, 0.0, -1.0),   # Vertical up (south pole)
+    (0.0, 90.0, 0.0, 1.0, 0.0),     # Horizontal east
+    (45.0, 0.0, 0.707107, 0.0, 0.707107),  # 45° down to north
+    (45.0, 45.0, 0.5, 0.5, 0.707107),      # 45° down, 45° east
+])
+def test_direction_cosines(inclination, declination, expected_lx, expected_ly, expected_lz):
+    """Test direction cosines computation for various field geometries."""
+    l = _direction_cosines(inclination, declination)
+
+    # Check components match expectations
+    np.testing.assert_allclose(l[0], expected_lx, atol=1e-5, 
+                               err_msg=f"l_x mismatch for I={inclination}, D={declination}")
+    np.testing.assert_allclose(l[1], expected_ly, atol=1e-5,
+                               err_msg=f"l_y mismatch for I={inclination}, D={declination}")
+    np.testing.assert_allclose(l[2], expected_lz, atol=1e-5,
+                               err_msg=f"l_z mismatch for I={inclination}, D={declination}")
+
+    # Check unit length
+    norm = np.linalg.norm(l)
+    np.testing.assert_allclose(norm, 1.0, atol=1e-10,
+                               err_msg="Direction cosines should be unit length")
+
+
+def test_direction_cosines_wraparound():
+    """Test that declination wraps around correctly."""
+    l1 = _direction_cosines(45.0, 0.0)
+    l2 = _direction_cosines(45.0, 360.0)
+    l3 = _direction_cosines(45.0, -360.0)
+
+    np.testing.assert_allclose(l1, l2, atol=1e-10)
+    np.testing.assert_allclose(l1, l3, atol=1e-10)
+
+
+# =============================================================================
+# Equivalence Tests Between Computation Paths
+# =============================================================================
+
+@pytest.mark.parametrize("inclination,declination,intensity", [
+    (90.0, 0.0, 50000.0),    # Vertical field (pole)
+    (0.0, 0.0, 45000.0),     # Horizontal field (equator)
+    (60.0, 10.0, 48000.0),   # Mid-latitude field
+    (45.0, 45.0, 50000.0),   # Oblique field
+    (-30.0, -15.0, 35000.0), # Southern hemisphere
+])
+def test_path_equivalence(inclination, declination, intensity):
+    """Test that pre-projected and raw V computation paths give identical results."""
     # Setup
     grid = CenteredGrid(centers=[[500, 500, 600]], resolution=[10, 10, 10], radius=[100, 100, 100])
-    igrf_params = {"inclination": 90.0, "declination": 0.0, "intensity": 50000.0}
+    igrf_params = {"inclination": inclination, "declination": declination, "intensity": intensity}
     susceptibilities_per_unit = np.array([0.0, 0.01, 0.0])  # Unit 2 has chi=0.01
     ids_grid = np.ones(1331, dtype=int) * 2  # All voxels are unit 2
 
@@ -24,16 +80,27 @@ def test_same_answer():
     chi_voxels = susceptibilities_per_unit[ids_grid - 1]  # Same mapping
     tmi_path2 = compute_magnetic_forward(V, chi_voxels, igrf_params, n_devices=1)
 
-    print(f"Path 1 (pre-projected): {tmi_path1:.6f} nT")
-    print(f"Path 2 (raw V):         {tmi_path2[0]:.6f} nT")
-    print(f"Difference:             {abs(tmi_path1 - tmi_path2[0]):.10f} nT")
+    # Should match to floating point precision
+    np.testing.assert_allclose(
+        tmi_path1, 
+        tmi_path2[0], 
+        rtol=1e-10,
+        err_msg=f"Paths differ for I={inclination}, D={declination}, F={intensity}"
+    )
 
 
-@pytest.mark.parametrize("inclination,declination,intensity_nT", [
-    # Use vertical field to simplify analytical comparison along vertical axis
-    (90.0, 0.0, 50000.0),  # IGRF-like strength, vertical down
+@pytest.mark.parametrize("inclination,declination,intensity_nT,rtol", [
+    # Vertical field - best case for analytical comparison
+    (90.0, 0.0, 50000.0, 0.20),   # North pole, 20% tolerance
+    (-90.0, 0.0, 50000.0, 0.20),  # South pole, 20% tolerance
+    # Horizontal fields - harder due to asymmetry
+    (0.0, 0.0, 45000.0, 0.35),    # Equator pointing north, 35% tolerance
+    (0.0, 90.0, 45000.0, 0.35),   # Equator pointing east, 35% tolerance
+    # Mid-latitude cases
+    (60.0, 0.0, 48000.0, 0.25),   # Typical northern hemisphere, 25% tolerance
+    (45.0, 45.0, 50000.0, 0.30),  # Oblique field, 30% tolerance
 ])
-def test_magnetics_sphere_analytical_benchmark_induced_only(inclination, declination, intensity_nT):
+def test_magnetics_sphere_analytical_benchmark_induced_only(inclination, declination, intensity_nT, rtol):
     """
     Benchmark comparing induced-only TMI against analytical solution for a uniformly
     susceptible sphere in a vertical inducing field.
@@ -136,13 +203,14 @@ def test_magnetics_sphere_analytical_benchmark_induced_only(inclination, declina
             f"Relative error (%): {np.abs((numerical_tmi - analytical_tmi) / analytical_tmi) * 100}"
         )
 
-    # Allow 20% tolerance initially; adjust tighter once implementation stabilizes
+    # Tolerance varies by field geometry (vertical fields are most accurate)
     np.testing.assert_allclose(
         numerical_tmi,
         analytical_tmi,
-        rtol=0.2,
+        rtol=rtol,
         err_msg=(
-            "Magnetic TMI calculation deviates significantly from analytical sphere solution"
+            f"Magnetic TMI calculation deviates significantly from analytical sphere solution "
+            f"for I={inclination}°, D={declination}°"
         ),
     )
 
@@ -242,3 +310,215 @@ def test_magnetics_line_profile_symmetry_induced_only(inclination, declination, 
 
     assert tmi_profile[0] < tmi_profile[center_idx]
     assert tmi_profile[-1] < tmi_profile[center_idx]
+
+
+# =============================================================================
+# Multiple Device Tests
+# =============================================================================
+
+@pytest.mark.parametrize("n_devices", [1, 2, 5, 10])
+def test_multiple_devices(n_devices):
+    """Test that magnetic forward modeling works correctly with multiple observation points."""
+    # Create a grid of observation points
+    x_coords = np.linspace(400, 600, n_devices)
+    centers = np.column_stack([
+        x_coords,
+        np.full(n_devices, 500.0),
+        np.full(n_devices, 600.0),
+    ])
+
+    grid = CenteredGrid(
+        centers=centers,
+        resolution=np.array([10, 10, 10]),
+        radius=np.array([100.0, 100.0, 100.0]),
+    )
+
+    igrf_params = {"inclination": 60.0, "declination": 0.0, "intensity": 48000.0}
+
+    # Compute V components once
+    V = calculate_magnetic_gradient_components(grid)
+
+    # Create susceptibility distribution (uniform for simplicity)
+    n_voxels = V.shape[1]
+    chi_per_voxel = np.full(n_voxels * n_devices, 0.001)
+
+    # Compute TMI for all devices
+    tmi = compute_magnetic_forward(V, chi_per_voxel, igrf_params, n_devices=n_devices)
+
+    # Check output shape
+    assert tmi.shape == (n_devices,), f"Expected shape ({n_devices},), got {tmi.shape}"
+
+    # All devices should have the same response (uniform susceptibility)
+    np.testing.assert_allclose(tmi, tmi[0], rtol=1e-10,
+                               err_msg="Uniform susceptibility should give uniform response")
+
+
+# =============================================================================
+# Edge Case Tests
+# =============================================================================
+
+def test_zero_susceptibility():
+    """Test that zero susceptibility produces zero anomaly."""
+    grid = CenteredGrid(centers=[[500, 500, 600]], resolution=[10, 10, 10], radius=[100, 100, 100])
+    igrf_params = {"inclination": 45.0, "declination": 10.0, "intensity": 50000.0}
+
+    V = calculate_magnetic_gradient_components(grid)
+    chi = np.zeros(V.shape[1])
+
+    tmi = compute_magnetic_forward(V, chi, igrf_params, n_devices=1)
+
+    np.testing.assert_allclose(tmi, 0.0, atol=1e-10,
+                               err_msg="Zero susceptibility should produce zero anomaly")
+
+
+def test_negative_susceptibility():
+    """Test that negative susceptibility produces negative (diamagnetic) anomaly."""
+    grid = CenteredGrid(centers=[[500, 500, 600]], resolution=[10, 10, 10], radius=[100, 100, 100])
+    igrf_params = {"inclination": 90.0, "declination": 0.0, "intensity": 50000.0}
+
+    V = calculate_magnetic_gradient_components(grid)
+
+    # Positive susceptibility
+    chi_pos = np.full(V.shape[1], 0.01)
+    tmi_pos = compute_magnetic_forward(V, chi_pos, igrf_params, n_devices=1)
+
+    # Negative susceptibility (diamagnetic)
+    chi_neg = np.full(V.shape[1], -0.01)
+    tmi_neg = compute_magnetic_forward(V, chi_neg, igrf_params, n_devices=1)
+
+    # Should be opposite sign
+    np.testing.assert_allclose(tmi_pos, -tmi_neg, rtol=1e-10,
+                               err_msg="Negative susceptibility should produce opposite anomaly")
+
+
+@pytest.mark.parametrize("distance_multiplier", [2.0, 5.0, 10.0])
+def test_kernel_decay_with_distance(distance_multiplier):
+    """Test that magnetic anomaly decays with distance from source."""
+    # Source at origin
+    source_center = np.array([500.0, 500.0, 500.0])
+
+    # Observation at increasing distances
+    obs_z_near = 600.0
+    obs_z_far = source_center[2] + (obs_z_near - source_center[2]) * distance_multiplier
+
+    centers = np.array([
+        [source_center[0], source_center[1], obs_z_near],
+        [source_center[0], source_center[1], obs_z_far],
+    ])
+
+    grid = CenteredGrid(
+        centers=centers,
+        resolution=np.array([20, 20, 20]),
+        radius=np.array([150.0, 150.0, 150.0]),
+    )
+
+    igrf_params = {"inclination": 90.0, "declination": 0.0, "intensity": 50000.0}
+
+    # Compute kernel
+    result = calculate_magnetic_gradient_tensor(grid, igrf_params, compute_tmi=True)
+    tmi_kernel = result['tmi_kernel']
+
+    # Uniform susceptibility
+    n_voxels_per_device = tmi_kernel.shape[0]
+    chi = np.full(n_voxels_per_device * 2, 0.01)
+
+    # Compute TMI at both distances
+    tmi_near = np.sum(chi[:n_voxels_per_device] * tmi_kernel)
+    tmi_far = np.sum(chi[n_voxels_per_device:] * tmi_kernel)
+
+    # Far anomaly should be smaller (by approximately distance^3 for dipole)
+    assert abs(tmi_far) < abs(tmi_near), "Anomaly should decay with distance"
+
+    # Check approximate 1/r³ decay (allow large tolerance due to voxelization)
+    expected_ratio = distance_multiplier ** 3
+    actual_ratio = abs(tmi_near / tmi_far)
+    np.testing.assert_allclose(actual_ratio, expected_ratio, rtol=0.5,
+                               err_msg=f"Decay should be approximately 1/r³")
+
+
+# =============================================================================
+# Kernel Property Tests
+# =============================================================================
+
+def test_kernel_symmetry():
+    """Test that kernel has expected symmetry properties for vertical field."""
+    # Centered observation point with symmetric grid
+    grid = CenteredGrid(
+        centers=[[500, 500, 600]],
+        resolution=np.array([20, 20, 20]),
+        radius=np.array([100.0, 100.0, 100.0]),
+    )
+
+    # Vertical field
+    igrf_params = {"inclination": 90.0, "declination": 0.0, "intensity": 50000.0}
+
+    result = calculate_magnetic_gradient_tensor(grid, igrf_params, compute_tmi=True)
+    tmi_kernel = result['tmi_kernel']
+
+    # Reshape kernel to 3D grid
+    nx, ny, nz = 20, 20, 20
+    kernel_3d = tmi_kernel.reshape((nz, ny, nx))
+
+    # For vertical field, kernel should be symmetric about vertical axis
+    # Check horizontal slices are approximately radially symmetric
+    mid_z = nz // 2
+    slice_mid = kernel_3d[mid_z, :, :]
+
+    # Check that corners are approximately equal (radial symmetry)
+    corners = [
+        slice_mid[0, 0], slice_mid[0, -1], 
+        slice_mid[-1, 0], slice_mid[-1, -1]
+    ]
+
+    # All corners should be similar for radial symmetry
+    np.testing.assert_allclose(corners, corners[0], rtol=0.1,
+                               err_msg="Kernel should show radial symmetry for vertical field")
+
+
+def test_v_components_reusability():
+    """Test that V components can be reused with different IGRF parameters."""
+    grid = CenteredGrid(centers=[[500, 500, 600]], resolution=[10, 10, 10], radius=[100, 100, 100])
+
+    # Compute V once
+    V = calculate_magnetic_gradient_components(grid)
+
+    # Different IGRF scenarios
+    igrf_scenarios = [
+        {"inclination": 90.0, "declination": 0.0, "intensity": 50000.0},
+        {"inclination": 0.0, "declination": 0.0, "intensity": 45000.0},
+        {"inclination": 60.0, "declination": 30.0, "intensity": 48000.0},
+    ]
+
+    chi = np.full(V.shape[1], 0.01)
+
+    results = []
+    for igrf in igrf_scenarios:
+        tmi = compute_magnetic_forward(V, chi, igrf, n_devices=1)
+        results.append(tmi[0])
+
+    # Results should be different for different IGRF parameters
+    assert not np.allclose(results[0], results[1]), "Different IGRF should give different results"
+    assert not np.allclose(results[0], results[2]), "Different IGRF should give different results"
+    assert not np.allclose(results[1], results[2]), "Different IGRF should give different results"
+
+
+@pytest.mark.parametrize("resolution", [(5, 5, 5), (10, 10, 10), (15, 15, 15)])
+def test_different_resolutions(resolution):
+    """Test that computation works with different voxel resolutions."""
+    grid = CenteredGrid(
+        centers=[[500, 500, 600]],
+        resolution=np.array(resolution),
+        radius=np.array([100.0, 100.0, 100.0]),
+    )
+
+    igrf_params = {"inclination": 60.0, "declination": 10.0, "intensity": 48000.0}
+
+    # Should not raise any errors
+    result = calculate_magnetic_gradient_tensor(grid, igrf_params, compute_tmi=True)
+    tmi_kernel = result['tmi_kernel']
+
+    # Check expected number of voxels
+    expected_voxels = grid.get_total_number_of_voxels()
+
+    assert tmi_kernel.shape[0] == expected_voxels, \
+        f"Expected {expected_voxels} voxels, got {tmi_kernel.shape[0]}"
