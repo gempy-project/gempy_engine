@@ -7,6 +7,7 @@ from ...config import NOT_MAKE_INPUT_DEEP_COPY, AvailableBackends
 from ...core.data.interp_output import InterpOutput
 from ...core.data.geophysics_input import GeophysicsInput
 from ...modules.geophysics.fw_gravity import compute_gravity
+from ...modules.geophysics.fw_magnetic import compute_tmi
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ..dual_contouring.multi_scalar_dual_contouring import dual_contouring_multi_scalar
 from ..interp_single.interp_features import interpolate_n_octree_levels
@@ -46,12 +47,31 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
 
         if geophysics_input is not None:
             first_level_last_field: InterpOutput = output[0].outputs_centers[-1]
-            gravity = compute_gravity(
-                geophysics_input=geophysics_input,
-                root_ouput=first_level_last_field
-            )
+
+            # Gravity (optional)
+            if getattr(geophysics_input, 'tz', None) is not None and getattr(geophysics_input, 'densities', None) is not None:
+                gravity = compute_gravity(
+                    geophysics_input=geophysics_input,
+                    root_ouput=first_level_last_field
+                )
+            else:
+                gravity = None
+
+            # Magnetics (optional)
+            try:
+                if getattr(geophysics_input, 'mag_kernel', None) is not None and getattr(geophysics_input, 'susceptibilities', None) is not None:
+                    magnetics = compute_tmi(
+                        geophysics_input=geophysics_input,
+                        root_ouput=first_level_last_field
+                    )
+                else:
+                    magnetics = None
+            except Exception:
+                # Keep gravity working even if magnetics paths are incomplete
+                magnetics = None
         else:
             gravity = None
+            magnetics = None
 
         # endregion
 
@@ -71,6 +91,7 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
             octrees_output=output,
             dc_meshes=meshes,
             fw_gravity=gravity,
+            fw_magnetics=magnetics,
             block_solution_type=options.block_solutions_type
         )
 

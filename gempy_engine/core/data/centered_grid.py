@@ -91,3 +91,49 @@ class CenteredGrid:
         flattened_right_voxel_edges = np.vstack(tuple(map(np.ravel, right_voxel_edges))).T.astype("float64")
 
         return flattened_grid_centers, flattened_left_voxel_edges, flattened_right_voxel_edges
+
+    def get_number_of_voxels_per_device(self) -> int:
+        """
+        Calculate the number of voxels in the kernel grid for a single device.
+
+        Returns:
+            int: Number of voxels per observation device
+
+        Notes:
+            - X and Y axes use symmetric grids: (resolution + 1) points each
+            - Z axis uses asymmetric grid (downward only): (resolution + 1) points
+            - Total voxels = (rx + 1) × (ry + 1) × (rz + 1)
+
+        Example:
+            >>> grid = CenteredGrid(centers=[[500, 500, 600]], 
+            ...                      resolution=[10, 10, 10], 
+            ...                      radius=[100, 100, 100])
+            >>> grid.get_number_of_voxels_per_device()
+            1331  # = 11 × 11 × 11
+        """
+        resolution = np.atleast_1d(self.resolution)
+
+        # Calculate points per axis following the create_irregular_grid_kernel logic
+        n_x = int(resolution[0] // 2) * 2 + 1  # Symmetric: 2 * (res//2) + 1
+        n_y = int(resolution[1] // 2) * 2 + 1  # Symmetric: 2 * (res//2) + 1
+        n_z = int(resolution[2] // 1) + 1  # Asymmetric: res + 1
+
+        return n_x * n_y * n_z
+
+    def get_total_number_of_voxels(self) -> int:
+        """
+        Calculate the total number of voxels across all observation devices.
+
+        Returns:
+            int: Total number of voxels (n_devices × voxels_per_device)
+
+        Example:
+            >>> grid = CenteredGrid(centers=[[500, 500, 600], [600, 500, 600]], 
+            ...                      resolution=[10, 10, 10], 
+            ...                      radius=[100, 100, 100])
+            >>> grid.get_total_number_of_voxels()
+            2662  # = 2 devices × 1331 voxels
+        """
+        n_devices = self.centers.shape[0]
+        voxels_per_device = self.get_number_of_voxels_per_device()
+        return n_devices * voxels_per_device
