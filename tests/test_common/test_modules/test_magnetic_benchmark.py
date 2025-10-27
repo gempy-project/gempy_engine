@@ -1,33 +1,8 @@
 import numpy as np
 import pytest
 
-# These benchmarks mirror the gravity benchmarks but for magnetics (TMI).
-# They are designed to validate the forthcoming magnetics implementation planned in
-# gempy_engine/modules/geophysics/magnetics_implementation.md.
-#
-# IMPORTANT: If magnetics modules are not yet implemented, these tests will be skipped
-# gracefully with a clear message. Once the implementation is available, they will
-# automatically run and validate results.
-
-try:
-    from gempy_engine.core.data.centered_grid import CenteredGrid
-except Exception as e:
-    CenteredGrid = None  # Will cause skip in tests
-
-
-def _try_import_magnetics():
-    """Utility to import planned magnetics API or skip tests if unavailable."""
-    try:
-        from gempy_engine.modules.geophysics.magnetic_gradient import (
-            calculate_magnetic_gradient_tensor,
-        )
-    except Exception:
-        pytest.skip(
-            "Magnetics module not yet implemented: calculate_magnetic_gradient_tensor not found",
-            allow_module_level=False,
-        )
-        return None
-    return calculate_magnetic_gradient_tensor
+from gempy_engine.core.data.centered_grid import CenteredGrid
+from gempy_engine.modules.geophysics.magnetic_gradient import calculate_magnetic_gradient_tensor
 
 
 @pytest.mark.parametrize("inclination,declination,intensity_nT", [
@@ -51,10 +26,6 @@ def test_magnetics_sphere_analytical_benchmark_induced_only(inclination, declina
 
     We accept ~15–20% error due to voxelization discretization.
     """
-    if CenteredGrid is None:
-        pytest.skip("CenteredGrid not available; core grid module missing")
-
-    calculate_magnetic_gradient_tensor = _try_import_magnetics()
 
     # Sphere parameters
     R = 100.0  # meters
