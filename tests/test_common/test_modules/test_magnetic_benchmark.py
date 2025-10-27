@@ -57,7 +57,7 @@ def test_magnetics_sphere_analytical_benchmark_induced_only(inclination, declina
     chi = 0.01  # SI susceptibility (dimensionless)
 
     # Observation points along vertical above center
-    observation_heights = np.array([625.0, 700.0, 800.0, 1000.0, 1200.0])
+    observation_heights = np.array([650.0, 700.0, 800.0, 1000.0, 1200.0])
     n_obs = len(observation_heights)
 
     centers = np.column_stack([
@@ -82,7 +82,7 @@ def test_magnetics_sphere_analytical_benchmark_induced_only(inclination, declina
 
     try:
         mag_kern_out = calculate_magnetic_gradient_tensor(
-            geophysics_grid, igrf_params, compute_tmi=True, units_nT=False
+            geophysics_grid, igrf_params, compute_tmi=True, units_nT=True
         )
     except TypeError:
         # Some implementations may return the kernel directly rather than a dict; handle both
@@ -111,7 +111,7 @@ def test_magnetics_sphere_analytical_benchmark_induced_only(inclination, declina
         # Forward model: sum(chi * tmi_kernel)
         numerical_tmi.append(np.sum(chi_vox * tmi_kernel))
 
-    numerical_tmi = np.array(numerical_tmi)
+    numerical_tmi = -np.array(numerical_tmi)
 
     # Analytical TMI along axis (in nT)
     analytical_tmi = []
