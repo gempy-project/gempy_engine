@@ -61,8 +61,8 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
             try:
                 if getattr(geophysics_input, 'mag_kernel', None) is not None and getattr(geophysics_input, 'susceptibilities', None) is not None:
                     magnetics = compute_tmi(
-                        geophysics_input=geophysics_input,
-                        root_ouput=first_level_last_field
+                        geophysics_input=geophysics_input.magnetics_input,
+                        root_output=first_level_last_field
                     )
                 else:
                     magnetics = None

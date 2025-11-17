@@ -7,15 +7,47 @@ from .encoders.converters import numpy_array_short_validator
 
 
 @dataclass
-class GeophysicsInput:
-    # Gravity inputs (optional to allow magnetics-only workflows)
-    tz: Optional[Annotated[np.ndarray, numpy_array_short_validator]] = None
-    densities: Optional[Annotated[np.ndarray, numpy_array_short_validator]] = None
+class GravityInput:
+    tz: Annotated[np.ndarray, numpy_array_short_validator]
+    densities: Annotated[np.ndarray, numpy_array_short_validator]
 
-    # Magnetics inputs (optional for Phase 1)
-    # Pre-projected TMI kernel per voxel (per device geometry), shape: (n_voxels_per_device,)
-    mag_kernel: Optional[np.ndarray] = None
-    # Susceptibilities per geologic unit (dimensionless SI), shape: (n_units,)
-    susceptibilities: Optional[np.ndarray] = None
-    # IGRF parameters metadata used to build kernel (inclination, declination, intensity (nT))
-    igrf_params: Optional[dict] = None
+
+@dataclass
+class MagneticsInput:
+    mag_kernel: np.ndarray
+    susceptibilities: np.ndarray
+    igrf_params: dict
+
+
+@dataclass
+class GeophysicsInput:
+    gravity_input: Optional[GravityInput] = None
+    magnetics_input: Optional[MagneticsInput] = None
+
+    @property
+    def tz(self) -> Optional[Annotated[np.ndarray, numpy_array_short_validator]]:
+        if self.gravity_input is not None:
+            return self.gravity_input.tz
+        return None
+
+    @tz.setter
+    def tz(self, value: Optional[Annotated[np.ndarray, numpy_array_short_validator]]):
+        if value is not None:
+            if self.gravity_input is None:
+                self.gravity_input = GravityInput(tz=value, densities=None)
+            else:
+                self.gravity_input.tz = value
+
+    @property
+    def densities(self) -> Optional[Annotated[np.ndarray, numpy_array_short_validator]]:
+        if self.gravity_input is not None:
+            return self.gravity_input.densities
+        return None
+
+    @densities.setter
+    def densities(self, value: Optional[Annotated[np.ndarray, numpy_array_short_validator]]):
+        if value is not None:
+            if self.gravity_input is None:
+                self.gravity_input = GravityInput(tz=None, densities=value)
+            else:
+                self.gravity_input.densities = value

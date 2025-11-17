@@ -1,7 +1,7 @@
 import numpy as np
 
 from .magnetic_gradient import _direction_cosines
-from ...core.data.geophysics_input import GeophysicsInput
+from ...core.data.geophysics_input import GeophysicsInput, MagneticsInput
 from ...core.data.interp_output import InterpOutput
 from ...core.backend_tensor import BackendTensor
 
@@ -14,7 +14,7 @@ def map_susceptibilities_to_ids_basic(ids_geophysics_grid, susceptibilities):
     return susceptibilities[ids_geophysics_grid - 1]
 
 
-def compute_tmi(geophysics_input: GeophysicsInput, root_output: InterpOutput) -> BackendTensor.t:
+def compute_tmi(geophysics_input: MagneticsInput, root_output: InterpOutput) -> BackendTensor.t:
     """
     Compute induced-only Total Magnetic Intensity (TMI) anomalies (nT) by combining
     precomputed per-voxel TMI kernel with voxel susceptibilities.
