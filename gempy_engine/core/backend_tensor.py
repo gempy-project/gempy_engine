@@ -199,9 +199,9 @@ class BackendTensor:
             match type(tensors[0]):
                 case _ if any(isinstance(t, numpy.ndarray) for t in tensors):
                     return numpy.concatenate(tensors, axis=axis)
-                case torch.Tensor:
+                case _ if isinstance(tensors[0], torch.Tensor):
                     return torch.cat(tensors, dim=axis)
-            raise TypeError("Unsupported tensor type")
+            raise TypeError(f"Unsupported tensor type:  {type(tensors[0])}")
 
         def _transpose(tensor, axes=None):
             return tensor.transpose(axes[0], axes[1])

@@ -3,30 +3,6 @@ import numpy as np
 from gempy_engine.core.data.centered_grid import CenteredGrid
 
 
-def _direction_cosines(inclination_deg: float, declination_deg: float) -> np.ndarray:
-    """Compute unit vector of Earth's field from inclination/declination.
-
-    Convention:
-    - Inclination I: positive downward from horizontal, in degrees [-90, 90]
-    - Declination D: clockwise from geographic north toward east, in degrees [-180, 180]
-
-    Returns unit vector l = [lx, ly, lz].
-    """
-    I = np.deg2rad(inclination_deg)
-    D = np.deg2rad(declination_deg)
-    cI = np.cos(I)
-    sI = np.sin(I)
-    cD = np.cos(D)
-    sD = np.sin(D)
-    # North (x), East (y), Down (z) convention
-    l = np.array([cI * cD, cI * sD, sI], dtype=float)
-    # Already unit length by construction, but normalize defensively
-    n = np.linalg.norm(l)
-    if n == 0:
-        return np.array([1.0, 0.0, 0.0], dtype=float)
-    return l / n
-
-
 def calculate_magnetic_gradient_components(centered_grid: CenteredGrid) -> np.ndarray:
     """
     Calculate the 6 independent magnetic gradient tensor components (V1-V6) for each voxel.
@@ -51,7 +27,7 @@ def calculate_magnetic_gradient_components(centered_grid: CenteredGrid) -> np.nd
         over rectangular prism voxels using the formulas from Blakely (1995).
         The sign convention follows Talwani (z-axis positive downwards).
     """
-    
+
     voxel_centers = centered_grid.kernel_grid_centers
     center_x, center_y, center_z = voxel_centers[:, 0], voxel_centers[:, 1], voxel_centers[:, 2]
 
@@ -163,3 +139,27 @@ def calculate_magnetic_gradient_tensor(
         result["V"] = V
 
     return result
+
+
+def _direction_cosines(inclination_deg: float, declination_deg: float) -> np.ndarray:
+    """Compute unit vector of Earth's field from inclination/declination.
+
+    Convention:
+    - Inclination I: positive downward from horizontal, in degrees [-90, 90]
+    - Declination D: clockwise from geographic north toward east, in degrees [-180, 180]
+
+    Returns unit vector l = [lx, ly, lz].
+    """
+    I = np.deg2rad(inclination_deg)
+    D = np.deg2rad(declination_deg)
+    cI = np.cos(I)
+    sI = np.sin(I)
+    cD = np.cos(D)
+    sD = np.sin(D)
+    # North (x), East (y), Down (z) convention
+    l = np.array([cI * cD, cI * sD, sI], dtype=float)
+    # Already unit length by construction, but normalize defensively
+    n = np.linalg.norm(l)
+    if n == 0:
+        return np.array([1.0, 0.0, 0.0], dtype=float)
+    return l / n
