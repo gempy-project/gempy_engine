@@ -1,4 +1,5 @@
-﻿from dataclasses import dataclass
+﻿import warnings
+from dataclasses import dataclass
 from typing import Annotated, Optional
 
 import numpy as np
@@ -23,6 +24,18 @@ class MagneticsInput:
 class GeophysicsInput:
     gravity_input: Optional[GravityInput] = None
     magnetics_input: Optional[MagneticsInput] = None
+    
+    def __init__(self, gravity_input: Optional[GravityInput] = None,
+                 magnetics_input: Optional[MagneticsInput] = None,
+                 tz: Optional[Annotated[np.ndarray, numpy_array_short_validator]] = None,
+                 densities: Optional[Annotated[np.ndarray, numpy_array_short_validator]] = None):
+        if gravity_input is not None:
+            self.gravity_input = gravity_input
+        else:
+            warnings.warn("Using deprecated GeophysicsInput constructor. Use GravityInput instead.", DeprecationWarning)
+            self.gravity_input = GravityInput(tz=tz, densities=densities)
+        if magnetics_input is not None:
+            self.magnetics_input = magnetics_input
 
     @property
     def tz(self) -> Optional[Annotated[np.ndarray, numpy_array_short_validator]]:
