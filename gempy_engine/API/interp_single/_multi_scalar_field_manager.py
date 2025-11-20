@@ -29,7 +29,7 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
     can_batch = (BackendTensor.engine_backend == BackendTensor.engine_backend.PYTORCH and
                  options.cache_mode == InterpolationOptions.CacheMode.NO_CACHE)
 
-    if can_batch:
+    if can_batch and True:
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack_batched(data_descriptor, interpolation_input, options)
     else:
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
