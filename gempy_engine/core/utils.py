@@ -18,7 +18,10 @@ def cast_type_inplace(data_instance: Any, requires_grad: bool = False):
                 import torch
                 if isinstance(val, torch.Tensor):
                     continue
-                tensor = torch.tensor(val, dtype=BackendTensor.dtype_obj, requires_grad=requires_grad).pin_memory().to(BackendTensor.device, non_blocking=True)
+                # tensor = torch.tensor(val, dtype=BackendTensor.dtype_obj, requires_grad=requires_grad).pin_memory().to(BackendTensor.device, non_blocking=True)
+                tensor = BackendTensor.tfnp.array(val, dtype=BackendTensor.dtype_obj)
+                # tensor = torch.from_numpy(val).pin_memory().to(device, non_blocking=True)
+                tensor.requires_grad = requires_grad
                 data_instance.__dict__[key] = tensor
 
 

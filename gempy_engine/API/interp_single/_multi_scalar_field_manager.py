@@ -1,23 +1,22 @@
-import warnings
-from typing import List, Iterable, Optional
+from typing import List, Optional
 
 import numpy as np
 from numpy import ndarray
 
-from ...core.data.internal_structs import SolverInput
-from ...core.backend_tensor import BackendTensor
-from ...core.data.kernel_classes.faults import FaultsData
-from ...core.data.exported_structs import CombinedScalarFieldsOutput
-from ...core.data.interp_output import InterpOutput
-from ...core.data.scalar_field_output import ScalarFieldOutput
-from ...core.data.exported_fields import ExportedFields
-from ...core.data.input_data_descriptor import InputDataDescriptor
-from ...core.data.stack_relation_type import StackRelationType
-from ...core.data import TensorsStructure
-from ...core.data.interpolation_input import InterpolationInput
-from ...core.data.options import InterpolationOptions
-
 from ._interp_single_feature import interpolate_feature, input_preprocess
+from ._interpolate_stack_batched import _interpolate_stack_batched
+from ...core.backend_tensor import BackendTensor
+from ...core.data import TensorsStructure
+from ...core.data.exported_fields import ExportedFields
+from ...core.data.exported_structs import CombinedScalarFieldsOutput
+from ...core.data.input_data_descriptor import InputDataDescriptor
+from ...core.data.internal_structs import SolverInput
+from ...core.data.interp_output import InterpOutput
+from ...core.data.interpolation_input import InterpolationInput
+from ...core.data.kernel_classes.faults import FaultsData
+from ...core.data.options import InterpolationOptions
+from ...core.data.scalar_field_output import ScalarFieldOutput
+from ...core.data.stack_relation_type import StackRelationType
 
 
 # @off
@@ -26,7 +25,14 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
                            data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
     """Interpolate all scalar fields given a xyz array of points"""
 
-    all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
+    # Check if we can use the optimized batched path
+    can_batch = (BackendTensor.engine_backend == BackendTensor.engine_backend.PYTORCH and
+                 options.cache_mode == InterpolationOptions.CacheMode.NO_CACHE)
+
+    if can_batch:
+        all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack_batched(data_descriptor, interpolation_input, options)
+    else:
+        all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
     
     combined_scalar_output: List[CombinedScalarFieldsOutput] = _combine_scalar_fields(
         all_scalar_fields_outputs = all_scalar_fields_outputs,

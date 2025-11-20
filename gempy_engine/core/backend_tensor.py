@@ -22,6 +22,7 @@ class BackendTensor:
     engine_backend: AvailableBackends
 
     pykeops_enabled: bool = False
+    pykeops_eval_enabled: bool = True
     use_pykeops: bool = False
     use_gpu: bool = True
     dtype: str = DEFAULT_TENSOR_DTYPE
@@ -37,7 +38,7 @@ class BackendTensor:
 
     @classmethod
     def get_backend_string(cls) -> str:
-        match (cls.use_gpu, cls.pykeops_enabled):
+        match (cls.use_gpu, cls.pykeops_eval_enabled):
             case (True, True):
                 return "GPU"
             case (False, True):

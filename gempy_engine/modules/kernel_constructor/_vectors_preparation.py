@@ -38,7 +38,9 @@ def cov_vectors_preparation(interp_input: SolverInput, kernel_options: KernelOpt
         y_size=matrices_sizes.cov_size,
         drift_start_post_x=matrices_sizes.ori_size + matrices_sizes.sp_size,
         drift_start_post_y=matrices_sizes.ori_size + matrices_sizes.sp_size,
-        n_drift_eq=matrices_sizes.uni_drift_size)
+        n_drift_eq=matrices_sizes.uni_drift_size,
+        keops_enabled=BackendTensor.pykeops_enabled
+    )
 
     if matrices_sizes.faults_size > 0:
         fault_vector_ref, fault_vector_rest = _assembly_fault_tensors(options, faults_val, matrices_sizes.ori_size)
@@ -108,7 +110,9 @@ def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: K
         y_size=matrices_sizes.grid_size,
         drift_start_post_x=matrices_sizes.ori_size + matrices_sizes.sp_size,
         drift_start_post_y=matrices_sizes.grid_size,
-        n_drift_eq=matrices_sizes.uni_drift_size)
+        n_drift_eq=matrices_sizes.uni_drift_size,
+        keops_enabled = True
+    )
 
     return KernelInput(
         ori_sp_matrices=orientations_sp_matrices,
@@ -131,7 +135,7 @@ def _assembly_dips_points_tensors(matrices_size: MatricesSizes, ori_, sp_) -> Or
     dips_rest_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.rest_surface_points, matrices_size)
 
     orientations_sp_matrices = OrientationSurfacePointsCoords(dips_ref_coord, dips_ref_coord, dips_rest_coord,
-                                                              dips_rest_coord)  # When we create que core covariance these are the repeated since the distance are with themselves
+                                                              dips_rest_coord, keops_enabled=BackendTensor.pykeops_enabled)  # When we create que core covariance these are the repeated since the distance are with themselves
 
     return orientations_sp_matrices
 
@@ -141,7 +145,8 @@ def _assembly_dips_points_grid_tensors(grid, matrices_size: MatricesSizes, ori_,
     dips_ref_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.ref_surface_points, matrices_size)
     dips_rest_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.rest_surface_points, matrices_size)
 
-    orientations_sp_matrices = OrientationSurfacePointsCoords(dips_ref_coord, grid, dips_rest_coord, grid)  # When we create que core covariance this are the repeated since the distance are with themselves
+    orientations_sp_matrices = OrientationSurfacePointsCoords(dips_ref_coord, grid, dips_rest_coord, grid,
+                                                              keops_enabled=BackendTensor.pykeops_eval_enabled)  # When we create que core covariance this are the repeated since the distance are with themselves
 
     return orientations_sp_matrices
 
@@ -153,7 +158,8 @@ def _assembly_cartesian_selector_tensors(matrices_sizes: MatricesSizes):
         x_sel_hu=sel_hu_input, y_sel_hu=sel_hv_input,
         x_sel_hv=sel_hv_input, y_sel_hv=sel_hu_input,
         x_sel_h_ref=sel_hu_points_input, y_sel_h_ref=sel_hu_points_input,
-        x_sel_h_rest=sel_hu_points_input, y_sel_h_rest=sel_hu_points_input
+        x_sel_h_rest=sel_hu_points_input, y_sel_h_rest=sel_hu_points_input,
+        keops_enabled=BackendTensor.pykeops_enabled
     )
     return cartesian_selector
 
@@ -167,7 +173,9 @@ def _assembly_cartesian_selector_grid(matrices_sizes, axis=None):
         x_sel_hu=sel_hu_input, y_sel_hu=sel_hu_grid,
         x_sel_hv=sel_hv_input, y_sel_hv=sel_hv_grid,
         x_sel_h_ref=sel_hu_points_input, y_sel_h_ref=sel_hu_points_grid,
-        x_sel_h_rest=sel_hu_points_input, y_sel_h_rest=sel_hu_points_grid)
+        x_sel_h_rest=sel_hu_points_input, y_sel_h_rest=sel_hu_points_grid,
+        keops_enabled=BackendTensor.pykeops_eval_enabled
+    )
     return cartesian_selector
 
 
@@ -179,14 +187,17 @@ def _assembly_drift_tensors(options: KernelOptions, ori_: OrientationsInternals,
         dips_ug_d1, dips_ug_d1,
         dips_ug_d2a, dips_ug_d2a,
         dips_ug_d2b, dips_ug_d2b,
-        second_degree_selector
+        second_degree_selector,
+        keops_enabled=BackendTensor.pykeops_enabled
     )
 
     dips_ref_d1, dips_ref_d2a, dips_ref_d2b = assembly_dips_points_coords(sp_.ref_surface_points, matrices_sizes, options)
     dips_rest_d1, dips_rest_d2a, dips_rest_d2b = assembly_dips_points_coords(sp_.rest_surface_points, matrices_sizes, options)
 
-    dips_ref_ui = PointsDrift(dips_ref_d1, dips_ref_d1, dips_ref_d2a, dips_ref_d2a, dips_ref_d2b, dips_ref_d2b)
-    dips_rest_ui = PointsDrift(dips_rest_d1, dips_rest_d1, dips_rest_d2a, dips_rest_d2a, dips_rest_d2b, dips_rest_d2b)
+    dips_ref_ui = PointsDrift(dips_ref_d1, dips_ref_d1, dips_ref_d2a, dips_ref_d2a, dips_ref_d2b, dips_ref_d2b,
+                              keops_enabled=BackendTensor.pykeops_enabled)
+    dips_rest_ui = PointsDrift(dips_rest_d1, dips_rest_d1, dips_rest_d2a, dips_rest_d2a, dips_rest_d2b, dips_rest_d2b,
+                               keops_enabled=BackendTensor.pykeops_enabled)
 
     return dips_ref_ui, dips_rest_ui, dips_ug
 
@@ -206,15 +217,17 @@ def _assembly_drift_grid_tensors(grid: np.ndarray, options: KernelOptions, matri
         x_degree_1=dips_ug_d1, y_degree_1=grid_1,
         x_degree_2=dips_ug_d2a, y_degree_2=grid * grid_1,
         x_degree_2b=dips_ug_d2b * sel, y_degree_2b=grid,
-        selector_degree_2=second_degree_selector)
+        selector_degree_2=second_degree_selector,
+        keops_enabled=BackendTensor.pykeops_eval_enabled
+    )
     # endregion
 
     # region UI
     dips_ref_d1, dips_ref_d2a, dips_ref_d2b = assembly_dips_points_coords(sp_.ref_surface_points, matrices_size, options)
     dips_rest_d1, dips_rest_d2a, dips_rest_d2b = assembly_dips_points_coords(sp_.rest_surface_points, matrices_size, options)
 
-    dips_ref_ui = PointsDrift(dips_ref_d1, grid, dips_ref_d2a, grid, dips_ref_d2b, grid)
-    dips_rest_ui = PointsDrift(dips_rest_d1, grid, dips_rest_d2a, grid, dips_rest_d2b, grid)
+    dips_ref_ui = PointsDrift(dips_ref_d1, grid, dips_ref_d2a, grid, dips_ref_d2b, grid, keops_enabled=BackendTensor.pykeops_eval_enabled)
+    dips_rest_ui = PointsDrift(dips_rest_d1, grid, dips_rest_d2a, grid, dips_rest_d2b, grid, keops_enabled=BackendTensor.pykeops_eval_enabled)
     # endregion
 
     return dips_ref_ui, dips_rest_ui, dips_ug
@@ -224,14 +237,18 @@ def _assembly_fault_grid_tensors(fault_values_on_grid, options: KernelOptions, f
     fault_vector_ref, fault_vector_rest = _assembly_fault_internals(faults_val, options, ori_size)
     fault_drift = FaultDrift(
         x_degree_1=fault_vector_ref,
-        y_degree_1=BackendTensor.t.ascontiguousarray(fault_values_on_grid.T)
+        y_degree_1=BackendTensor.t.ascontiguousarray(fault_values_on_grid.T),
+        keops_enabled=BackendTensor.pykeops_eval_enabled
     )
     return fault_drift
 
 
 def _assembly_fault_tensors(options, faults_val: FaultsData, ori_size: int) -> Tuple[FaultDrift, FaultDrift]:
     fault_vector_ref, fault_vector_rest = _assembly_fault_internals(faults_val, options, ori_size)
-    return FaultDrift(fault_vector_ref, fault_vector_ref), FaultDrift(fault_vector_rest, fault_vector_rest)
+    return (
+            FaultDrift(fault_vector_ref, fault_vector_ref, keops_enabled=BackendTensor.pykeops_enabled), 
+            FaultDrift(fault_vector_rest, fault_vector_rest, keops_enabled=BackendTensor.pykeops_enabled)
+    )
 
 
 def _assembly_fault_internals(faults_val, options, ori_size):

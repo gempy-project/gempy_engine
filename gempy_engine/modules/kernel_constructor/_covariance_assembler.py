@@ -48,7 +48,7 @@ def get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_res
 def _get_cov_grad(dm, k_a, k_p_ref, nugget):
     cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
     grad_nugget = nugget[0, 0]
-    if BackendTensor.pykeops_enabled is False:
+    if not BackendTensor.pykeops_enabled:
         eye = BackendTensor.t.array(np.eye(cov_grad.shape[0], dtype=BackendTensor.dtype))
         nugget_selector = eye * dm.perp_matrix
         nugget_matrix = nugget_selector * grad_nugget
@@ -145,7 +145,8 @@ def _get_faults_terms(ki: KernelInput) -> np.ndarray:
         y_size=cov_size,
         n_drift_eq=fault_n,
         drift_start_post_x=cov_size - fault_n,
-        drift_start_post_y=cov_size - fault_n
+        drift_start_post_y=cov_size - fault_n,
+        keops_enabled=BackendTensor.pykeops_enabled
     )
     selector = (selector_components.sel_ui * (selector_components.sel_vj + 1)).sum(axis=-1)
 

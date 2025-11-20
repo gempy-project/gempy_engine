@@ -2,7 +2,7 @@ from . import _structs
 from ._covariance_assembler import get_covariance
 from ._internalDistancesMatrices import InternalDistancesMatrices
 from ._structs import KernelInput, CartesianSelector, OrientationSurfacePointsCoords
-from ...core.backend_tensor import BackendTensor as bt
+from ...core.backend_tensor import BackendTensor as bt, BackendTensor
 from ...core.data.kernel_classes.kernel_functions import KernelFunction
 from ...core.data.options import KernelOptions
 
@@ -86,7 +86,8 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
             y_size=j_size,
             n_drift_eq=fault_n,
             drift_start_post_x=cov_size - fault_n,
-            drift_start_post_y=j_size
+            drift_start_post_y=j_size,
+            keops_enabled=BackendTensor.pykeops_eval_enabled
         )
 
         selector = bt.t.sum(selector_components.sel_ui * (selector_components.sel_vj + 1), axis=-1)
