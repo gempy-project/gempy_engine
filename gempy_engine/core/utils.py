@@ -4,8 +4,8 @@ import gempy_engine.config
 from ..core.backend_tensor import BackendTensor
 
 
-def cast_type_inplace(data_instance: Any, requires_grad:bool = False):
-    """Converts all numpy arrays to the global dtype"""    
+def cast_type_inplace(data_instance: Any, requires_grad: bool = False):
+    """Converts all numpy arrays to the global dtype"""
     for key, val in data_instance.__dict__.items():
         if type(val) != np.ndarray: continue
         match BackendTensor.engine_backend:
@@ -15,11 +15,11 @@ def cast_type_inplace(data_instance: Any, requires_grad:bool = False):
                 # tensor = BackendTensor.t.from_numpy(val.astype(BackendTensor.dtype))
                 # if (BackendTensor.use_gpu):
                 #     tensor = tensor.cuda()
-
-                tensor = BackendTensor.tfnp.array(val, dtype=BackendTensor.dtype_obj)
-                tensor.requires_grad = requires_grad
+                import torch
+                if isinstance(val, torch.Tensor):
+                    continue
+                tensor = torch.tensor(val, dtype=BackendTensor.dtype_obj, requires_grad=requires_grad).pin_memory().to(BackendTensor.device, non_blocking=True)
                 data_instance.__dict__[key] = tensor
-        
 
 
 def gempy_profiler_decorator(func):

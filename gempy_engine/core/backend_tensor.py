@@ -128,13 +128,13 @@ class BackendTensor:
                     # Check if CUDA is available
                     if not pytorch_copy.cuda.is_available():
                         raise RuntimeError("GPU requested but CUDA is not available in PyTorch")
-                    if False: # * (Miguel) this slows down the code a lot
+                    if True: # * (Miguel) this slows down the code a lot
                         # Check if CUDA device is available
                         if not pytorch_copy.cuda.device_count():
                             raise RuntimeError("GPU requested but no CUDA device is available in PyTorch")
                         # Set default device to CUDA
                         cls.device = pytorch_copy.device("cuda")
-                        pytorch_copy.set_default_device("cuda")
+                        # pytorch_copy.set_default_device("cuda")
                         print(f"GPU enabled. Using device: {cls.device}")
                         print(f"GPU device count: {pytorch_copy.cuda.device_count()}")
                         print(f"Current GPU device: {pytorch_copy.cuda.current_device()}")
@@ -166,7 +166,7 @@ class BackendTensor:
 
     @classmethod
     def _wrap_pytorch_functions(cls):
-        from torch import sum, repeat_interleave, isclose
+        from torch import sum, repeat_interleave, isclose, zeros as torch_zeros, eye as torch_eye, ones as torch_ones
         import torch
 
         def _sum(tensor, axis=None, dtype=None, keepdims=False):
@@ -192,7 +192,9 @@ class BackendTensor:
                     if not array_like.flags.c_contiguous:
                         array_like = numpy.ascontiguousarray(array_like)
 
-                return torch.tensor(array_like, dtype=dtype)
+
+                # return torch.tensor(array_like, dtype=dtype)
+                return torch.tensor(array_like, dtype=dtype).pin_memory().to(cls.device, non_blocking=True)
 
         def _concatenate(tensors, axis=0, dtype=None):
             # Switch if tensor is numpy array or a torch tensor
@@ -225,7 +227,7 @@ class BackendTensor:
                 # Pad with zeros if we don't have multiples of 8 rows
                 if n_rows % 8 != 0:
                     padding_rows = 8 - (n_rows % 8)
-                    padding = torch.zeros(padding_rows, n_cols, dtype=torch.uint8, device=tensor.device)
+                    padding = torch_zeros((padding_rows, n_cols), dtype=torch.uint8, device=tensor.device)
                     tensor = torch.cat([tensor, padding], dim=0)
 
                 # Reshape to group every 8 rows together: (n_output_rows, 8, n_cols)
@@ -254,7 +256,7 @@ class BackendTensor:
                 # Pad with zeros if needed
                 if n_cols % 8 != 0:
                     padding_cols = 8 - (n_cols % 8)
-                    padding = torch.zeros(n_rows, padding_cols, dtype=torch.uint8, device=tensor.device)
+                    padding = torch_zeros((n_rows, padding_cols), dtype=torch.uint8, device=tensor.device)
                     tensor = torch.cat([tensor, padding], dim=1)
 
                 # Reshape: (n_rows, n_output_cols, 8)
@@ -294,6 +296,15 @@ class BackendTensor:
             diagonal_indices = torch.arange(min(tensor.size(0), tensor.size(1)))
             tensor[diagonal_indices, diagonal_indices] = value
             return tensor
+        
+        def _zeros(shape, dtype=None, device=None):
+            return torch_zeros(shape, dtype=dtype, device=cls.device)
+        
+        def _ones(shape, dtype=None, device=None):
+            return torch_ones(shape, dtype=dtype, device=cls.device)
+        
+        def _eye(n, dtype=None, device=None):
+            return torch_eye(n, dtype=dtype, device=cls.device)
 
         cls.tfnp.sum = _sum
         cls.tfnp.repeat = _repeat
@@ -324,6 +335,9 @@ class BackendTensor:
             atol=atol,
             equal_nan=equal_nan
         )
+        cls.tfnp.zeros = _zeros
+        cls.tfnp.eye = _eye
+        cls.tfnp.ones = _ones
 
     @classmethod
     def _wrap_pykeops_functions(cls):
