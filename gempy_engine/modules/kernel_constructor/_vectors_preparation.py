@@ -210,7 +210,7 @@ def _assembly_drift_grid_tensors(grid: np.ndarray, options: KernelOptions, matri
     grid_1 = BackendTensor.t.zeros_like(grid)
     grid_1[:, axis] = 1
 
-    sel = np.ones(options.number_dimensions)
+    sel = BackendTensor.t.ones(options.number_dimensions)
     sel[axis] = 0
 
     dips_ug = OrientationsDrift(

@@ -193,9 +193,10 @@ class BackendTensor:
                     if not array_like.flags.c_contiguous:
                         array_like = numpy.ascontiguousarray(array_like)
 
-
-                # return torch.tensor(array_like, dtype=dtype)
-                return torch.tensor(array_like, dtype=dtype).pin_memory().to(cls.device, non_blocking=True)
+                if cls.use_gpu:
+                    return torch.tensor(array_like, dtype=dtype).pin_memory().to(cls.device, non_blocking=True)
+                else:
+                    return torch.tensor(array_like, dtype=dtype)
 
         def _concatenate(tensors, axis=0, dtype=None):
             # Switch if tensor is numpy array or a torch tensor
