@@ -1,6 +1,9 @@
 import enum
 
 from dataclasses import dataclass
+from typing import Annotated
+
+from typing_extensions import deprecated
 
 
 class MeshExtractionMaskingOptions(enum.Enum):
@@ -20,7 +23,7 @@ class EvaluationOptions:
     
     mesh_extraction: bool = True
     mesh_extraction_masking_options: MeshExtractionMaskingOptions = MeshExtractionMaskingOptions.INTERSECT
-    mesh_extraction_fancy: bool = True
+    mesh_extraction_fancy: Annotated[bool, deprecated("Old extraction method not in use anymore")] = True
 
     evaluation_chunk_size: int = 500_000
 
