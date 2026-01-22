@@ -3,6 +3,11 @@ from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.modules.dual_contouring._aux import _correct_normals
 
 
+from gempy_engine.core.backend_tensor import BackendTensor
+from gempy_engine.core.data.octree_level import OctreeLevel
+from gempy_engine.modules.dual_contouring._aux import _correct_normals
+
+
 def get_left_right_array(octree_list: list[OctreeLevel]):
     dtype = bool
     match BackendTensor.engine_backend:
@@ -86,44 +91,38 @@ def get_left_right_array(octree_list: list[OctreeLevel]):
     bool_to_int_z = BackendTensor.tfnp.packbits(binary_z, axis=0, bitorder="little")
     left_right_array = BackendTensor.tfnp.vstack([bool_to_int_x, bool_to_int_y, bool_to_int_z]).T
 
-    _StaticTriangulationData.depth = 2
-    foo = (left_right_array * _StaticTriangulationData.get_pack_directions_into_bits()).sum(axis=1)
+    # Dynamic base number calc for sorting
+    max_val = BackendTensor.tfnp.max(left_right_array)
+    base_number = max_val + 1
+    pack_factors = _get_pack_factors(base_number)
+    
+    foo = (left_right_array * pack_factors).sum(axis=1)
 
     sorted_indices = BackendTensor.tfnp.argsort(foo)
     # left_right_array = left_right_array[sorted_indices]
     return left_right_array
 
 
-class _StaticTriangulationData:
-    depth: int
-
-    @staticmethod
-    def get_pack_directions_into_bits():
-        base_number = 2 ** _StaticTriangulationData.depth
-        # return BackendTensor.tfnp.array([1, base_number, base_number ** 2], dtype='int64')
-        return BackendTensor.tfnp.array([base_number ** 2, base_number, 1], dtype='int64')
-
-    @staticmethod
-    def get_base_array(pack_directions_into_bits):
-        return BackendTensor.tfnp.array([pack_directions_into_bits, pack_directions_into_bits * 2, pack_directions_into_bits * 3],
-                                        dtype='int64')
-
-    @staticmethod
-    def get_base_number() -> int:
-        return 2 ** _StaticTriangulationData.depth
+def _get_pack_factors(base_number):
+    """Generates [base^2, base, 1] for packing 3D coordinates."""
+    # Ensure we use int64 for packing to avoid overflow
+    b = BackendTensor.tfnp.array(base_number, dtype='int64')
+    return BackendTensor.tfnp.stack([b ** 2, b, 1])
 
 
 def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, vertex):
     # * Variables
-    # depending on depth
-    _StaticTriangulationData.depth = tree_depth
+    # Determine base_number dynamically from the data to support arbitrary grid shapes
+    max_val = BackendTensor.tfnp.max(left_right_array)
+    base_number = max_val + 1
+    pack_factors = _get_pack_factors(base_number)
 
     edge_vector_a = BackendTensor.tfnp.array([0, 0, 0, 0, -1, -1, 1, 1, -1, 1, -1, 1])
     edge_vector_b = BackendTensor.tfnp.array([-1, -1, -1, 1, 0, 0, 0, 0, -1, 1, -1, 1])
     edge_vector_c = BackendTensor.tfnp.array([-1, -1, 1, 1, -1, -1, 1, 1, 0, 0, 0, 0])
 
     # * Consts
-    voxel_code = (left_right_array * _StaticTriangulationData.get_pack_directions_into_bits()).sum(1).reshape(-1, 1)
+    voxel_code = (left_right_array * pack_factors).sum(1).reshape(-1, 1)
     # ----------
 
     indices = []
@@ -147,7 +146,9 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, v
             left_right_array_active_edge=left_right_array_active_edge,
             voxel_code=voxel_code,
             voxel_normals=voxel_normals,
-            n=n
+            n=n,
+            base_number=base_number,
+            pack_factors=pack_factors
         )
 
         indices.append(indices_patch)
@@ -162,7 +163,8 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, v
 
 
 def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
-                               left_right_array_active_edge, voxel_code, voxel_normals, n):
+                               left_right_array_active_edge, voxel_code, voxel_normals, n,
+                               base_number, pack_factors):
     """
     Important concepts to understand this triangulation:
     - left_right_array (n_voxels, 3-directions) contains a unique number per direction describing if it is left (even) or right (odd) and the voxel level
@@ -182,13 +184,14 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
     # Step 1: Filter edges with valid neighbors
     left_right_array_active_edge = _filter_edges_with_neighbors(
         edge_vector_a, edge_vector_b, edge_vector_c,
-        left_right_array_active_edge, dtype
+        left_right_array_active_edge, dtype, base_number
     )
 
     # Step 2: Compress binary indices
     compressed_idx_0, compressed_idx_1, compressed_idx_2 = _compress_binary_indices(
         left_right_array_active_edge,
-        edge_vector_a, edge_vector_b, edge_vector_c
+        edge_vector_a, edge_vector_b, edge_vector_c,
+        pack_factors
     )
 
     # Step 3: Map voxels and filter by extent
@@ -210,7 +213,7 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
 
 
 def _filter_edges_with_neighbors(edge_vector_a, edge_vector_b, edge_vector_c,
-                                 left_right_array_active_edge, dtype):
+                                 left_right_array_active_edge, dtype, base_number):
     """Remove edges that don't have voxels next to them."""
 
     def check_voxels_exist_next_to_edge(coord_col, edge_vector, _left_right_array_active_edge):
@@ -218,7 +221,7 @@ def _filter_edges_with_neighbors(edge_vector_a, edge_vector_b, edge_vector_c,
             case 0:
                 _valid_edges = BackendTensor.tfnp.ones(_left_right_array_active_edge.shape[0], dtype=dtype)
             case 1:
-                _valid_edges = _left_right_array_active_edge[:, coord_col] != _StaticTriangulationData.get_base_number() - 1
+                _valid_edges = _left_right_array_active_edge[:, coord_col] != base_number - 1
             case -1:
                 _valid_edges = _left_right_array_active_edge[:, coord_col] != 0
             case _:
@@ -233,7 +236,7 @@ def _filter_edges_with_neighbors(edge_vector_a, edge_vector_b, edge_vector_c,
     return left_right_array_active_edge[valid_edges_with_neighbour_voxels]
 
 
-def _compress_binary_indices(left_right_array_active_edge, edge_vector_a, edge_vector_b, edge_vector_c):
+def _compress_binary_indices(left_right_array_active_edge, edge_vector_a, edge_vector_b, edge_vector_c, pack_factors):
     """Compress voxel codes per direction."""
     edge_vector_0 = BackendTensor.tfnp.array([edge_vector_a, 0, 0])
     edge_vector_1 = BackendTensor.tfnp.array([0, edge_vector_b, 0])
@@ -243,10 +246,9 @@ def _compress_binary_indices(left_right_array_active_edge, edge_vector_a, edge_v
     binary_idx_1 = left_right_array_active_edge + edge_vector_1
     binary_idx_2 = left_right_array_active_edge + edge_vector_2
 
-    pack_directions = _StaticTriangulationData.get_pack_directions_into_bits()
-    compressed_binary_idx_0 = (binary_idx_0 * pack_directions).sum(axis=1)
-    compressed_binary_idx_1 = (binary_idx_1 * pack_directions).sum(axis=1)
-    compressed_binary_idx_2 = (binary_idx_2 * pack_directions).sum(axis=1)
+    compressed_binary_idx_0 = (binary_idx_0 * pack_factors).sum(axis=1)
+    compressed_binary_idx_1 = (binary_idx_1 * pack_factors).sum(axis=1)
+    compressed_binary_idx_2 = (binary_idx_2 * pack_factors).sum(axis=1)
 
     return compressed_binary_idx_0, compressed_binary_idx_1, compressed_binary_idx_2
 
