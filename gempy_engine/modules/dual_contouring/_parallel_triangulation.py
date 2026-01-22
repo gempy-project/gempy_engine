@@ -5,7 +5,6 @@ import warnings
 from gempy_engine.config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
-from ._triangulate import triangulate_dual_contouring
 from ...modules.dual_contouring.fancy_triangulation import triangulate
 
 # Multiprocessing imports
