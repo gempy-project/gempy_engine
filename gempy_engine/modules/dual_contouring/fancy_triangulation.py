@@ -1,6 +1,6 @@
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.octree_level import OctreeLevel
-from gempy_engine.modules.dual_contouring._aux import _calc_mesh_normals, _correct_normals
+from gempy_engine.modules.dual_contouring._aux import _correct_normals
 
 
 def get_left_right_array(octree_list: list[OctreeLevel]):
@@ -14,11 +14,15 @@ def get_left_right_array(octree_list: list[OctreeLevel]):
             raise ValueError("Unsupported backend")
 
     # === Local function ===
-    def _compute_voxel_binary_code(idx_from_root, dir_idx: int, left_right_all, voxel_select_all):
+    def _compute_voxel_binary_code(root_bits_list, dir_idx: int, left_right_all, voxel_select_all):
 
         # Calculate the voxels from root
-        for active_voxels_per_lvl in voxel_select_all:  # * The first level is all True
-            idx_from_root = BackendTensor.tfnp.repeat(idx_from_root[active_voxels_per_lvl], 8, axis=0)
+        processed_root_bits = []
+        for bit_array in root_bits_list:
+            idx_curr = bit_array
+            for active_voxels_per_lvl in voxel_select_all:
+                idx_curr = BackendTensor.tfnp.repeat(idx_curr[active_voxels_per_lvl], 8, axis=0)
+            processed_root_bits.append(idx_curr)
 
         left_right_list = []
         voxel_select_op = list(voxel_select_all[1:])
@@ -37,8 +41,9 @@ def get_left_right_array(octree_list: list[OctreeLevel]):
                 left_right_per_lvl_dir = BackendTensor.tfnp.repeat(inner, 8, axis=0)
             left_right_list.append(left_right_per_lvl_dir)
 
-        left_right_list.append(idx_from_root)
-        binary_code = BackendTensor.tfnp.stack(left_right_list)
+        # Combine refinement bits (LSB->MSB) with root bits (LSB->MSB)
+        final_list = left_right_list + processed_root_bits
+        binary_code = BackendTensor.tfnp.stack(final_list)
         return binary_code
 
     # === Local function ===
@@ -50,26 +55,31 @@ def get_left_right_array(octree_list: list[OctreeLevel]):
     voxel_select_all = [octree_iter.grid_centers.octree_grid.active_cells for octree_iter in octree_list[1:]]
     left_right_all = [octree_iter.grid_centers.octree_grid.left_right for octree_iter in octree_list[1:]]
 
-    dtype = bool
-    match BackendTensor.engine_backend:
-        case BackendTensor.engine_backend.PYTORCH:
-            dtype = BackendTensor.tfnp.bool
-        case BackendTensor.engine_backend.numpy:
-            dtype = bool
-        case _:
-            raise ValueError("Unsupported backend")
+    # Dynamic generation of root indices
+    import numpy as np
+    root_res = octree_list[0].grid_centers.octree_grid_shape
+    nx, ny, nz = int(root_res[0]), int(root_res[1]), int(root_res[2])
 
-    idx_root_x = BackendTensor.tfnp.zeros(8, dtype=dtype)
-    idx_root_x[4:] = True
-    binary_x = _compute_voxel_binary_code(idx_root_x, 0, left_right_all, voxel_select_all)
+    # Generate coordinate grids (Order: Z fast, Y, X slow)
+    x_indices = np.repeat(np.arange(nx), ny * nz)
+    y_indices = np.tile(np.repeat(np.arange(ny), nz), nx)
+    z_indices = np.tile(np.arange(nz), nx * ny)
 
-    idx_root_y = BackendTensor.tfnp.zeros(8, dtype=dtype)
-    idx_root_y[[2, 3, 6, 7]] = True
-    binary_y = _compute_voxel_binary_code(idx_root_y, 1, left_right_all, voxel_select_all)
+    def get_root_bits_list(indices):
+        max_val = max(nx, ny, nz)
+        # Calculate needed bits (at least 1)
+        n_bits = int(max_val - 1).bit_length() if max_val > 1 else 1
 
-    idx_root_z = BackendTensor.tfnp.zeros(8, dtype=dtype)
-    idx_root_z[1::2] = True
-    binary_z = _compute_voxel_binary_code(idx_root_z, 2, left_right_all, voxel_select_all)
+        bits_list = []
+        for i in range(n_bits):
+            # Extract bit i (LSB to MSB)
+            bit_val = (indices >> i) & 1
+            bits_list.append(BackendTensor.tfnp.array(bit_val, dtype=dtype))
+        return bits_list
+
+    binary_x = _compute_voxel_binary_code(get_root_bits_list(x_indices), 0, left_right_all, voxel_select_all)
+    binary_y = _compute_voxel_binary_code(get_root_bits_list(y_indices), 1, left_right_all, voxel_select_all)
+    binary_z = _compute_voxel_binary_code(get_root_bits_list(z_indices), 2, left_right_all, voxel_select_all)
 
     bool_to_int_x = BackendTensor.tfnp.packbits(binary_x, axis=0, bitorder="little")
     bool_to_int_y = BackendTensor.tfnp.packbits(binary_y, axis=0, bitorder="little")
