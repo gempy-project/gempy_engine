@@ -79,7 +79,7 @@ class OrientationSurfacePointsCoords:
     diprest_i: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
     diprest_j: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
 
-    def __init__(self, x_ref: np.ndarray, y_ref: np.ndarray, x_rest: np.ndarray, y_rest: np.ndarray):
+    def ____foonit__(self, x_ref: np.ndarray, y_ref: np.ndarray, x_rest: np.ndarray, y_rest: np.ndarray):
         # 1. Do the logic
         dips_points0 = x_ref[:, None, :]
         dips_points1 = y_ref[None, :, :]
@@ -93,7 +93,7 @@ class OrientationSurfacePointsCoords:
         self.diprest_i = _secure_cast(dips_points2)
         self.diprest_j = _secure_cast(dips_points3)
 
-    def ___init__(self, x_ref: np.ndarray, y_ref: np.ndarray, x_rest: np.ndarray, y_rest: np.ndarray):
+    def __init__(self, x_ref: np.ndarray, y_ref: np.ndarray, x_rest: np.ndarray, y_rest: np.ndarray):
         def _assembly(x, y) -> Tuple[np.ndarray, np.ndarray]:
             dips_points0 = x[:, None, :]  # i
             dips_points1 = y[None, :, :]  # j
@@ -116,7 +116,7 @@ class OrientationsDrift:
     selector_ci: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
     selector_cj: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
 
-    def __init__(self,
+    def ____foonit__(self,
                  x_degree_1: np.ndarray, y_degree_1: np.ndarray,
                  x_degree_2: np.ndarray, y_degree_2: np.ndarray,
                  x_degree_2b: np.ndarray, y_degree_2b: np.ndarray,
@@ -130,7 +130,7 @@ class OrientationsDrift:
         self.selector_ci = _secure_cast(selector_degree_2[:, None, :])
         self.selector_cj = _secure_cast(selector_degree_2[None, :, :])
         
-    def ___init__(self,
+    def __init__(self,
                  x_degree_1: np.ndarray, y_degree_1: np.ndarray,
                  x_degree_2: np.ndarray, y_degree_2: np.ndarray,
                  x_degree_2b: np.ndarray, y_degree_2b: np.ndarray,
@@ -156,7 +156,7 @@ class PointsDrift:
     dipsPoints_ui_bi2: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
     dipsPoints_ui_bj2: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
 
-    def __init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, x_degree_2a: np.ndarray,
+    def ____foonit__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, x_degree_2a: np.ndarray,
                  y_degree_2a: np.ndarray, x_degree_2b: np.ndarray, y_degree_2b: np.ndarray):
         self.dipsPoints_ui_ai = _secure_cast(x_degree_1[:, None, :])
         self.dipsPoints_ui_aj = _secure_cast(y_degree_1[None, :, :])
@@ -165,7 +165,7 @@ class PointsDrift:
         self.dipsPoints_ui_bi2 = _secure_cast(x_degree_2b[:, None, :])
         self.dipsPoints_ui_bj2 = _secure_cast(y_degree_2b[None, :, :])
         
-    def ___init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, x_degree_2a: np.ndarray,
+    def __init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, x_degree_2a: np.ndarray,
                  y_degree_2a: np.ndarray, x_degree_2b: np.ndarray, y_degree_2b: np.ndarray):
         self.dipsPoints_ui_ai = x_degree_1[:, None, :]
         self.dipsPoints_ui_aj = y_degree_1[None, :, :]
@@ -184,13 +184,13 @@ class FaultDrift:
 
     n_faults_i: int = 0
 
-    def __init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, ):
+    def ____foonit__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, ):
         self.faults_i = _secure_cast(x_degree_1[:, None, :])
         self.faults_j = _secure_cast(y_degree_1[None, :, :])
 
         self.n_faults_i = x_degree_1.shape[1]
         
-    def ___init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, ):
+    def __init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, ):
         self.faults_i = x_degree_1[:, None, :]
         self.faults_j = y_degree_1[None, :, :]
 
@@ -212,7 +212,7 @@ class CartesianSelector:
     h_sel_rest_i: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
     h_sel_rest_j: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
     # is_gradient: bool = False (June) This seems to be unused
-    def __init__(self,
+    def __fooinit__(self,
                  x_sel_hu, y_sel_hu,
                  x_sel_hv, y_sel_hv,
                  x_sel_h_ref, y_sel_h_ref,
@@ -231,7 +231,7 @@ class CartesianSelector:
         self.h_sel_rest_i = _secure_cast(x_sel_h_rest[:, None, :])
         self.h_sel_rest_j = _secure_cast(y_sel_h_rest[None, :, :])
         
-    def ___init__(self,
+    def __init__(self,
                  x_sel_hu, y_sel_hu,
                  x_sel_hv, y_sel_hv,
                  x_sel_h_ref, y_sel_h_ref,
@@ -257,7 +257,7 @@ class DriftMatrixSelector:
     sel_ui: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
     sel_vj: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
 
-    def __init__(self, x_size: int, y_size: int, n_drift_eq: int, drift_start_post_x: int, drift_start_post_y: int):
+    def ____foonit__(self, x_size: int, y_size: int, n_drift_eq: int, drift_start_post_x: int, drift_start_post_y: int):
         # Logic remains the same
         sel_i = np.zeros((x_size, 2), dtype=BackendTensor.dtype)
         sel_j = np.zeros((y_size, 2), dtype=BackendTensor.dtype)
@@ -278,7 +278,7 @@ class DriftMatrixSelector:
         self.sel_ui = _secure_cast(sel_i[:, None, :])
         self.sel_vj = _secure_cast(sel_j[None, :, :])
     
-    def ___init__(self, x_size: int, y_size: int, n_drift_eq: int, drift_start_post_x: int, drift_start_post_y: int):
+    def __init__(self, x_size: int, y_size: int, n_drift_eq: int, drift_start_post_x: int, drift_start_post_y: int):
         sel_i = np.zeros((x_size, 2), dtype=BackendTensor.dtype)
         sel_j = np.zeros((y_size, 2), dtype=BackendTensor.dtype)
 

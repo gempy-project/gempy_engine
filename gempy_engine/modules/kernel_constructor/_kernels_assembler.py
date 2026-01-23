@@ -171,12 +171,6 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
     if develeping_distances_buffer := False and is_gradient:  # This is for developing
         _check_which_items_are_the_same_between_calls(distance_matrices)
     
-    # ! TODO: Handle
-    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
-        import torch
-        if torch.compiler.is_compiling():
-            return distance_matrices
-        
     DistancesBuffer.last_internal_distances_matrices = distance_matrices  # * Save common values for next call
     return distance_matrices
 
