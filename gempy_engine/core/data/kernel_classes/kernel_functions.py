@@ -11,7 +11,7 @@ import torch
 # We define JIT-compiled versions for GPU/PyTorch performance.
 # These fuse all element-wise operations into a single kernel execution.
 
-@torch.compile(fullgraph=True, mode="reduce-overhead")
+@torch.compile(fullgraph=True, mode="default")
 def cubic_function(r: torch.Tensor, a: float) -> torch.Tensor:
     # Horner's method for stability and fewer ops:
     # 1 - 7x^2 + 35/4 x^3 - 7/2 x^5 + 3/4 x^7
@@ -32,7 +32,7 @@ def cubic_function(r: torch.Tensor, a: float) -> torch.Tensor:
     return 1.0 + x2 * (c2 + x * (c3 + x2 * (c5 + x2 * c7)))
 
 
-@torch.compile(fullgraph=True, mode="reduce-overhead")
+@torch.compile(fullgraph=True, mode="default")
 def cubic_function_p_div_r(r: torch.Tensor, a: float) -> torch.Tensor:
     # (-14 / a^2) + 105 r / (4 a^3) - 35 r^3 / (2 a^5) + 21 r^5 / (4 a^7)
     a_inv = 1.0 / a
@@ -53,7 +53,7 @@ def cubic_function_p_div_r(r: torch.Tensor, a: float) -> torch.Tensor:
     return a2_inv * (-14.0 + x * (26.25 + x2 * (-17.5 + 5.25 * x2)))
 
 
-@torch.compile(fullgraph=True, mode="reduce-overhead")
+@torch.compile(fullgraph=True, mode="default")
 def cubic_function_a(r: torch.Tensor, a: float) -> torch.Tensor:
     # This one is complex, simpler to let JIT fuse the raw expression than optimize manually and risk bugs
     # 7 * (9 * r^5 - 20 * a^2 * r^3 + 15 * a^4 * r - 4 * a^5) / (2 * a^7)
@@ -62,20 +62,20 @@ def cubic_function_a(r: torch.Tensor, a: float) -> torch.Tensor:
     return 7.0 * (9.0 * r ** 5 - 20.0 * (a ** 2) * (r ** 3) + 15.0 * (a ** 4) * r - 4.0 * (a ** 5)) / (2.0 * (a ** 7))
 
 
-@torch.compile(fullgraph=True, mode="reduce-overhead")
+@torch.compile(fullgraph=True, mode="default")
 def exp_function(sq_r: torch.Tensor, a: float) -> torch.Tensor:
     # exp(-(r^2 / (2 a^2)))
     return torch.exp(-(sq_r / (2.0 * a * a)))
 
 
-@torch.compile(fullgraph=True, mode="reduce-overhead")
+@torch.compile(fullgraph=True, mode="default")
 def exp_function_p_div_r(sq_r: torch.Tensor, a: float) -> torch.Tensor:
     # -(1 / a^2) * exp(...)
     val = torch.exp(-(sq_r / (2.0 * a * a)))
     return -(1.0 / (a * a)) * val
 
 
-@torch.compile(fullgraph=True, mode="reduce-overhead")
+@torch.compile(fullgraph=True, mode="default")
 def exp_function_a(sq_r: torch.Tensor, a: float) -> torch.Tensor:
     # (sq_r / a^4 - 1/a^2) * exp(...)
     a2 = a * a
@@ -90,7 +90,7 @@ square_root_3 = 1.73205080757
 sqrt5 = 2.2360679775
 
 
-@torch.compile(fullgraph=True, mode="reduce-overhead")
+@torch.compile(fullgraph=True, mode="default")
 def matern_function_5_2(r: torch.Tensor, a: float) -> torch.Tensor:
     # (1 + sqrt5 * r/a + 5/3 * r^2/a^2) * exp(-sqrt5 * r/a)
     # a is float.
@@ -107,7 +107,7 @@ def matern_function_5_2(r: torch.Tensor, a: float) -> torch.Tensor:
     return poly * torch.exp(-s5_x)
 
 
-@torch.compile(fullgraph=True, mode="reduce-overhead")
+@torch.compile(fullgraph=True, mode="default")
 def matern_function_5_2_p_div_r(r: torch.Tensor, a: float) -> torch.Tensor:
     # -(5 * exp(...) * (a + sqrt5 * r)) / (3 * a^3)
     s5 = 2.2360679775
@@ -120,7 +120,7 @@ def matern_function_5_2_p_div_r(r: torch.Tensor, a: float) -> torch.Tensor:
     return numerator / denominator
 
 
-@torch.compile(fullgraph=True, mode="reduce-overhead")
+@torch.compile(fullgraph=True, mode="default")
 def matern_function_5_2_a(r: torch.Tensor, a: float) -> torch.Tensor:
     s5 = 2.2360679775
     x = r / a
