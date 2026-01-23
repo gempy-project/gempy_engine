@@ -1,71 +1,135 @@
-from dataclasses import dataclass
-from enum import Enum
-
-from typing import Callable
-
 from gempy_engine.core.backend_tensor import BackendTensor
-
-import numpy
 
 dtype = BackendTensor.dtype
 
-
-def cubic_function(r, a):
-    a = float(a)
-    return 1 - 7 * (r / a) ** 2 + 35 * r ** 3 / (4 * a ** 3) - 7 * r ** 5 / (2 * a ** 5) + 3 * r ** 7 / (4 * a ** 7)
-
-
-def cubic_function_p_div_r(r, a):
-    a = float(a)
-    return (-14 / a ** 2) + 105 * r / (4 * a ** 3) - 35 * r ** 3 / (2 * a ** 5) + 21 * r ** 5 / (4 * a ** 7)
+from dataclasses import dataclass
+from enum import Enum
+from typing import Callable
+import torch
 
 
-def cubic_function_a(r, a):
-    a = float(a)
-    return 7 * (9 * r ** 5 - 20 * a ** 2 * r ** 3 + 15 * a ** 4 * r - 4 * a ** 5) / (2 * a ** 7)
+# We define JIT-compiled versions for GPU/PyTorch performance.
+# These fuse all element-wise operations into a single kernel execution.
+
+@torch.compile(fullgraph=True, mode="reduce-overhead")
+def cubic_function(r: torch.Tensor, a: float) -> torch.Tensor:
+    # Horner's method for stability and fewer ops:
+    # 1 - 7x^2 + 35/4 x^3 - 7/2 x^5 + 3/4 x^7
+    # where x = r/a
+
+    # Pre-calculate constants
+    c2 = -7.0
+    c3 = 8.75  # 35/4
+    c5 = -3.5  # 7/2
+    c7 = 0.75  # 3/4
+
+    x = r / a
+    x2 = x * x
+    # Factor out x^2 to reduce powers: 1 + x^2 * (-7 + x * (8.75 + x^2 * (-3.5 + 0.75 * x^2)))
+    # But standard Horner on the polynomial in x is likely best or just explicit fused math
+    # 1 + x^2 * (-7 + x * (35/4 + x^2 * (-7/2 + x^2 * 3/4)))
+
+    return 1.0 + x2 * (c2 + x * (c3 + x2 * (c5 + x2 * c7)))
 
 
-def exp_function(sq_r, a):
-    a = float(a)
-    return BackendTensor.tfnp.exp(-(sq_r / (2 * a ** 2)))
+@torch.compile(fullgraph=True, mode="reduce-overhead")
+def cubic_function_p_div_r(r: torch.Tensor, a: float) -> torch.Tensor:
+    # (-14 / a^2) + 105 r / (4 a^3) - 35 r^3 / (2 a^5) + 21 r^5 / (4 a^7)
+    a_inv = 1.0 / a
+    a2_inv = a_inv * a_inv
+    x = r * a_inv
+    x2 = x * x
+
+    t0 = -14.0 * a2_inv
+    t1 = 26.25 * a2_inv * a_inv  # 105/4 / a^3 -> 26.25 * a^-3 = 26.25 * (r/a) / r / a^2 ... logic check
+    # Let's stick to the structure: 
+    # term1 = -14/a^2
+    # term2 = 26.25 * r / a^3
+    # term3 = -17.5 * r^3 / a^5
+    # term4 = 5.25 * r^5 / a^7
+
+    # Optimized:
+    # a^-2 * ( -14 + x * (26.25 + x^2 * (-17.5 + 5.25 * x^2)))
+    return a2_inv * (-14.0 + x * (26.25 + x2 * (-17.5 + 5.25 * x2)))
 
 
-def exp_function_p_div_r(sq_r, a):
-    a = float(a)
-    return -(1 / (a ** 2) * BackendTensor.tfnp.exp(-(sq_r / (2 * a ** 2))))
+@torch.compile(fullgraph=True, mode="reduce-overhead")
+def cubic_function_a(r: torch.Tensor, a: float) -> torch.Tensor:
+    # This one is complex, simpler to let JIT fuse the raw expression than optimize manually and risk bugs
+    # 7 * (9 * r^5 - 20 * a^2 * r^3 + 15 * a^4 * r - 4 * a^5) / (2 * a^7)
+
+    # However, ensuring float literals helps JIT
+    return 7.0 * (9.0 * r ** 5 - 20.0 * (a ** 2) * (r ** 3) + 15.0 * (a ** 4) * r - 4.0 * (a ** 5)) / (2.0 * (a ** 7))
 
 
-def exp_function_a(sq_r, a):
-    a = float(a)
-    first_term = BackendTensor.tfnp.divide(sq_r, (a ** 4))  # ! This term is almost always zero. I thnk we can just remove it
-    second_term = 1 / (a ** 2)
-    third_term = BackendTensor.tfnp.exp(-(sq_r / (2 * a ** 2)))
-    return (first_term - second_term) * third_term
+@torch.compile(fullgraph=True, mode="reduce-overhead")
+def exp_function(sq_r: torch.Tensor, a: float) -> torch.Tensor:
+    # exp(-(r^2 / (2 a^2)))
+    return torch.exp(-(sq_r / (2.0 * a * a)))
+
+
+@torch.compile(fullgraph=True, mode="reduce-overhead")
+def exp_function_p_div_r(sq_r: torch.Tensor, a: float) -> torch.Tensor:
+    # -(1 / a^2) * exp(...)
+    val = torch.exp(-(sq_r / (2.0 * a * a)))
+    return -(1.0 / (a * a)) * val
+
+
+@torch.compile(fullgraph=True, mode="reduce-overhead")
+def exp_function_a(sq_r: torch.Tensor, a: float) -> torch.Tensor:
+    # (sq_r / a^4 - 1/a^2) * exp(...)
+    a2 = a * a
+    a4 = a2 * a2
+    term1 = sq_r / a4
+    term2 = 1.0 / a2
+    term3 = torch.exp(-(sq_r / (2.0 * a2)))
+    return (term1 - term2) * term3
 
 
 square_root_3 = 1.73205080757
-
 sqrt5 = 2.2360679775
 
 
-def matern_function_5_2(r, a, nu=5 / 2):
-    # Using nu=5/2 for the Matern kernel
+@torch.compile(fullgraph=True, mode="reduce-overhead")
+def matern_function_5_2(r: torch.Tensor, a: float) -> torch.Tensor:
+    # (1 + sqrt5 * r/a + 5/3 * r^2/a^2) * exp(-sqrt5 * r/a)
+    # a is float.
+    # Precompute constants
+    s5 = 2.2360679775
 
-    a = float(a)
-    sqrt5_r_over_ell = sqrt5 * r / a
-    return (1 + sqrt5_r_over_ell + (5 * r ** 2) / (3 * a ** 2)) * BackendTensor.tfnp.exp(-sqrt5_r_over_ell)
+    # Common term x = r/a
+    x = r / a
+    s5_x = s5 * x
+
+    # Polynomial part: 1 + s5_x + (5/3) * x^2
+    poly = 1.0 + s5_x + (1.6666666667 * x * x)
+
+    return poly * torch.exp(-s5_x)
 
 
-def matern_function_5_2_p_div_r(r, a, nu=5 / 2):
-    a = float(a)
-    sqrt5_r_over_ell = sqrt5 * r / a
-    return -(5 * BackendTensor.tfnp.exp(-sqrt5_r_over_ell) * (a + sqrt5 * r)) / (3 * a ** 3)
+@torch.compile(fullgraph=True, mode="reduce-overhead")
+def matern_function_5_2_p_div_r(r: torch.Tensor, a: float) -> torch.Tensor:
+    # -(5 * exp(...) * (a + sqrt5 * r)) / (3 * a^3)
+    s5 = 2.2360679775
+    x = r / a
+
+    term_exp = torch.exp(-s5 * x)
+    numerator = -5.0 * term_exp * (a + s5 * r)
+    denominator = 3.0 * (a * a * a)
+
+    return numerator / denominator
 
 
-def matern_function_5_2_a(r, a, nu=5 / 2):
-    a = float(a)
-    sqrt5_r_over_ell = sqrt5 * r / a
-    return -5 * BackendTensor.tfnp.exp(-sqrt5_r_over_ell) * (a ** 2 + sqrt5 * a * r - 5 * r ** 2) / (3 * a ** 4)
+@torch.compile(fullgraph=True, mode="reduce-overhead")
+def matern_function_5_2_a(r: torch.Tensor, a: float) -> torch.Tensor:
+    s5 = 2.2360679775
+    x = r / a
+    term_exp = torch.exp(-s5 * x)
+
+    # (a^2 + sqrt5 * a * r - 5 * r^2)
+    poly = (a * a) + (s5 * a * r) - (5.0 * r * r)
+
+    return -5.0 * term_exp * poly / (3.0 * (a * a * a * a))
 
 
 @dataclass
