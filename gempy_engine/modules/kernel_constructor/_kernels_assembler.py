@@ -2,7 +2,8 @@ from . import _structs
 from ._covariance_assembler import get_covariance
 from ._internalDistancesMatrices import InternalDistancesMatrices
 from ._structs import KernelInput, CartesianSelector, OrientationSurfacePointsCoords
-from ...core.backend_tensor import BackendTensor as bt
+from ...config import AvailableBackends
+from ...core.backend_tensor import BackendTensor as bt, BackendTensor
 from ...core.data.kernel_classes.kernel_functions import KernelFunction
 from ...core.data.options import KernelOptions
 
@@ -170,6 +171,12 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
     if develeping_distances_buffer := False and is_gradient:  # This is for developing
         _check_which_items_are_the_same_between_calls(distance_matrices)
     
+    # ! TODO: Handle
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        import torch
+        if torch.compiler.is_compiling():
+            return distance_matrices
+        
     DistancesBuffer.last_internal_distances_matrices = distance_matrices  # * Save common values for next call
     return distance_matrices
 

@@ -12,11 +12,12 @@ if is_pykeops_installed:
 
 if is_pytorch_installed:
     import torch
-    
-PYKEOPS= DEFAULT_PYKEOPS
+
+PYKEOPS = DEFAULT_PYKEOPS
 
 # * Import a copy of numpy as tfnp
 from importlib.util import find_spec, module_from_spec
+
 
 class BackendTensor:
     engine_backend: AvailableBackends
@@ -32,7 +33,7 @@ class BackendTensor:
     tfnp: numpy  # Alias for the tensor backend pointer
     _: Any  # Alias for the tensor backend pointer
     t: numpy  # Alias for the tensor backend pointer
-    
+
     COMPUTE_GRADS: bool = False
 
     @classmethod
@@ -47,13 +48,13 @@ class BackendTensor:
 
     @classmethod
     def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = False,
-                             dtype: Optional[str] = None, grads:bool = False):
+                             dtype: Optional[str] = None, grads: bool = False):
         cls._change_backend(engine_backend, use_pykeops=PYKEOPS, use_gpu=use_gpu, dtype=dtype,
                             grads=grads)
 
     @classmethod
     def _change_backend(cls, engine_backend: AvailableBackends, use_pykeops: bool = False,
-                        use_gpu: bool = False, dtype: Optional[str] = None, grads:bool = False):
+                        use_gpu: bool = False, dtype: Optional[str] = None, grads: bool = False):
         cls.dtype = DEFAULT_TENSOR_DTYPE if dtype is None else dtype
         cls.dtype_obj = cls.dtype
         match engine_backend:
@@ -61,7 +62,6 @@ class BackendTensor:
                 if is_numpy_installed is False:
                     raise AttributeError(
                         f"Engine Backend: {engine_backend} cannot be used because the correspondent library is not installed: numpy")
-
 
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
@@ -116,25 +116,26 @@ class BackendTensor:
                             pass  # Context might already be exited
                     cls._torch_no_grad_context = None
                     torch.set_grad_enabled(True)
-                    
+
                 cls.use_pykeops = use_pykeops  # TODO: Make this compatible with pykeops
                 if (use_pykeops):
                     import pykeops
                     cls._wrap_pykeops_functions()
-                
+
                 if (use_gpu):
                     cls.use_gpu = True
                     # cls.tensor_backend_pointer['active_backend'].set_default_device("cuda")
                     # Check if CUDA is available
                     if not pytorch_copy.cuda.is_available():
                         raise RuntimeError("GPU requested but CUDA is not available in PyTorch")
-                    if False: # * (Miguel) this slows down the code a lot
+                    if True:  # * (Miguel) this slows down the code a lot
                         # Check if CUDA device is available
                         if not pytorch_copy.cuda.device_count():
                             raise RuntimeError("GPU requested but no CUDA device is available in PyTorch")
                         # Set default device to CUDA
                         cls.device = pytorch_copy.device("cuda")
                         pytorch_copy.set_default_device("cuda")
+                        torch.set_default_device("cuda")
                         print(f"GPU enabled. Using device: {cls.device}")
                         print(f"GPU device count: {pytorch_copy.cuda.device_count()}")
                         print(f"Current GPU device: {pytorch_copy.cuda.current_device()}")
@@ -183,16 +184,21 @@ class BackendTensor:
                 return None
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
+            # 1. Fast Path: It's already a Tensor (Compiler Friendly)
             if isinstance(array_like, torch.Tensor):
-                if dtype is None: return array_like
-                else: return array_like.type(dtype)
-            else:
-                # Ensure numpy arrays are contiguous before converting to torch tensor
-                if isinstance(array_like, numpy.ndarray):
-                    if not array_like.flags.c_contiguous:
-                        array_like = numpy.ascontiguousarray(array_like)
+                if dtype is None:
+                    return array_like
+                return array_like.to(dtype)
 
-                return torch.tensor(array_like, dtype=dtype)
+            # 2. Slow Path: NumPy / Lists (The "Dirty" Data)
+            # Fix the "ValueError": Force memory alignment
+            if isinstance(array_like, (numpy.ndarray, list, tuple)):
+                # We call this UNCONDITIONALLY. 
+                # 1. It fixes your ValueError (misaligned strides).
+                # 2. It avoids 'if array.flags.c_contiguous' (which crashes the compiler).
+                array_like = numpy.ascontiguousarray(array_like)
+
+            return torch.tensor(array_like, dtype=dtype, device=cls.device)
 
         def _concatenate(tensors, axis=0, dtype=None):
             # Switch if tensor is numpy array or a torch tensor
@@ -205,7 +211,6 @@ class BackendTensor:
 
         def _transpose(tensor, axes=None):
             return tensor.transpose(axes[0], axes[1])
-        
 
         def _packbits(tensor, axis=None, bitorder="big"):
             """
@@ -274,7 +279,6 @@ class BackendTensor:
             else:
                 raise NotImplementedError(f"packbits not implemented for axis={axis}")
 
-
         def _to_numpy(tensor):
             """Convert tensor to numpy array, handling GPU tensors properly"""
             if hasattr(tensor, 'device') and tensor.device.type == 'cuda':
@@ -311,7 +315,7 @@ class BackendTensor:
         cls.tfnp.concatenate = _concatenate
         cls.tfnp.transpose = _transpose
         cls.tfnp.geomspace = lambda start, stop, step: torch.logspace(start, stop, step, base=10)
-        cls.tfnp.abs = lambda tensor, dtype = None: tensor.abs().type(dtype) if dtype is not None else tensor.abs()
+        cls.tfnp.abs = lambda tensor, dtype=None: tensor.abs().type(dtype) if dtype is not None else tensor.abs()
         cls.tfnp.tile = lambda tensor, repeats: tensor.repeat(repeats)
         cls.tfnp.ravel = lambda tensor: tensor.flatten()
         cls.tfnp.packbits = _packbits
@@ -333,49 +337,56 @@ class BackendTensor:
             match tensor:
                 case numpy.ndarray():
                     return numpy.exp(tensor)
-                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor(): 
-                    return tensor.exp()
-                case torch.Tensor() if torch_available:
-                    return tensor.exp()
-                case _:
-                    raise TypeError("Unsupported tensor type")
-
-
-        @torch.jit.ignore
-        def _sum(tensor, axis=None, dtype=None, keepdims=False):
-            match tensor:
-                case numpy.ndarray():
-                    return numpy.sum(tensor, axis=axis, keepdims=keepdims, dtype=dtype)
                 case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor():
-                    return tensor.sum(axis)
+                    return tensor.exp()
                 case torch.Tensor() if torch_available:
-                    if isinstance(dtype, str):
-                        dtype = getattr(torch, dtype)
-                    return tensor.sum(axis, keepdims=keepdims, dtype=dtype)
+                    return tensor.exp()
                 case _:
                     raise TypeError("Unsupported tensor type")
+
+        def _sum(tensor, axis=None, dtype=None, keepdims=False):
+            if isinstance(tensor, numpy.ndarray):
+                return numpy.sum(tensor, axis=axis, keepdims=keepdims, dtype=dtype)
+
+            # Handle LazyTensors (KeOps)
+            # We check for the attribute or common base if imports are tricky, 
+            # but explicit isinstance is safest if they are already in scope.
+            import pykeops
+            if isinstance(tensor, (pykeops.numpy.LazyTensor, pykeops.torch.LazyTensor)):
+                return tensor.sum(axis)
+
+            if torch_available and isinstance(tensor, torch.Tensor):
+                if isinstance(dtype, str):
+                    dtype = getattr(torch, dtype)
+                return tensor.sum(axis, keepdims=keepdims, dtype=dtype)
+
+            raise TypeError(f"Unsupported tensor type: {type(tensor)}")
 
         def _divide(tensor, other, dtype=None):
-            match tensor:
-                case numpy.ndarray():
-                    return numpy.divide(tensor, other, dtype=dtype)
-                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor():
-                    return tensor / other
-                case torch.Tensor() if torch_available:
-                    return tensor / other
-                case _:
-                    raise TypeError("Unsupported tensor type")
+            if isinstance(tensor, numpy.ndarray):
+                return numpy.divide(tensor, other, dtype=dtype)
+
+            import pykeops
+            if isinstance(tensor, (pykeops.numpy.LazyTensor, pykeops.torch.LazyTensor)):
+                return tensor / other
+
+            if torch_available and isinstance(tensor, torch.Tensor):
+                return tensor / other
+
+            raise TypeError(f"Unsupported tensor type: {type(tensor)}")
 
         def _sqrt_fn(tensor):
-            match tensor:
-                case numpy.ndarray():
-                    return numpy.sqrt(tensor)
-                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor(): 
-                    return tensor.sqrt()
-                case torch.Tensor() if torch_available:
-                    return tensor.sqrt()
-                case _:
-                    raise TypeError("Unsupported tensor type")
+            if isinstance(tensor, numpy.ndarray):
+                return numpy.sqrt(tensor)
+
+            import pykeops
+            if isinstance(tensor, (pykeops.numpy.LazyTensor, pykeops.torch.LazyTensor)):
+                return tensor.sqrt()
+
+            if torch_available and isinstance(tensor, torch.Tensor):
+                return tensor.sqrt()
+
+            raise TypeError(f"Unsupported tensor type: {type(tensor)}")
 
         cls.tfnp.sqrt = _sqrt_fn
         cls.tfnp.sum = _sum

@@ -41,6 +41,37 @@ def _cast_tensors(data_class_instance):
             pass
 
 
+# --- 1. The New Helper Function (Replaces _cast_tensors logic) ---
+def _secure_cast(array_like):
+    """
+    Applies the backend logic (Torch/KeOps/NumPy) to a SINGLE item.
+    Compiler-safe because it doesn't loop over __dict__.
+    """
+    # CASE A: NumPy Backend
+    if BackendTensor.engine_backend == AvailableBackends.numpy:
+        from pykeops.numpy import LazyTensor
+        # Note: explicit .astype fixes cost issues
+        return LazyTensor(array_like.astype(BackendTensor.dtype))
+
+    # CASE B: PyTorch Backend (Standard)
+    elif BackendTensor.engine_backend == AvailableBackends.PYTORCH and not BackendTensor.pykeops_enabled:
+        # Use our "Fixed" _array method from previous chat (handles contiguity safely)
+        return BackendTensor.t.array(array_like)
+
+    # CASE C: PyTorch + KeOps
+    elif BackendTensor.engine_backend == AvailableBackends.PYTORCH and BackendTensor.pykeops_enabled:
+        from pykeops.torch import LazyTensor
+        import torch
+        # Ensure contiguous (using our safe logic implicitly via _array if needed)
+        # But KeOps usually wants pure torch tensors wrapped:
+        if not isinstance(array_like, torch.Tensor):
+            array_like = BackendTensor.t.array(array_like)
+
+        return LazyTensor(array_like.type(BackendTensor.dtype_obj))
+
+    # Fallback
+    return array_like
+
 @dataclass
 class OrientationSurfacePointsCoords:
     dip_ref_i: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
@@ -49,6 +80,20 @@ class OrientationSurfacePointsCoords:
     diprest_j: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
 
     def __init__(self, x_ref: np.ndarray, y_ref: np.ndarray, x_rest: np.ndarray, y_rest: np.ndarray):
+        # 1. Do the logic
+        dips_points0 = x_ref[:, None, :]
+        dips_points1 = y_ref[None, :, :]
+        dips_points2 = x_rest[:, None, :]
+        dips_points3 = y_rest[None, :, :]
+
+        # 2. EXPLICIT CASTING (The Compiler loves this)
+        # No loops, no __dict__ magic. Just straight assignments.
+        self.dip_ref_i = _secure_cast(dips_points0)
+        self.dip_ref_j = _secure_cast(dips_points1)
+        self.diprest_i = _secure_cast(dips_points2)
+        self.diprest_j = _secure_cast(dips_points3)
+
+    def ___init__(self, x_ref: np.ndarray, y_ref: np.ndarray, x_rest: np.ndarray, y_rest: np.ndarray):
         def _assembly(x, y) -> Tuple[np.ndarray, np.ndarray]:
             dips_points0 = x[:, None, :]  # i
             dips_points1 = y[None, :, :]  # j
@@ -76,6 +121,20 @@ class OrientationsDrift:
                  x_degree_2: np.ndarray, y_degree_2: np.ndarray,
                  x_degree_2b: np.ndarray, y_degree_2b: np.ndarray,
                  selector_degree_2: np.ndarray):
+        self.dips_ug_ai = _secure_cast(x_degree_1[:, None, :])
+        self.dips_ug_aj = _secure_cast(y_degree_1[None, :, :])
+        self.dips_ug_bi = _secure_cast(x_degree_2[:, None, :])
+        self.dips_ug_bj = _secure_cast(y_degree_2[None, :, :])
+        self.dips_ug_ci = _secure_cast(x_degree_2b[:, None, :])
+        self.dips_ug_cj = _secure_cast(y_degree_2b[None, :, :])
+        self.selector_ci = _secure_cast(selector_degree_2[:, None, :])
+        self.selector_cj = _secure_cast(selector_degree_2[None, :, :])
+        
+    def ___init__(self,
+                 x_degree_1: np.ndarray, y_degree_1: np.ndarray,
+                 x_degree_2: np.ndarray, y_degree_2: np.ndarray,
+                 x_degree_2b: np.ndarray, y_degree_2b: np.ndarray,
+                 selector_degree_2: np.ndarray):
         self.dips_ug_ai = x_degree_1[:, None, :]
         self.dips_ug_aj = y_degree_1[None, :, :]
         self.dips_ug_bi = x_degree_2[:, None, :]
@@ -99,6 +158,15 @@ class PointsDrift:
 
     def __init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, x_degree_2a: np.ndarray,
                  y_degree_2a: np.ndarray, x_degree_2b: np.ndarray, y_degree_2b: np.ndarray):
+        self.dipsPoints_ui_ai = _secure_cast(x_degree_1[:, None, :])
+        self.dipsPoints_ui_aj = _secure_cast(y_degree_1[None, :, :])
+        self.dipsPoints_ui_bi1 = _secure_cast(x_degree_2a[:, None, :])
+        self.dipsPoints_ui_bj1 = _secure_cast(y_degree_2a[None, :, :])
+        self.dipsPoints_ui_bi2 = _secure_cast(x_degree_2b[:, None, :])
+        self.dipsPoints_ui_bj2 = _secure_cast(y_degree_2b[None, :, :])
+        
+    def ___init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, x_degree_2a: np.ndarray,
+                 y_degree_2a: np.ndarray, x_degree_2b: np.ndarray, y_degree_2b: np.ndarray):
         self.dipsPoints_ui_ai = x_degree_1[:, None, :]
         self.dipsPoints_ui_aj = y_degree_1[None, :, :]
         self.dipsPoints_ui_bi1 = x_degree_2a[:, None, :]
@@ -117,6 +185,12 @@ class FaultDrift:
     n_faults_i: int = 0
 
     def __init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, ):
+        self.faults_i = _secure_cast(x_degree_1[:, None, :])
+        self.faults_j = _secure_cast(y_degree_1[None, :, :])
+
+        self.n_faults_i = x_degree_1.shape[1]
+        
+    def ___init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, ):
         self.faults_i = x_degree_1[:, None, :]
         self.faults_j = y_degree_1[None, :, :]
 
@@ -138,8 +212,26 @@ class CartesianSelector:
     h_sel_rest_i: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
     h_sel_rest_j: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
     # is_gradient: bool = False (June) This seems to be unused
-
     def __init__(self,
+                 x_sel_hu, y_sel_hu,
+                 x_sel_hv, y_sel_hv,
+                 x_sel_h_ref, y_sel_h_ref,
+                 x_sel_h_rest, y_sel_h_rest,
+                 is_gradient=False):
+        # Explicit Casts for all 8 fields
+        self.hu_sel_i = _secure_cast(x_sel_hu[:, None, :])
+        self.hu_sel_j = _secure_cast(y_sel_hu[None, :, :])
+
+        self.hv_sel_i = _secure_cast(x_sel_hv[:, None, :])
+        self.hv_sel_j = _secure_cast(y_sel_hv[None, :, :])
+
+        self.h_sel_ref_i = _secure_cast(x_sel_h_ref[:, None, :])
+        self.h_sel_ref_j = _secure_cast(y_sel_h_ref[None, :, :])
+
+        self.h_sel_rest_i = _secure_cast(x_sel_h_rest[:, None, :])
+        self.h_sel_rest_j = _secure_cast(y_sel_h_rest[None, :, :])
+        
+    def ___init__(self,
                  x_sel_hu, y_sel_hu,
                  x_sel_hv, y_sel_hv,
                  x_sel_h_ref, y_sel_h_ref,
@@ -164,8 +256,29 @@ class CartesianSelector:
 class DriftMatrixSelector:
     sel_ui: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
     sel_vj: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
-    
+
     def __init__(self, x_size: int, y_size: int, n_drift_eq: int, drift_start_post_x: int, drift_start_post_y: int):
+        # Logic remains the same
+        sel_i = np.zeros((x_size, 2), dtype=BackendTensor.dtype)
+        sel_j = np.zeros((y_size, 2), dtype=BackendTensor.dtype)
+
+        drift_pos_0_x = drift_start_post_x
+        drift_pos_1_x = drift_start_post_x + n_drift_eq + 1
+        drift_pos_0_y = drift_start_post_y
+        drift_pos_1_y = drift_start_post_y + n_drift_eq + 1
+
+        if n_drift_eq != 0:
+            sel_i[:drift_pos_0_x, 0] = 1
+            sel_i[drift_pos_0_x:drift_pos_1_x, 1] = 1
+
+            sel_j[:drift_pos_0_y, 0] = -1
+            sel_j[drift_pos_0_y:drift_pos_1_y, 1] = -1
+
+        # Explicit Cast
+        self.sel_ui = _secure_cast(sel_i[:, None, :])
+        self.sel_vj = _secure_cast(sel_j[None, :, :])
+    
+    def ___init__(self, x_size: int, y_size: int, n_drift_eq: int, drift_start_post_x: int, drift_start_post_y: int):
         sel_i = np.zeros((x_size, 2), dtype=BackendTensor.dtype)
         sel_j = np.zeros((y_size, 2), dtype=BackendTensor.dtype)
 
