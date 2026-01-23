@@ -1,3 +1,5 @@
+import torch
+
 from ...core.backend_tensor import BackendTensor
 from ...core.data.internal_structs import SolverInput
 from ...core.data.kernel_classes.orientations import OrientationsInternals
@@ -10,6 +12,7 @@ from ...core.data.options import KernelOptions
 tensor_types = BackendTensor.tensor_types
 
 
+@torch.compile
 def yield_covariance(interp_input: SolverInput, kernel_options: KernelOptions) -> tensor_types:
     kernel_data = cov_vectors_preparation(interp_input, kernel_options)
     cov = create_cov_kernel(kernel_data, kernel_options)
