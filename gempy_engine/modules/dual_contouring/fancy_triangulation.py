@@ -229,9 +229,25 @@ def _filter_edges_with_neighbors(edge_vector_a, edge_vector_b, edge_vector_c,
 
 def _compress_binary_indices(left_right_array_active_edge, edge_vector_a, edge_vector_b, edge_vector_c, pack_factors):
     """Compress voxel codes per direction."""
-    edge_vector_0 = BackendTensor.tfnp.array([edge_vector_a, 0, 0])
-    edge_vector_1 = BackendTensor.tfnp.array([0, edge_vector_b, 0])
-    edge_vector_2 = BackendTensor.tfnp.array([0, 0, edge_vector_c])
+    # Ensure edge vectors are tensors on the same device as the data
+    device = left_right_array_active_edge.device if hasattr(left_right_array_active_edge, 'device') else None
+    dtype = left_right_array_active_edge.dtype
+    
+    # Create scalar tensors on the correct device
+    if BackendTensor.engine_backend == BackendTensor.engine_backend.PYTORCH:
+        edge_a_tensor = BackendTensor.tfnp.tensor(edge_vector_a, dtype=dtype, device=device)
+        edge_b_tensor = BackendTensor.tfnp.tensor(edge_vector_b, dtype=dtype, device=device)
+        edge_c_tensor = BackendTensor.tfnp.tensor(edge_vector_c, dtype=dtype, device=device)
+        zero_tensor = BackendTensor.tfnp.tensor(0, dtype=dtype, device=device)
+        
+        edge_vector_0 = BackendTensor.tfnp.stack([edge_a_tensor, zero_tensor, zero_tensor])
+        edge_vector_1 = BackendTensor.tfnp.stack([zero_tensor, edge_b_tensor, zero_tensor])
+        edge_vector_2 = BackendTensor.tfnp.stack([zero_tensor, zero_tensor, edge_c_tensor])
+    else:
+        # NumPy doesn't have device concept
+        edge_vector_0 = BackendTensor.tfnp.array([edge_vector_a, 0, 0])
+        edge_vector_1 = BackendTensor.tfnp.array([0, edge_vector_b, 0])
+        edge_vector_2 = BackendTensor.tfnp.array([0, 0, edge_vector_c])
 
     binary_idx_0 = left_right_array_active_edge + edge_vector_0
     binary_idx_1 = left_right_array_active_edge + edge_vector_1
