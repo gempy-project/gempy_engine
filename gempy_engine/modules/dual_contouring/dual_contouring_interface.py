@@ -83,32 +83,17 @@ def find_intersection_on_edge(_xyz_corners, scalar_field_on_corners,
 # endregion
 
 # region Triangulation Codes
-def get_triangulation_codes(octree_list: List[OctreeLevel], options: InterpolationOptions) -> np.ndarray | None:
+def get_triangulation_codes(octree_list: List[OctreeLevel]) -> np.ndarray | None:
     """
     Determine the appropriate triangulation codes based on options and octree structure.
     
     Args:
         octree_list: List of octree levels
-        options: Interpolation options
         
     Returns:
         Left-right codes array if fancy triangulation is enabled and supported, None otherwise
     """
-    is_pure_octree = bool(np.all(octree_list[0].grid_centers.octree_grid_shape == 2))
-
-    match (options.evaluation_options.mesh_extraction_fancy, is_pure_octree):
-        case (True, True):
-            return get_left_right_array(octree_list)
-        case (True, False):
-            warnings.warn(
-                "Fancy triangulation only works with regular grid of resolution [2,2,2]. "
-                "Defaulting to regular triangulation"
-            )
-            return None
-        case (False, _):
-            return None
-        case _:
-            raise ValueError("Invalid combination of options")
+    return get_left_right_array(octree_list)
 
 
 def get_masked_codes(left_right_codes: np.ndarray, mask: np.ndarray) -> np.ndarray:

@@ -62,7 +62,7 @@ def dual_contouring_multi_scalar(
         return all_meshes
 
     # * 1) Triangulation code
-    left_right_codes = get_triangulation_codes(octree_list, options)
+    left_right_codes = get_triangulation_codes(octree_list)
 
     # * 2) Dual contouring mask
     # ? I guess this mask is different that erosion mask

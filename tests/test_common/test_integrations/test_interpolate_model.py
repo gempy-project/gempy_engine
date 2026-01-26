@@ -80,19 +80,19 @@ def test_interpolate_model_unconformity(unconformity, n_oct_levels=4):
 
     options.number_octree_levels = n_oct_levels
     solutions = compute_model(interpolation_input, options, structure)
+    
+    assert solutions.dc_meshes[2].vertices.shape[0] == 0
 
     if plot_pyvista or False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, n_oct_levels - 1)
-        plot_points(p, solutions.debug_input_data.surface_points.sp_coords, True)
 
-        xyz, gradients = solutions.debug_input_data.orientations.dip_positions, solutions.debug_input_data.orientations.dip_gradients
-        poly = pv.PolyData(xyz)
-        
-        poly['vectors'] = gradients
-        arrows = poly.glyph(orient='vectors', scale=True, factor=100)
+        plot_points(p, interpolation_input.surface_points.sp_coords, True)
+        plot_vector(p, interpolation_input.orientations.dip_positions,
+                    interpolation_input.orientations.dip_gradients)
 
-        p.add_mesh(arrows, color="green", point_size=10.0, render_points_as_spheres=False)
+        plot_dc_meshes(p, solutions.dc_meshes[0])
+        plot_dc_meshes(p, solutions.dc_meshes[1])
         
         p.show()
