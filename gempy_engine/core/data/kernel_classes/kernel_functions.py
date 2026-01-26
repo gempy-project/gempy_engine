@@ -10,6 +10,20 @@ import numpy as np
 # ============================================================================
 # NumPy implementations (always available)
 # ============================================================================
+def cubic_function(r, a):
+    a = float(a)
+    return 1 - 7 * (r / a) ** 2 + 35 * r ** 3 / (4 * a ** 3) - 7 * r ** 5 / (2 * a ** 5) + 3 * r ** 7 / (4 * a ** 7)
+
+
+def cubic_function_p_div_r(r, a):
+    a = float(a)
+    return (-14 / a ** 2) + 105 * r / (4 * a ** 3) - 35 * r ** 3 / (2 * a ** 5) + 21 * r ** 5 / (4 * a ** 7)
+
+
+def cubic_function_a(r, a):
+    a = float(a)
+    return 7 * (9 * r ** 5 - 20 * a ** 2 * r ** 3 + 15 * a ** 4 * r - 4 * a ** 5) / (2 * a ** 7)
+
 
 def cubic_function_numpy(r: np.ndarray, a: float) -> np.ndarray:
     c2, c3, c5, c7 = -7.0, 8.75, -3.5, 0.75
@@ -17,6 +31,30 @@ def cubic_function_numpy(r: np.ndarray, a: float) -> np.ndarray:
     x2 = x * x
     return 1.0 + x2 * (c2 + x * (c3 + x2 * (c5 + x2 * c7)))
 
+def cubic_function_numpy_stable(r, a):
+    x = r / a
+    x2 = x * x
+    # Calculate terms individually to keep magnitudes small
+    return 1.0 - 7.0*x2 + 8.75*x2*x - 3.5*x2*x2*x + 0.75*x2*x2*x2*x
+
+
+def cubic_function_factorized(r: np.ndarray, a: float) -> np.ndarray:
+    """
+    Computes the kernel using the factorized form (1-x)^4 * P(x).
+    This eliminates catastrophic cancellation near r = a.
+    """
+    x = r / a
+
+    # We compute (1 - x) explicitly. 
+    # This term handles the decay to zero safely.
+    q = 1.0 - x
+
+    # The remaining polynomial part: (1 + 4x + 3x^2 + 0.75x^3)
+    # Since all coefficients here are positive, there is NO subtraction 
+    # and therefore NO cancellation error.
+    poly_part = 1.0 + x * (4.0 + x * (3.0 + x * 0.75))
+
+    return (q ** 4) * poly_part
 
 def cubic_function_p_div_r_numpy(r: np.ndarray, a: float) -> np.ndarray:
     a_inv = 1.0 / a
@@ -83,14 +121,26 @@ def _get_torch_kernels() -> dict:
     import torch
 
     @torch.compile(fullgraph=True, mode="default")
-    def cubic_function_torch(r, a: float):
+    def cubic_function_torch(r, a):
+        return 1 - 7 * (r / a) ** 2 + 35 * r ** 3 / (4 * a ** 3) - 7 * r ** 5 / (2 * a ** 5) + 3 * r ** 7 / (4 * a ** 7)
+
+    @torch.compile(fullgraph=True, mode="default")
+    def cubic_function_p_div_r_torch(r, a):
+        return (-14 / a ** 2) + 105 * r / (4 * a ** 3) - 35 * r ** 3 / (2 * a ** 5) + 21 * r ** 5 / (4 * a ** 7)
+
+    @torch.compile(fullgraph=True, mode="default")
+    def cubic_function_a_torch(r, a):
+        return 7 * (9 * r ** 5 - 20 * a ** 2 * r ** 3 + 15 * a ** 4 * r - 4 * a ** 5) / (2 * a ** 7)
+
+    @torch.compile(fullgraph=True, mode="default")
+    def cubic_function_torch_horner(r, a: float):
         c2, c3, c5, c7 = -7.0, 8.75, -3.5, 0.75
         x = r / a
         x2 = x * x
         return 1.0 + x2 * (c2 + x * (c3 + x2 * (c5 + x2 * c7)))
 
     @torch.compile(fullgraph=True, mode="default")
-    def cubic_function_p_div_r_torch(r, a: float):
+    def cubic_function_p_div_r_torch_horner(r, a: float):
         a_inv = 1.0 / a
         a2_inv = a_inv * a_inv
         x = r * a_inv
@@ -98,7 +148,7 @@ def _get_torch_kernels() -> dict:
         return a2_inv * (-14.0 + x * (26.25 + x2 * (-17.5 + 5.25 * x2)))
 
     @torch.compile(fullgraph=True, mode="default")
-    def cubic_function_a_torch(r, a: float):
+    def cubic_function_a_torch_horner(r, a: float):
         return 7.0 * (9.0 * r ** 5 - 20.0 * (a ** 2) * (r ** 3) + 15.0 * (a ** 4) * r - 4.0 * (a ** 5)) / (2.0 * (a ** 7))
 
     @torch.compile(fullgraph=True, mode="default")
@@ -173,8 +223,11 @@ class KernelFunction:
 
 class AvailableKernelFunctions(Enum):
     cubic = KernelFunction(
-        cubic_function_numpy, cubic_function_p_div_r_numpy, cubic_function_a_numpy,
-        consume_sq_distance=False, _kernel_name='cubic'
+        cubic_function,
+        cubic_function_p_div_r,
+        cubic_function_a,
+        consume_sq_distance=False, 
+        _kernel_name='cubic'
     )
     exponential = KernelFunction(
         exp_function_numpy, exp_function_p_div_r_numpy, exp_function_a_numpy,
