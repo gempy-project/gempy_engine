@@ -104,7 +104,10 @@ def _get_pack_factors(base_number):
 def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, vertex):
     # * Variables
     # Determine base_number dynamically from the data to support arbitrary grid shapes
-    max_val = left_right_array.max()
+    if left_right_array.shape[0] == 0:
+        max_val = 0
+    else:
+        max_val = left_right_array.max()
     base_number = max_val + 1
     pack_factors = _get_pack_factors(base_number)
 
