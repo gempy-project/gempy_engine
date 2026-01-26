@@ -41,6 +41,7 @@ def compute_dual_contouring_v2(dc_data_list: list[DualContouringData], ) -> List
     stack_meshes: List[DualContouringMesh] = []
 
     for dc_data in dc_data_list:
+        if dc_data.n_valid_edges == 0: continue
         mesh = _process_one_surface(dc_data, dc_data.left_right_codes)
         stack_meshes.append(mesh)
     return stack_meshes

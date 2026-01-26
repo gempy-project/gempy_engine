@@ -64,7 +64,7 @@ def test_dual_contouring_on_fault_model_anisotropic_octree(one_fault_model, n_oc
 
     outputs: list[OctreeLevel] = solutions.octrees_output
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         helper_functions_pyvista.plot_pyvista(
             # octree_list=solutions.octrees_output,
             octree_list=None,
