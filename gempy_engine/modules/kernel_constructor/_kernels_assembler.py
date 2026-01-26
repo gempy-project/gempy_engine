@@ -11,7 +11,10 @@ tensor_types = bt.tensor_types
 
 
 def create_cov_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
-    kernel_f: KernelFunction = options.kernel_function.value
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH and False:
+        kernel_f: KernelFunction = options.kernel_function.value.for_torch()
+    else:
+        kernel_f: KernelFunction = options.kernel_function.value
 
     distances_matrices = _compute_all_distance_matrices(
         cs=ki.cartesian_selector,
@@ -225,6 +228,94 @@ def _compute_distances_using_cache(cs, last_internal_distances_matrices: Interna
 
 
 def _compute_distances_new(cs: CartesianSelector, ori_sp_matrices, square_distance) -> InternalDistancesMatrices:
+    # Check if we're on PyTorch GPU
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH and BackendTensor.pykeops_enabled is False and False:
+        return _compute_distances_pytorch_gpu(cs, ori_sp_matrices, square_distance)
+    else:
+        return _compute_distances_generic(cs, ori_sp_matrices, square_distance)
+
+
+def _compute_distances_pytorch_gpu(cs: CartesianSelector, ori_sp_matrices, square_distance: bool) -> InternalDistancesMatrices:
+    """Optimized distance computation for PyTorch GPU using cdist and einsum."""
+    import torch
+
+    # === Difference tensors (keep 3D for einsum operations) ===
+    dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j      # (n, n, 3)
+    dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j    # (m, m, 3)
+
+    dtype = dif_ref_ref.dtype
+    # === Distance matrices using torch.cdist (uses optimized cuBLAS) ===
+    # Squeeze to 2D for cdist: (n, 1, 3) -> (n, 3)
+    ref_2d = ori_sp_matrices.dip_ref_i.squeeze(1)     # (n, 3)
+    rest_2d = ori_sp_matrices.diprest_i.squeeze(1)    # (m, 3)
+    ref_j_2d = ori_sp_matrices.dip_ref_j.squeeze(0)   # (n, 3)
+    rest_j_2d = ori_sp_matrices.diprest_j.squeeze(0)  # (m, 3)
+
+    # Compute all 4 distance matrices efficiently
+    r_ref_ref = torch.cdist(ref_2d, ref_j_2d, p=2)      # (n, n)
+    r_rest_rest = torch.cdist(rest_2d, rest_j_2d, p=2)  # (m, m)
+    r_ref_rest = torch.cdist(ref_2d, rest_j_2d, p=2)    # (n, m)
+    r_rest_ref = torch.cdist(rest_2d, ref_j_2d, p=2)    # (m, n)
+
+    if square_distance:
+        # Square the distances (kernel expects squared distances)
+        r_ref_ref = r_ref_ref.pow(2)
+        r_rest_rest = r_rest_rest.pow(2)
+        r_ref_rest = r_ref_rest.pow(2)
+        r_rest_ref = r_rest_ref.pow(2)
+    else:
+        # Add epsilon for numerical stability (cdist already returns non-negative)
+        epsilon = 1e-10
+        r_ref_ref = r_ref_ref + epsilon
+        r_rest_rest = r_rest_rest + epsilon
+        r_ref_rest = r_ref_rest + epsilon
+        r_rest_ref = r_rest_ref + epsilon
+
+    # === Selector multiplications using einsum (fused GPU operations) ===
+    # Pattern 'ijk,ijk->ij' computes element-wise product then sums over last dim
+
+    sel_hu_ij = (cs.hu_sel_i * cs.hu_sel_j).to(dtype)          # (n, n, 3)
+    sel_hv_ij = (cs.hv_sel_i * cs.hv_sel_j).to(dtype)          # (n, n, 3)
+    sel_hu_ref_j = (cs.hu_sel_i * cs.h_sel_ref_j).to(dtype)    # (n, n, 3)
+    sel_ref_hv_j = (cs.h_sel_ref_i * cs.hv_sel_j).to(dtype)    # (n, n, 3)
+    sel_hu_rest_j = (cs.hu_sel_i * cs.h_sel_rest_j).to(dtype)  # (m, m, 3)
+    sel_rest_hv_j = (cs.h_sel_rest_i * cs.hv_sel_j).to(dtype)  # (m, m, 3)
+
+    # Compute hu, hv terms
+    hu = torch.einsum('ijk,ijk->ij', dif_ref_ref, sel_hu_ij)
+    hv = -torch.einsum('ijk,ijk->ij', dif_ref_ref, sel_hv_ij)
+
+    # Compute huv_ref terms
+    hu_ref = torch.einsum('ijk,ijk->ij', dif_ref_ref, sel_hu_ref_j)
+    hv_ref = torch.einsum('ijk,ijk->ij', dif_ref_ref, sel_ref_hv_j)
+    huv_ref = hu_ref - hv_ref
+
+    # Compute huv_rest terms
+    hu_rest = torch.einsum('ijk,ijk->ij', dif_rest_rest, sel_hu_rest_j)
+    hv_rest = torch.einsum('ijk,ijk->ij', dif_rest_rest, sel_rest_hv_j)
+    huv_rest = hu_rest - hv_rest
+    # Perpendicular matrix (selector only, no dif multiplication)
+    perp_matrix = bt.t.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1, dtype='int8')  # * dtype arg only works for pure numpy. Axis dependent
+
+    return InternalDistancesMatrices(
+        dif_ref_ref=dif_ref_ref,
+        dif_rest_rest=dif_rest_rest,
+        hu=hu,
+        hv=hv,
+        huv_ref=huv_ref,
+        huv_rest=huv_rest,
+        perp_matrix=perp_matrix,
+        r_ref_ref=r_ref_ref,
+        r_ref_rest=r_ref_rest,
+        r_rest_ref=r_rest_ref,
+        r_rest_rest=r_rest_rest,
+        hu_ref=hu_ref,
+        hu_rest=hu_rest,
+        hu_ref_grad=None,  # Set in cache path
+        hu_rest_grad=None,
+    )
+
+def _compute_distances_generic(cs: CartesianSelector, ori_sp_matrices, square_distance) -> InternalDistancesMatrices:
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j  # Can be cached
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j  # Can be cached
 
