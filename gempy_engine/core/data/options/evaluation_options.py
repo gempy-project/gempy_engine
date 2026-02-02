@@ -16,10 +16,10 @@ class MeshExtractionMaskingOptions(enum.Enum):
 @dataclass
 class EvaluationOptions:
     _number_octree_levels: int = 1
-    _number_octree_levels_surface: int = 4
+    _number_octree_levels_surface: int = 3
     octree_curvature_threshold: float = -1.  #: Threshold to do octree refinement due to curvature to deal with angular geometries. This curvature assumes that 1 is the maximum curvature of any voxel
     octree_error_threshold: float = 1.  #: Number of standard deviations to consider a voxel as candidate to refine
-    octree_min_level: int = 2
+    octree_min_level: int = 1
     
     mesh_extraction: bool = True
     mesh_extraction_masking_options: MeshExtractionMaskingOptions = MeshExtractionMaskingOptions.INTERSECT
