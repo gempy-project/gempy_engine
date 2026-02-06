@@ -101,6 +101,7 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
         raise e
     finally:
         options.temp_interpolation_values.start_computation_ts = -1
+        WeightCache.clear_cache()
 
     return solutions
 
