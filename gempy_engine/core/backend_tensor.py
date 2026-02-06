@@ -191,7 +191,8 @@ class BackendTensor:
                 if isinstance(array_like, numpy.ndarray):
                     if not array_like.flags.c_contiguous:
                         array_like = numpy.ascontiguousarray(array_like)
-
+                    if not array_like.flags.aligned:
+                        array_like= numpy.copy(array_like, order="C")
                 return torch.tensor(array_like, dtype=dtype)
 
         def _concatenate(tensors, axis=0, dtype=None):

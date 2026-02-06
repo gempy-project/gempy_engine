@@ -80,7 +80,8 @@ class EngineGrid:
         if self.sections is not None:
             values.append(self.sections.values)
         if self.geophysics_grid is not None:
-            values.append(self.geophysics_grid.values)
+            grid_values = self.geophysics_grid.values
+            values.append(BackendTensor.t.array(grid_values, dtype=BackendTensor.dtype))
         if self.corners_grid is not None:
             values.append(self.corners_grid.values)
 
