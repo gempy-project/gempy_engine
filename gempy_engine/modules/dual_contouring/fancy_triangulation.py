@@ -112,7 +112,6 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, v
         base_x = left_right_array[:, 0].max() + 1
         base_y = left_right_array[:, 1].max() + 1
         base_z = left_right_array[:, 2].max() + 1
-    base_number = max(base_x, base_y, base_z)
     pack_factors = _get_pack_factors(base_x, base_y, base_z)
 
     edge_vector_a = BackendTensor.tfnp.array([0, 0, 0, 0, -1, -1, 1, 1, -1, 1, -1, 1])
@@ -145,7 +144,7 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, v
             voxel_code=voxel_code,
             voxel_normals=voxel_normals,
             n=n,
-            base_number=base_number,
+            base_number=[base_x, base_y, base_z],
             pack_factors=pack_factors
         )
 
@@ -214,21 +213,22 @@ def _filter_edges_with_neighbors(edge_vector_a, edge_vector_b, edge_vector_c,
                                  left_right_array_active_edge, dtype, base_number):
     """Remove edges that don't have voxels next to them."""
 
-    def check_voxels_exist_next_to_edge(coord_col, edge_vector, _left_right_array_active_edge):
+    def check_voxels_exist_next_to_edge(coord_col, edge_vector, 
+                                        _left_right_array_active_edge, _base_number_inner):
         match edge_vector:
             case 0:
                 _valid_edges = BackendTensor.tfnp.ones(_left_right_array_active_edge.shape[0], dtype=dtype)
             case 1:
-                _valid_edges = _left_right_array_active_edge[:, coord_col] != base_number - 1
+                _valid_edges = _left_right_array_active_edge[:, coord_col] != _base_number_inner - 1
             case -1:
                 _valid_edges = _left_right_array_active_edge[:, coord_col] != 0
             case _:
                 raise ValueError("edge_vector must be -1, 0 or 1")
         return _valid_edges
 
-    valid_edges_x = check_voxels_exist_next_to_edge(0, edge_vector_a, left_right_array_active_edge)
-    valid_edges_y = check_voxels_exist_next_to_edge(1, edge_vector_b, left_right_array_active_edge)
-    valid_edges_z = check_voxels_exist_next_to_edge(2, edge_vector_c, left_right_array_active_edge)
+    valid_edges_x = check_voxels_exist_next_to_edge(0, edge_vector_a, left_right_array_active_edge, _base_number_inner=base_number[0])
+    valid_edges_y = check_voxels_exist_next_to_edge(1, edge_vector_b, left_right_array_active_edge, _base_number_inner=base_number[1])
+    valid_edges_z = check_voxels_exist_next_to_edge(2, edge_vector_c, left_right_array_active_edge, _base_number_inner=base_number[2])
 
     valid_edges_with_neighbour_voxels = valid_edges_x * valid_edges_y * valid_edges_z
     return left_right_array_active_edge[valid_edges_with_neighbour_voxels]
