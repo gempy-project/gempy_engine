@@ -83,7 +83,7 @@ def find_intersection_on_edge(_xyz_corners, scalar_field_on_corners,
 # endregion
 
 # region Triangulation Codes
-def get_triangulation_codes(octree_list: List[OctreeLevel]) -> np.ndarray | None:
+def get_triangulation_codes(octree_list: List[OctreeLevel]) -> Tuple[np.ndarray, Tuple[int, int, int]] | None:
     """
     Determine the appropriate triangulation codes based on options and octree structure.
     
@@ -91,7 +91,7 @@ def get_triangulation_codes(octree_list: List[OctreeLevel]) -> np.ndarray | None
         octree_list: List of octree levels
         
     Returns:
-        Left-right codes array if fancy triangulation is enabled and supported, None otherwise
+        Left-right codes array and base dimensions if fancy triangulation is enabled and supported, None otherwise
     """
     return get_left_right_array(octree_list)
 

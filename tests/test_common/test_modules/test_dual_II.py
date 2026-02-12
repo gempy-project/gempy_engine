@@ -48,7 +48,7 @@ def test_dual_contouring_on_fault_model_anisotropic_octree(one_fault_model, n_oc
     interpolation_input, structure, options = one_fault_model
     interpolation_input.grid.octree_grid = RegularGrid(
         orthogonal_extent=(np.array([-500, 500., -500, 500, -450, 550]) / 240),
-        regular_grid_shape=[5, 5, 2])
+        regular_grid_shape=[8, 5, 2])
 
     import numpy as np
     interpolation_input.surface_points.sp_coords[:, 2] += np.random.uniform(-0.02, 0.02, interpolation_input.surface_points.sp_coords[:, 2].shape)
@@ -64,7 +64,7 @@ def test_dual_contouring_on_fault_model_anisotropic_octree(one_fault_model, n_oc
 
     outputs: list[OctreeLevel] = solutions.octrees_output
 
-    if plot_pyvista or False:
+    if plot_pyvista or True:
         helper_functions_pyvista.plot_pyvista(
             # octree_list=solutions.octrees_output,
             octree_list=None,

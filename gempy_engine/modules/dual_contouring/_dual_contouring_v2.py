@@ -81,7 +81,8 @@ def _parallel_process_surfaces_v2(dc_data_list: list[DualContouringData], num_wo
                 'gradients'           : dc_data.gradients,
                 'left_right_codes'    : dc_data.left_right_codes,
                 'n_surfaces_to_export': dc_data.n_surfaces_to_export,
-                'tree_depth'          : dc_data.tree_depth
+                'tree_depth'          : dc_data.tree_depth,
+                'base_number'         : dc_data.base_number
         }
         dc_data_dicts.append(dc_data_dict)
 
@@ -132,7 +133,8 @@ def _process_surface_batch_v2(surface_indices, dc_data_dicts, left_right_codes):
             gradients=dc_data_dict['gradients'],
             left_right_codes=dc_data_dict['left_right_codes'],
             n_surfaces_to_export=dc_data_dict['n_surfaces_to_export'],
-            tree_depth=dc_data_dict['tree_depth']
+            tree_depth=dc_data_dict['tree_depth'],
+            base_number=dc_data_dict['base_number']
         )
         # Process the surface
         mesh = _process_one_surface(dc_data, dc_data.left_right_codes)

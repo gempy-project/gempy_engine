@@ -91,7 +91,14 @@ def get_left_right_array(octree_list: list[OctreeLevel]):
     bool_to_int_z = BackendTensor.tfnp.packbits(binary_z, axis=0, bitorder="little")
     left_right_array = BackendTensor.tfnp.vstack([bool_to_int_x, bool_to_int_y, bool_to_int_z]).T
 
-    return left_right_array
+    if left_right_array.shape[0] == 0:
+        base_x = base_y = base_z = 0
+    else:
+        base_x = bool_to_int_x.max() + 1
+        base_y = bool_to_int_y.max() + 1
+        base_z = bool_to_int_z.max() + 1
+        
+    return left_right_array, (base_x, base_y, base_z)
 
 
 def _get_pack_factors(base_x, base_y, base_z):
@@ -103,15 +110,10 @@ def _get_pack_factors(base_x, base_y, base_z):
     return BackendTensor.tfnp.stack([by * bz, bz, BackendTensor.t.array(1)], axis=0)
 
 
-def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, vertex):
+def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, vertex, base_number: tuple[int, int, int] | list[int]):
     # * Variables
     # Determine base_number dynamically from the data to support arbitrary grid shapes
-    if left_right_array.shape[0] == 0:
-        base_x = base_y = base_z = 0
-    else:
-        base_x = left_right_array[:, 0].max() + 1
-        base_y = left_right_array[:, 1].max() + 1
-        base_z = left_right_array[:, 2].max() + 1
+    base_x, base_y, base_z = base_number
     pack_factors = _get_pack_factors(base_x, base_y, base_z)
 
     edge_vector_a = BackendTensor.tfnp.array([0, 0, 0, 0, -1, -1, 1, 1, -1, 1, -1, 1])
@@ -144,7 +146,7 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, v
             voxel_code=voxel_code,
             voxel_normals=voxel_normals,
             n=n,
-            base_number=[base_x, base_y, base_z],
+            base_number=base_number,
             pack_factors=pack_factors
         )
 
