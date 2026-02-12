@@ -94,22 +94,26 @@ def get_left_right_array(octree_list: list[OctreeLevel]):
     return left_right_array
 
 
-def _get_pack_factors(base_number):
-    """Generates [base^2, base, 1] for packing 3D coordinates."""
+def _get_pack_factors(base_x, base_y, base_z):
+    """Generates [base_y * base_z, base_z, 1] for packing 3D coordinates."""
     # Ensure we use int64 for packing to avoid overflow
-    b = BackendTensor.tfnp.array(base_number, dtype='int64')
-    return BackendTensor.tfnp.stack([b ** 2, b, BackendTensor.t.array(1)], axis=0)
+    bx = BackendTensor.tfnp.array(base_x, dtype='int64')
+    by = BackendTensor.tfnp.array(base_y, dtype='int64')
+    bz = BackendTensor.tfnp.array(base_z, dtype='int64')
+    return BackendTensor.tfnp.stack([by * bz, bz, BackendTensor.t.array(1)], axis=0)
 
 
 def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, vertex):
     # * Variables
     # Determine base_number dynamically from the data to support arbitrary grid shapes
     if left_right_array.shape[0] == 0:
-        max_val = 0
+        base_x = base_y = base_z = 0
     else:
-        max_val = left_right_array.max()
-    base_number = max_val + 1
-    pack_factors = _get_pack_factors(base_number)
+        base_x = left_right_array[:, 0].max() + 1
+        base_y = left_right_array[:, 1].max() + 1
+        base_z = left_right_array[:, 2].max() + 1
+    base_number = max(base_x, base_y, base_z)
+    pack_factors = _get_pack_factors(base_x, base_y, base_z)
 
     edge_vector_a = BackendTensor.tfnp.array([0, 0, 0, 0, -1, -1, 1, 1, -1, 1, -1, 1])
     edge_vector_b = BackendTensor.tfnp.array([-1, -1, -1, 1, 0, 0, 0, 0, -1, 1, -1, 1])
