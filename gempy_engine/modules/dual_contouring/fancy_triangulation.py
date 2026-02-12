@@ -39,7 +39,7 @@ def get_left_right_array(octree_list: list[OctreeLevel]):
         left_right_all = left_right_all[::-1]
         voxel_select_op = voxel_select_op[::-1]
 
-        for e, left_right_per_lvl in enumerate(left_right_all):
+        for e, left_right_per_lvl in enumerate(left_right_all): # size is equal to the depth of the tree (except root)
             left_right_per_lvl_dir = left_right_per_lvl[:, dir_idx]
             for n_rep in range(e):
                 inner = left_right_per_lvl_dir[voxel_select_op[e - n_rep]]
