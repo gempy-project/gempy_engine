@@ -157,22 +157,5 @@ def _process_one_surface(dc_data: DualContouringData, left_right_codes) -> DualC
     )
 
     vertices_numpy = BackendTensor.t.to_numpy(vertices)
-    if TRIMESH_LAST_PASS := True:
-        vertices_numpy, indices_numpy = _last_pass(vertices_numpy, indices_numpy)
-
     mesh = DualContouringMesh(vertices_numpy, indices_numpy, dc_data)
     return mesh
-
-
-def _last_pass(vertices, indices):
-    """Apply trimesh post-processing if available."""
-    if not TRIMESH_AVAILABLE:
-        return vertices, indices
-    
-    try:
-        mesh = trimesh.Trimesh(vertices=vertices, faces=indices)
-        mesh.fill_holes()
-        return mesh.vertices, mesh.faces
-    except Exception as e:
-        print(f"Warning: Trimesh post-processing failed: {e}")
-        return vertices, indices
