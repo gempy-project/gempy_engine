@@ -51,7 +51,7 @@ def test_dual_contouring_on_fault_model_anisotropic_octree(one_fault_model, n_oc
     interpolation_input, structure, options = one_fault_model
     interpolation_input.grid.octree_grid = RegularGrid(
         orthogonal_extent=(np.array([-500, 500., -500, 500, -450, 550]) / 240),
-        regular_grid_shape=[2, 3, 5])
+        regular_grid_shape=[5, 2, 4])
 
     options.compute_scalar_gradient = False
     options.evaluation_options.dual_contouring = True
