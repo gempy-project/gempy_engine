@@ -111,20 +111,10 @@ def find_repeated_voxels_across_stacks(all_left_right_codes: List[np.ndarray],
 
 def _generate_voxel_codes(all_left_right_codes: List[np.ndarray], base_numbers) -> List[np.ndarray]:
     """Generate voxel codes for each stack using packed bit directions."""
-    # from gempy_engine.modules.dual_contouring.fancy_triangulation import _StaticTriangulationData
     from gempy_engine.modules.dual_contouring.fancy_triangulation import _get_pack_factors
-    # pack_directions = _StaticTriangulationData.get_pack_directions_into_bits()
     stack_codes = []
     
     for left_right_array in all_left_right_codes:
-
-        # if left_right_array.shape[0] == 0:
-        #     base_x = base_y = base_z = 0
-        # else:
-        #     base_x = left_right_array[:, 0].max() + 1
-        #     base_y = left_right_array[:, 1].max() + 1
-        #     base_z = left_right_array[:, 2].max() + 1
-        # pack_directions = _get_pack_factors(base_x, base_y, base_z)
         pack_directions = _get_pack_factors(*base_numbers)
         if len(left_right_array) > 0:
             voxel_codes = (left_right_array * pack_directions).sum(axis=1)
