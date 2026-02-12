@@ -91,7 +91,8 @@ def _are_valid_mesh_indices(all_meshes: List[DualContouringMesh], *indices: int)
     return all(0 <= idx < len(all_meshes) for idx in indices)
 
 
-def find_repeated_voxels_across_stacks(all_left_right_codes: List[np.ndarray]) -> Dict[str, dict]:
+def find_repeated_voxels_across_stacks(all_left_right_codes: List[np.ndarray],
+                                       base_numbers: tuple[int, int, int]) -> Dict[str, dict]:
     """
     Find repeated voxels using NumPy operations for efficient processing of large arrays.
 
@@ -104,11 +105,11 @@ def find_repeated_voxels_across_stacks(all_left_right_codes: List[np.ndarray]) -
     if not all_left_right_codes:
         return {}
 
-    stack_codes = _generate_voxel_codes(all_left_right_codes)
+    stack_codes = _generate_voxel_codes(all_left_right_codes, base_numbers)
     return _find_overlaps_between_stacks(stack_codes, all_left_right_codes)
 
 
-def _generate_voxel_codes(all_left_right_codes: List[np.ndarray]) -> List[np.ndarray]:
+def _generate_voxel_codes(all_left_right_codes: List[np.ndarray], base_numbers) -> List[np.ndarray]:
     """Generate voxel codes for each stack using packed bit directions."""
     # from gempy_engine.modules.dual_contouring.fancy_triangulation import _StaticTriangulationData
     from gempy_engine.modules.dual_contouring.fancy_triangulation import _get_pack_factors
@@ -117,13 +118,14 @@ def _generate_voxel_codes(all_left_right_codes: List[np.ndarray]) -> List[np.nda
     
     for left_right_array in all_left_right_codes:
 
-        if left_right_array.shape[0] == 0:
-            base_x = base_y = base_z = 0
-        else:
-            base_x = left_right_array[:, 0].max() + 1
-            base_y = left_right_array[:, 1].max() + 1
-            base_z = left_right_array[:, 2].max() + 1
-        pack_directions = _get_pack_factors(base_x, base_y, base_z)
+        # if left_right_array.shape[0] == 0:
+        #     base_x = base_y = base_z = 0
+        # else:
+        #     base_x = left_right_array[:, 0].max() + 1
+        #     base_y = left_right_array[:, 1].max() + 1
+        #     base_z = left_right_array[:, 2].max() + 1
+        # pack_directions = _get_pack_factors(base_x, base_y, base_z)
+        pack_directions = _get_pack_factors(*base_numbers)
         if len(left_right_array) > 0:
             voxel_codes = (left_right_array * pack_directions).sum(axis=1)
             stack_codes.append(voxel_codes)

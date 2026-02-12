@@ -186,7 +186,10 @@ def mask_generation(
 def apply_faults_vertex_overlap(all_meshes: list[DualContouringMesh],
                                 stack_structure: StacksStructure, 
                                 left_right_per_mesh: list[np.ndarray]):
-    voxel_overlaps = find_repeated_voxels_across_stacks(left_right_per_mesh)
+    voxel_overlaps = find_repeated_voxels_across_stacks(
+        all_left_right_codes=left_right_per_mesh,
+        base_numbers=all_meshes[0].dc_data.base_number
+    )
     
     if voxel_overlaps:
         print(f"Found voxel overlaps between stacks: {voxel_overlaps.keys()}")
