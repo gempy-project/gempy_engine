@@ -216,7 +216,7 @@ def test_finite_fault_full_pipeline(one_fault_model):
     slip_multiplier = cubic_hermite_taper(d)
     
     # 4. (Optional) Visualization
-    if plot_pyvista:
+    if plot_pyvista or True:
         import pyvista as pv
         p = pv.Plotter()
         
@@ -228,8 +228,10 @@ def test_finite_fault_full_pipeline(one_fault_model):
         grid_pv = pv.PolyData(points)
         grid_pv["slip"] = slip_multiplier
         # Filter to only show points near the fault for clarity
-        mask = np.abs(scalar_field - fault_output.scalar_field_at_sp[0]) < 0.1
-        p.add_mesh(grid_pv.extract_points(mask), scalars="slip", point_size=5, render_points_as_spheres=True)
+        mask = np.abs(scalar_field - fault_output.scalar_field_at_sp[0]) < 3
+        if np.any(mask):
+            extracted_grid = grid_pv.extract_points(mask)
+            p.add_mesh(extracted_grid, scalars="slip", point_size=5, render_points_as_spheres=True)
         
         p.show()
 
