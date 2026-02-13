@@ -32,6 +32,7 @@ class FiniteFault:
     dip_radius: Union[float, Tuple[float, float]] = 1.0
     normal_radius: Optional[Union[float, Tuple[float, float]]] = None
     taper: TaperType = TaperType.CUBIC
+    rotation: float = 0.0
     spline_control_points: Optional[np.ndarray] = None
 
     def __post_init__(self):
@@ -49,7 +50,7 @@ class FiniteFault:
         """
         High-level method to calculate slip multiplier for given points.
         """
-        u, v, w = get_local_frame(normal)
+        u, v, w = get_local_frame(normal, angle_deg=self.rotation)
         d = get_ellipsoid_distance(
             points=points,
             center=self.center,
@@ -69,12 +70,16 @@ class FiniteFault:
             raise ValueError(f"Unknown taper type: {self.taper}")
 
 
-def get_local_frame(normal: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def get_local_frame(normal: np.ndarray, angle_deg: float = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Compute a local orthonormal basis (u, v, w) given a normal vector w.
     w is the normal to the fault surface.
     u is the strike vector (horizontal, perpendicular to w and global Z).
     v is the dip vector (perpendicular to u and w).
+    
+    Args:
+        normal: Normal vector to the fault surface.
+        angle_deg: Rotation angle in degrees around the normal vector.
     """
     w = normal / np.linalg.norm(normal)
     z_axis = np.array([0, 0, 1.0])
@@ -83,7 +88,14 @@ def get_local_frame(normal: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndar
     else:
         u = np.cross(w, z_axis)
     u /= np.linalg.norm(u)
-    v = np.cross(u, w)
+    
+    if angle_deg != 0:
+        # Rodrigues' rotation formula: rotate u around w
+        theta = np.radians(angle_deg)
+        u = u * np.cos(theta) + np.cross(w, u) * np.sin(theta) + w * np.dot(w, u) * (1 - np.cos(theta))
+        u /= np.linalg.norm(u)
+
+    v = np.cross(w, u)
     v /= np.linalg.norm(v)
     return u, v, w
 
