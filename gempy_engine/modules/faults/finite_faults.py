@@ -20,15 +20,44 @@ def get_local_frame(normal: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndar
     v /= np.linalg.norm(v)
     return u, v, w
 
-def get_ellipsoid_distance(points: np.ndarray, center: np.ndarray, u: np.ndarray, v: np.ndarray, a: float, b: float) -> np.ndarray:
+def get_ellipsoid_distance(points: np.ndarray, center: np.ndarray, u: np.ndarray, v: np.ndarray, 
+                           a: float | tuple[float, float] = 1.0, 
+                           b: float | tuple[float, float] = 1.0, 
+                           w: np.ndarray = None, 
+                           c: float | tuple[float, float] = 1.0) -> np.ndarray:
     """
-    Calculate normalized distance d from the center in the local (u, v) plane.
-    d = sqrt((x_local/a)^2 + (y_local/b)^2)
+    Calculate normalized distance d from the center in the local (u, v, w) plane.
+    d = sqrt((x_local/a)^2 + (y_local/b)^2 + (z_local/c)^2)
+    
+    Args:
+        points: Points to calculate distance for.
+        center: Center of the ellipsoid.
+        u: Strike vector.
+        v: Dip vector.
+        a: Radius along u. If tuple (a_pos, a_neg), different radii for positive and negative u.
+        b: Radius along v. If tuple (b_pos, b_neg), different radii for positive and negative v.
+        w: Normal vector.
+        c: Radius along w. If tuple (c_pos, c_neg), different radii for positive and negative w.
     """
     relative_points = points - center
     x_local = np.dot(relative_points, u)
     y_local = np.dot(relative_points, v)
-    d = np.sqrt((x_local / a) ** 2 + (y_local / b) ** 2)
+    
+    def get_radius_mask(val, radius):
+        if isinstance(radius, (tuple, list, np.ndarray)):
+            r_pos, r_neg = radius
+            return np.where(val >= 0, r_pos, r_neg)
+        return radius
+
+    a_mask = get_radius_mask(x_local, a)
+    b_mask = get_radius_mask(y_local, b)
+
+    if w is not None:
+        z_local = np.dot(relative_points, w)
+        c_mask = get_radius_mask(z_local, c)
+        d = np.sqrt((x_local / a_mask) ** 2 + (y_local / b_mask) ** 2 + (z_local / c_mask) ** 2)
+    else:
+        d = np.sqrt((x_local / a_mask) ** 2 + (y_local / b_mask) ** 2)
     return d
 
 def project_points_onto_surface(points: np.ndarray, scalar_field_values: np.ndarray, gradient_fields: tuple[np.ndarray, np.ndarray, np.ndarray], target_scalar_value: float = 0.0) -> np.ndarray:
