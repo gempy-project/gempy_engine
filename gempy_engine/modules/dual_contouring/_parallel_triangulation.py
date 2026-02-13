@@ -98,10 +98,13 @@ def _process_single_surface(i, dc_data_per_stack, valid_edges_per_surface, left_
             dxdydz=dc_data_per_stack.dxdydz,
             gradients=dc_data_per_stack.gradients,
             n_surfaces_to_export=dc_data_per_stack.n_surfaces_to_export,
-            tree_depth=dc_data_per_stack.tree_depth
+            tree_depth=dc_data_per_stack.tree_depth,
+            base_number=dc_data_per_stack.base_number,
+            left_right_codes=dc_data_per_stack.left_right_codes
         )
 
-        if left_right_codes is None:
+        from ._dual_contouring import triangulate_dual_contouring
+        if dc_data_per_surface.left_right_codes is None:
             # Legacy triangulation
             indices = triangulate_dual_contouring(dc_data_per_surface)
         else:
@@ -147,7 +150,8 @@ def _process_single_surface(i, dc_data_per_stack, valid_edges_per_surface, left_
                 valid_edges=valid_voxels_per_surface,
                 tree_depth=tree_depth_per_surface,
                 voxel_normals=voxel_normal,
-                vertex=vertex
+                vertex=None,
+                base_number=dc_data_per_surface.base_number
             )
             indices = BackendTensor.t.concatenate(indices, axis=0)
 

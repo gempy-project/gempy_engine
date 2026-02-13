@@ -90,6 +90,8 @@ def _parallel_process_surfaces(dc_data_per_stack, left_right_codes, debug, num_w
             'gradients': dc_data_per_stack.gradients,
             'n_surfaces_to_export'    : dc_data_per_stack.n_surfaces_to_export,
             'tree_depth'              : dc_data_per_stack.tree_depth,
+            'base_number'             : dc_data_per_stack.base_number,
+            'left_right_codes'        : dc_data_per_stack.left_right_codes
     }
 
     # Create surface index chunks

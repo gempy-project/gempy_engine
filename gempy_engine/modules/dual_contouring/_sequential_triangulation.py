@@ -58,7 +58,8 @@ def _compute_triangulation(dc_data_per_surface: DualContouringData,
         valid_edges=valid_voxels_per_surface,
         tree_depth=tree_depth_per_surface,
         voxel_normals=voxels_normals,
-        vertex=vertex
+        vertex=vertex,
+        base_number=dc_data_per_surface.base_number
     )
 
     # @on

@@ -16,6 +16,7 @@ class DualContouringData:
     gradients: np.ndarray = None
 
     tree_depth: int = -1
+    base_number: tuple[int, int, int] = None
     # Water tight 
 
     bias_center_mass: np.ndarray = None  # * Only for testing
