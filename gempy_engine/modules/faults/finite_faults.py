@@ -1,6 +1,73 @@
 import numpy as np
 
+from enum import Enum
+from dataclasses import dataclass
+from typing import Optional, Union, Tuple
 from scipy.interpolate import make_interp_spline
+
+
+class TaperType(Enum):
+    CUBIC = "cubic"
+    QUADRATIC = "quadratic"
+    SPLINE = "spline"
+
+
+@dataclass
+class FiniteFault:
+    """
+    Elegant API for defining finite faults.
+    
+    Args:
+        center: Center of the fault in 3D space.
+        strike_radius: Radius along the strike direction (u). 
+            Can be a single float or a tuple (positive_u, negative_u) for anisotropy.
+        dip_radius: Radius along the dip direction (v).
+            Can be a single float or a tuple (positive_v, negative_v) for anisotropy.
+        normal_radius: Radius along the normal direction (w). Default 1.0.
+        taper: The tapering function to use.
+        spline_control_points: If taper is SPLINE, these points define the curve.
+    """
+    center: np.ndarray
+    strike_radius: Union[float, Tuple[float, float]] = 1.0
+    dip_radius: Union[float, Tuple[float, float]] = 1.0
+    normal_radius: Optional[Union[float, Tuple[float, float]]] = None
+    taper: TaperType = TaperType.CUBIC
+    spline_control_points: Optional[np.ndarray] = None
+
+    def __post_init__(self):
+        if self.taper == TaperType.SPLINE and self.spline_control_points is None:
+            # Default bell-shaped spline if none provided
+            self.spline_control_points = np.array([
+                    [0.0, 1.0],
+                    [0.2, 0.95],
+                    [0.5, 0.5],
+                    [0.8, 0.05],
+                    [1.0, 0.0]
+            ])
+
+    def calculate_slip(self, points: np.ndarray, normal: np.ndarray) -> np.ndarray:
+        """
+        High-level method to calculate slip multiplier for given points.
+        """
+        u, v, w = get_local_frame(normal)
+        d = get_ellipsoid_distance(
+            points=points,
+            center=self.center,
+            u=u, v=v, w=w if self.normal_radius is not None else None,
+            a=self.strike_radius,
+            b=self.dip_radius,
+            c=self.normal_radius if self.normal_radius is not None else 1.0
+        )
+
+        if self.taper == TaperType.CUBIC:
+            return cubic_hermite_taper(d)
+        elif self.taper == TaperType.QUADRATIC:
+            return quadratic_taper(d)
+        elif self.taper == TaperType.SPLINE:
+            return spline_taper(d, self.spline_control_points)
+        else:
+            raise ValueError(f"Unknown taper type: {self.taper}")
+
 
 def get_local_frame(normal: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -20,10 +87,11 @@ def get_local_frame(normal: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndar
     v /= np.linalg.norm(v)
     return u, v, w
 
-def get_ellipsoid_distance(points: np.ndarray, center: np.ndarray, u: np.ndarray, v: np.ndarray, 
-                           a: float | tuple[float, float] = 1.0, 
-                           b: float | tuple[float, float] = 1.0, 
-                           w: np.ndarray = None, 
+
+def get_ellipsoid_distance(points: np.ndarray, center: np.ndarray, u: np.ndarray, v: np.ndarray,
+                           a: float | tuple[float, float] = 1.0,
+                           b: float | tuple[float, float] = 1.0,
+                           w: np.ndarray = None,
                            c: float | tuple[float, float] = 1.0) -> np.ndarray:
     """
     Calculate normalized distance d from the center in the local (u, v, w) plane.
@@ -42,7 +110,7 @@ def get_ellipsoid_distance(points: np.ndarray, center: np.ndarray, u: np.ndarray
     relative_points = points - center
     x_local = np.dot(relative_points, u)
     y_local = np.dot(relative_points, v)
-    
+
     def get_radius_mask(val, radius):
         if isinstance(radius, (tuple, list, np.ndarray)):
             r_pos, r_neg = radius
@@ -60,6 +128,7 @@ def get_ellipsoid_distance(points: np.ndarray, center: np.ndarray, u: np.ndarray
         d = np.sqrt((x_local / a_mask) ** 2 + (y_local / b_mask) ** 2)
     return d
 
+
 def project_points_onto_surface(points: np.ndarray, scalar_field_values: np.ndarray, gradient_fields: tuple[np.ndarray, np.ndarray, np.ndarray], target_scalar_value: float = 0.0) -> np.ndarray:
     """
     Project points onto the surface F(x,y,z) = target_scalar_value.
@@ -73,10 +142,12 @@ def project_points_onto_surface(points: np.ndarray, scalar_field_values: np.ndar
     projection = points - 0.5 * (f_p[:, np.newaxis] * grad) / grad_norm_sq[:, np.newaxis]
     return projection
 
+
 def cubic_hermite_taper(d: np.ndarray) -> np.ndarray:
     """S(d) = 1 - (3d^2 - 2d^3) for d < 1, else 0."""
     s = 1 - (3 * d ** 2 - 2 * d ** 3)
     return np.where(d < 1, s, 0.0)
+
 
 def quadratic_taper(d: np.ndarray) -> np.ndarray:
     """S(d) = (1 - d^2)^2 for d < 1, else 0."""
@@ -96,6 +167,10 @@ def spline_taper(d: np.ndarray, control_points: np.ndarray) -> np.ndarray:
     """
     x = control_points[:, 0]
     y = control_points[:, 1]
-    spline = make_interp_spline(x, y, k=3)
+    k = min(3, len(x) - 1)
+    if k < 1:
+        # Fallback for single point or empty, though shouldn't happen with valid input
+        return np.where(d < 1, y[0] if len(y) > 0 else 0.0, 0.0)
+    spline = make_interp_spline(x, y, k=k)
     s = spline(d)
     return np.where(d < 1, s, 0.0)
