@@ -12,7 +12,9 @@ def finite_fault_setup(one_fault_model):
     WeightCache.initialize_cache_dir()
 
     interpolation_input, structure, options = one_fault_model
-    options.evaluation_options.number_octree_levels = 4
+    num_octree = 6
+    options.evaluation_options.number_octree_levels = num_octree
+    options.evaluation_options.number_octree_levels_surface = num_octree
     options.evaluation_options.mesh_extraction = True
     options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
     options.evaluation_options.compute_scalar_gradient = True
@@ -54,7 +56,7 @@ def test_finite_fault_integration_suite(finite_fault_setup):
             [1.0, 0.0]
     ])
 
-    cp_plateau = np.array([
+    cp_plateau = np.array([  # * This is the nicest
             [0.0, 1.0],
             [0.6, 1.0],
             [0.8, 0.5],
@@ -67,7 +69,7 @@ def test_finite_fault_integration_suite(finite_fault_setup):
             FiniteFault(center=center, strike_radius=(1.0, 0.5), dip_radius=0.6, taper=TaperType.QUADRATIC),
             FiniteFault(center=center, strike_radius=0.7, dip_radius=0.7, taper=TaperType.SPLINE, spline_control_points=cp_bell),
             FiniteFault(center=center, strike_radius=0.8, dip_radius=0.4, taper=TaperType.CUBIC, rotation=45),
-            FiniteFault(center=center, strike_radius=0.8, dip_radius=0.6, taper=TaperType.SPLINE, spline_control_points=cp_plateau, rotation=30)
+            FiniteFault(center=center, strike_radius=0.8, dip_radius=1, taper=TaperType.SPLINE, spline_control_points=cp_plateau, rotation=30)
     ]
 
     if not plot_pyvista:
