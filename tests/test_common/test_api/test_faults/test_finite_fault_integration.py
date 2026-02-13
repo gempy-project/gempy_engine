@@ -12,7 +12,7 @@ def finite_fault_setup(one_fault_model):
     WeightCache.initialize_cache_dir()
 
     interpolation_input, structure, options = one_fault_model
-    num_octree = 6
+    num_octree = 5
     options.evaluation_options.number_octree_levels = num_octree
     options.evaluation_options.number_octree_levels_surface = num_octree
     options.evaluation_options.mesh_extraction = True
@@ -69,7 +69,8 @@ def test_finite_fault_integration_suite(finite_fault_setup):
             FiniteFault(center=center, strike_radius=(1.0, 0.5), dip_radius=0.6, taper=TaperType.QUADRATIC),
             FiniteFault(center=center, strike_radius=0.7, dip_radius=0.7, taper=TaperType.SPLINE, spline_control_points=cp_bell),
             FiniteFault(center=center, strike_radius=0.8, dip_radius=0.4, taper=TaperType.CUBIC, rotation=45),
-            FiniteFault(center=center, strike_radius=0.8, dip_radius=1, taper=TaperType.SPLINE, spline_control_points=cp_plateau, rotation=30)
+            FiniteFault(center=center, strike_radius=0.8, dip_radius=1, taper=TaperType.SPLINE, spline_control_points=cp_plateau, rotation=30),
+            FiniteFault(center=center, strike_radius=(1.2,0.8), dip_radius=(2,1), taper=TaperType.SPLINE, spline_control_points=cp_plateau, rotation=30)
     ]
 
     if not plot_pyvista:
@@ -84,7 +85,7 @@ def test_finite_fault_integration_suite(finite_fault_setup):
         mesh_vertices = fault_mesh.vertices
         slip_mesh = ff.calculate_slip(
             points=mesh_vertices, 
-            normal=normal
+            normal=normal # Here is the normal used
         )
 
         dual_mesh = pv.PolyData(mesh_vertices, np.insert(fault_mesh.edges, 0, 3, axis=1).ravel())
