@@ -43,19 +43,26 @@ def _apply_fault_relations_to_overlaps(
             for destination_surface_idx in destination_surface_range:
                 overlap_key = f"stack_{origin_surface_idx}_vs_stack_{destination_surface_idx}"
                 if overlap_key in voxel_overlaps:
-                    # Remove triangles from the destination (non-fault) surface where voxels overlap
-                    if True:
-                        _remove_triangles_in_voxels(
-                            mesh=all_meshes[destination_surface_idx],
-                            voxel_indices=voxel_overlaps[overlap_key]["indices_in_stack_j"]
-                        )
-                    else:
-                        _apply_vertex_sharing(
-                            all_meshes=all_meshes,
-                            origin_mesh_idx=origin_stack,
-                            destination_mesh_idx=destination_surface_idx,
-                            overlap_data=voxel_overlaps[overlap_key]
-                        )
+                    overlap_data = voxel_overlaps[overlap_key]
+                    # STEP 1: Vertex Sharing (The "Connect" part)
+                    # Snap the destination vertices to the fault vertices.
+                    # This closes the gap by stretching the "bridging" triangles.
+                    _apply_vertex_sharing(
+                        all_meshes=all_meshes,
+                        origin_mesh_idx=origin_surface_idx,
+                        destination_mesh_idx=destination_surface_idx,
+                        overlap_data=overlap_data
+                    )
+
+                    # STEP 2: Conservative Triangle Removal (The "Remove after" part)
+                    # Remove only triangles that are FULLY inside the overlap.
+                    # This cleans up the mesh on the fault surface itself but
+                    # keeps the connections we just snapped in Step 1.
+                    _remove_triangles_in_voxels(
+                        mesh=all_meshes[destination_surface_idx],
+                        voxel_indices=overlap_data["indices_in_stack_j"],
+                        mode='all'  # <--- NEW PARAMETER: Only remove if ALL vertices match
+                    )
 
 
 def _get_fault_pairs(faults_relations: np.ndarray, n_stacks: int):
@@ -69,7 +76,7 @@ def _get_fault_pairs(faults_relations: np.ndarray, n_stacks: int):
 def _get_surface_range(surfaces_per_stack: np.ndarray, stack_index: int) -> range:
     """Get the range of surfaces for a given stack."""
     return range(
-        surfaces_per_stack[stack_index], 
+        surfaces_per_stack[stack_index],
         surfaces_per_stack[stack_index + 1]
     )
 
@@ -139,7 +146,7 @@ def _generate_voxel_codes(all_left_right_codes: List[np.ndarray], base_numbers) 
 
 
 def _find_overlaps_between_stacks(
-        stack_codes: List[np.ndarray], 
+        stack_codes: List[np.ndarray],
         all_left_right_codes: List[np.ndarray]
 ) -> Dict[str, dict]:
     """Find overlaps between all pairs of per-surface meshes (order-sensitive)."""
@@ -148,10 +155,10 @@ def _find_overlaps_between_stacks(
     for i in range(len(stack_codes)):
         for j in range(i + 1, len(stack_codes)):
             overlap_data = _process_stack_pair(
-                codes_i=stack_codes[i], 
-                codes_j=stack_codes[j], 
-                left_right_i=all_left_right_codes[i], 
-                left_right_j=all_left_right_codes[j], 
+                codes_i=stack_codes[i],
+                codes_j=stack_codes[j],
+                left_right_i=all_left_right_codes[i],
+                left_right_j=all_left_right_codes[j],
             )
 
             if overlap_data:
@@ -161,9 +168,9 @@ def _find_overlaps_between_stacks(
 
 
 def _process_stack_pair(
-        codes_i: np.ndarray, 
+        codes_i: np.ndarray,
         codes_j: np.ndarray,
-        left_right_i: np.ndarray, 
+        left_right_i: np.ndarray,
         left_right_j: np.ndarray,
 ) -> Optional[dict]:
     """Process a pair of per-surface meshes to find overlapping voxels."""
@@ -183,19 +190,29 @@ def _process_stack_pair(
     indices_j = np.isin(codes_j, common_codes)
 
     return {
-        'common_voxel_codes': common_codes,
-        'count': int(common_codes.size),
-        'indices_in_stack_i': np.where(indices_i)[0],
-        'indices_in_stack_j': np.where(indices_j)[0],
-        'common_binary_codes_i': left_right_i[indices_i],
-        'common_binary_codes_j': left_right_j[indices_j]
+            'common_voxel_codes'   : common_codes,
+            'count'                : int(common_codes.size),
+            'indices_in_stack_i'   : np.where(indices_i)[0],
+            'indices_in_stack_j'   : np.where(indices_j)[0],
+            'common_binary_codes_i': left_right_i[indices_i],
+            'common_binary_codes_j': left_right_j[indices_j]
     }
-def _remove_triangles_in_voxels(mesh: DualContouringMesh, voxel_indices: np.ndarray) -> None:
-    """Remove triangles from a mesh whose vertices belong to the given voxel indices.
 
-    Each vertex corresponds to one valid voxel. Triangles referencing any of the
-    specified voxel indices are removed from the mesh to avoid double surfaces on
-    non-fault planes.
+
+def _remove_triangles_in_voxels(
+        mesh: 'DualContouringMesh',
+        voxel_indices: np.ndarray,
+        mode: str = 'any'
+) -> None:
+    """
+    Remove triangles from a mesh based on vertex overlap.
+
+    Args:
+        mesh: The mesh to modify.
+        voxel_indices: Indices of vertices that are in the overlap/fault zone.
+        mode: 
+            'any': Remove triangle if ANY vertex is in the zone (Aggressive, creates gaps).
+            'all': Remove triangle if ALL vertices are in the zone (Conservative, cleans internal).
     """
     if mesh is None or mesh.edges is None or mesh.edges.size == 0:
         return
@@ -203,12 +220,20 @@ def _remove_triangles_in_voxels(mesh: DualContouringMesh, voxel_indices: np.ndar
     if voxel_indices is None or voxel_indices.size == 0:
         return
 
-    # Build a boolean mask for vertex indices that should be removed
-    to_remove = np.zeros(mesh.vertices.shape[0], dtype=bool)
-    to_remove[voxel_indices] = True
+    # Build a boolean mask for vertex indices that are in the overlap
+    is_overlap_vertex = np.zeros(mesh.vertices.shape[0], dtype=bool)
+    is_overlap_vertex[voxel_indices] = True
 
     faces = mesh.edges
-    # Keep faces where none of the vertices are marked for removal
-    keep = ~to_remove[faces].any(axis=1)
 
-    mesh.edges = faces[keep]
+    # Vectorized check for faces
+    if mode == 'all':
+        # Remove only if ALL vertices of the triangle are in the overlap
+        # Keep if ANY vertex is outside (preserve bridges)
+        to_remove = is_overlap_vertex[faces].all(axis=1)
+    else:
+        # Legacy/Default behavior: Remove if ANY vertex is in the overlap
+        to_remove = is_overlap_vertex[faces].any(axis=1)
+
+    # Keep faces that are NOT marked for removal
+    mesh.edges = faces[~to_remove]
