@@ -1,0 +1,239 @@
+import numpy as np
+import pytest
+
+def get_local_frame(normal: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Compute a local orthonormal basis (u, v, w) given a normal vector w.
+    w is the normal to the fault surface.
+    u is the strike vector (horizontal, perpendicular to w and global Z).
+    v is the dip vector (perpendicular to u and w).
+    """
+    w = normal / np.linalg.norm(normal)
+    
+    # Strike vector u: cross product of w and global Z [0, 0, 1]
+    # If w is parallel to Z, we need a fallback.
+    z_axis = np.array([0, 0, 1.0])
+    if np.abs(np.dot(w, z_axis)) > 0.999:
+        # Fallback to X axis if normal is vertical
+        u = np.cross(w, np.array([1, 0, 0.0]))
+    else:
+        u = np.cross(w, z_axis)
+    
+    u /= np.linalg.norm(u)
+    
+    # Dip vector v: cross product of u and w
+    v = np.cross(u, w)
+    v /= np.linalg.norm(v)
+    
+    return u, v, w
+
+def get_ellipsoid_distance(points: np.ndarray, center: np.ndarray, u: np.ndarray, v: np.ndarray, a: float, b: float) -> np.ndarray:
+    """
+    Calculate normalized distance d from the center in the local (u, v) plane.
+    d = sqrt((x_local/a)^2 + (y_local/b)^2)
+    """
+    relative_points = points - center
+    
+    # We need to project each relative point onto u and v axes
+    # points: (N, 3), u: (3,), v: (3,)
+    x_local = np.dot(relative_points, u)
+    y_local = np.dot(relative_points, v)
+    
+    d = np.sqrt((x_local / a)**2 + (y_local / b)**2)
+    return d
+
+def project_points_onto_surface(points: np.ndarray, scalar_field_values: np.ndarray, 
+                                 gradient_fields: tuple[np.ndarray, np.ndarray, np.ndarray], 
+                                 target_scalar_value: float = 0.0) -> np.ndarray:
+    """
+    Project points onto the surface F(x,y,z) = target_scalar_value.
+    Formula: P' = P - (F(P) - target) * grad(F) / ||grad(F)||^2
+    """
+    gx, gy, gz = gradient_fields
+    grad = np.stack([gx, gy, gz], axis=-1)
+    grad_norm_sq = np.sum(grad**2, axis=-1)
+    
+    # Avoid division by zero
+    grad_norm_sq = np.where(grad_norm_sq < 1e-12, 1.0, grad_norm_sq)
+    
+    f_p = scalar_field_values - target_scalar_value
+    
+    # If points is (N, 3), f_p is (N,), grad is (N, 3), grad_norm_sq is (N,)
+    projection = points - (f_p[:, np.newaxis] * grad) / grad_norm_sq[:, np.newaxis]
+    return projection
+
+def cubic_hermite_taper(d: np.ndarray) -> np.ndarray:
+    """S(d) = 1 - (3d^2 - 2d^3) for d < 1, else 0."""
+    s = 1 - (3 * d**2 - 2 * d**3)
+    return np.where(d < 1, s, 0.0)
+
+def quadratic_taper(d: np.ndarray) -> np.ndarray:
+    """S(d) = (1 - d^2)^2 for d < 1, else 0."""
+    s = (1 - d**2)**2
+    return np.where(d < 1, s, 0.0)
+
+from gempy_engine import compute_model
+from gempy_engine.core.data.options import MeshExtractionMaskingOptions
+from gempy_engine.core.data.output.blocks_value_type import ValueType
+from gempy_engine.plugins.plotting import helper_functions_pyvista
+from tests.conftest import plot_pyvista
+
+# --- Phase 1: Local Coordinate System & Analytical Ellipsoid UV ---
+
+def test_local_frame_orthogonal():
+    normals = [
+        np.array([1, 0, 0.0]),
+        np.array([0, 1, 0.0]),
+        np.array([1, 1, 1.0]),
+        np.array([0, 0, 1.0])
+    ]
+    
+    for n in normals:
+        u, v, w = get_local_frame(n)
+        # Check normalization
+        assert np.isclose(np.linalg.norm(u), 1.0)
+        assert np.isclose(np.linalg.norm(v), 1.0)
+        assert np.isclose(np.linalg.norm(w), 1.0)
+        
+        # Check orthogonality
+        assert np.isclose(np.dot(u, v), 0.0)
+        assert np.isclose(np.dot(u, w), 0.0)
+        assert np.isclose(np.dot(v, w), 0.0)
+
+def test_ellipsoid_distance():
+    center = np.array([0, 0, 0.0])
+    u = np.array([1, 0, 0.0])
+    v = np.array([0, 1, 0.0])
+    w = np.array([0, 0, 1.0])
+    a, b = 2.0, 1.0
+    
+    points = np.array([
+        [0, 0, 0],   # Center
+        [2, 0, 0],   # On strike boundary
+        [0, 1, 0],   # On dip boundary
+        [4, 0, 0],   # Outside
+        [1, 0, 0]    # Inside
+    ], dtype=float)
+    
+    distances = get_ellipsoid_distance(points, center, u, v, a, b)
+    
+    assert np.isclose(distances[0], 0.0)
+    assert np.isclose(distances[1], 1.0)
+    assert np.isclose(distances[2], 1.0)
+    assert distances[3] > 1.0
+    assert distances[4] < 1.0
+
+# --- Phase 2: Point Projection ("Walking the Gradient") ---
+
+def test_projection_on_plane():
+    # Surface: F(x,y,z) = z - 5 = 0  => z = 5
+    # grad(F) = [0, 0, 1]
+    points = np.array([
+        [0, 0, 10.0],
+        [1, 2, 0.0],
+        [5, 5, 5.0]
+    ])
+    f_values = points[:, 2] - 5.0
+    gx = np.zeros(3)
+    gy = np.zeros(3)
+    gz = np.ones(3)
+    
+    projected = project_points_onto_surface(points, f_values, (gx, gy, gz), target_scalar_value=0.0)
+    
+    expected = np.array([
+        [0, 0, 5.0],
+        [1, 2, 5.0],
+        [5, 5, 5.0]
+    ])
+    
+    assert np.allclose(projected, expected)
+
+# --- Phase 3: Slip Tapering Functions ---
+
+def test_taper_bounds():
+    d = np.array([0, 0.5, 1.0, 1.5])
+    
+    s_cubic = cubic_hermite_taper(d)
+    assert np.isclose(s_cubic[0], 1.0)
+    assert 0 < s_cubic[1] < 1.0
+    assert np.isclose(s_cubic[2], 0.0)
+    assert np.isclose(s_cubic[3], 0.0)
+    
+    s_quad = quadratic_taper(d)
+    assert np.isclose(s_quad[0], 1.0)
+    assert 0 < s_quad[1] < 1.0
+    assert np.isclose(s_quad[2], 0.0)
+    assert np.isclose(s_quad[3], 0.0)
+
+# --- Phase 4: Integration ---
+
+def test_finite_fault_full_pipeline(one_fault_model):
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache
+    WeightCache.initialize_cache_dir()
+
+    interpolation_input, structure, options = one_fault_model
+    options.evaluation_options.number_octree_levels = 4
+    options.evaluation_options.mesh_extraction = True
+    options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
+    options.evaluation_options.compute_scalar_gradient = True
+
+    # Run the model to get the fault surface
+    solutions = compute_model(interpolation_input, options, structure)
+    
+    # Get the fault mesh (first stack is the fault)
+    fault_mesh = solutions.dc_meshes[0]
+    
+    # Get the scalar field and gradients for the fault (stack 0)
+    # octrees_output[0] is the root level (contains dense grid)
+    # outputs_centers[0] is the output for stack 0 (the fault)
+    fault_output = solutions.octrees_output[0].outputs_centers[0]
+    grid = fault_output.grid
+    
+    scalar_field = fault_output.exported_fields.scalar_field
+    gx = fault_output.exported_fields.gx_field
+    gy = fault_output.exported_fields.gy_field
+    gz = fault_output.exported_fields.gz_field
+    
+    # 1. Project grid points onto the fault surface
+    # We'll use a subset of the grid points for speed
+    points = grid.values
+    projected_points = project_points_onto_surface(
+        points, scalar_field, (gx, gy, gz), target_scalar_value=fault_output.scalar_field_at_sp[0]
+    )
+    
+    # 2. Define local frame at the center of the fault
+    # Let's pick a point on the fault as center
+    center_idx = len(projected_points) // 2
+    center = projected_points[center_idx]
+    
+    # Get the gradient at the center to define the normal
+    normal = np.array([gx[center_idx], gy[center_idx], gz[center_idx]])
+    u, v, w = get_local_frame(normal)
+    
+    # 3. Calculate UV ellipsoid distance and slip
+    a, b = 1.0, 1.0 # radii in local units
+    d = get_ellipsoid_distance(projected_points, center, u, v, a, b)
+    slip_multiplier = cubic_hermite_taper(d)
+    
+    # 4. (Optional) Visualization
+    if plot_pyvista:
+        import pyvista as pv
+        p = pv.Plotter()
+        
+        # Plot the fault mesh
+        dual_mesh = pv.PolyData(fault_mesh.vertices, np.insert(fault_mesh.edges, 0, 3, axis=1).ravel())
+        p.add_mesh(dual_mesh, color="white", opacity=0.5, show_edges=True)
+        
+        # Plot the slip multiplier on the grid
+        grid_pv = pv.PolyData(points)
+        grid_pv["slip"] = slip_multiplier
+        # Filter to only show points near the fault for clarity
+        mask = np.abs(scalar_field - fault_output.scalar_field_at_sp[0]) < 0.1
+        p.add_mesh(grid_pv.extract_points(mask), scalars="slip", point_size=5, render_points_as_spheres=True)
+        
+        p.show()
+
+    # Simple assertions to verify the pipeline
+    assert len(slip_multiplier) == len(points)
+    assert np.max(slip_multiplier) <= 1.0
+    assert np.min(slip_multiplier) >= 0.0
