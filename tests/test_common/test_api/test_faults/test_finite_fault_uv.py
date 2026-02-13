@@ -62,7 +62,7 @@ def project_points_onto_surface(points: np.ndarray, scalar_field_values: np.ndar
     f_p = scalar_field_values - target_scalar_value
 
     # If points is (N, 3), f_p is (N,), grad is (N, 3), grad_norm_sq is (N,)
-    projection = points - (f_p[:, np.newaxis] * grad) / grad_norm_sq[:, np.newaxis]
+    projection = points - 0.5 * (f_p[:, np.newaxis] * grad) / grad_norm_sq[:, np.newaxis]
     return projection
 
 
@@ -137,6 +137,8 @@ def test_ellipsoid_distance():
 def test_projection_on_plane():
     # Surface: F(x,y,z) = z - 5 = 0  => z = 5
     # grad(F) = [0, 0, 1]
+    # NOTE: Since we added a 0.5 factor to handle GemPy's quadratic scalar fields, 
+    # a single step on a linear field will only go halfway.
     points = np.array([
             [0, 0, 10.0],
             [1, 2, 0.0],
@@ -149,9 +151,13 @@ def test_projection_on_plane():
 
     projected = project_points_onto_surface(points, f_values, (gx, gy, gz), target_scalar_value=0.0)
 
+    # With 0.5 factor, it goes halfway:
+    # [0, 0, 10] -> [0, 0, 7.5]
+    # [1, 2, 0]  -> [1, 2, 2.5]
+    # [5, 5, 5]  -> [5, 5, 5.0]
     expected = np.array([
-            [0, 0, 5.0],
-            [1, 2, 5.0],
+            [0, 0, 7.5],
+            [1, 2, 2.5],
             [5, 5, 5.0]
     ])
 

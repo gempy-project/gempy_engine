@@ -25,7 +25,8 @@ To project the points we use the gradient of the scalar field of the fault surfa
 
 #### Phase 2: Point Projection ("Walking the Gradient")
 **Goal**: Project any 3D point $P$ onto the nearest point $P'$ on the fault surface $F(x,y,z)=c$.
-- **Task 2.1**: Implement the projection formula: $P' = P - (F(P) - c) \frac{\nabla F(P)}{\|\nabla F(P)\|^2}$. Note: if $\|\nabla F\|$ is not 1 (not a perfect SDF), we might need to iterate or use the squared norm as an approximation.
+- **Task 2.1**: Implement the projection formula: $P' = P - 0.5 \cdot (F(P) - c) \frac{\nabla F(P)}{\|\nabla F(P)\|^2}$. 
+    - *Note*: We use a 0.5 factor because GemPy scalar fields typically behave quadratically ($F \approx d^2$) near the fault surface, so the gradient is twice as strong as a standard SDF gradient.
 - **Task 2.2**: Handle potential instabilities where $\|\nabla F\|$ is near zero.
 - **Tests**:
     - `test_projection_on_plane`: Verify projection works perfectly for a simple tilted plane.
@@ -85,4 +86,4 @@ $$Offset(d) = MaxSlip \times (1 - d^2)^2$$
 Your idea to interpolate the gradient of the fault's scalar field $F(x, y, z)$ is exactly the right path. The gradient $\nabla F$ acts as a vector field pointing perpendicularly toward/away from the fault surface.
 The Math: If your fault scalar field is a true (or approximate) Signed Distance Function (SDF), projecting a 3D point $P$ to its corresponding point on the fault surface $P'$ requires a single mathematical step:
 $$P' = P - F(P) \frac{\nabla F(P)}{\|\nabla F(P)\|}$$
-Note: If $F$ is not an SDF, a better approximation is $P' = P - F(P) \frac{\nabla F(P)}{\|\nabla F(P)\|^2}$.
+Note: If $F$ is not an SDF, a better approximation is $P' = P - 0.5 \cdot F(P) \frac{\nabla F(P)}{\|\nabla F(P)\|^2}$. The 0.5 factor accounts for quadratic behavior of GemPy's scalar field ($F \approx d^2$) where $\nabla F \approx 2d$.
