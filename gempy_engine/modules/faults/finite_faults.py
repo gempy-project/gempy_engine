@@ -1,5 +1,7 @@
 import numpy as np
 
+from scipy.interpolate import make_interp_spline
+
 def get_local_frame(normal: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Compute a local orthonormal basis (u, v, w) given a normal vector w.
@@ -50,4 +52,21 @@ def cubic_hermite_taper(d: np.ndarray) -> np.ndarray:
 def quadratic_taper(d: np.ndarray) -> np.ndarray:
     """S(d) = (1 - d^2)^2 for d < 1, else 0."""
     s = (1 - d ** 2) ** 2
+    return np.where(d < 1, s, 0.0)
+
+
+def spline_taper(d: np.ndarray, control_points: np.ndarray) -> np.ndarray:
+    """
+    S(d) = B-Spline(d) for d < 1, else 0.
+    
+    Args:
+        d: Normalized distance from the center.
+        control_points: Array of shape (N, 2) defining the spline curve.
+            X-axis (control_points[:, 0]) should be in range [0, 1].
+            Y-axis (control_points[:, 1]) is the multiplier.
+    """
+    x = control_points[:, 0]
+    y = control_points[:, 1]
+    spline = make_interp_spline(x, y, k=3)
+    s = spline(d)
     return np.where(d < 1, s, 0.0)

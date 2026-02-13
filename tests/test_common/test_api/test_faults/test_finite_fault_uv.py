@@ -5,7 +5,8 @@ from gempy_engine.modules.faults.finite_faults import (
     get_ellipsoid_distance,
     project_points_onto_surface,
     cubic_hermite_taper,
-    quadratic_taper
+    quadratic_taper,
+    spline_taper
 )
 from tests.conftest import plot_pyvista
 import numpy as np
@@ -299,7 +300,75 @@ def test_visualize_projected_points_on_fault(one_fault_model):
         for start, end in zip(points_to_project, projected_points):
             p.add_lines(np.array([start, end]), color="yellow", width=2)
 
-        p.add_legend()
-        p.show()
+    p.add_legend()
+    p.show()
 
     assert len(projected_points) == len(points_to_project)
+
+
+def test_visualize_spline_slip_on_fault_mesh(one_fault_model):
+    from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache
+    WeightCache.initialize_cache_dir()
+
+    interpolation_input, structure, options = one_fault_model
+    options.evaluation_options.number_octree_levels = 4
+    options.evaluation_options.mesh_extraction = True
+    options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
+    options.evaluation_options.compute_scalar_gradient = True
+
+    # Run the model to get the fault surface
+    solutions = compute_model(interpolation_input, options, structure)
+
+    # Get the fault mesh (first stack is the fault)
+    fault_mesh = solutions.dc_meshes[0]
+
+    # We need the gradient to find the center and normal
+    # fault_output[0] is the root level (contains dense grid)
+    fault_output = solutions.octrees_output[0].outputs_centers[0]
+
+    mesh_vertices = fault_mesh.vertices
+    center = np.mean(mesh_vertices, axis=0)
+
+    # Find the closest point in the grid to the center to get the normal
+    grid_points = fault_output.grid.values
+    dist_to_center = np.linalg.norm(grid_points - center, axis=1)
+    center_idx = np.argmin(dist_to_center)
+
+    gx = fault_output.exported_fields.gx_field
+    gy = fault_output.exported_fields.gy_field
+    gz = fault_output.exported_fields.gz_field
+
+    normal = np.array([gx[center_idx], gy[center_idx], gz[center_idx]])
+    u, v, w = get_local_frame(normal)
+
+    # --- Spline Configuration ---
+    # Define a bell-shaped spline for slip tapering
+    cp_bell = np.array([
+        [0.0, 1.0],
+        [0.2, 0.95],
+        [0.5, 0.5],
+        [0.8, 0.05],
+        [1.0, 0.0]
+    ])
+
+    # Calculate UV ellipsoid distance and slip for vertices
+    # Using different radii as requested
+    a, b = 0.8, 0.4  
+    d = get_ellipsoid_distance(mesh_vertices, center, u, v, a, b)
+    slip_multiplier = spline_taper(d, cp_bell)
+
+    if plot_pyvista:
+        import pyvista as pv
+        p = pv.Plotter()
+       
+        # Plot the fault mesh with spline-based slip as texture
+        dual_mesh = pv.PolyData(fault_mesh.vertices, np.insert(fault_mesh.edges, 0, 3, axis=1).ravel())
+        dual_mesh["slip"] = slip_multiplier
+        p.add_mesh(dual_mesh, scalars="slip", cmap="magma", show_edges=True)
+        p.add_title("Finite Fault Slip - Spline Taper (a=0.8, b=0.4)")
+
+        p.show()
+
+    assert len(slip_multiplier) == len(mesh_vertices)
+    assert np.max(slip_multiplier) <= 1.01 # allow for small spline overshoot if any
+    assert np.min(slip_multiplier) >= -0.01
