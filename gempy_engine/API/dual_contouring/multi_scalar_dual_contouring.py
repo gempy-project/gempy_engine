@@ -23,7 +23,7 @@ from ...core.data.octree_level import OctreeLevel
 from ...core.utils import gempy_profiler_decorator
 from ...modules.dual_contouring._aux import _surface_slicer
 from ...modules.dual_contouring.dual_contouring_interface import (find_intersection_on_edge, get_triangulation_codes,
-                                                                  get_masked_codes, mask_generation,apply_faults_vertex_overlap)
+                                                                  get_masked_codes, mask_generation, apply_relations_vertex_overlap)
 
 
 @gempy_profiler_decorator
@@ -146,7 +146,7 @@ def dual_contouring_multi_scalar(
         )
     # endregion
         if compute_overlap:
-            apply_faults_vertex_overlap(all_meshes, data_descriptor.stack_structure, left_right_per_mesh)
+            apply_relations_vertex_overlap(all_meshes, data_descriptor.stack_structure, left_right_per_mesh)
 
     return all_meshes
 
