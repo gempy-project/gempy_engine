@@ -165,7 +165,9 @@ def mask_generation(
                 final_voxel_mask = potential_voxel_mask & (~accumulated_voxel_mask)
 
                 # 3. Update the global mask for the next iteration
-                accumulated_voxel_mask = accumulated_voxel_mask | final_voxel_mask
+                individual_mask_array = all_scalar_fields_outputs[i].mask_components[slice_corners].reshape((1, -1, 8))
+                accumulated_voxel_mask = (accumulated_voxel_mask |
+                                          BackendTensor.t.sum(individual_mask_array, -1, bool)[0])
 
                 # 4. Assign
                 mask_matrix[i] = final_voxel_mask
@@ -198,7 +200,7 @@ def mask_generation(
 
                 # 4. Update the Global Accumulator
                 # Mark these voxels as "taken" so the underlying basement/older layers can't use them
-                accumulated_voxel_mask = accumulated_voxel_mask | final_voxel_mask
+                # * (Miguel) There is still some intersect with onlap 
 
                 # 5. Assign and Increment
                 mask_matrix[i] = final_voxel_mask
