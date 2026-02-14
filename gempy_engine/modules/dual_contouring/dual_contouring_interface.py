@@ -142,7 +142,9 @@ def mask_generation(
 
     mask_matrix = BackendTensor.t.zeros((n_scalar_fields, grid_size // 8), dtype=bool)
     onlap_chain_counter = 0
-
+    
+    accumulated_voxel_mask = BackendTensor.t.zeros(grid_size // 8, dtype=bool)
+    
     for i in range(n_scalar_fields):
         stack_relation = all_scalar_fields_outputs[i].scalar_fields.stack_relation
 
@@ -150,10 +152,57 @@ def mask_generation(
             case MeshExtractionMaskingOptions.RAW, _:
                 mask_matrix[i] = BackendTensor.t.ones(grid_size // 8, dtype=bool)
 
-            case MeshExtractionMaskingOptions.DISJOINT, _:
-                raise NotImplementedError(
-                    "Disjoint is not supported yet. Not even sure if there is anything to support"
-                )
+            case MeshExtractionMaskingOptions.DISJOINT, StackRelationType.ERODE:
+                # 1. Calculate the 'potential' mask just like INTERSECT
+                mask_array = all_scalar_fields_outputs[i + onlap_chain_counter].squeezed_mask_array
+                x = mask_array[slice_corners].reshape((1, -1, 8))
+
+                # "Is this layer present in the voxel?"
+                potential_voxel_mask = BackendTensor.t.sum(x, -1, bool)[0]
+
+                # 2. THE DISJOINT LOGIC:
+                # Only keep voxels that haven't been claimed by previous (younger) layers
+                final_voxel_mask = potential_voxel_mask & (~accumulated_voxel_mask)
+
+                # 3. Update the global mask for the next iteration
+                accumulated_voxel_mask = accumulated_voxel_mask | final_voxel_mask
+
+                # 4. Assign
+                mask_matrix[i] = final_voxel_mask
+                onlap_chain_counter = 0
+
+            # You would repeat this logic pattern for BASEMENT and ONLAP cases
+            case MeshExtractionMaskingOptions.DISJOINT, StackRelationType.BASEMENT:
+                mask_array = all_scalar_fields_outputs[i].squeezed_mask_array
+                x = mask_array[slice_corners].reshape((1, -1, 8))
+                potential_voxel_mask = BackendTensor.t.sum(x, -1, bool)[0]
+
+                final_voxel_mask = potential_voxel_mask & (~accumulated_voxel_mask)
+                accumulated_voxel_mask = accumulated_voxel_mask | final_voxel_mask
+
+                mask_matrix[i] = final_voxel_mask
+                onlap_chain_counter = 0
+
+            case MeshExtractionMaskingOptions.DISJOINT, StackRelationType.ONLAP:
+                # 1. Get the mask (Standard logic)
+                # We access the current index [i] for onlaps
+                mask_array = all_scalar_fields_outputs[i].squeezed_mask_array
+
+                # 2. Determine Potential Voxels (Is any corner valid?)
+                x = mask_array[slice_corners].reshape((1, -1, 8))
+                potential_voxel_mask = BackendTensor.t.sum(x, -1, bool)[0]
+
+                # 3. The DISJOINT Logic (The Filter)
+                # "I can only exist in this voxel if a younger layer hasn't already taken it"
+                final_voxel_mask = potential_voxel_mask & (~accumulated_voxel_mask)
+
+                # 4. Update the Global Accumulator
+                # Mark these voxels as "taken" so the underlying basement/older layers can't use them
+                accumulated_voxel_mask = accumulated_voxel_mask | final_voxel_mask
+
+                # 5. Assign and Increment
+                mask_matrix[i] = final_voxel_mask
+                onlap_chain_counter += 1  # <--- CRITICAL: Keep this increment!
 
             case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.ERODE:
                 mask_array = all_scalar_fields_outputs[i + onlap_chain_counter].squeezed_mask_array
