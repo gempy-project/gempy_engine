@@ -9,7 +9,7 @@ from ...modules.dual_contouring._dual_contouring_v2 import compute_dual_contouri
 from ._experimental_water_tight_DC_1 import _experimental_water_tight
 from ._mask_buffer import MaskBuffer
 from ..interp_single.interp_features import interpolate_all_fields_no_octree
-from ...config import DUAL_CONTOURING_VERTEX_OVERLAP
+from ...config import DUAL_CONTOURING_VERTEX_OVERLAP, DualContouringOverlap
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_data import DualContouringData
@@ -103,7 +103,7 @@ def dual_contouring_multi_scalar(
     
     # endregion
 
-    compute_overlap = (len(all_left_right_codes) > 1) and DUAL_CONTOURING_VERTEX_OVERLAP
+    compute_overlap = (len(all_left_right_codes) > 1) and DUAL_CONTOURING_VERTEX_OVERLAP != DualContouringOverlap.none
     
     # region Vertex gen and triangulation
     left_right_per_mesh = []
@@ -263,3 +263,4 @@ def _interp_on_edges(
         slicer_idx_start = slicer_idx_end
     
     return gradients
+
