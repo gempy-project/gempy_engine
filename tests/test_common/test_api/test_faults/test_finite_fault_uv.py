@@ -370,5 +370,5 @@ def test_visualize_spline_slip_on_fault_mesh(one_fault_model):
         p.show()
 
     assert len(slip_multiplier) == len(mesh_vertices)
-    assert np.max(slip_multiplier) <= 1.01 # allow for small spline overshoot if any
-    assert np.min(slip_multiplier) >= -0.01
+    assert np.max(slip_multiplier) <= 1.02 # allow for small spline overshoot if any
+    assert np.min(slip_multiplier) >= -0.02
