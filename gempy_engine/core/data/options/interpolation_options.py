@@ -77,7 +77,7 @@ class InterpolationOptions(BaseModel):
 
         evaluation_options = EvaluationOptions(
             _number_octree_levels=number_octree_levels,
-            _number_octree_levels_surface=3,
+            _number_octree_levels_surface=4,
             mesh_extraction=mesh_extraction,
             mesh_extraction_masking_options=MeshExtractionMaskingOptions.INTERSECT,
             mesh_extraction_fancy=True,
