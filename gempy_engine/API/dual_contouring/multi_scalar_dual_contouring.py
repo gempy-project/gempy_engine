@@ -62,7 +62,7 @@ def dual_contouring_multi_scalar(
         return all_meshes
 
     # * 1) Triangulation code
-    left_right_codes = get_triangulation_codes(octree_list)
+    left_right_codes, base_number = get_triangulation_codes(octree_list)
 
     # * 2) Dual contouring mask
     # ? I guess this mask is different that erosion mask
@@ -110,7 +110,7 @@ def dual_contouring_multi_scalar(
     # Generate meshes for each scalar field
     if LEGACY:=False:
         for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
-            _compute_meshes_legacy(all_left_right_codes, all_mask_arrays, all_meshes, all_surfaces_intersection, all_valid_edges, n_scalar_field, octree_leaves, options, output_on_edges)
+            _compute_meshes_legacy(all_left_right_codes, all_mask_arrays, all_meshes, all_surfaces_intersection, all_valid_edges, n_scalar_field, octree_leaves, options, output_on_edges, base_number)
     else:
         dc_data_per_surface_all = []
         for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
@@ -133,7 +133,8 @@ def dual_contouring_multi_scalar(
                     left_right_codes=all_left_right_codes[n_scalar_field],
                     gradients=output_on_edges[n_scalar_field][slice_object],
                     n_surfaces_to_export=n_scalar_field,
-                    tree_depth=options.number_octree_levels
+                    tree_depth=options.number_octree_levels,
+                    base_number=base_number
                 )
                 
                 dc_data_per_surface_all.append(dc_data_per_surface)
@@ -153,7 +154,8 @@ def dual_contouring_multi_scalar(
 def _compute_meshes_legacy(all_left_right_codes: list[Any], all_mask_arrays: np.ndarray,
                            all_meshes: list[DualContouringMesh], all_stack_intersection: list[Any],
                            all_valid_edges: list[Any], n_scalar_field: int,
-                           octree_leaves: OctreeLevel, options: InterpolationOptions, output_on_edges: list[np.ndarray]):
+                           octree_leaves: OctreeLevel, options: InterpolationOptions, output_on_edges: list[np.ndarray],
+                           base_number: tuple[int, int, int]):
     output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
     mask = all_mask_arrays[n_scalar_field]
 
@@ -168,6 +170,8 @@ def _compute_meshes_legacy(all_left_right_codes: list[Any], all_mask_arrays: np.
         gradients=output_on_edges[n_scalar_field],
         n_surfaces_to_export=output.scalar_field_at_sp.shape[0],
         tree_depth=options.number_octree_levels,
+        base_number=base_number,
+        left_right_codes=all_left_right_codes[n_scalar_field]
     )
 
     meshes: List[DualContouringMesh] = compute_dual_contouring(

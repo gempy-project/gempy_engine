@@ -39,7 +39,7 @@ def get_left_right_array(octree_list: list[OctreeLevel]):
         left_right_all = left_right_all[::-1]
         voxel_select_op = voxel_select_op[::-1]
 
-        for e, left_right_per_lvl in enumerate(left_right_all):
+        for e, left_right_per_lvl in enumerate(left_right_all): # size is equal to the depth of the tree (except root)
             left_right_per_lvl_dir = left_right_per_lvl[:, dir_idx]
             for n_rep in range(e):
                 inner = left_right_per_lvl_dir[voxel_select_op[e - n_rep]]
@@ -91,25 +91,30 @@ def get_left_right_array(octree_list: list[OctreeLevel]):
     bool_to_int_z = BackendTensor.tfnp.packbits(binary_z, axis=0, bitorder="little")
     left_right_array = BackendTensor.tfnp.vstack([bool_to_int_x, bool_to_int_y, bool_to_int_z]).T
 
-    return left_right_array
+    if left_right_array.shape[0] == 0:
+        base_x = base_y = base_z = 0
+    else:
+        base_x = bool_to_int_x.max() + 1
+        base_y = bool_to_int_y.max() + 1
+        base_z = bool_to_int_z.max() + 1
+        
+    return left_right_array, (base_x, base_y, base_z)
 
 
-def _get_pack_factors(base_number):
-    """Generates [base^2, base, 1] for packing 3D coordinates."""
+def _get_pack_factors(base_x, base_y, base_z):
+    """Generates [base_y * base_z, base_z, 1] for packing 3D coordinates."""
     # Ensure we use int64 for packing to avoid overflow
-    b = BackendTensor.tfnp.array(base_number, dtype='int64')
-    return BackendTensor.tfnp.stack([b ** 2, b, BackendTensor.t.array(1)], axis=0)
+    bx = BackendTensor.tfnp.array(base_x, dtype='int64')
+    by = BackendTensor.tfnp.array(base_y, dtype='int64')
+    bz = BackendTensor.tfnp.array(base_z, dtype='int64')
+    return BackendTensor.tfnp.stack([by * bz, bz, BackendTensor.t.array(1)], axis=0)
 
 
-def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, vertex):
+def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, vertex, base_number: tuple[int, int, int] | list[int]):
     # * Variables
     # Determine base_number dynamically from the data to support arbitrary grid shapes
-    if left_right_array.shape[0] == 0:
-        max_val = 0
-    else:
-        max_val = left_right_array.max()
-    base_number = max_val + 1
-    pack_factors = _get_pack_factors(base_number)
+    base_x, base_y, base_z = base_number
+    pack_factors = _get_pack_factors(base_x, base_y, base_z)
 
     edge_vector_a = BackendTensor.tfnp.array([0, 0, 0, 0, -1, -1, 1, 1, -1, 1, -1, 1])
     edge_vector_b = BackendTensor.tfnp.array([-1, -1, -1, 1, 0, 0, 0, 0, -1, 1, -1, 1])
@@ -210,21 +215,22 @@ def _filter_edges_with_neighbors(edge_vector_a, edge_vector_b, edge_vector_c,
                                  left_right_array_active_edge, dtype, base_number):
     """Remove edges that don't have voxels next to them."""
 
-    def check_voxels_exist_next_to_edge(coord_col, edge_vector, _left_right_array_active_edge):
+    def check_voxels_exist_next_to_edge(coord_col, edge_vector, 
+                                        _left_right_array_active_edge, _base_number_inner):
         match edge_vector:
             case 0:
                 _valid_edges = BackendTensor.tfnp.ones(_left_right_array_active_edge.shape[0], dtype=dtype)
             case 1:
-                _valid_edges = _left_right_array_active_edge[:, coord_col] != base_number - 1
+                _valid_edges = _left_right_array_active_edge[:, coord_col] != _base_number_inner - 1
             case -1:
                 _valid_edges = _left_right_array_active_edge[:, coord_col] != 0
             case _:
                 raise ValueError("edge_vector must be -1, 0 or 1")
         return _valid_edges
 
-    valid_edges_x = check_voxels_exist_next_to_edge(0, edge_vector_a, left_right_array_active_edge)
-    valid_edges_y = check_voxels_exist_next_to_edge(1, edge_vector_b, left_right_array_active_edge)
-    valid_edges_z = check_voxels_exist_next_to_edge(2, edge_vector_c, left_right_array_active_edge)
+    valid_edges_x = check_voxels_exist_next_to_edge(0, edge_vector_a, left_right_array_active_edge, _base_number_inner=base_number[0])
+    valid_edges_y = check_voxels_exist_next_to_edge(1, edge_vector_b, left_right_array_active_edge, _base_number_inner=base_number[1])
+    valid_edges_z = check_voxels_exist_next_to_edge(2, edge_vector_c, left_right_array_active_edge, _base_number_inner=base_number[2])
 
     valid_edges_with_neighbour_voxels = valid_edges_x * valid_edges_y * valid_edges_z
     return left_right_array_active_edge[valid_edges_with_neighbour_voxels]

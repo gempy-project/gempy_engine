@@ -83,7 +83,7 @@ def find_intersection_on_edge(_xyz_corners, scalar_field_on_corners,
 # endregion
 
 # region Triangulation Codes
-def get_triangulation_codes(octree_list: List[OctreeLevel]) -> np.ndarray | None:
+def get_triangulation_codes(octree_list: List[OctreeLevel]) -> Tuple[np.ndarray, Tuple[int, int, int]] | None:
     """
     Determine the appropriate triangulation codes based on options and octree structure.
     
@@ -91,7 +91,7 @@ def get_triangulation_codes(octree_list: List[OctreeLevel]) -> np.ndarray | None
         octree_list: List of octree levels
         
     Returns:
-        Left-right codes array if fancy triangulation is enabled and supported, None otherwise
+        Left-right codes array and base dimensions if fancy triangulation is enabled and supported, None otherwise
     """
     return get_left_right_array(octree_list)
 
@@ -186,7 +186,10 @@ def mask_generation(
 def apply_faults_vertex_overlap(all_meshes: list[DualContouringMesh],
                                 stack_structure: StacksStructure, 
                                 left_right_per_mesh: list[np.ndarray]):
-    voxel_overlaps = find_repeated_voxels_across_stacks(left_right_per_mesh)
+    voxel_overlaps = find_repeated_voxels_across_stacks(
+        all_left_right_codes=left_right_per_mesh,
+        base_numbers=all_meshes[0].dc_data.base_number
+    )
     
     if voxel_overlaps:
         print(f"Found voxel overlaps between stacks: {voxel_overlaps.keys()}")

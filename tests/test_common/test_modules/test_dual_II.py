@@ -9,6 +9,9 @@ from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.plugins.plotting import helper_functions_pyvista
 from tests.conftest import plot_pyvista
 
+# Seed
+import numpy as np
+np.random.seed(42)
 
 def test_dual_contouring_on_fault_model(one_fault_model, n_oct_levels=5):
     interpolation_input: InterpolationInput
@@ -48,10 +51,8 @@ def test_dual_contouring_on_fault_model_anisotropic_octree(one_fault_model, n_oc
     interpolation_input, structure, options = one_fault_model
     interpolation_input.grid.octree_grid = RegularGrid(
         orthogonal_extent=(np.array([-500, 500., -500, 500, -450, 550]) / 240),
-        regular_grid_shape=[5, 5, 2])
+        regular_grid_shape=[5, 2, 4])
 
-    import numpy as np
-    interpolation_input.surface_points.sp_coords[:, 2] += np.random.uniform(-0.02, 0.02, interpolation_input.surface_points.sp_coords[:, 2].shape)
     options.compute_scalar_gradient = False
     options.evaluation_options.dual_contouring = True
     options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT

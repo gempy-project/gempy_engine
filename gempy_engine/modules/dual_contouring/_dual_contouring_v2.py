@@ -81,7 +81,8 @@ def _parallel_process_surfaces_v2(dc_data_list: list[DualContouringData], num_wo
                 'gradients'           : dc_data.gradients,
                 'left_right_codes'    : dc_data.left_right_codes,
                 'n_surfaces_to_export': dc_data.n_surfaces_to_export,
-                'tree_depth'          : dc_data.tree_depth
+                'tree_depth'          : dc_data.tree_depth,
+                'base_number'         : dc_data.base_number
         }
         dc_data_dicts.append(dc_data_dict)
 
@@ -132,7 +133,8 @@ def _process_surface_batch_v2(surface_indices, dc_data_dicts, left_right_codes):
             gradients=dc_data_dict['gradients'],
             left_right_codes=dc_data_dict['left_right_codes'],
             n_surfaces_to_export=dc_data_dict['n_surfaces_to_export'],
-            tree_depth=dc_data_dict['tree_depth']
+            tree_depth=dc_data_dict['tree_depth'],
+            base_number=dc_data_dict['base_number']
         )
         # Process the surface
         mesh = _process_one_surface(dc_data, dc_data.left_right_codes)
@@ -155,22 +157,5 @@ def _process_one_surface(dc_data: DualContouringData, left_right_codes) -> DualC
     )
 
     vertices_numpy = BackendTensor.t.to_numpy(vertices)
-    if TRIMESH_LAST_PASS := True:
-        vertices_numpy, indices_numpy = _last_pass(vertices_numpy, indices_numpy)
-
     mesh = DualContouringMesh(vertices_numpy, indices_numpy, dc_data)
     return mesh
-
-
-def _last_pass(vertices, indices):
-    """Apply trimesh post-processing if available."""
-    if not TRIMESH_AVAILABLE:
-        return vertices, indices
-    
-    try:
-        mesh = trimesh.Trimesh(vertices=vertices, faces=indices)
-        mesh.fill_holes()
-        return mesh.vertices, mesh.faces
-    except Exception as e:
-        print(f"Warning: Trimesh post-processing failed: {e}")
-        return vertices, indices

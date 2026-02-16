@@ -24,7 +24,9 @@ def _compute_vertices(dc_data_per_stack: DualContouringData,
         dxdydz=dc_data_per_stack.dxdydz,
         gradients=dc_data_per_stack.gradients,
         n_surfaces_to_export=dc_data_per_stack.n_surfaces_to_export,
-        tree_depth=dc_data_per_stack.tree_depth
+        tree_depth=dc_data_per_stack.tree_depth,
+        base_number=dc_data_per_stack.base_number,
+        left_right_codes=dc_data_per_stack.left_right_codes
     )
 
     vertices_numpy = generate_dual_contouring_vertices(dc_data_per_surface, slice_object, debug)
