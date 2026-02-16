@@ -3,11 +3,6 @@ from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.modules.dual_contouring._aux import _correct_normals
 
 
-from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.core.data.octree_level import OctreeLevel
-from gempy_engine.modules.dual_contouring._aux import _correct_normals
-
-
 def get_left_right_array(octree_list: list[OctreeLevel]):
     dtype = bool
     match BackendTensor.engine_backend:

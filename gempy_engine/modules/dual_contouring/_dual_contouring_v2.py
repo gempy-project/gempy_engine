@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from typing import List
 
 from ._gen_vertices import generate_dual_contouring_vertices
@@ -17,6 +18,7 @@ try:
     MULTIPROCESSING_AVAILABLE = True
 except ImportError:
     import multiprocessing as mp
+
     MULTIPROCESSING_AVAILABLE = False
 
 # Import trimesh once at module level
@@ -35,7 +37,6 @@ def compute_dual_contouring_v2(dc_data_list: list[DualContouringData], ) -> List
     if parallel_results is not None:
         return parallel_results
 
-
     # Fall back to sequential processing
     print(f"Using sequential processing for {len(dc_data_list)} surfaces")
     stack_meshes: List[DualContouringMesh] = []
@@ -50,7 +51,7 @@ def _parallel_process(dc_data_list: list[DualContouringData]):
     # Check if we should use parallel processing
 
     return None  # * Not clear wins
-    
+
     n_surfaces_to_export = len(dc_data_list)
     use_parallel = _should_use_parallel_processing(n_surfaces_to_export, BackendTensor.engine_backend)
     parallel_results = None
@@ -68,7 +69,7 @@ def _parallel_process_surfaces_v2(dc_data_list: list[DualContouringData], num_wo
 
     if num_workers is None:
         num_workers = max(1, min(os.cpu_count() // 2, n_surfaces // 2))
-        num_workers=3
+        num_workers = 3
 
     # Prepare data for serialization - convert each DualContouringData to dict
     dc_data_dicts = []
@@ -100,7 +101,7 @@ def _parallel_process_surfaces_v2(dc_data_list: list[DualContouringData], num_wo
             for chunk in chunks:
                 result = pool.apply_async(
                     _process_surface_batch_v2,
-                    (chunk, dc_data_dicts )
+                    (chunk, dc_data_dicts)
                 )
                 async_results.append(result)
 
@@ -141,8 +142,16 @@ def _process_surface_batch_v2(surface_indices, dc_data_dicts, left_right_codes):
         results.append(mesh)
 
     return results
+
+
 def _process_one_surface(dc_data: DualContouringData, left_right_codes) -> DualContouringMesh:
     vertices = generate_dual_contouring_vertices(dc_data, slice_surface=None, debug=False)
+
+    if os.environ.get('GEMPY_SKIP_TRIANGULATION', '0') == '1':
+        vertices_numpy = BackendTensor.t.to_numpy(vertices)
+        mesh = DualContouringMesh(vertices_numpy, np.array([]), dc_data)
+        return mesh
+
     # * Average gradient for the edges
     valid_edges = dc_data.valid_edges
     edges_normals = BackendTensor.t.zeros((valid_edges.shape[0], 12, 3), dtype=BackendTensor.dtype_obj)

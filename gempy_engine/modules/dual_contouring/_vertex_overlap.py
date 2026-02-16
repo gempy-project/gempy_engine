@@ -1,27 +1,104 @@
 from typing import List, Dict, Optional
 
 import numpy as np
+from gempy_engine.config import DualContouringOverlap, DUAL_CONTOURING_VERTEX_OVERLAP
 
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.stacks_structure import StacksStructure
 
 
-def _apply_fault_relations_to_overlaps(
+def _apply_relations_to_overlaps(
         all_meshes: List[DualContouringMesh],
         voxel_overlaps: Dict[str, dict],
         stacks_structure: StacksStructure
 ) -> None:
     """
-    Apply fault relations to voxel overlaps by updating meshes based on fault relations.
+    Apply fault, erosion, and onlap relations to voxel overlaps by updating meshes.
 
-    Instead of sharing vertices across meshes, remove triangles on the non-fault
-    surfaces where voxels overlap with the fault surfaces.
+    Instead of sharing vertices across meshes, remove triangles on the destination
+    surfaces where voxels overlap with the origin surfaces.
 
     Args:
         all_meshes: List of dual contouring meshes (ordered per-surface)
         voxel_overlaps: Dictionary containing overlap information between per-surface meshes
-        stacks_structure: Structure containing fault relations and stack->surface index mapping
+        stacks_structure: Structure containing relations and stack->surface index mapping
     """
+    _apply_fault_logic(all_meshes, voxel_overlaps, stacks_structure)
+    if DUAL_CONTOURING_VERTEX_OVERLAP == DualContouringOverlap.watertight:
+        _apply_non_fault_overlap_logic(all_meshes, voxel_overlaps, stacks_structure)
+
+
+def _apply_non_fault_overlap_logic(
+        all_meshes: List[DualContouringMesh],
+        voxel_overlaps: Dict[str, dict],
+        stacks_structure: StacksStructure
+) -> None:
+    """
+    Apply logic to all overlaps that are not faults.
+    Pick one surface as master (the one with lower stack index) and apply the same logic as faults.
+    """
+    n_stacks = stacks_structure.n_stacks
+    surfaces_per_stack = stacks_structure.number_of_surfaces_per_stack_vector
+    faults_relations = stacks_structure.faults_relations
+
+    for i in range(n_stacks):
+        for j in range(i + 1, n_stacks):
+            # Check if this pair is already handled by fault logic
+            is_fault = False
+            if faults_relations is not None:
+                if faults_relations[i, j] or faults_relations[j, i]:
+                    is_fault = True
+
+            if is_fault:
+                continue
+
+            overlap_key = f"stack_{i}_vs_stack_{j}"
+            if overlap_key in voxel_overlaps:
+                # We pick stack 'i' as the master (origin) and 'j' as destination
+                # If stack i is ERODE, it should be the master.
+                # If stack j is ERODE, it should be the master.
+                # Default to i as master if no clear relation.
+
+                origin_stack = i
+                destination_stack = j
+
+                if stacks_structure.masking_descriptor is not None:
+                    # If j is ERODE, it might be younger and should erode i?
+                    # In GemPy, younger stacks usually have higher indices.
+                    # If j is ERODE, it erodes everything below it (including i).
+                    # So j would be the 'master' (origin) and i the 'destination'.
+                    from gempy_engine.core.data.stack_relation_type import StackRelationType
+
+                    relation_i = stacks_structure.masking_descriptor[i]
+                    relation_j = stacks_structure.masking_descriptor[j]
+
+                    if relation_j == StackRelationType.ERODE:
+                        origin_stack = j
+                        destination_stack = i
+                    elif relation_i == StackRelationType.ERODE:
+                        origin_stack = i
+                        destination_stack = j
+                    # If both are ONLAP, the younger one (j) usually onlaps onto the older one (i).
+                    # So i is the master, j is destination.
+
+                origin_surface_range = _get_surface_range(surfaces_per_stack, origin_stack)
+                destination_surface_range = _get_surface_range(surfaces_per_stack, destination_stack)
+
+                for origin_surface_idx in origin_surface_range:
+                    for destination_surface_idx in destination_surface_range:
+                        _apply_overlap_to_surface_pair(
+                            all_meshes=all_meshes,
+                            origin_surface_idx=origin_surface_idx,
+                            destination_surface_idx=destination_surface_idx,
+                            voxel_overlaps=voxel_overlaps
+                        )
+
+
+def _apply_fault_logic(
+        all_meshes: List[DualContouringMesh],
+        voxel_overlaps: Dict[str, dict],
+        stacks_structure: StacksStructure
+) -> None:
     if stacks_structure.faults_relations is None:
         return
 
@@ -29,40 +106,75 @@ def _apply_fault_relations_to_overlaps(
     n_stacks = stacks_structure.n_stacks
     surfaces_per_stack = stacks_structure.number_of_surfaces_per_stack_vector
 
-    # Map each stack to its contiguous surface index range in all_meshes
-    # surfaces_per_stack is assumed to be an exclusive prefix sum array of length n_stacks+1
-    def surface_range_for_stack(stack_idx: int) -> range:
-        return range(surfaces_per_stack[stack_idx], surfaces_per_stack[stack_idx + 1])
-
     # For each fault relation, process all pairs of origin (fault) surfaces and destination (affected) surfaces
     for origin_stack, destination_stack in _get_fault_pairs(faults_relations, n_stacks):
-        origin_surface_range = surface_range_for_stack(origin_stack)
-        destination_surface_range = surface_range_for_stack(destination_stack)
+        origin_surface_range = _get_surface_range(surfaces_per_stack, origin_stack)
+        destination_surface_range = _get_surface_range(surfaces_per_stack, destination_stack)
 
         for origin_surface_idx in origin_surface_range:
             for destination_surface_idx in destination_surface_range:
-                overlap_key = f"stack_{origin_surface_idx}_vs_stack_{destination_surface_idx}"
-                if overlap_key in voxel_overlaps:
-                    overlap_data = voxel_overlaps[overlap_key]
-                    # STEP 1: Vertex Sharing (The "Connect" part)
-                    # Snap the destination vertices to the fault vertices.
-                    # This closes the gap by stretching the "bridging" triangles.
-                    _apply_vertex_sharing(
-                        all_meshes=all_meshes,
-                        origin_mesh_idx=origin_surface_idx,
-                        destination_mesh_idx=destination_surface_idx,
-                        overlap_data=overlap_data
-                    )
+                _apply_overlap_to_surface_pair(
+                    all_meshes=all_meshes,
+                    origin_surface_idx=origin_surface_idx,
+                    destination_surface_idx=destination_surface_idx,
+                    voxel_overlaps=voxel_overlaps
+                )
 
-                    # STEP 2: Conservative Triangle Removal (The "Remove after" part)
-                    # Remove only triangles that are FULLY inside the overlap.
-                    # This cleans up the mesh on the fault surface itself but
-                    # keeps the connections we just snapped in Step 1.
-                    _remove_triangles_in_voxels(
-                        mesh=all_meshes[destination_surface_idx],
-                        voxel_indices=overlap_data["indices_in_stack_j"],
-                        mode='all'  # <--- NEW PARAMETER: Only remove if ALL vertices match
-                    )
+
+def _apply_overlap_to_surface_pair(
+        all_meshes: List[DualContouringMesh],
+        origin_surface_idx: int,
+        destination_surface_idx: int,
+        voxel_overlaps: Dict[str, dict]
+) -> None:
+    """Apply vertex sharing and triangle removal for a pair of surfaces."""
+    # Try both orders in voxel_overlaps since it's only populated for i < j
+    idx_i, idx_j = min(origin_surface_idx, destination_surface_idx), max(origin_surface_idx, destination_surface_idx)
+    overlap_key = f"stack_{idx_i}_vs_stack_{idx_j}"
+
+    if overlap_key in voxel_overlaps:
+        overlap_data = voxel_overlaps[overlap_key]
+
+        # Determine which indices in overlap_data correspond to origin and destination
+        if origin_surface_idx == idx_i:
+            origin_indices_key = "indices_in_stack_i"
+            dest_indices_key = "indices_in_stack_j"
+        else:
+            origin_indices_key = "indices_in_stack_j"
+            dest_indices_key = "indices_in_stack_i"
+
+        # STEP 1: Vertex Sharing
+        _apply_vertex_sharing_ordered(
+            all_meshes=all_meshes,
+            origin_mesh_idx=origin_surface_idx,
+            destination_mesh_idx=destination_surface_idx,
+            origin_indices=overlap_data[origin_indices_key],
+            destination_indices=overlap_data[dest_indices_key]
+        )
+
+        # STEP 2: Conservative Triangle Removal
+        _remove_triangles_in_voxels(
+            mesh=all_meshes[destination_surface_idx],
+            voxel_indices=overlap_data[dest_indices_key],
+            mode='all'
+        )
+
+
+def _apply_vertex_sharing_ordered(
+        all_meshes: List[DualContouringMesh],
+        origin_mesh_idx: int,
+        destination_mesh_idx: int,
+        origin_indices: np.ndarray,
+        destination_indices: np.ndarray
+) -> None:
+    if not _are_valid_mesh_indices(all_meshes, origin_mesh_idx, destination_mesh_idx):
+        return
+
+    origin_mesh = all_meshes[origin_mesh_idx]
+    destination_mesh = all_meshes[destination_mesh_idx]
+
+    # Share vertices from origin to destination
+    destination_mesh.vertices[destination_indices] = origin_mesh.vertices[origin_indices]
 
 
 def _get_fault_pairs(faults_relations: np.ndarray, n_stacks: int):
@@ -81,27 +193,6 @@ def _get_surface_range(surfaces_per_stack: np.ndarray, stack_index: int) -> rang
     )
 
 
-def _apply_vertex_sharing(
-        all_meshes: List[DualContouringMesh],
-        origin_mesh_idx: int,
-        destination_mesh_idx: int,
-        overlap_data: dict
-) -> None:
-    """
-    Legacy behavior: apply vertex sharing between origin and destination meshes based on overlap data.
-    Kept for backward compatibility but not used by default anymore.
-    """
-    if not _are_valid_mesh_indices(all_meshes, origin_mesh_idx, destination_mesh_idx):
-        return
-
-    origin_mesh = all_meshes[origin_mesh_idx]
-    destination_mesh = all_meshes[destination_mesh_idx]
-
-    origin_indices = overlap_data["indices_in_stack_i"]
-    destination_indices = overlap_data["indices_in_stack_j"]
-
-    # Share vertices from origin to destination
-    destination_mesh.vertices[destination_indices] = origin_mesh.vertices[origin_indices]
 
 
 def _are_valid_mesh_indices(all_meshes: List[DualContouringMesh], *indices: int) -> bool:
