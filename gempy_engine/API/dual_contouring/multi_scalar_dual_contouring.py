@@ -5,7 +5,6 @@ from typing import List, Any
 import numpy as np
 
 from gempy_engine.modules.dual_contouring._dual_contouring import compute_dual_contouring
-from ._experimental_water_tight_DC_1 import _experimental_water_tight
 from ._mask_buffer import MaskBuffer
 from ..interp_single.interp_features import interpolate_all_fields_no_octree
 from ...config import DUAL_CONTOURING_VERTEX_OVERLAP, DualContouringOverlap
