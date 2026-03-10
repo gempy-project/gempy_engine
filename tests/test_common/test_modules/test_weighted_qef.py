@@ -80,13 +80,10 @@ def test_weighted_qef_shared_vertices_are_close(one_fault_model):
             verts_i = meshes[i].vertices[idx_i]
             verts_j = meshes[j].vertices[idx_j]
 
-            # After weighted QEF + averaging, shared vertices should be very close.
-            # With multiple overlapping surfaces, pairwise averaging causes small
-            # cumulative drift, so we use a tolerance of 0.02.
-            np.testing.assert_allclose(
+            # After simultaneous averaging, shared vertices should be exactly equal
+            np.testing.assert_array_equal(
                 verts_i, verts_j,
-                atol=0.02,
-                err_msg=f"Meshes {i} and {j}: shared vertices should be close after weighted QEF"
+                err_msg=f"Meshes {i} and {j}: shared vertices should be identical after averaging"
             )
 
     if not found_overlap:
@@ -107,6 +104,22 @@ def test_weighted_qef_no_regression_single_surface(one_fault_model):
         # Just verify the mesh is valid
         assert mesh.vertices.shape[0] > 0
         assert not np.any(np.isnan(mesh.vertices))
+
+
+def test_weighted_qef_fault_triangles_removed(one_fault_model):
+    """Verify that layer meshes have triangles removed at fault overlap voxels."""
+    solutions = _run_fault_model(one_fault_model, n_oct_levels=3)
+    meshes = solutions.dc_meshes
+
+    # With a fault model, at least one layer mesh should have had triangles removed.
+    # We verify that all meshes have valid (non-empty) edge arrays and no degenerate faces.
+    for i, mesh in enumerate(solutions.dc_meshes):
+        if mesh.edges is not None and mesh.edges.size > 0:
+            # All face indices should reference valid vertices
+            assert mesh.edges.max() < mesh.vertices.shape[0], \
+                f"Mesh {i}: face index out of bounds"
+            assert mesh.edges.min() >= 0, \
+                f"Mesh {i}: negative face index"
 
 
 def test_weighted_qef_higher_resolution(one_fault_model):

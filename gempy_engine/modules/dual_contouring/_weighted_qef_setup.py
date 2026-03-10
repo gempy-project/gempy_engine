@@ -7,7 +7,7 @@ from ...core.data.dual_contouring_data import DualContouringData
 from ._find_vertex_overlap import _generate_voxel_codes
 
 
-DEFAULT_CROSS_SURFACE_WEIGHT = 1000.0
+DEFAULT_CROSS_SURFACE_WEIGHT = 10.0
 
 
 def find_and_inject_multi_surface_constraints(
