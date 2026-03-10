@@ -1,18 +1,21 @@
 import copy
+import os
 from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
-import os
-
 import pytest
 
+import gempy_engine
+from gempy_engine.API.interp_single._interp_scalar_field import interpolate_scalar_field
+from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields
+from gempy_engine.core import data
 from gempy_engine.core.data.interp_output import InterpOutput
-from gempy_engine.API.interp_single.interp_features import interpolate_single_field
-from tests.conftest import TEST_SPEED
+from gempy_engine.core.data.interpolation_input import InterpolationInput
+from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.plugins.plotting.helper_functions import plot_block
-from tests.fixtures.grids import simple_grid_3d_octree
+from tests.conftest import TEST_SPEED
 from tests.fixtures.simple_models import simple_model_interpolation_input_factory
 
 dir_name = os.path.dirname(__file__)
@@ -68,11 +71,38 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
         plt.show()
 
 
+def _interpolate_single_field(interpolation_input: InterpolationInput, options: data.InterpolationOptions,
+                             data_shape: gempy_engine.core.data.tensors_structure.TensorsStructure) -> InterpOutput:  # * Only For testing
+
+    grid = interpolation_input.grid
+    weights, exported_fields = interpolate_scalar_field(
+        solver_input=(input_preprocess(data_shape, interpolation_input)),
+        options=options,
+        stack_number=0
+    )
+
+    exported_fields.set_structure_values(
+        reference_sp_position=data_shape.reference_sp_position,
+        slice_feature=interpolation_input.slice_feature,
+        grid_size=interpolation_input.grid.len_all_grids
+    )
+
+    scalar_output = ScalarFieldOutput(
+        weights=weights,
+        grid=grid,
+        exported_fields=exported_fields,
+        values_block=None,
+        stack_relation=interpolation_input.stack_relation
+    )
+
+    return InterpOutput(scalar_output, None)
+
+
 def test_export_simple_model_low_res(plot=True):
     interpolation_input, options, structure = simple_model_interpolation_input_factory()
     options.compute_scalar_gradient = True
     
-    output: InterpOutput = interpolate_single_field(interpolation_input, options, structure.tensors_structure)
+    output: InterpOutput = _interpolate_single_field(interpolation_input, options, structure.tensors_structure)
     Z_x = output.exported_fields_dense_grid.scalar_field
     # ids_block = output.ids_block
     gx = output.exported_fields.gx_field
@@ -105,7 +135,7 @@ def test_export_simple_model_low_res(plot=True):
 def test_export_3_layers(simple_model_3_layers_high_res, plot=True):
     interpolation_input, options, structure = simple_model_3_layers_high_res
     options.compute_scalar_gradient = True
-    output: InterpOutput = interpolate_single_field(interpolation_input, options, structure.tensors_structure)
+    output: InterpOutput = _interpolate_single_field(interpolation_input, options, structure.tensors_structure)
 
     Z_x = output.exported_fields_dense_grid.scalar_field
     

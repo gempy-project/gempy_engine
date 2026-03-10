@@ -57,33 +57,6 @@ def interpolate_all_fields_no_octree(interpolation_input: InterpolationInput, op
 
 
 # region testing
-# ? DEP - It seems I just run this in the tests
-def interpolate_single_field(interpolation_input: InterpolationInput, options: data.InterpolationOptions,
-                             data_shape: gempy_engine.core.data.tensors_structure.TensorsStructure) -> InterpOutput:  # * Only For testing
-
-    grid = interpolation_input.grid
-    weights, exported_fields = interpolate_scalar_field(
-        solver_input=(input_preprocess(data_shape, interpolation_input)),
-        options=options,
-        stack_number=0
-    )
-
-    exported_fields.set_structure_values(
-        reference_sp_position=data_shape.reference_sp_position,
-        slice_feature=interpolation_input.slice_feature,
-        grid_size=interpolation_input.grid.len_all_grids
-    )
-    
-    scalar_output = ScalarFieldOutput(
-        weights=weights,
-        grid=grid,
-        exported_fields=exported_fields,
-        values_block=None,
-        stack_relation=interpolation_input.stack_relation
-    )
-
-    return InterpOutput(scalar_output, None)
-
 
 def interpolate_and_segment(interpolation_input: InterpolationInput, options: data.InterpolationOptions,  # * Just for testing
                             data_shape: gempy_engine.core.data.tensors_structure.TensorsStructure, clean_buffer=True) -> InterpOutput:
