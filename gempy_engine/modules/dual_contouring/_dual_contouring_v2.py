@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import concurrent.futures
 from typing import List
 
 from ._gen_vertices import generate_dual_contouring_vertices
@@ -31,15 +32,26 @@ except ImportError:
 
 
 @gempy_profiler_decorator
-def compute_dual_contouring_v2(dc_data_list: list[DualContouringData], ) -> List[DualContouringMesh]:
-    # Fall back to sequential processing
-    stack_meshes: List[DualContouringMesh] = []
+def compute_dual_contouring_v2(dc_data_list: list[DualContouringData], max_workers: int = None) -> List[DualContouringMesh]:
+    n_surfaces = len(dc_data_list)
+    if n_surfaces == 0:
+        return []
 
-    for dc_data in dc_data_list:
-        mesh = _process_one_surface(dc_data, dc_data.left_right_codes)
-        stack_meshes.append(mesh)
+    # Use ThreadPoolExecutor to parallelize surface processing
+    # This is similar to the approach in _weighted_qef_setup_multicore.py
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        futures = [
+            executor.submit(_process_one_surface, dc_data, dc_data.left_right_codes)
+            for dc_data in dc_data_list
+        ]
+
+        # Collect results in order
+        stack_meshes: List[DualContouringMesh] = []
+        for future in futures:
+            stack_meshes.append(future.result())
+
     return stack_meshes
-
 
 
 def _process_one_surface(dc_data: DualContouringData, left_right_codes) -> DualContouringMesh:
