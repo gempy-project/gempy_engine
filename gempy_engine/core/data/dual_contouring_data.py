@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
 
 import numpy as np
 
@@ -21,6 +22,11 @@ class DualContouringData:
 
     bias_center_mass: np.ndarray = None  # * Only for testing
     bias_normals: np.ndarray = None  # * Only for testing
+
+    # Weighted QEF: extra constraints from other surfaces at overlapping voxels
+    extra_edge_xyz: Optional[np.ndarray] = None      # (n_valid_voxels, K, 3)
+    extra_edge_normals: Optional[np.ndarray] = None   # (n_valid_voxels, K, 3)
+    extra_weights: Optional[np.ndarray] = None        # (n_valid_voxels, K)
 
     @property
     def valid_voxels(self):

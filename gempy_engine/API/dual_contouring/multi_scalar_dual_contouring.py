@@ -22,6 +22,7 @@ from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.octree_level import OctreeLevel
 from ...core.utils import gempy_profiler_decorator
 from ...modules.dual_contouring._aux import _surface_slicer
+from ...modules.dual_contouring._weighted_qef_setup import find_and_inject_multi_surface_constraints
 from ...modules.dual_contouring.dual_contouring_interface import (find_intersection_on_edge, get_triangulation_codes,
                                                                   get_masked_codes, mask_generation, apply_relations_vertex_overlap)
 
@@ -141,12 +142,22 @@ def dual_contouring_multi_scalar(
                 if (compute_overlap):
                     left_right_per_mesh.append(all_left_right_codes[n_scalar_field][dc_data_per_surface.valid_voxels])
 
+        # --- Weighted QEF: inject cross-surface constraints before vertex generation ---
+        if compute_overlap and left_right_per_mesh:
+            find_and_inject_multi_surface_constraints(
+                dc_data_list=dc_data_per_surface_all,
+                left_right_per_mesh=left_right_per_mesh,
+                base_number=base_number,
+            )
+
         all_meshes = compute_dual_contouring_v2(
             dc_data_list=dc_data_per_surface_all,
         )
     # endregion
-        if compute_overlap:
-            apply_relations_vertex_overlap(all_meshes, data_descriptor.stack_structure, left_right_per_mesh)
+        # --- Vertex averaging for exact watertightness at overlap voxels ---
+        if compute_overlap and left_right_per_mesh:
+            print(f"[DEBUG] Running vertex averaging: {len(all_meshes)} meshes, {len(left_right_per_mesh)} lr codes")
+            _average_overlapping_vertices(all_meshes, left_right_per_mesh, base_number)
 
     return all_meshes
 
@@ -263,4 +274,45 @@ def _interp_on_edges(
         slicer_idx_start = slicer_idx_end
     
     return gradients
+
+
+def _average_overlapping_vertices(
+        all_meshes: List[DualContouringMesh],
+        left_right_per_mesh: List[np.ndarray],
+        base_number: tuple[int, int, int],
+) -> None:
+    """Average vertex positions at shared voxels for exact watertightness.
+
+    Because both surfaces solved their QEF with high-weight cross-constraints,
+    their vertices at shared voxels are already nearly identical.  This function
+    snaps them to the exact midpoint so that the meshes share identical vertex
+    positions and are perfectly watertight.
+    """
+    from ...modules.dual_contouring._find_vertex_overlap import _generate_voxel_codes
+
+    n = len(all_meshes)
+    if n < 2:
+        return
+
+    codes = _generate_voxel_codes(left_right_per_mesh, base_number)
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            common = np.intersect1d(codes[i], codes[j], assume_unique=False)
+            if common.size == 0:
+                continue
+
+            mask_i = np.isin(codes[i], common)
+            mask_j = np.isin(codes[j], common)
+
+            order_i = np.argsort(codes[i][mask_i])
+            order_j = np.argsort(codes[j][mask_j])
+
+            idx_i = np.where(mask_i)[0][order_i]
+            idx_j = np.where(mask_j)[0][order_j]
+
+            avg = (all_meshes[i].vertices[idx_i] + all_meshes[j].vertices[idx_j]) / 2.0
+            print(f"[DEBUG] Averaging {common.size} voxels between mesh {i} and {j}")
+            all_meshes[i].vertices[idx_i] = avg
+            all_meshes[j].vertices[idx_j] = avg
 

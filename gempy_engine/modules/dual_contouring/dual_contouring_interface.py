@@ -3,7 +3,8 @@ from typing import Tuple, List
 
 import numpy as np
 
-from ._vertex_overlap import find_repeated_voxels_across_stacks, apply_relations_to_overlaps
+from ._find_vertex_overlap import find_repeated_voxels_across_stacks
+from ._apply_vertex_overlap_logic import apply_relations_to_overlaps
 from .fancy_triangulation import get_left_right_array
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions

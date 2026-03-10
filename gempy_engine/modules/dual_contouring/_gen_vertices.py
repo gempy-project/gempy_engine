@@ -57,8 +57,33 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
     
     edges_normals[:, 12:15] = bias_normals[None, :, :]
 
-    A = edges_normals
-    
+    # --- Append extra weighted constraints from other surfaces (if any) ---
+    if dc_data_per_stack.extra_edge_xyz is not None:
+        K = dc_data_per_stack.extra_edge_xyz.shape[1]
+        extra_xyz = BackendTensor.tfnp.array(dc_data_per_stack.extra_edge_xyz, dtype=BackendTensor.dtype_obj)
+        extra_norm = BackendTensor.tfnp.array(dc_data_per_stack.extra_edge_normals, dtype=BackendTensor.dtype_obj)
+        extra_w = BackendTensor.tfnp.array(dc_data_per_stack.extra_weights, dtype=BackendTensor.dtype_obj)
+
+        edges_xyz = BackendTensor.tfnp.concatenate([edges_xyz, extra_xyz], axis=1)
+        edges_normals = BackendTensor.tfnp.concatenate([edges_normals, extra_norm], axis=1)
+
+        n_rows = 15 + K
+        w = BackendTensor.tfnp.ones((n_valid_voxels, n_rows), dtype=BackendTensor.dtype_obj)
+        w[:, 12:15] = BIAS_STRENGTH
+        w[:, 15:] = extra_w
+    else:
+        n_rows = 15
+        w = BackendTensor.tfnp.ones((n_valid_voxels, n_rows), dtype=BackendTensor.dtype_obj)
+        w[:, 12:15] = BIAS_STRENGTH
+
+    # Apply sqrt(w) scaling for weighted QEF
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        W_sqrt = BackendTensor.tfnp.sqrt(w).unsqueeze(-1)
+    else:
+        W_sqrt = BackendTensor.tfnp.sqrt(w)[..., None]
+
+    A = edges_normals * W_sqrt
+
     # Compute A^T @ A more efficiently
     if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
         # For PyTorch: use bmm (batch matrix multiply) which is optimized
