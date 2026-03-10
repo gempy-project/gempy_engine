@@ -58,13 +58,6 @@ def dual_contouring_multi_scalar(
     dual_contouring_options = copy.deepcopy(options)
     dual_contouring_options.evaluation_options.compute_scalar_gradient = True
 
-    # * (Miguel Sep25) This will be probably deprecated
-    if options.debug_water_tight:
-        _experimental_water_tight(
-            all_meshes, data_descriptor, interpolation_input, octree_leaves, dual_contouring_options
-        )
-        return all_meshes
-
     # * 1) Triangulation code
     left_right_codes, base_number = get_triangulation_codes(octree_list)
 
@@ -102,7 +95,10 @@ def dual_contouring_multi_scalar(
 
     # * 5) Interpolate on edges for all stacks
     output_on_edges = _interp_on_edges(
-        all_surfaces_intersection, data_descriptor, dual_contouring_options, interpolation_input
+        all_stack_intersection=all_surfaces_intersection, 
+        data_descriptor=data_descriptor, 
+        dual_contouring_options=dual_contouring_options,
+        interpolation_input=interpolation_input
     )
 
     # endregion
