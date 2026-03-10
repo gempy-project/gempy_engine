@@ -4,8 +4,6 @@ from typing import List, Any
 import numpy as np
 
 from gempy_engine.modules.dual_contouring._dual_contouring import compute_dual_contouring
-
-from ...modules.dual_contouring._dual_contouring_v2 import compute_dual_contouring_v2
 from ._experimental_water_tight_DC_1 import _experimental_water_tight
 from ._mask_buffer import MaskBuffer
 from ..interp_single.interp_features import interpolate_all_fields_no_octree
@@ -21,12 +19,12 @@ from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.octree_level import OctreeLevel
 from ...core.utils import gempy_profiler_decorator
-from ...modules.dual_contouring._aux import _surface_slicer
 from ...modules.dual_contouring._apply_mesh_modifications import _remove_triangles_in_voxels
-from ...modules.dual_contouring._weighted_qef_setup import find_and_inject_multi_surface_constraints
-from ...modules.dual_contouring._weighted_qef_sutup_opt import find_and_inject_multi_surface_constraints_pt
+from ...modules.dual_contouring._aux import _surface_slicer
+from ...modules.dual_contouring._dual_contouring_v2 import compute_dual_contouring_v2
+from ...modules.dual_contouring._weighted_qef_setup_multicore import find_and_inject_multi_surface_constraints_multicore
 from ...modules.dual_contouring.dual_contouring_interface import (find_intersection_on_edge, get_triangulation_codes,
-                                                                  get_masked_codes, mask_generation, apply_relations_vertex_overlap)
+                                                                  get_masked_codes, mask_generation)
 
 
 @gempy_profiler_decorator
@@ -148,8 +146,7 @@ def dual_contouring_multi_scalar(
 
         # --- Weighted QEF: inject cross-surface constraints before vertex generation ---
         if compute_overlap and left_right_per_mesh:
-            # find_and_inject_multi_surface_constraints(
-            find_and_inject_multi_surface_constraints_pt(
+            find_and_inject_multi_surface_constraints_multicore(
                 dc_data_list=dc_data_per_surface_all,
                 left_right_per_mesh=left_right_per_mesh,
                 base_number=base_number,
