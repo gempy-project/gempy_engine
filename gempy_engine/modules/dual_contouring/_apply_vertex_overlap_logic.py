@@ -1,7 +1,7 @@
 from typing import List, Dict, TYPE_CHECKING
 import numpy as np
 from gempy_engine.config import DualContouringOverlap, DUAL_CONTOURING_VERTEX_OVERLAP
-from ._apply_mesh_modifications import _apply_overlap_to_surface_pair
+from ._apply_mesh_modifications import apply_overlap_to_surface_pair
 
 if TYPE_CHECKING:
     from ...core.data.dual_contouring_mesh import DualContouringMesh
@@ -87,7 +87,7 @@ def _apply_non_fault_overlap_logic(
 
                 for origin_surface_idx in origin_surface_range:
                     for destination_surface_idx in destination_surface_range:
-                        _apply_overlap_to_surface_pair(
+                        apply_overlap_to_surface_pair(
                             all_meshes=all_meshes,
                             origin_surface_idx=origin_surface_idx,
                             destination_surface_idx=destination_surface_idx,
@@ -114,7 +114,7 @@ def _apply_fault_logic(
 
         for origin_surface_idx in origin_surface_range:
             for destination_surface_idx in destination_surface_range:
-                _apply_overlap_to_surface_pair(
+                apply_overlap_to_surface_pair(
                     all_meshes=all_meshes,
                     origin_surface_idx=origin_surface_idx,
                     destination_surface_idx=destination_surface_idx,

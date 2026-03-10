@@ -4,7 +4,8 @@ import numpy as np
 if TYPE_CHECKING:
     from ...core.data.dual_contouring_mesh import DualContouringMesh
 
-def _apply_overlap_to_surface_pair(
+
+def apply_overlap_to_surface_pair(
         all_meshes: List['DualContouringMesh'],
         origin_surface_idx: int,
         destination_surface_idx: int,
