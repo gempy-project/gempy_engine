@@ -24,6 +24,7 @@ from ...core.utils import gempy_profiler_decorator
 from ...modules.dual_contouring._aux import _surface_slicer
 from ...modules.dual_contouring._apply_mesh_modifications import _remove_triangles_in_voxels
 from ...modules.dual_contouring._weighted_qef_setup import find_and_inject_multi_surface_constraints
+from ...modules.dual_contouring._weighted_qef_sutup_opt import find_and_inject_multi_surface_constraints_pt
 from ...modules.dual_contouring.dual_contouring_interface import (find_intersection_on_edge, get_triangulation_codes,
                                                                   get_masked_codes, mask_generation, apply_relations_vertex_overlap)
 
@@ -142,12 +143,13 @@ def dual_contouring_multi_scalar(
                 
                 dc_data_per_surface_all.append(dc_data_per_surface)
                 surface_to_stack.append(n_scalar_field)
-                if (compute_overlap):
+                if compute_overlap:
                     left_right_per_mesh.append(all_left_right_codes[n_scalar_field][dc_data_per_surface.valid_voxels])
 
         # --- Weighted QEF: inject cross-surface constraints before vertex generation ---
         if compute_overlap and left_right_per_mesh:
-            find_and_inject_multi_surface_constraints(
+            # find_and_inject_multi_surface_constraints(
+            find_and_inject_multi_surface_constraints_pt(
                 dc_data_list=dc_data_per_surface_all,
                 left_right_per_mesh=left_right_per_mesh,
                 base_number=base_number,
