@@ -3,10 +3,25 @@ import re
 from approvaltests import Options, verify
 from approvaltests.core import Comparator
 from approvaltests.namer import NamerFactory
+from approvaltests.reporters import GenericDiffReporter
 
 
-def gempy_verify_array(item, name: str, rtol: float = 1e-5, atol: float = 1e-5,):
-    parameters: Options = NamerFactory.with_parameters(name).with_comparator(ArrayComparator(atol=atol, rtol=rtol))
+def gempy_verify_array(item, name: str, rtol: float = 1e-5, atol: float = 1e-5, ):
+    # ! You will have to set the path to your diff tool
+    reporter = GenericDiffReporter.create(
+        diff_tool_path=r"pycharm"
+    )
+
+    reporter.extra_args = ["diff"]
+
+    parameters: Options = NamerFactory \
+        .with_parameters(name) \
+        .with_comparator(
+        comparator=ArrayComparator(atol=atol, rtol=rtol)
+    ).with_reporter(
+        reporter=reporter
+    )
+
     verify(np.asarray(item), options=parameters)
 
 
@@ -14,16 +29,16 @@ class ArrayComparator(Comparator):
     # TODO: Make tolerance a variable
     rtol: float = 1e-05
     atol: float = 1e-05
-    
+
     def __init__(self, rtol: float = 1e-03, atol: float = 1e-05):
         self.rtol = rtol
         self.atol = atol
-    
+
     def compare(self, received_path: str, approved_path: str) -> bool:
         from approvaltests.file_approver import exists
         import filecmp
         import pathlib
-        
+
         if not exists(approved_path) or not exists(received_path):
             return False
         if filecmp.cmp(approved_path, received_path):
@@ -43,7 +58,7 @@ class ArrayComparator(Comparator):
                 approved_text = re.sub(r"tensor\(", "", approved_text)
                 approved_text = re.sub(r"\s*dtype=torch\.float[0-9]+", "", approved_text)
                 approved_text = re.sub(r"\)", "", approved_text)
-                
+
             # Parse 2D matrices
             import ast
             received = np.matrix(received_text)
