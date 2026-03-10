@@ -7,7 +7,7 @@ from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.stacks_structure import StacksStructure
 
 
-def _apply_relations_to_overlaps(
+def apply_relations_to_overlaps(
         all_meshes: List[DualContouringMesh],
         voxel_overlaps: Dict[str, dict],
         stacks_structure: StacksStructure

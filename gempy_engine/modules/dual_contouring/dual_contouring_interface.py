@@ -3,7 +3,7 @@ from typing import Tuple, List
 
 import numpy as np
 
-from ._vertex_overlap import find_repeated_voxels_across_stacks, _apply_relations_to_overlaps
+from ._vertex_overlap import find_repeated_voxels_across_stacks, apply_relations_to_overlaps
 from .fancy_triangulation import get_left_right_array
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
@@ -244,4 +244,4 @@ def apply_relations_vertex_overlap(all_meshes: list[DualContouringMesh],
     
     if voxel_overlaps:
         print(f"Found voxel overlaps between stacks: {voxel_overlaps.keys()}")
-        _apply_relations_to_overlaps(all_meshes, voxel_overlaps, stack_structure)
+        apply_relations_to_overlaps(all_meshes, voxel_overlaps, stack_structure)
