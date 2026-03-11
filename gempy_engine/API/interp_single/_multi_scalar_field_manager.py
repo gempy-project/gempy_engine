@@ -1,26 +1,24 @@
-import copy
 from typing import List, Optional
 
 import numpy as np
 from numpy import ndarray
 
-from ._interp_scalar_field import compute_weights, _evaluate_sys_eq
-from ...config import AvailableBackends, NOT_MAKE_INPUT_DEEP_COPY
-
-from ...core.data.internal_structs import SolverInput, SolverInput_v2, EvaluatorInput, SegmentationInput
+from ._aux_faults_ops import _modify_faults_values_output
+from ._interp_single_feature import interpolate_feature_with_cokrig, input_preprocess
+from ._stack_ops import evaluate, segment
+from .compute_weights import compute_weights_for_stacks
 from ...core.backend_tensor import BackendTensor
-from ...core.data.kernel_classes.faults import FaultsData
-from ...core.data.exported_structs import CombinedScalarFieldsOutput
-from ...core.data.interp_output import InterpOutput
-from ...core.data.scalar_field_output import ScalarFieldOutput
-from ...core.data.exported_fields import ExportedFields
-from ...core.data.input_data_descriptor import InputDataDescriptor
-from ...core.data.stack_relation_type import StackRelationType
 from ...core.data import TensorsStructure
+from ...core.data.exported_fields import ExportedFields
+from ...core.data.exported_structs import CombinedScalarFieldsOutput
+from ...core.data.input_data_descriptor import InputDataDescriptor
+from ...core.data.internal_structs import SolverInput
+from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput
+from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.options import InterpolationOptions
-
-from ._interp_single_feature import interpolate_feature_with_cokrig, input_preprocess, scalar_field_segmentation, input_preprocess_v2, scalar_field_segmentation_v2
+from ...core.data.scalar_field_output import ScalarFieldOutput
+from ...core.data.stack_relation_type import StackRelationType
 
 
 # @off
@@ -48,18 +46,6 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
     return all_outputs
 
 
-def _grab_stack_fault_data(_all_stack_values_block, _interpolation_input_i, _stack_structure) -> FaultsData:
-    # TODO: Can we modify this function to actually evaluate the faults on sp
-
-    fault_data = _interpolation_input_i.fault_values or FaultsData()
-
-    fault_data.fault_values_everywhere = _all_stack_values_block[_stack_structure.active_faults_relations]
-
-    fv_on_all_sp = fault_data.fault_values_everywhere[:, _interpolation_input_i.grid.len_all_grids:]
-    fault_data.fault_values_on_sp = fv_on_all_sp[:, _interpolation_input_i.slice_feature]
-    return fault_data
-
-
 def _interpolate_stack_flat(root_data_descriptor: InputDataDescriptor, root_interpolation_input: InterpolationInput,
                             options: InterpolationOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
     stack_structure = root_data_descriptor.stack_structure
@@ -79,106 +65,29 @@ def _interpolate_stack_flat(root_data_descriptor: InputDataDescriptor, root_inte
         interpolation_inputs.append(interpolation_input_i)
         tensor_structs.append(tensor_struct_i)
 
-        # fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
-        #     _all_stack_values_block=all_stack_values_block,
-        #     _interpolation_input_i=interpolation_input_i,
-        #     _stack_structure=stack_structure
-        # )
-        # interpolation_input_i.fault_values = fault_input  # ! This modifies solver input
-        # # solver_input: SolverInput = input_preprocess(tensor_struct_i, interpolation_input_i)
-        # solver_input: SolverInput_v2 = input_preprocess_v2(tensor_struct_i, interpolation_input_i)
-
     # endregion
-
-    solver_inputs: list[SolverInput_v2] = []
-    for i in range(stack_structure.n_stacks):
-        # TODO: revive faults
-
-        # fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
-        #     _all_stack_values_block=all_stack_values_block,
-        #     _interpolation_input_i=interpolation_inputs[i],
-        #     _stack_structure=stack_structure
-        # )
-        # interpolation_inputs[i].fault_values = fault_input  # ! This modifies solver input
-
-        solver_input: SolverInput_v2 = input_preprocess_v2(tensor_structs[i], interpolation_inputs[i])
-        solver_inputs.append(solver_input)
-
-        # region compute weights
-        # TODO: Adding external function
-        weights = compute_weights(
-            solver_input=solver_input,
-            stack_number=i,
-            options=options
-        )
-        solver_input.weights_x0 = weights
-        # endregion
-
-    eval_inputs: list[EvaluatorInput] = []
-    exported_fields_per_stack: list[ExportedFields] = []
-    for i in range(stack_structure.n_stacks):  # TODO: This is the loop we need to split
-        eval_input: EvaluatorInput = EvaluatorInput(
-            solver_input=solver_inputs[i],
-            interpolation_input=interpolation_inputs[i],
-            tensor_struct=tensor_structs[i],
-        )
-
-        eval_inputs.append(eval_input)
-
-        # region evaluate
-        exported_fields: ExportedFields = _evaluate_sys_eq(
-            eval_input=eval_input,
-            weights=eval_input.solver_input.weights_x0,
-            options=options
-        )
-        exported_fields_per_stack.append(exported_fields)
-        # endregion
-
-    all_scalar_fields_outputs: List[ScalarFieldOutput | None] = [None] * stack_structure.n_stacks
-    for i in range(stack_structure.n_stacks):  # TODO: This is the loop we need to split
-        # region segmentation
-        values_block = scalar_field_segmentation_v2(
-            exported_fields=exported_fields_per_stack[i],
-            segmentation_input=SegmentationInput(
-                unit_values=interpolation_inputs[i].unit_values,
-                sigmoid_slope=(stack_structure.segmentation_function(eval_inputs[i].xyz_to_interpolate) if stack_structure.segmentation_function is not None
-                               else options.sigmoid_slope
-                               )
-            )
-        )
-        # endregion
-        output = ScalarFieldOutput(
-            weights=solver_inputs[i].weights_x0,
-            grid=interpolation_inputs[i].grid,
-            exported_fields=exported_fields_per_stack[i],
-            values_block=values_block,
-            stack_relation=interpolation_inputs[i].stack_relation
-        )
-
-        # @on
-        all_scalar_fields_outputs[i] = output
-
-    # region Something with faults
-
-    # xyz_to_interpolate_size: int = root_interpolation_input.grid.len_all_grids + root_interpolation_input.surface_points.n_points
-    # all_stack_values_block: np.ndarray = BackendTensor.t.zeros(
-    #     (stack_structure.n_stacks, xyz_to_interpolate_size),
-    #     dtype=BackendTensor.dtype_obj
-    # )  # * Used for faults
-    # 
-    # for i in range(stack_structure.n_stacks):  # TODO: This is the loop we need to split
-    # 
-    #     if interpolation_input_i.stack_relation is not StackRelationType.FAULT:  # * This is also for faults!
-    #         continue
-    #     # # * Modify the values for Fault stacks
-    #     values_output = _modify_faults_values_output(  # ! This is all_STACK_values_block (not all_scalar_fields_outputs)
-    #         fault_input=fault_input,
-    #         values_on_all_xyz=output.values_on_all_xyz,
-    #         xyz_to_interpolate=solver_input.xyz_to_interpolate
-    #     )
-    #     all_stack_values_block[i, :] = values_output
-
-    # endregion
+    solver_inputs = compute_weights_for_stacks(
+        interpolation_inputs=interpolation_inputs,
+        options=options,
+        stack_structure=stack_structure,
+        tensor_structs=tensor_structs,
+        all_surface_points_size=root_interpolation_input.surface_points.n_points
+    )
+    eval_inputs, exported_fields_per_stack = evaluate(
+        interpolation_inputs=interpolation_inputs,
+        options=options,
+        solver_inputs=solver_inputs,
+        stack_structure=stack_structure,
+        tensor_structs=tensor_structs
+    )
+    all_scalar_fields_outputs = segment(
+        eval_inputs=eval_inputs,
+        exported_fields_per_stack=exported_fields_per_stack,
+        interpolation_inputs=interpolation_inputs,
+        options=options,
+        solver_inputs=solver_inputs,
+        stack_structure=stack_structure
+    )
 
     return all_scalar_fields_outputs
 
@@ -223,6 +132,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
         interpolation_input_i.fault_values = fault_input
 
         solver_input: SolverInput = input_preprocess(tensor_struct_i, interpolation_input_i)
+        # TODO: Add external function!
         output: ScalarFieldOutput = interpolate_feature_with_cokrig(
             interpolation_input=interpolation_input_i,
             options=options,
@@ -245,21 +155,6 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
             all_stack_values_block[i, :] = values_output
 
     return all_scalar_fields_outputs
-
-
-def _modify_faults_values_output(fault_input: FaultsData, values_on_all_xyz: np.ndarray,
-                                 xyz_to_interpolate: np.ndarray) -> np.ndarray:
-    val_min = BackendTensor.t.min(values_on_all_xyz, axis=1).reshape(-1, 1)  # ? Is this as good as it gets?
-    shifted_vals = (values_on_all_xyz - val_min)  # * Shift values between 0 and 1... hopefully
-    if fault_input.finite_faults_defined:
-        # TODO: Rescale scalar field parameters
-        finite_fault_scalar: np.ndarray = fault_input.finite_fault_data.apply(
-            points=xyz_to_interpolate
-        )
-        fault_scalar_field = shifted_vals * finite_fault_scalar
-    else:
-        fault_scalar_field = shifted_vals
-    return fault_scalar_field
 
 
 # @off

@@ -102,13 +102,17 @@ class EvaluatorInput:
                  solver_input: SolverInput_v2,
                  interpolation_input: InterpolationInput,
                  tensor_struct: TensorsStructure,
+                 only_surface_points: bool = False
                  ):
         self.solver_input = solver_input
 
-        xyz_to_interpolate: np.ndarray = data_preprocess_interface.prepare_grid(
-            grid=interpolation_input.grid.values,
-            surface_points=interpolation_input.all_surface_points
-        )
+        if only_surface_points:
+            xyz_to_interpolate = interpolation_input.all_surface_points
+        else:
+            xyz_to_interpolate: np.ndarray = data_preprocess_interface.prepare_grid(
+                grid=interpolation_input.grid.values,
+                surface_points=interpolation_input.all_surface_points
+            )
 
         if xyz_to_interpolate is not None and xyz_to_interpolate.dtype != BackendTensor.dtype_obj:
             self.xyz_to_interpolate = xyz_to_interpolate.astype(BackendTensor.dtype)
