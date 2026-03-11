@@ -9,7 +9,7 @@ from ._interp_scalar_field import compute_weights, _evaluate_sys_eq
 from ...core.backend_tensor import BackendTensor
 from ...core.data import SurfacePoints, SurfacePointsInternals, Orientations, OrientationsInternals, TensorsStructure, InterpolationOptions
 from ...core.data.exported_fields import ExportedFields
-from ...core.data.internal_structs import SolverInput
+from ...core.data.internal_structs import SolverInput, SolverInput_v2, SegmentationInput
 from ...core.data.interpolation_functions import CustomInterpolationFunctions
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.kernel_classes.faults import FaultsData
@@ -82,6 +82,14 @@ def scalar_field_segmentation(exported_fields: ExportedFields, external_segment_
 
     values_block: np.ndarray = activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=sigmoid_slope)
     return values_block
+
+
+def scalar_field_segmentation_v2(exported_fields: ExportedFields, segmentation_input: SegmentationInput) -> ndarray[tuple[Any, ...], dtype[Any]]:
+    return activator_interface.activate_formation_block(
+        exported_fields=exported_fields,
+        ids=segmentation_input.unit_values,
+        sigmoid_slope=segmentation_input.sigmoid_slope
+    )
 
 
 def interpolate_feature_with_external_function(interpolation_input: InterpolationInput,
@@ -159,6 +167,30 @@ def input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpol
         sp_internal=sp_internal,
         ori_internal=ori_internal,
         xyz_to_interpolate=grid_internal,
+        fault_internal=fault_values
+    )
+    solver_input.weights_x0 = interpolation_input.weights
+
+    return solver_input
+
+
+def input_preprocess_v2(data_shape: TensorsStructure, interpolation_input: InterpolationInput) -> SolverInput_v2:
+    surface_points: SurfacePoints = interpolation_input.surface_points
+    orientations: Orientations = interpolation_input.orientations
+
+    sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
+    ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(orientations)
+
+    # * We need to interpolate in ALL the surface points not only the surface points of the stack
+    fault_values: FaultsData = interpolation_input.fault_values
+    faults_on_sp: np.ndarray = fault_values.fault_values_on_sp
+    fault_ref, fault_rest = data_preprocess_interface.prepare_faults(faults_on_sp, data_shape)
+    fault_values.fault_values_ref, fault_values.fault_values_rest = fault_ref, fault_rest
+
+    solver_input = SolverInput_v2(
+        sp_internal=sp_internal,
+        ori_internal=ori_internal,
+        # xyz_to_interpolate=grid_internal,
         fault_internal=fault_values
     )
     solver_input.weights_x0 = interpolation_input.weights
