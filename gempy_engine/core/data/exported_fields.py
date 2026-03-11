@@ -32,7 +32,7 @@ class ExportedFields:
     def set_structure_values_from_eval_input(self, evaluator_input: EvaluatorInput):
         self._n_points_per_surface = evaluator_input._n_points_per_surface
         self._grid_size = evaluator_input._grid_size
-        self._slice_feature = evaluator_input._kslice_feature
+        self._slice_feature = evaluator_input._slice_feature
 
     @property
     def n_points_per_surface(self) -> np.ndarray:
