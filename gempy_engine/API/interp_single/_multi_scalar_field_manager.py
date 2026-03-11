@@ -29,7 +29,10 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
                            data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
     """Interpolate all scalar fields given a xyz array of points"""
 
-    all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
+    if False:
+        all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
+    else:
+        all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack_flat(data_descriptor, interpolation_input, options)
 
     combined_scalar_output: List[CombinedScalarFieldsOutput] = _combine_scalar_fields(
         all_scalar_fields_outputs=all_scalar_fields_outputs,
