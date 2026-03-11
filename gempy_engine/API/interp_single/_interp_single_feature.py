@@ -4,8 +4,8 @@ from typing import Optional, Callable
 import numpy as np
 
 from gempy_engine.config import AvailableBackends, NOT_MAKE_INPUT_DEEP_COPY
+from ._interp_scalar_field import compute_weights, _evaluate_sys_eq
 from ...core.backend_tensor import BackendTensor
-from ._interp_scalar_field import interpolate_scalar_field
 from ...core.data import SurfacePoints, SurfacePointsInternals, Orientations, OrientationsInternals, TensorsStructure
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import SolverInput
@@ -35,7 +35,10 @@ def interpolate_feature(interpolation_input: InterpolationInput,
     xyz = solver_input.xyz_to_interpolate
 
     if external_interp_funct is None:  # * EXTERNAL INTERPOLATION FUNCTION branching
-        weights, exported_fields = interpolate_scalar_field(solver_input, options, stack_number)
+
+        weights = compute_weights(solver_input, stack_number, options)
+        exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options)
+        # weights, exported_fields = interpolate_scalar_field(solver_input, options, stack_number)
 
         exported_fields.set_structure_values(
             reference_sp_position = data_shape.reference_sp_position,

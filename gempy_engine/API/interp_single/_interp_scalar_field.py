@@ -1,5 +1,4 @@
 import warnings
-
 from typing import Tuple, Optional, Any
 
 import numpy as np
@@ -7,32 +6,24 @@ from numpy import dtype, ndarray
 
 import gempy_engine.config
 from ...core.backend_tensor import BackendTensor
-from ...core.data import InterpolationOptions
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import SolverInput
 from ...core.data.options import KernelOptions, InterpolationOptions
 from ...modules.evaluator.generic_evaluator import generic_evaluator
 from ...modules.evaluator.symbolic_evaluator import symbolic_evaluator
-
 from ...modules.kernel_constructor import kernel_constructor_interface as kernel_constructor
 from ...modules.solver import solver_interface
 from ...modules.weights_cache.weights_cache_interface import WeightCache, generate_cache_key
 
 
-
 def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions, stack_number: int) -> Tuple[np.ndarray, ExportedFields]:
-    # region Solver
-
-    weights = foo(solver_input, stack_number, options)
-
-    # endregion
-
+    weights = compute_weights(solver_input, stack_number, options)
     exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options)
 
     return weights, exported_fields
 
 
-def foo(solver_input: SolverInput, stack_number: int, options: InterpolationOptions) -> ndarray[tuple[Any, ...], dtype[Any]]:
+def compute_weights(solver_input: SolverInput, stack_number: int, options: InterpolationOptions) -> ndarray[tuple[Any, ...], dtype[Any]]:
     weights_key = f"{options.cache_model_name}.{stack_number}"
     weights_hash = None
     match options.cache_mode:
