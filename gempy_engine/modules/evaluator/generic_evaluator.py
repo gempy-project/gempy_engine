@@ -88,7 +88,7 @@ def _eval_on(
     gy_field: Optional[np.ndarray] = None
     gz_field: Optional[np.ndarray] = None
 
-    if options.compute_scalar_gradient:
+    if options.compute_scalar_gradient and False:
         eval_gx = yield_evaluation_grad_kernel(
             solver_input, options.kernel_options, axis=0, slice_array=slice_array
         )

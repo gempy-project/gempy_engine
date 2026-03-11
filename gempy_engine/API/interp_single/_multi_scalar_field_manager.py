@@ -72,12 +72,15 @@ def _interpolate_stack_flat(root_data_descriptor: InputDataDescriptor, root_inte
         tensor_structs=tensor_structs,
         all_surface_points_size=root_interpolation_input.surface_points.n_points
     )
+
+
     eval_inputs, exported_fields_per_stack = evaluate(
         interpolation_inputs=interpolation_inputs,
         options=options,
         solver_inputs=solver_inputs,
         stack_structure=stack_structure,
-        tensor_structs=tensor_structs
+        tensor_structs=tensor_structs,
+        xyz_to_interpolate_size=root_interpolation_input.surface_points.n_points + root_interpolation_input.grid.len_all_grids
     )
     all_scalar_fields_outputs = segment(
         eval_inputs=eval_inputs,
@@ -115,7 +118,8 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
         fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
             _all_stack_values_block=all_stack_values_block,
             _interpolation_input_i=interpolation_input_i,
-            _stack_structure=stack_structure
+            _stack_structure=stack_structure,
+            grid_size= interpolation_input_i.grid.len_all_grids
         )
         interpolation_input_i.fault_values = fault_input
 

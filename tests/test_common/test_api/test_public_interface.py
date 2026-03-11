@@ -132,6 +132,19 @@ def test_graben_fault_model(graben_fault_model):
 
     options.evaluation_options.number_octree_levels = 5
     solutions: Solutions = compute_model(interpolation_input, options, structure)
+    
+    if plot_pyvista or False:
+        pv.global_theme.show_edges = True
+        p = pv.Plotter()
+        plot_octree_pyvista(p, solutions.octrees_output, options.number_octree_levels - 1)
+        plot_dc_meshes(p, solutions.dc_meshes[0])
+        surface_points_to_plot = interpolation_input.surface_points.sp_coords
+        # If they are torch tensors convert to numpy
+        if BackendTensor.engine_backend == AvailableBackends.PYTORCH and isinstance(surface_points_to_plot, BackendTensor.t.Tensor):
+            surface_points_to_plot = BackendTensor.t.to_numpy(surface_points_to_plot)
+
+        plot_points(p, surface_points_to_plot)
+        p.show()
 
     _verify_scalar_field(
         solutions=solutions,
