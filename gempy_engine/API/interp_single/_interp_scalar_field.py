@@ -1,5 +1,5 @@
 import warnings
-from typing import Tuple, Optional, Any
+from typing import Tuple, Optional, Any, Union
 
 import numpy as np
 from numpy import dtype, ndarray
@@ -7,7 +7,7 @@ from numpy import dtype, ndarray
 import gempy_engine.config
 from ...core.backend_tensor import BackendTensor
 from ...core.data.exported_fields import ExportedFields
-from ...core.data.internal_structs import SolverInput
+from ...core.data.internal_structs import SolverInput, SolverInput_v2, EvaluatorInput
 from ...core.data.options import KernelOptions, InterpolationOptions
 from ...modules.evaluator.generic_evaluator import generic_evaluator
 from ...modules.evaluator.symbolic_evaluator import symbolic_evaluator
@@ -23,7 +23,7 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
     return weights, exported_fields
 
 
-def compute_weights(solver_input: SolverInput, stack_number: int, options: InterpolationOptions) -> ndarray[tuple[Any, ...], dtype[Any]]:
+def compute_weights(solver_input: Union[SolverInput, SolverInput_v2] , stack_number: int, options: InterpolationOptions) -> ndarray[tuple[Any, ...], dtype[Any]]:
     weights_key = f"{options.cache_model_name}.{stack_number}"
     weights_hash = None
     match options.cache_mode:
@@ -124,11 +124,15 @@ def _optimize_nuggets_against_condition_number(A_matrix, interp_input, kernel_op
     raise ContinueEpoch()
 
 
-def _evaluate_sys_eq(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions) -> ExportedFields:
+def _evaluate_sys_eq(eval_input: Union[SolverInput, EvaluatorInput], weights: np.ndarray, options: InterpolationOptions) -> ExportedFields:
     BackendTensor.pykeops_enabled = BackendTensor.use_pykeops
     if BackendTensor.pykeops_enabled:
-        exported_fields = symbolic_evaluator(solver_input, weights, options)
+        exported_fields = symbolic_evaluator(eval_input, weights, options)
     else:
-        exported_fields = generic_evaluator(solver_input, weights, options)
+        exported_fields = generic_evaluator(eval_input, weights, options)
+
+
+    exported_fields.set_structure_values_from_eval_input(eval_input)
+    exported_fields.debug = eval_input.solver_input.debug
 
     return exported_fields
