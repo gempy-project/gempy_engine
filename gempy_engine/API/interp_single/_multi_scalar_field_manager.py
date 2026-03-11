@@ -26,7 +26,7 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
                            data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
     """Interpolate all scalar fields given a xyz array of points"""
 
-    if True:
+    if False:
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
     else:
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack_flat(data_descriptor, interpolation_input, options)
@@ -54,11 +54,11 @@ def _interpolate_stack_flat(root_data_descriptor: InputDataDescriptor, root_inte
     tensor_structs: list[TensorsStructure] = []
 
     for i in range(stack_structure.n_stacks):  # TODO: This is the loop we need to split
+        stack_structure.stack_number = i
         tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
         interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
             all_interpolation_input=root_interpolation_input,
-            stack_structure=stack_structure,
-            stack_number=i
+            stack_structure=stack_structure
         )
 
         interpolation_inputs.append(interpolation_input_i)
