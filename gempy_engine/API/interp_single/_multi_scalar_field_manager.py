@@ -2,7 +2,7 @@ from typing import List
 
 import numpy as np
 
-from ._aux_faults_ops import _modify_faults_values_output
+from ._aux_faults_ops import _modify_faults_values_output, _grab_stack_fault_data
 from ._interp_single_feature import interpolate_feature_with_cokrig, input_preprocess
 from ._making_ops import _lithology_mask, _faults_mask, _combine_scalar_fields
 from ._stack_ops import evaluate, segment
@@ -26,7 +26,7 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
                            data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
     """Interpolate all scalar fields given a xyz array of points"""
 
-    if False:
+    if True:
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
     else:
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack_flat(data_descriptor, interpolation_input, options)
@@ -93,17 +93,6 @@ def _interpolate_stack_flat(root_data_descriptor: InputDataDescriptor, root_inte
 
 def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpolation_input: InterpolationInput,
                        options: InterpolationOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
-    # region === Local functions ===
-    def _grab_stack_fault_data(_all_stack_values_block, _interpolation_input_i, _stack_structure) -> FaultsData:
-        fault_data = _interpolation_input_i.fault_values or FaultsData()
-
-        fault_data.fault_values_everywhere = _all_stack_values_block[_stack_structure.active_faults_relations]
-
-        fv_on_all_sp = fault_data.fault_values_everywhere[:, _interpolation_input_i.grid.len_all_grids:]
-        fault_data.fault_values_on_sp = fv_on_all_sp[:, _interpolation_input_i.slice_feature]
-        return fault_data
-
-    # endregion
 
     stack_structure = root_data_descriptor.stack_structure
 
