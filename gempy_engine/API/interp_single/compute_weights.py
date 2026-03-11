@@ -1,12 +1,11 @@
 import numpy as np
 
-from ._aux_faults_ops import _modify_faults_values_output, _grab_stack_fault_data, _grab_stack_fault_data_for_input
-from ._interp_scalar_field import compute_weights, _evaluate_sys_eq
+from ._aux_faults_ops import _modify_faults_values_output, _grab_stack_fault_data
+from ._interp_scalar_field import compute_weights
 from ._interp_single_feature import input_preprocess_v2, scalar_field_segmentation_v2
 from ._stack_ops import _construct_experted_fields
 from ...core.backend_tensor import BackendTensor
 from ...core.data import TensorsStructure
-from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import SolverInput_v2, EvaluatorInput, SegmentationInput
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.kernel_classes.faults import FaultsData
@@ -27,11 +26,15 @@ def compute_weights_for_stacks(interpolation_inputs: list[InterpolationInput], o
     for i in range(stack_structure.n_stacks):
         stack_structure.stack_number = i
 
-        fault_input: FaultsData = _grab_stack_fault_data_for_input(  # * FAULTS
+        fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
             _all_stack_values_block=all_stack_values_block,
             _interpolation_input_i=interpolation_inputs[i],
-            _stack_structure=stack_structure
+            _stack_structure=stack_structure,
+            grid_size=0
         )
+
+
+        interpolation_inputs[i].fault_values = fault_input
 
         solver_input: SolverInput_v2 = input_preprocess_v2(
             data_shape=tensor_structs[i],
