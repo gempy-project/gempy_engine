@@ -1,6 +1,6 @@
 import numpy as np
 
-from ._aux_faults_ops import _modify_faults_values_output, _grab_stack_fault_data
+from ._aux_faults_ops import _modify_faults_values_output, _grab_stack_fault_data, _grab_stack_fault_data_for_input
 from ._interp_scalar_field import compute_weights, _evaluate_sys_eq
 from ._interp_single_feature import input_preprocess_v2, scalar_field_segmentation_v2
 from ._stack_ops import _construct_experted_fields
@@ -26,20 +26,16 @@ def compute_weights_for_stacks(interpolation_inputs: list[InterpolationInput], o
 
     for i in range(stack_structure.n_stacks):
         stack_structure.stack_number = i
-        # TODO: revive faults
-        fv_on_all_sp = all_stack_values_block[stack_structure.active_faults_relations]
-        fault_values_on_sp_on_stack = fv_on_all_sp[:, interpolation_inputs[i].slice_feature]
 
-        # fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
-        #     _all_stack_values_block=all_stack_values_block,
-        #     _interpolation_input_i=interpolation_inputs[i],
-        #     _stack_structure=stack_structure
-        # )
+        fault_input: FaultsData = _grab_stack_fault_data_for_input(  # * FAULTS
+            _all_stack_values_block=all_stack_values_block,
+            _interpolation_input_i=interpolation_inputs[i],
+            _stack_structure=stack_structure
+        )
 
         solver_input: SolverInput_v2 = input_preprocess_v2(
             data_shape=tensor_structs[i],
-            interpolation_input=interpolation_inputs[i],
-            faults_on_sp=fault_values_on_sp_on_stack
+            interpolation_input=interpolation_inputs[i]
         )
         solver_inputs.append(solver_input)
 
