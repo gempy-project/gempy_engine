@@ -177,6 +177,7 @@ def input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpol
 
 def input_preprocess_v2(data_shape: TensorsStructure, interpolation_input: InterpolationInput,
                         faults_on_sp: np.ndarray) -> SolverInput_v2:
+    
     surface_points: SurfacePoints = interpolation_input.surface_points
     orientations: Orientations = interpolation_input.orientations
 
@@ -189,7 +190,8 @@ def input_preprocess_v2(data_shape: TensorsStructure, interpolation_input: Inter
         ori_internal=ori_internal,
         fault_internal=FaultsData(
             fault_values_ref=fault_values_ref,
-            fault_values_rest=fault_values_rest
+            fault_values_rest=fault_values_rest,
+            fault_values_on_sp=faults_on_sp
         )
     )
     solver_input.weights_x0 = interpolation_input.weights

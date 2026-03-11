@@ -3,6 +3,7 @@ import numpy as np
 from ._aux_faults_ops import _modify_faults_values_output, _grab_stack_fault_data
 from ._interp_scalar_field import compute_weights, _evaluate_sys_eq
 from ._interp_single_feature import input_preprocess_v2, scalar_field_segmentation_v2
+from ._stack_ops import _construct_experted_fields
 from ...core.backend_tensor import BackendTensor
 from ...core.data import TensorsStructure
 from ...core.data.exported_fields import ExportedFields
@@ -24,17 +25,21 @@ def compute_weights_for_stacks(interpolation_inputs: list[InterpolationInput], o
     )  # * Used for faults
 
     for i in range(stack_structure.n_stacks):
+        stack_structure.stack_number = i
         # TODO: revive faults
-        fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
-            _all_stack_values_block=all_stack_values_block,
-            _interpolation_input_i=interpolation_inputs[i],
-            _stack_structure=stack_structure
-        )
+        fv_on_all_sp = all_stack_values_block[stack_structure.active_faults_relations]
+        fault_values_on_sp_on_stack = fv_on_all_sp[:, interpolation_inputs[i].slice_feature]
+
+        # fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
+        #     _all_stack_values_block=all_stack_values_block,
+        #     _interpolation_input_i=interpolation_inputs[i],
+        #     _stack_structure=stack_structure
+        # )
 
         solver_input: SolverInput_v2 = input_preprocess_v2(
             data_shape=tensor_structs[i],
             interpolation_input=interpolation_inputs[i],
-            faults_on_sp=fault_input.fault_values_on_sp
+            faults_on_sp=fault_values_on_sp_on_stack
         )
         solver_inputs.append(solver_input)
 
@@ -55,14 +60,8 @@ def compute_weights_for_stacks(interpolation_inputs: list[InterpolationInput], o
         )
 
         # region evaluate
-        exported_fields: ExportedFields = _evaluate_sys_eq(
-            eval_input=eval_input,
-            weights=eval_input.solver_input.weights_x0,
-            options=options
-        )
-
         values_block = scalar_field_segmentation_v2(
-            exported_fields=exported_fields,
+            exported_fields=(_construct_experted_fields(eval_input, options)),
             segmentation_input=SegmentationInput(
                 unit_values=interpolation_inputs[i].unit_values,
                 sigmoid_slope=(stack_structure.segmentation_function(eval_input.xyz_to_interpolate) if stack_structure.segmentation_function is not None
