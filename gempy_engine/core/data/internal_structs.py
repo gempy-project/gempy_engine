@@ -105,23 +105,24 @@ class EvaluatorInput:
                  only_surface_points: bool = False
                  ):
         self.solver_input = solver_input
-
+        self._n_points_per_surface = tensor_struct.reference_sp_position
+        self._slice_feature = interpolation_input.slice_feature
+        
         if only_surface_points:
-            xyz_to_interpolate = interpolation_input.all_surface_points
+            xyz_to_interpolate = interpolation_input.all_surface_points.sp_coords
+            self._grid_size = 0
         else:
             xyz_to_interpolate: np.ndarray = data_preprocess_interface.prepare_grid(
                 grid=interpolation_input.grid.values,
                 surface_points=interpolation_input.all_surface_points
             )
+            self._grid_size = interpolation_input.grid.len_all_grids
 
         if xyz_to_interpolate is not None and xyz_to_interpolate.dtype != BackendTensor.dtype_obj:
             self.xyz_to_interpolate = xyz_to_interpolate.astype(BackendTensor.dtype)
         else:
             self.xyz_to_interpolate = xyz_to_interpolate
 
-        self._n_points_per_surface = tensor_struct.reference_sp_position
-        self._slice_feature = interpolation_input.slice_feature
-        self._grid_size = interpolation_input.grid.len_all_grids
 
     @property
     def sp_internal(self):

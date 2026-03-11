@@ -2,7 +2,7 @@ from typing import List
 
 from ._interp_scalar_field import _evaluate_sys_eq
 from ._interp_single_feature import scalar_field_segmentation_v2
-from ...core.data import TensorsStructure
+from ...core.data import TensorsStructure, InterpolationOptions
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import EvaluatorInput, SegmentationInput
 from ...core.data.interpolation_input import InterpolationInput
@@ -51,15 +51,20 @@ def evaluate(interpolation_inputs: list[InterpolationInput], options: Interpolat
         eval_inputs.append(eval_input)
 
         # region evaluate
-        exported_fields: ExportedFields = _evaluate_sys_eq(
-            eval_input=eval_input,
-            weights=eval_input.solver_input.weights_x0,
-            options=options
-        )
-
-        exported_fields.set_structure_values_from_eval_input(eval_input)
-        exported_fields.debug = eval_input.solver_input.debug
+        exported_fields = _construct_experted_fields(eval_input, options)
 
         exported_fields_per_stack.append(exported_fields)
         # endregion
     return eval_inputs, exported_fields_per_stack
+
+
+def _construct_experted_fields(eval_input: EvaluatorInput, options: InterpolationOptions) -> ExportedFields:
+    exported_fields: ExportedFields = _evaluate_sys_eq(
+        eval_input=eval_input,
+        weights=eval_input.solver_input.weights_x0,
+        options=options
+    )
+
+    exported_fields.set_structure_values_from_eval_input(eval_input)
+    exported_fields.debug = eval_input.solver_input.debug
+    return exported_fields
