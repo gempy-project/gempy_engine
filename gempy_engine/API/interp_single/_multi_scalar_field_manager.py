@@ -17,7 +17,7 @@ from ...core.data import TensorsStructure
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.options import InterpolationOptions
 
-from ._interp_single_feature import interpolate_feature, input_preprocess
+from ._interp_single_feature import interpolate_feature_with_cokrig, input_preprocess
 
 
 # @off
@@ -65,7 +65,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
         (stack_structure.n_stacks, xyz_to_interpolate_size),
         dtype=BackendTensor.dtype_obj)  # * Used for faults
 
-    for i in range(stack_structure.n_stacks):
+    for i in range(stack_structure.n_stacks): # TODO: This is the loop we need to split
         stack_structure.stack_number = i
 
         tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
@@ -82,12 +82,11 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
         interpolation_input_i.fault_values = fault_input
 
         solver_input: SolverInput = input_preprocess(tensor_struct_i, interpolation_input_i)
-        output: ScalarFieldOutput = interpolate_feature(
+        output: ScalarFieldOutput = interpolate_feature_with_cokrig(
             interpolation_input    = interpolation_input_i,
             options                = options,
             data_shape             = tensor_struct_i,
             solver_input           = solver_input,
-            external_interp_funct  = stack_structure.interp_function,
             external_segment_funct = stack_structure.segmentation_function,
             stack_number           = i
         )

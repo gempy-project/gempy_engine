@@ -1,12 +1,13 @@
 import copy
-from typing import Optional, Callable
+from typing import Optional, Callable, Any
 
 import numpy as np
+from numpy import dtype, ndarray
 
 from gempy_engine.config import AvailableBackends, NOT_MAKE_INPUT_DEEP_COPY
 from ._interp_scalar_field import compute_weights, _evaluate_sys_eq
 from ...core.backend_tensor import BackendTensor
-from ...core.data import SurfacePoints, SurfacePointsInternals, Orientations, OrientationsInternals, TensorsStructure
+from ...core.data import SurfacePoints, SurfacePointsInternals, Orientations, OrientationsInternals, TensorsStructure, InterpolationOptions
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import SolverInput
 from ...core.data.interpolation_functions import CustomInterpolationFunctions
@@ -18,14 +19,12 @@ from ...modules.activator import activator_interface
 from ...modules.data_preprocess import data_preprocess_interface
 
 
-def interpolate_feature(interpolation_input: InterpolationInput,
-                        options: InterpolationOptions,
-                        data_shape: TensorsStructure,
-                        solver_input: SolverInput,
-                        external_interp_funct: Optional[CustomInterpolationFunctions] = None,
-                        external_segment_funct: Optional[Callable[[np.ndarray], float]] = None,
-                        stack_number: Optional[int] = None) -> ScalarFieldOutput:
-    
+def interpolate_feature_with_cokrig(interpolation_input: InterpolationInput,
+                                    options: InterpolationOptions,
+                                    data_shape: TensorsStructure,
+                                    solver_input: SolverInput,
+                                    external_segment_funct: Optional[Callable[[np.ndarray], float]] = None,
+                                    stack_number: Optional[int] = None) -> ScalarFieldOutput:
     if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
         grid = copy.deepcopy(interpolation_input.grid)
     else:
@@ -34,47 +33,98 @@ def interpolate_feature(interpolation_input: InterpolationInput,
     # region Interpolate scalar field
     xyz = solver_input.xyz_to_interpolate
 
-    if external_interp_funct is None:  # * EXTERNAL INTERPOLATION FUNCTION branching
+    weights = compute_weights(solver_input, stack_number, options)
+    exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options)
 
-        weights = compute_weights(solver_input, stack_number, options)
-        exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options)
-        # weights, exported_fields = interpolate_scalar_field(solver_input, options, stack_number)
+    exported_fields.set_structure_values(
+        reference_sp_position=data_shape.reference_sp_position,
+        slice_feature=interpolation_input.slice_feature,
+        grid_size=interpolation_input.grid.len_all_grids
+    )
 
-        exported_fields.set_structure_values(
-            reference_sp_position = data_shape.reference_sp_position,
-            slice_feature         = interpolation_input.slice_feature,
-            grid_size             = interpolation_input.grid.len_all_grids
-        )
-
-        exported_fields.debug = solver_input.debug
-    else:
-        weights = None
-        xyz = grid.values
-        exported_fields: ExportedFields = _interpolate_external_function(external_interp_funct, xyz)
-        exported_fields.set_structure_values(
-            reference_sp_position=None,
-            slice_feature=None,
-            grid_size=xyz.shape[0]
-        )
+    exported_fields.debug = solver_input.debug
 
     # endregion
 
     # region segmentation
-    unit_values = interpolation_input.unit_values
-    if external_segment_funct is not None:
-        sigmoid_slope = external_segment_funct(xyz)
-    else:
-        sigmoid_slope = options.sigmoid_slope
+    values_block = scalar_field_segmentation(
+        exported_fields=exported_fields,
+        external_segment_funct=external_segment_funct,
+        unit_values=interpolation_input.unit_values,
+        xyz=xyz,
+        sigmoid_slope=options.sigmoid_slope
+    )
 
-    values_block: np.ndarray = activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=sigmoid_slope)
-    
     # endregion
-    
+
     output = ScalarFieldOutput(
         weights=weights,
         grid=grid,
         exported_fields=exported_fields,
-        values_block=values_block, # TODO: Check value
+        values_block=values_block,  # TODO: Check value
+        stack_relation=interpolation_input.stack_relation
+    )
+
+    if BackendTensor.dtype and BackendTensor.engine_backend != AvailableBackends.PYTORCH:
+        # Check matrices have the right dtype:
+        assert values_block.dtype == BackendTensor.dtype, f"Wrong dtype for values_bloc: {values_block.dtype}. should be {BackendTensor.dtype}"
+        assert exported_fields.scalar_field.dtype == BackendTensor.dtype, f"Wrong dtype for scalar_field: {exported_fields.scalar_field.dtype}. should be {BackendTensor.dtype}"
+
+    return output
+
+
+def scalar_field_segmentation(exported_fields: ExportedFields, external_segment_funct: Callable[[ndarray[tuple[Any, ...], dtype[Any]]], float] | None,
+                              unit_values: np.ndarray, xyz: ndarray | None, sigmoid_slope: float) -> ndarray[tuple[Any, ...], dtype[Any]]:
+    if external_segment_funct is not None:  # * This branch is used in finite faults
+        sigmoid_slope = external_segment_funct(xyz)
+    else:
+        sigmoid_slope = sigmoid_slope
+
+    values_block: np.ndarray = activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=sigmoid_slope)
+    return values_block
+
+
+def interpolate_feature_with_external_function(interpolation_input: InterpolationInput,
+                                               options: InterpolationOptions,
+                                               external_interp_funct: Optional[CustomInterpolationFunctions] = None,
+                                               external_segment_funct: Optional[Callable[[np.ndarray], float]] = None,
+                                               ) -> ScalarFieldOutput:
+    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
+        grid = copy.deepcopy(interpolation_input.grid)
+    else:
+        grid = interpolation_input.grid
+
+    # region Interpolate scalar field
+    xyz = grid.values
+
+    exported_fields: ExportedFields = _interpolate_external_function(
+        interp_funct=external_interp_funct,
+        xyz=xyz
+    )
+    exported_fields.set_structure_values(
+        reference_sp_position=None,
+        slice_feature=None,
+        grid_size=xyz.shape[0]
+    )
+
+    # endregion
+
+    # region segmentation
+    values_block = scalar_field_segmentation(
+        exported_fields=exported_fields,
+        external_segment_funct=external_segment_funct,
+        unit_values=interpolation_input.unit_values,
+        xyz=xyz,
+        sigmoid_slope=options.sigmoid_slope
+    )
+
+    # endregion
+
+    output = ScalarFieldOutput(
+        weights=None,
+        grid=grid,
+        exported_fields=exported_fields,
+        values_block=values_block,  # TODO: Check value
         stack_relation=interpolation_input.stack_relation
     )
 
@@ -93,7 +143,7 @@ def input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpol
 
     sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
     ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(orientations)
-    
+
     # * We need to interpolate in ALL the surface points not only the surface points of the stack
     grid_internal: np.ndarray = data_preprocess_interface.prepare_grid(
         grid=grid.values,
