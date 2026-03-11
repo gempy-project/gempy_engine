@@ -132,7 +132,4 @@ def _evaluate_sys_eq(eval_input: Union[SolverInput, EvaluatorInput], weights: np
         exported_fields = generic_evaluator(eval_input, weights, options)
 
 
-    exported_fields.set_structure_values_from_eval_input(eval_input)
-    exported_fields.debug = eval_input.solver_input.debug
-
     return exported_fields

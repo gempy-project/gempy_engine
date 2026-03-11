@@ -159,9 +159,10 @@ def input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpol
     )
 
     fault_values: FaultsData = interpolation_input.fault_values
-    faults_on_sp: np.ndarray = fault_values.fault_values_on_sp
-    fault_ref, fault_rest = data_preprocess_interface.prepare_faults(faults_on_sp, data_shape)
-    fault_values.fault_values_ref, fault_values.fault_values_rest = fault_ref, fault_rest
+    fault_values.fault_values_ref, fault_values.fault_values_rest = data_preprocess_interface.prepare_faults(
+        faults_values_on_sp=fault_values.fault_values_on_sp,
+        tensors_structure=data_shape
+    )
 
     solver_input = SolverInput(
         sp_internal=sp_internal,
@@ -174,24 +175,22 @@ def input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpol
     return solver_input
 
 
-def input_preprocess_v2(data_shape: TensorsStructure, interpolation_input: InterpolationInput) -> SolverInput_v2:
+def input_preprocess_v2(data_shape: TensorsStructure, interpolation_input: InterpolationInput,
+                        faults_on_sp: np.ndarray) -> SolverInput_v2:
     surface_points: SurfacePoints = interpolation_input.surface_points
     orientations: Orientations = interpolation_input.orientations
 
     sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
     ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(orientations)
 
-    # * We need to interpolate in ALL the surface points not only the surface points of the stack
-    fault_values: FaultsData = interpolation_input.fault_values
-    faults_on_sp: np.ndarray = fault_values.fault_values_on_sp
-    fault_ref, fault_rest = data_preprocess_interface.prepare_faults(faults_on_sp, data_shape)
-    fault_values.fault_values_ref, fault_values.fault_values_rest = fault_ref, fault_rest
-
+    fault_values_ref, fault_values_rest = data_preprocess_interface.prepare_faults(faults_on_sp, data_shape)
     solver_input = SolverInput_v2(
         sp_internal=sp_internal,
         ori_internal=ori_internal,
-        # xyz_to_interpolate=grid_internal,
-        fault_internal=fault_values
+        fault_internal=FaultsData(
+            fault_values_ref=fault_values_ref,
+            fault_values_rest=fault_values_rest
+        )
     )
     solver_input.weights_x0 = interpolation_input.weights
 
