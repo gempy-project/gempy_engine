@@ -77,7 +77,7 @@ def compute_weights_for_stacks(interpolation_inputs: list[InterpolationInput], o
             values_output = _modify_faults_values_output(  # ! This is all_STACK_values_block (not all_scalar_fields_outputs)
                 fault_input=fault_input,
                 values_on_all_xyz=values_block,
-                xyz_to_interpolate=solver_input.xyz_to_interpolate
+                xyz_to_interpolate=eval_input.xyz_to_interpolate
             )
             all_stack_values_block[i, :] = values_output
         # endregion
