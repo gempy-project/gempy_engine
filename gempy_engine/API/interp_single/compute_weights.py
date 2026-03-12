@@ -15,16 +15,15 @@ from ...core.data.stacks_structure import StacksStructure
 
 
 def compute_weights_for_stacks(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, stack_structure: StacksStructure,
-                               tensor_structs: list[TensorsStructure], all_surface_points_size: int) -> list[SolverInput_v2]:
+                               tensor_structs: list[TensorsStructure], all_surface_points_size: int,
+                               stack_indices: list[int] | None = None) -> list[SolverInput_v2]:
     solver_inputs: list[SolverInput_v2] = []
 
-    # all_stack_values_block: np.ndarray = BackendTensor.t.zeros(
-    #     (stack_structure.n_stacks, all_surface_points_size),
-    #     dtype=BackendTensor.dtype_obj
-    # )  # * Used for faults
+    if stack_indices is None:
+        stack_indices = list(range(stack_structure.n_stacks))
 
-    for i in range(stack_structure.n_stacks):
-        stack_structure.stack_number = i
+    for idx, global_i in enumerate(stack_indices):
+        stack_structure.stack_number = global_i
 
         # fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
         #     _all_stack_values_block=all_stack_values_block,
@@ -37,8 +36,8 @@ def compute_weights_for_stacks(interpolation_inputs: list[InterpolationInput], o
         # interpolation_inputs[i].fault_values = fault_input
 
         solver_input: SolverInput_v2 = input_preprocess_v2(
-            data_shape=tensor_structs[i],
-            interpolation_input=interpolation_inputs[i]
+            data_shape=tensor_structs[idx],
+            interpolation_input=interpolation_inputs[idx]
         )
         solver_inputs.append(solver_input)
 
@@ -46,29 +45,11 @@ def compute_weights_for_stacks(interpolation_inputs: list[InterpolationInput], o
         # TODO: Adding external function
         weights = compute_weights(
             solver_input=solver_input,
-            stack_number=i,
+            stack_number=global_i,
             options=options
         )
         solver_input.weights_x0 = weights
-
-        eval_input: EvaluatorInput = EvaluatorInput(
-            solver_input=solver_inputs[i],
-            interpolation_input=interpolation_inputs[i],
-            tensor_struct=tensor_structs[i],
-            only_surface_points=True
-        )
-
-        # region evaluate
-        values_block = scalar_field_segmentation_v2(
-            exported_fields=(_construct_experted_fields(eval_input, options)),
-            segmentation_input=SegmentationInput(
-                unit_values=interpolation_inputs[i].unit_values,
-                sigmoid_slope=(stack_structure.segmentation_function(eval_input.xyz_to_interpolate) if stack_structure.segmentation_function is not None
-                               else options.sigmoid_slope
-                               )
-            )
-        )
-
+    
         # endregion
 
         # region Something with faults
