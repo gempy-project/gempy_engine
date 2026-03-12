@@ -132,8 +132,8 @@ def test_graben_fault_model(graben_fault_model):
 
     options.evaluation_options.number_octree_levels = 5
     solutions: Solutions = compute_model(interpolation_input, options, structure)
-    
-    if plot_pyvista or False:
+
+    if plot_pyvista or True:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, options.number_octree_levels - 1)
@@ -150,6 +150,42 @@ def test_graben_fault_model(graben_fault_model):
         solutions=solutions,
         name="Graben"
     )
+
+
+def test_graben_fault_model_independent(graben_fault_model):
+    interpolation_input: InterpolationInput
+    structure: InputDataDescriptor
+    options: InterpolationOptions
+
+    interpolation_input, structure, options = graben_fault_model
+    structure.stack_structure.faults_relations = np.array(
+        [[False, False, True],
+         [False, False, True],
+         [False, False, False]
+         ]
+    )
+
+    options.compute_scalar_gradient = False
+    options.evaluation_options.dual_contouring = True
+    options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
+    options.evaluation_options.dual_conturing_fancy = True
+    options.debug = True
+
+    options.evaluation_options.number_octree_levels = 5
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
+
+    if plot_pyvista or True:
+        pv.global_theme.show_edges = True
+        p = pv.Plotter()
+        plot_octree_pyvista(p, solutions.octrees_output, options.number_octree_levels - 1)
+        plot_dc_meshes(p, solutions.dc_meshes[0])
+        surface_points_to_plot = interpolation_input.surface_points.sp_coords
+        # If they are torch tensors convert to numpy
+        if BackendTensor.engine_backend == AvailableBackends.PYTORCH and isinstance(surface_points_to_plot, BackendTensor.t.Tensor):
+            surface_points_to_plot = BackendTensor.t.to_numpy(surface_points_to_plot)
+
+        plot_points(p, surface_points_to_plot)
+        p.show()
 
 
 def _verify_scalar_field(solutions, name):
