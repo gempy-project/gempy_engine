@@ -12,13 +12,6 @@ def _grab_stack_fault_data(_all_stack_values_block, _interpolation_input_i, _sta
     return fault_data
 
 
-# def _grab_stack_fault_data_for_input(_all_stack_values_block, _interpolation_input_i, _stack_structure) -> FaultsData:
-#     fault_data = _interpolation_input_i.fault_values or FaultsData()
-#     fv_on_all_sp = _all_stack_values_block[_stack_structure.active_faults_relations]
-#     fault_data.fault_values_on_sp = fv_on_all_sp[:, _interpolation_input_i.slice_feature]
-#     return fault_data
-
-
 
 def _modify_faults_values_output(fault_input: FaultsData, values_on_all_xyz: np.ndarray,
                                  xyz_to_interpolate: np.ndarray) -> np.ndarray:

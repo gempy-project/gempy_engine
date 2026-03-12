@@ -18,23 +18,23 @@ def compute_weights_for_stacks(interpolation_inputs: list[InterpolationInput], o
                                tensor_structs: list[TensorsStructure], all_surface_points_size: int) -> list[SolverInput_v2]:
     solver_inputs: list[SolverInput_v2] = []
 
-    all_stack_values_block: np.ndarray = BackendTensor.t.zeros(
-        (stack_structure.n_stacks, all_surface_points_size),
-        dtype=BackendTensor.dtype_obj
-    )  # * Used for faults
+    # all_stack_values_block: np.ndarray = BackendTensor.t.zeros(
+    #     (stack_structure.n_stacks, all_surface_points_size),
+    #     dtype=BackendTensor.dtype_obj
+    # )  # * Used for faults
 
     for i in range(stack_structure.n_stacks):
         stack_structure.stack_number = i
 
-        fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
-            _all_stack_values_block=all_stack_values_block,
-            _interpolation_input_i=interpolation_inputs[i],
-            _stack_structure=stack_structure,
-            grid_size=0
-        )
-
-
-        interpolation_inputs[i].fault_values = fault_input
+        # fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
+        #     _all_stack_values_block=all_stack_values_block,
+        #     _interpolation_input_i=interpolation_inputs[i],
+        #     _stack_structure=stack_structure,
+        #     grid_size=0
+        # )
+        # 
+        # 
+        # interpolation_inputs[i].fault_values = fault_input
 
         solver_input: SolverInput_v2 = input_preprocess_v2(
             data_shape=tensor_structs[i],
@@ -72,17 +72,17 @@ def compute_weights_for_stacks(interpolation_inputs: list[InterpolationInput], o
         # endregion
 
         # region Something with faults
-        for i in range(stack_structure.n_stacks):  # TODO: This is the loop we need to split
-
-            if interpolation_inputs[i].stack_relation is not StackRelationType.FAULT:  # * This is also for faults!
-                continue
-            # # * Modify the values for Fault stacks
-            values_output = _modify_faults_values_output(  # ! This is all_STACK_values_block (not all_scalar_fields_outputs)
-                fault_input=fault_input,
-                values_on_all_xyz=values_block,
-                xyz_to_interpolate=eval_input.xyz_to_interpolate
-            )
-            all_stack_values_block[i, :] = values_output
+        # for i in range(stack_structure.n_stacks):  # TODO: This is the loop we need to split
+        # 
+        #     if interpolation_inputs[i].stack_relation is not StackRelationType.FAULT:  # * This is also for faults!
+        #         continue
+        #     # # * Modify the values for Fault stacks
+        #     values_output = _modify_faults_values_output(  # ! This is all_STACK_values_block (not all_scalar_fields_outputs)
+        #         fault_input=fault_input,
+        #         values_on_all_xyz=values_block,
+        #         xyz_to_interpolate=eval_input.xyz_to_interpolate
+        #     )
+        #     all_stack_values_block[i, :] = values_output
         # endregion
 
     return solver_inputs
