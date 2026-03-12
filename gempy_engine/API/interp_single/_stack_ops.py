@@ -2,6 +2,7 @@ from typing import List
 
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
 from ._interp_scalar_field import _evaluate_sys_eq, compute_weights
+from ...core.backend_tensor import BackendTensor
 from ...core.data import TensorsStructure, SurfacePoints, Orientations, SurfacePointsInternals, OrientationsInternals
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.input_data_descriptor import InputDataDescriptor
@@ -196,6 +197,8 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
                         tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
     from gempy_engine.modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
     import numpy as np
+    
+    BackendTensor.pykeops_enabled = True
 
     eval_inputs: list[EvaluatorInput] = []
     for idx, global_i in enumerate(stack_indices):
