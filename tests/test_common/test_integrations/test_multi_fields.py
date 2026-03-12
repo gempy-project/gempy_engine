@@ -3,7 +3,7 @@ from typing import List
 
 import pytest
 
-from gempy_engine.API.interp_single._multi_scalar_field_manager import _interpolate_stack, interpolate_all_fields
+from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields, _interpolate_stack
 from gempy_engine.API.interp_single._octree_generation import _generate_corners
 from gempy_engine.API.interp_single.interp_features import interpolate_n_octree_levels
 from gempy_engine.API.model.model_api import compute_model
