@@ -3,6 +3,9 @@ from typing import Optional
 import numpy as np
 
 import gempy_engine
+from ..kernel_constructor._kernels_assembler import create_scalar_kernel
+from ..kernel_constructor._structs import KernelInput
+from ..kernel_constructor._vectors_preparation import evaluation_vectors_preparations
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.exported_fields import ExportedFields
@@ -147,12 +150,13 @@ def symbolic_evaluator_optimized_stacked(
     # Concatenate weights
     all_weights = np.concatenate(weights_list, axis=0)
 
-    # Build concatenated kernel by evaluating each field's kernel individually
-    # and relying on PyKeOps block-sparse ranges to skip cross-field interactions.
-    # We need to build a single "stacked" eval_input with concatenated arrays.
-    stacked_eval_input: EvaluatorInput = _build_stacked_eval_input(eval_inputs)
-
-    eval_kernel = yield_evaluation_kernel(stacked_eval_input, options.kernel_options)
+    kernel_data_list = []
+    for i in range(n_fields):
+        kernel_data: KernelInput  = evaluation_vectors_preparations(eval_inputs[i], options.kernel_options, axis=None, slice_array=None)
+        kernel_data_list.append(kernel_data)
+    
+    concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
+    eval_kernel = create_scalar_kernel(concat_kernel_data, options.kernel_options)
 
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
         from pykeops.numpy import LazyTensor
@@ -205,6 +209,53 @@ def symbolic_evaluator_optimized_stacked(
     return results
 
 
+def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInput:
+    """Build a stacked KernelInput by concatenating the internal arrays from multiple KernelInput instances.
+    
+    For each sub-dataclass field, arrays with suffix '_i' (shape (M, 1, D)) are concatenated along axis=0,
+    and arrays with suffix '_j' (shape (1, N, D)) are concatenated along axis=1.
+    Scalar fields (nuggets) are taken from the first element (assumed identical across inputs).
+    """
+    from ..kernel_constructor._structs import (
+        OrientationSurfacePointsCoords, CartesianSelector, OrientationsDrift,
+        PointsDrift, FaultDrift, DriftMatrixSelector
+    )
+
+    def _stack_sub_struct(items, cls):
+        """Concatenate fields of a sub-dataclass: _i fields along axis=0, _j fields along axis=1."""
+        result = cls.__new__(cls)
+        for field_name in items[0].__dict__:
+            vals = [getattr(item, field_name) for item in items]
+            if not isinstance(vals[0], np.ndarray):
+                setattr(result, field_name, vals[0])
+                continue
+            if vals[0].shape[0] > vals[0].shape[1]:  # _i field: (M, 1, D)
+                setattr(result, field_name, np.concatenate(vals, axis=0))
+            else:  # _j field: (1, N, D)
+                setattr(result, field_name, np.concatenate(vals, axis=1))
+        return result
+
+    stacked = KernelInput.__new__(KernelInput)
+    stacked.ori_sp_matrices = _stack_sub_struct([kd.ori_sp_matrices for kd in kernel_data_list], OrientationSurfacePointsCoords)
+    stacked.cartesian_selector = _stack_sub_struct([kd.cartesian_selector for kd in kernel_data_list], CartesianSelector)
+    stacked.ori_drift = _stack_sub_struct([kd.ori_drift for kd in kernel_data_list], OrientationsDrift)
+    stacked.ref_drift = _stack_sub_struct([kd.ref_drift for kd in kernel_data_list], PointsDrift)
+    stacked.rest_drift = _stack_sub_struct([kd.rest_drift for kd in kernel_data_list], PointsDrift)
+    stacked.drift_matrix_selector = _stack_sub_struct([kd.drift_matrix_selector for kd in kernel_data_list], DriftMatrixSelector)
+
+    if kernel_data_list[0].ref_fault is not None:
+        stacked.ref_fault = _stack_sub_struct([kd.ref_fault for kd in kernel_data_list], FaultDrift)
+        stacked.rest_fault = _stack_sub_struct([kd.rest_fault for kd in kernel_data_list], FaultDrift)
+    else:
+        stacked.ref_fault = None
+        stacked.rest_fault = None
+
+    stacked.nugget_scalar = kernel_data_list[0].nugget_scalar
+    stacked.nugget_grad = kernel_data_list[0].nugget_grad
+
+    return stacked
+
+
 def _build_stacked_eval_input(eval_inputs: list[EvaluatorInput]) -> EvaluatorInput:
     """Build a stacked EvaluatorInput by concatenating arrays from multiple eval_inputs.
     
@@ -219,7 +270,8 @@ def _build_stacked_eval_input(eval_inputs: list[EvaluatorInput]) -> EvaluatorInp
     
     # Concatenate xyz_to_interpolate (evaluation grid points)
     all_xyz = np.concatenate([ei.xyz_to_interpolate for ei in eval_inputs], axis=0)
-    
+    all_xyz = eval_inputs[0].xyz_to_interpolate
+
     # Concatenate surface points internals (frozen dataclass - use constructor)
     all_ref_sp = np.concatenate([ei.sp_internal.ref_surface_points for ei in eval_inputs], axis=0)
     all_rest_sp = np.concatenate([ei.sp_internal.rest_surface_points for ei in eval_inputs], axis=0)
