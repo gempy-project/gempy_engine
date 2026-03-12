@@ -2,8 +2,7 @@ from typing import List
 
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
 from ._interp_scalar_field import _evaluate_sys_eq, compute_weights
-from ._interp_single_feature import scalar_field_segmentation_v2, input_preprocess_v2
-from ...core.data import TensorsStructure
+from ...core.data import TensorsStructure, SurfacePoints, Orientations, SurfacePointsInternals, OrientationsInternals
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.internal_structs import EvaluatorInput, SegmentationInput, SolverInput_v2
@@ -17,6 +16,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from numpy import ndarray, dtype
+
+from ...modules.activator import activator_interface
+from ...modules.data_preprocess import data_preprocess_interface
 
 
 @dataclass
@@ -131,7 +133,7 @@ def _segment(
                            if stack_structure.segmentation_function is not None
                            else options.sigmoid_slope)
         )
-        values_block = scalar_field_segmentation_v2(
+        values_block = _scalar_field_segmentation_v2(
             exported_fields=exported_fields_per_stack[idx],
             segmentation_input=segmentation_input
         )
@@ -148,6 +150,15 @@ def _segment(
         # @on
         all_scalar_fields_outputs[idx] = output
     return all_scalar_fields_outputs
+
+
+def _scalar_field_segmentation_v2(exported_fields: ExportedFields, segmentation_input: SegmentationInput) \
+        -> ndarray[tuple[Any, ...], dtype[Any]]:
+    return activator_interface.activate_formation_block(
+        exported_fields=exported_fields,
+        ids=segmentation_input.unit_values,
+        sigmoid_slope=segmentation_input.sigmoid_slope
+    )
 
 
 def _evaluate(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
@@ -212,3 +223,26 @@ def _compute_weights_for_stacks(
         # endregion
 
     return solver_inputs
+
+
+def input_preprocess_v2(data_shape: TensorsStructure, interpolation_input: InterpolationInput) -> SolverInput_v2:
+    surface_points: SurfacePoints = interpolation_input.surface_points
+    orientations: Orientations = interpolation_input.orientations
+
+    sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
+    ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(orientations)
+
+    fault_values: FaultsData = interpolation_input.fault_values
+    fault_values.fault_values_ref, fault_values.fault_values_rest = data_preprocess_interface.prepare_faults(
+        faults_values_on_sp=fault_values.fault_values_on_sp,
+        tensors_structure=data_shape
+    )
+
+    solver_input = SolverInput_v2(
+        sp_internal=sp_internal,
+        ori_internal=ori_internal,
+        fault_internal=fault_values
+    )
+    solver_input.weights_x0 = interpolation_input.weights
+
+    return solver_input

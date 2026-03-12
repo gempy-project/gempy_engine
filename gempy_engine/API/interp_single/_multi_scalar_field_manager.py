@@ -3,7 +3,7 @@ from typing import List
 import numpy as np
 
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
-from ._interp_single_feature import input_preprocess, interpolate_feature_with_cokrig
+from ._interp_single_feature import input_preprocess, interpolate_feature_with_cokrig, interpolate_feature_with_external_function
 
 from ._masking_ops import _lithology_mask, _faults_mask, _combine_scalar_fields
 from ._stack_ops import InterpolationState, process_chunk
@@ -52,7 +52,8 @@ def _interpolate_stack_flat(root_data_descriptor: InputDataDescriptor, root_inte
     xyz_to_interpolate_size: int = root_interpolation_input.grid.len_all_grids + root_interpolation_input.surface_points.n_points
     all_stack_values_block: np.ndarray = BackendTensor.t.zeros(
         (stack_structure.n_stacks, xyz_to_interpolate_size),
-        dtype=BackendTensor.dtype_obj)  # * Used for faults
+        dtype=BackendTensor.dtype_obj
+    )  # * Used for faults
 
     # Compute independent chunks from fault relations
     chunks: list[list[int]] = _compute_independent_chunks(
@@ -111,14 +112,23 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
 
         solver_input: SolverInput = input_preprocess(tensor_struct_i, interpolation_input_i)
         # TODO: Add external function!
-        output: ScalarFieldOutput = interpolate_feature_with_cokrig(
-            interpolation_input=interpolation_input_i,
-            options=options,
-            data_shape=tensor_struct_i,
-            solver_input=solver_input,
-            external_segment_funct=stack_structure.segmentation_function,
-            stack_number=i
-        )
+
+        if stack_structure.interp_function is None:
+            output: ScalarFieldOutput = interpolate_feature_with_cokrig(
+                interpolation_input=interpolation_input_i,
+                options=options,
+                data_shape=tensor_struct_i,
+                solver_input=solver_input,
+                external_segment_funct=stack_structure.segmentation_function,
+                stack_number=i
+            )
+        else:
+            output: ScalarFieldOutput = interpolate_feature_with_external_function(
+                interpolation_input=interpolation_input_i,
+                options=options,
+                external_interp_funct=stack_structure.interp_function,
+                external_segment_funct=stack_structure.segmentation_function,
+            )
 
         # @on
         all_scalar_fields_outputs[i] = output
