@@ -18,35 +18,42 @@ from ...core.data.stacks_structure import StacksStructure
 from ...modules.data_preprocess import data_preprocess_interface
 
 
-def segment(eval_inputs: list[EvaluatorInput], exported_fields_per_stack: list[ExportedFields], interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure) -> list[ScalarFieldOutput | None]:
-    all_scalar_fields_outputs: List[ScalarFieldOutput | None] = [None] * stack_structure.n_stacks
-    for i in range(stack_structure.n_stacks):  # TODO: This is the loop we need to split
+def segment(eval_inputs: list[EvaluatorInput], exported_fields_per_stack: list[ExportedFields], interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
+           stack_indices: list[int] | None = None) -> list[ScalarFieldOutput | None]:
+    if stack_indices is None:
+        stack_indices = list(range(stack_structure.n_stacks))
+    all_scalar_fields_outputs: List[ScalarFieldOutput | None] = [None] * len(stack_indices)
+    for idx, global_i in enumerate(stack_indices):
+        stack_structure.stack_number = global_i
         # region segmentation
         values_block = scalar_field_segmentation_v2(
-            exported_fields=exported_fields_per_stack[i],
+            exported_fields=exported_fields_per_stack[idx],
             segmentation_input=SegmentationInput(
-                unit_values=interpolation_inputs[i].unit_values,
-                sigmoid_slope=(stack_structure.segmentation_function(eval_inputs[i].xyz_to_interpolate) if stack_structure.segmentation_function is not None
+                unit_values=interpolation_inputs[idx].unit_values,
+                sigmoid_slope=(stack_structure.segmentation_function(eval_inputs[idx].xyz_to_interpolate) if stack_structure.segmentation_function is not None
                                else options.sigmoid_slope
                                )
             )
         )
         # endregion
         output = ScalarFieldOutput(
-            weights=solver_inputs[i].weights_x0,
-            grid=interpolation_inputs[i].grid,
-            exported_fields=exported_fields_per_stack[i],
+            weights=solver_inputs[idx].weights_x0,
+            grid=interpolation_inputs[idx].grid,
+            exported_fields=exported_fields_per_stack[idx],
             values_block=values_block,
-            stack_relation=interpolation_inputs[i].stack_relation
+            stack_relation=interpolation_inputs[idx].stack_relation
         )
 
         # @on
-        all_scalar_fields_outputs[i] = output
+        all_scalar_fields_outputs[idx] = output
     return all_scalar_fields_outputs
 
 
 def evaluate(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
-             tensor_structs: list[TensorsStructure], xyz_to_interpolate_size: int) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
+             tensor_structs: list[TensorsStructure], xyz_to_interpolate_size: int,
+             stack_indices: list[int] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
+    if stack_indices is None:
+        stack_indices = list(range(stack_structure.n_stacks))
     eval_inputs: list[EvaluatorInput] = []
     exported_fields_per_stack: list[ExportedFields] = []
     all_stack_values_block: np.ndarray = BackendTensor.t.zeros(
@@ -54,9 +61,10 @@ def evaluate(interpolation_inputs: list[InterpolationInput], options: Interpolat
         dtype=BackendTensor.dtype_obj
     )  # * Used for faults
 
-    for i in range(stack_structure.n_stacks):  # TODO: This is the loop we need to split
+    for idx, global_i in enumerate(stack_indices):
+        stack_structure.stack_number = global_i
 
-        input_to_evaluate = interpolation_inputs[i]
+        input_to_evaluate = interpolation_inputs[idx]
         fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
             _all_stack_values_block=all_stack_values_block,
             _interpolation_input_i=input_to_evaluate,
@@ -65,14 +73,14 @@ def evaluate(interpolation_inputs: list[InterpolationInput], options: Interpolat
         )
         fault_input.fault_values_ref, fault_input.fault_values_rest = data_preprocess_interface.prepare_faults(
             faults_values_on_sp=fault_input.fault_values_on_sp,
-            tensors_structure=tensor_structs[i]
+            tensors_structure=tensor_structs[idx]
         )
         input_to_evaluate.fault_values = fault_input
 
         eval_input: EvaluatorInput = EvaluatorInput(
-            solver_input=solver_inputs[i],
+            solver_input=solver_inputs[idx],
             interpolation_input=input_to_evaluate,
-            tensor_struct=tensor_structs[i],
+            tensor_struct=tensor_structs[idx],
             only_surface_points=False
         )
 
