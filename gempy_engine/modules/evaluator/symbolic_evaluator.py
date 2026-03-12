@@ -52,7 +52,7 @@ def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: 
     return ExportedFields(scalar_field, gx_field, gy_field, gz_field)
 
 
-def symbolic_evaluator_v2(eval_input: EvaluatorInput, weights: np.ndarray, options: InterpolationOptions):
+def symbolic_evaluator_optimized(eval_input: EvaluatorInput, weights: np.ndarray, options: InterpolationOptions):
     
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy and eval_input.xyz_to_interpolate.flags['C_CONTIGUOUS'] is False:  # ! This is not working with TF yet
         print("xyz is not C_CONTIGUOUS")
@@ -60,7 +60,7 @@ def symbolic_evaluator_v2(eval_input: EvaluatorInput, weights: np.ndarray, optio
     # ! We need to benchmark GPU vs CPU with more input
     backend_string = BackendTensor.get_backend_string()
 
-    eval_kernel = yield_evaluation_kernel(eval_input.solver_input, options.kernel_options)
+    eval_kernel = yield_evaluation_kernel(eval_input, options.kernel_options)
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
         from pykeops.numpy import LazyTensor
         # Create lazy_weights with correct dimensions: we want (16, 1) to match eval_kernel's nj dimension

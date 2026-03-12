@@ -191,6 +191,37 @@ def _evaluate(interpolation_inputs: list[InterpolationInput], options: Interpola
     return eval_inputs, exported_fields_per_stack
 
 
+def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
+                        tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
+    from gempy_engine.modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized
+    eval_inputs: list[EvaluatorInput] = []
+    exported_fields_per_stack: list[ExportedFields] = []
+    for idx, global_i in enumerate(stack_indices):
+        stack_structure.stack_number = global_i
+
+        eval_input: EvaluatorInput = EvaluatorInput(
+            solver_input=solver_inputs[idx],
+            interpolation_input=(interpolation_inputs[idx]),
+            tensor_struct=tensor_structs[idx],
+            only_surface_points=False
+        )
+
+        # region evaluate
+        exported_fields: ExportedFields = symbolic_evaluator_optimized(
+            eval_input=eval_input,
+            weights=eval_input.solver_input.weights_x0,
+            options=options
+        )
+
+        exported_fields.set_structure_values_from_eval_input(eval_input)
+        exported_fields.debug = eval_input.solver_input.debug
+
+        eval_inputs.append(eval_input)
+        exported_fields_per_stack.append(exported_fields)
+        # endregion
+    return eval_inputs, exported_fields_per_stack
+
+
 def _compute_weights_for_stacks(
         interpolation_inputs: list[InterpolationInput],
         options: InterpolationOptions,
