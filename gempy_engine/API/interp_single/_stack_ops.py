@@ -74,7 +74,8 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
         state.solver_inputs[i] = chunk_solver_inputs[idx]
 
     # Evaluate this chunk
-    chunk_eval_inputs, chunk_exported_fields = _evaluate(
+    #chunk_eval_inputs, chunk_exported_fields = _evaluate(
+    chunk_eval_inputs, chunk_exported_fields = _evaluate_optimized(
         interpolation_inputs=chunk_interpolation_inputs,
         options=state.options,
         solver_inputs=chunk_solver_inputs,
