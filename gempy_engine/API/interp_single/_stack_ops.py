@@ -56,26 +56,26 @@ def evaluate(interpolation_inputs: list[InterpolationInput], options: Interpolat
         stack_indices = list(range(stack_structure.n_stacks))
     eval_inputs: list[EvaluatorInput] = []
     exported_fields_per_stack: list[ExportedFields] = []
-    all_stack_values_block: np.ndarray = BackendTensor.t.zeros(
-        (stack_structure.n_stacks, xyz_to_interpolate_size),
-        dtype=BackendTensor.dtype_obj
-    )  # * Used for faults
+    # all_stack_values_block: np.ndarray = BackendTensor.t.zeros(
+    #     (stack_structure.n_stacks, xyz_to_interpolate_size),
+    #     dtype=BackendTensor.dtype_obj
+    # )  # * Used for faults
 
     for idx, global_i in enumerate(stack_indices):
         stack_structure.stack_number = global_i
 
         input_to_evaluate = interpolation_inputs[idx]
-        fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
-            _all_stack_values_block=all_stack_values_block,
-            _interpolation_input_i=input_to_evaluate,
-            _stack_structure=stack_structure,
-            grid_size=input_to_evaluate.grid.len_all_grids
-        )
-        fault_input.fault_values_ref, fault_input.fault_values_rest = data_preprocess_interface.prepare_faults(
-            faults_values_on_sp=fault_input.fault_values_on_sp,
-            tensors_structure=tensor_structs[idx]
-        )
-        input_to_evaluate.fault_values = fault_input
+        # fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
+        #     _all_stack_values_block=all_stack_values_block,
+        #     _interpolation_input_i=input_to_evaluate,
+        #     _stack_structure=stack_structure,
+        #     grid_size=input_to_evaluate.grid.len_all_grids
+        # )
+        # fault_input.fault_values_ref, fault_input.fault_values_rest = data_preprocess_interface.prepare_faults(
+        #     faults_values_on_sp=fault_input.fault_values_on_sp,
+        #     tensors_structure=tensor_structs[idx]
+        # )
+        # input_to_evaluate.fault_values = fault_input
 
         eval_input: EvaluatorInput = EvaluatorInput(
             solver_input=solver_inputs[idx],
