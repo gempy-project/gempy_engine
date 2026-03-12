@@ -1,8 +1,9 @@
 from typing import List
 
 import numpy as np
+from gempy_engine.core.data.stack_relation_type import StackRelationType
 
-from ._aux_faults_ops import _grab_stack_fault_data
+from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
 from ._interp_scalar_field import _evaluate_sys_eq
 from ._interp_single_feature import scalar_field_segmentation_v2
 from ...core.backend_tensor import BackendTensor
