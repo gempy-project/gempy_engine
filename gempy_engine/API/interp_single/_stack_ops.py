@@ -1,21 +1,14 @@
 from typing import List
 
-import numpy as np
-from gempy_engine.core.data.stack_relation_type import StackRelationType
-
-from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
 from ._interp_scalar_field import _evaluate_sys_eq
 from ._interp_single_feature import scalar_field_segmentation_v2
-from ...core.backend_tensor import BackendTensor
-from ...core.data import TensorsStructure, InterpolationOptions
+from ...core.data import TensorsStructure
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import EvaluatorInput, SegmentationInput
 from ...core.data.interpolation_input import InterpolationInput
-from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.options import InterpolationOptions
 from ...core.data.scalar_field_output import ScalarFieldOutput
 from ...core.data.stacks_structure import StacksStructure
-from ...modules.data_preprocess import data_preprocess_interface
 
 
 def segment(eval_inputs: list[EvaluatorInput], exported_fields_per_stack: list[ExportedFields], interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
@@ -50,33 +43,16 @@ def segment(eval_inputs: list[EvaluatorInput], exported_fields_per_stack: list[E
 
 
 def evaluate(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
-             tensor_structs: list[TensorsStructure], xyz_to_interpolate_size: int,
-             stack_indices: list[int] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
+             tensor_structs: list[TensorsStructure],  stack_indices: list[int] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
     if stack_indices is None:
         stack_indices = list(range(stack_structure.n_stacks))
     eval_inputs: list[EvaluatorInput] = []
     exported_fields_per_stack: list[ExportedFields] = []
-    # all_stack_values_block: np.ndarray = BackendTensor.t.zeros(
-    #     (stack_structure.n_stacks, xyz_to_interpolate_size),
-    #     dtype=BackendTensor.dtype_obj
-    # )  # * Used for faults
-
     for idx, global_i in enumerate(stack_indices):
         stack_structure.stack_number = global_i
 
         input_to_evaluate = interpolation_inputs[idx]
-        # fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
-        #     _all_stack_values_block=all_stack_values_block,
-        #     _interpolation_input_i=input_to_evaluate,
-        #     _stack_structure=stack_structure,
-        #     grid_size=input_to_evaluate.grid.len_all_grids
-        # )
-        # fault_input.fault_values_ref, fault_input.fault_values_rest = data_preprocess_interface.prepare_faults(
-        #     faults_values_on_sp=fault_input.fault_values_on_sp,
-        #     tensors_structure=tensor_structs[idx]
-        # )
-        # input_to_evaluate.fault_values = fault_input
-
+    
         eval_input: EvaluatorInput = EvaluatorInput(
             solver_input=solver_inputs[idx],
             interpolation_input=input_to_evaluate,
