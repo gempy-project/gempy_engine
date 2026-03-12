@@ -1,13 +1,12 @@
-from typing import List, Any
+from typing import List
 
 import numpy as np
-from numpy import dtype, ndarray
 
-from ._aux_faults_ops import _modify_faults_values_output, _grab_stack_fault_data
-from ._interp_single_feature import interpolate_feature_with_cokrig, input_preprocess
+from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
+from ._interp_single_feature import input_preprocess, interpolate_feature_with_cokrig
+
 from ._masking_ops import _lithology_mask, _faults_mask, _combine_scalar_fields
-from ._stack_ops import evaluate, segment
-from .compute_weights import compute_weights_for_stacks
+from ._stack_ops import _InterpolationState, _process_chunk, _compute_independent_chunks
 from ...core.backend_tensor import BackendTensor
 from ...core.data import TensorsStructure
 from ...core.data.exported_structs import CombinedScalarFieldsOutput
@@ -19,7 +18,6 @@ from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.options import InterpolationOptions
 from ...core.data.scalar_field_output import ScalarFieldOutput
 from ...core.data.stack_relation_type import StackRelationType
-from ...core.data.stacks_structure import StacksStructure
 
 
 # @off
@@ -47,39 +45,6 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
     return all_outputs
 
 
-def _compute_independent_chunks(faults_relations: np.ndarray, n_stacks: int, masking_descriptor: list) -> list[list[int]]:
-    """Analyze the fault_relations matrix to find chunks of independent stacks.
-    
-    faults_relations[j, i] == True means stack i depends on fault stack j.
-    Stacks are processed in chunks where all stacks in a chunk have their
-    fault dependencies already resolved by previous chunks.
-    """
-    if faults_relations is None:
-        return [list(range(n_stacks))]
-
-    fault_stacks = {i for i in range(n_stacks) if masking_descriptor[i] is StackRelationType.FAULT}
-
-    chunks: list[list[int]] = []
-    resolved: set[int] = set()
-    remaining = set(range(n_stacks))
-
-    while remaining:
-        chunk = []
-        for i in sorted(remaining):
-            deps = {j for j in range(n_stacks) if faults_relations[j, i] and j in fault_stacks}
-            if deps.issubset(resolved):
-                chunk.append(i)
-
-        if not chunk:
-            raise RuntimeError("Circular fault dependency detected")
-
-        chunks.append(chunk)
-        remaining -= set(chunk)
-        resolved.update(i for i in chunk if i in fault_stacks)
-
-    return chunks
-
-
 def _interpolate_stack_flat(root_data_descriptor: InputDataDescriptor, root_interpolation_input: InterpolationInput,
                             options: InterpolationOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
     stack_structure = root_data_descriptor.stack_structure
@@ -97,104 +62,23 @@ def _interpolate_stack_flat(root_data_descriptor: InputDataDescriptor, root_inte
     )
 
     # Pre-allocate result lists indexed by global stack number
-    interpolation_inputs: list[InterpolationInput | None] = [None] * stack_structure.n_stacks
-    tensor_structs: list[TensorsStructure | None] = [None] * stack_structure.n_stacks
-    solver_inputs: list = [None] * stack_structure.n_stacks
-    eval_inputs: list = [None] * stack_structure.n_stacks
-    all_scalar_fields_outputs: list[ScalarFieldOutput | None] = [None] * stack_structure.n_stacks
+    state = _InterpolationState(
+        root_data_descriptor=root_data_descriptor,
+        root_interpolation_input=root_interpolation_input,
+        options=options,
+        stack_structure=stack_structure,
+        all_stack_values_block=all_stack_values_block,
+        interpolation_inputs=[None] * stack_structure.n_stacks,
+        tensor_structs=[None] * stack_structure.n_stacks,
+        solver_inputs=[None] * stack_structure.n_stacks,
+        eval_inputs=[None] * stack_structure.n_stacks,
+        all_scalar_fields_outputs=[None] * stack_structure.n_stacks
+    )
 
     for chunk in chunks:
-        method_name(all_scalar_fields_outputs, all_stack_values_block, chunk, eval_inputs, interpolation_inputs, options, root_data_descriptor, root_interpolation_input, solver_inputs, stack_structure, tensor_structs)
+        _process_chunk(state, chunk)
 
-    return all_scalar_fields_outputs
-
-
-def method_name(
-        all_scalar_fields_outputs: list[ScalarFieldOutput | None],
-        all_stack_values_block: ndarray[tuple[Any, ...], dtype[Any]],
-        chunk: list[int],
-        eval_inputs: list, 
-        interpolation_inputs: list[InterpolationInput | None],
-        options: InterpolationOptions,
-        root_data_descriptor: InputDataDescriptor, 
-        root_interpolation_input: InterpolationInput,
-        solver_inputs: list,
-        stack_structure: StacksStructure,
-        tensor_structs: list[TensorsStructure | None]
-):
-    # region preparation - build inputs for this chunk
-    chunk_interpolation_inputs: list[InterpolationInput] = []
-    chunk_tensor_structs: list[TensorsStructure] = []
-
-    for i in chunk:
-        stack_structure.stack_number = i
-        tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
-        interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
-            all_interpolation_input=root_interpolation_input,
-            stack_structure=stack_structure
-        )
-
-        fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
-            _all_stack_values_block=all_stack_values_block,
-            _interpolation_input_i=interpolation_input_i,
-            _stack_structure=stack_structure,
-            grid_size=interpolation_input_i.grid.len_all_grids
-        )
-        interpolation_input_i.fault_values = fault_input
-
-        interpolation_inputs[i] = interpolation_input_i
-        tensor_structs[i] = tensor_struct_i
-        chunk_interpolation_inputs.append(interpolation_input_i)
-        chunk_tensor_structs.append(tensor_struct_i)
-    # endregion
-
-    # Compute weights for this chunk
-    chunk_solver_inputs = compute_weights_for_stacks(
-        interpolation_inputs=chunk_interpolation_inputs,
-        options=options,
-        stack_structure=stack_structure,
-        tensor_structs=chunk_tensor_structs,
-        stack_indices=chunk
-    )
-    for idx, i in enumerate(chunk):
-        solver_inputs[i] = chunk_solver_inputs[idx]
-
-    # Evaluate this chunk
-    chunk_eval_inputs, chunk_exported_fields = evaluate(
-        interpolation_inputs=chunk_interpolation_inputs,
-        options=options,
-        solver_inputs=chunk_solver_inputs,
-        stack_structure=stack_structure,
-        tensor_structs=chunk_tensor_structs,
-        stack_indices=chunk
-    )
-
-    for idx, i in enumerate(chunk):
-        eval_inputs[i] = chunk_eval_inputs[idx]
-
-    # Segment this chunk
-    chunk_outputs = segment(
-        eval_inputs=chunk_eval_inputs,
-        exported_fields_per_stack=chunk_exported_fields,
-        interpolation_inputs=chunk_interpolation_inputs,
-        options=options,
-        solver_inputs=chunk_solver_inputs,
-        stack_structure=stack_structure,
-        stack_indices=chunk
-    )
-
-    for idx, i in enumerate(chunk):
-        all_scalar_fields_outputs[i] = chunk_outputs[idx]
-
-    # Update fault values for fault stacks in this chunk so next chunks can use them
-    for idx, i in enumerate(chunk):
-        if chunk_interpolation_inputs[idx].stack_relation is StackRelationType.FAULT:
-            values_output = _modify_faults_values_output(
-                fault_input=chunk_interpolation_inputs[idx].fault_values,
-                values_on_all_xyz=all_scalar_fields_outputs[i].values_on_all_xyz,
-                xyz_to_interpolate=eval_inputs[i].xyz_to_interpolate
-            )
-            all_stack_values_block[i, :] = values_output
+    return state.all_scalar_fields_outputs
 
 
 def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpolation_input: InterpolationInput,
