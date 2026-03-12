@@ -133,7 +133,7 @@ def test_graben_fault_model(graben_fault_model):
     options.evaluation_options.number_octree_levels = 5
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, options.number_octree_levels - 1)
@@ -174,7 +174,7 @@ def test_graben_fault_model_independent(graben_fault_model):
     options.evaluation_options.number_octree_levels = 5
     solutions: Solutions = compute_model(interpolation_input, options, structure)
 
-    if plot_pyvista or True:
+    if plot_pyvista or False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
         plot_octree_pyvista(p, solutions.octrees_output, options.number_octree_levels - 1)
