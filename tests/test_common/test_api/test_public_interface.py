@@ -166,7 +166,8 @@ def test_graben_fault_model_independent(graben_fault_model):
     )
 
     options.compute_scalar_gradient = False
-    options.evaluation_options.dual_contouring = True
+    options.evaluation_options.dual_contouring = False
+    options.evaluation_options.mesh_extraction = False
     options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
     options.evaluation_options.dual_conturing_fancy = True
     options.debug = True
@@ -186,6 +187,12 @@ def test_graben_fault_model_independent(graben_fault_model):
 
         plot_points(p, surface_points_to_plot)
         p.show()
+
+
+    _verify_scalar_field(
+        solutions=solutions,
+        name="Graben Independent"
+    )
 
 
 def _verify_scalar_field(solutions, name):
