@@ -198,8 +198,6 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
     from gempy_engine.modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
     import numpy as np
     
-    BackendTensor.pykeops_enabled = True
-
     eval_inputs: list[EvaluatorInput] = []
     for idx, global_i in enumerate(stack_indices):
         stack_structure.stack_number = global_i
