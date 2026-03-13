@@ -27,6 +27,8 @@ class EvaluationOptions:
 
     evaluation_chunk_size: int = 500_000
 
+
+    compute_scalar: bool = True
     compute_scalar_gradient: bool = False
     
     verbose: bool = False

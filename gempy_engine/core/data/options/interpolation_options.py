@@ -205,6 +205,10 @@ class InterpolationOptions(BaseModel):
     def compute_scalar_gradient(self):
         return self.evaluation_options.compute_scalar_gradient
 
+    @property
+    def compute_scalar(self):
+        return self.evaluation_options.compute_scalar
+
     @compute_scalar_gradient.setter
     def compute_scalar_gradient(self, value):
         warnings.warn("The compute_scalar_gradient attribute is deprecated and will be removed in the future. Use"
