@@ -197,7 +197,7 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
                         tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
     from gempy_engine.modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
     import numpy as np
-    
+
     eval_inputs: list[EvaluatorInput] = []
     for idx, global_i in enumerate(stack_indices):
         stack_structure.stack_number = global_i
@@ -260,6 +260,40 @@ def _compute_weights_for_stacks(
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         solver_inputs = list(executor.map(_run_prep, enumerate(stack_indices)))
+
+    return solver_inputs
+
+
+def _compute_weights_for_stacks_single_thread(
+        interpolation_inputs: list[InterpolationInput],
+        options: InterpolationOptions,
+        stack_structure: StacksStructure,
+        tensor_structs: list[TensorsStructure],
+        stack_indices: list[int] | None = None
+) -> list[SolverInput_v2]:
+    solver_inputs: list[SolverInput_v2] = []
+
+    if stack_indices is None:
+        stack_indices = list(range(stack_structure.n_stacks))
+
+    for idx, global_i in enumerate(stack_indices):
+        stack_structure.stack_number = global_i
+        solver_input: SolverInput_v2 = input_preprocess_v2(
+            data_shape=tensor_structs[idx],
+            interpolation_input=interpolation_inputs[idx]
+        )
+        solver_inputs.append(solver_input)
+
+        # region compute weights
+        # TODO: Adding external function
+        weights = compute_weights(
+            solver_input=solver_input,
+            stack_number=global_i,
+            options=options
+        )
+        solver_input.weights_x0 = weights
+
+        # endregion
 
     return solver_inputs
 

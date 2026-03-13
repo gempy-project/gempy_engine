@@ -113,7 +113,7 @@ def symbolic_evaluator_optimized_stacked(
         eval_kernel_scalar = create_scalar_kernel(concat_kernel_data, options.kernel_options)
 
     if options.compute_scalar_gradient is True:
-        prep_tasks =[(ei, 0) for ei in eval_inputs]
+        prep_tasks = [(ei, 0) for ei in eval_inputs]
         prep_tasks.extend([(ei, 1) for ei in eval_inputs])  # Y gradient
         prep_tasks.extend([(ei, 2) for ei in eval_inputs])  # Z gradient
 
@@ -124,7 +124,6 @@ def symbolic_evaluator_optimized_stacked(
         eval_kernel_grad = create_grad_kernel(concat_kernel_data, options.kernel_options)
 
     # region kernels
-    prep_tasks = []
     match (options.compute_scalar, options.compute_scalar_gradient):
         case (True, True):
             # Concatenate eval kernel
@@ -162,12 +161,17 @@ def symbolic_evaluator_optimized_stacked(
             if BackendTensor.use_gpu:
                 all_weights = all_weights.pin_memory().to("cuda", non_blocking=True)
             lazy_weights = LazyTensor(all_weights.view((-1, 1)), axis=0)
-            
+
             all_results_concat = (eval_kernel * lazy_weights).sum(
                 axis=0,
                 backend=BackendTensor.get_backend_string(),
                 ranges=ranges
             ).reshape(-1)
+
+            # 2. Add explicit synchronization for eGPU stability
+            if BackendTensor.use_gpu:
+                import torch
+                torch.cuda.synchronize()
         except TypeError:
             raise ValueError("Failed to compute symbolic evaluation with PyKeOps. Ensure that all_weights and eval_kernel are compatible for lazy tensor operations.")
 
@@ -244,7 +248,7 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput], max_workers:
                 concat_val = concat_val.copy()
             elif BackendTensor.use_gpu:
                 concat_val = concat_val.contiguous()
-                concat_val = concat_val.to("cuda", non_blocking=True) # Move to GPU asynchronously if using PyTorch
+                concat_val = concat_val.to("cuda", non_blocking=True)  # Move to GPU asynchronously if using PyTorch
             else:
                 concat_val = concat_val.contiguous()
 
