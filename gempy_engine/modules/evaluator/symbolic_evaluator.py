@@ -197,8 +197,14 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInp
         the underlying numpy data before concatenation, then re-applying _cast_tensors.
         """
         result = cls.__new__(cls)
+        if items[0] is None:
+            return None
+
         for field_name in items[0].__dict__:
             vals = [getattr(item, field_name) for item in items]
+            if not isinstance(vals[0], np.ndarray):
+                setattr(result, field_name, vals[0])
+                continue
             if vals[0].shape[0] > vals[0].shape[1]:  # _i field: (M, 1, D)
                 setattr(result, field_name, np.concatenate(vals, axis=0))
             else:  # _j field: (1, N, D)

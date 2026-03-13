@@ -166,8 +166,7 @@ def test_graben_fault_model_independent(graben_fault_model):
     )
 
     options.compute_scalar_gradient = False
-    options.evaluation_options.dual_contouring = False
-    options.evaluation_options.mesh_extraction = False
+    options.evaluation_options.mesh_extraction = True
     options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
     options.evaluation_options.dual_conturing_fancy = True
     options.debug = True
