@@ -89,8 +89,6 @@ def symbolic_evaluator_optimized_stacked(
 
     n_fields = len(eval_inputs)
 
-    backend_string = BackendTensor.get_backend_string()
-
     # Collect sizes: M = grid/eval points (j-dim), N = weights/cov_size (i-dim)
     # TODO: Reuse grid
     M_sizes = [ei.xyz_to_interpolate.shape[0] for ei in eval_inputs]
@@ -147,7 +145,7 @@ def symbolic_evaluator_optimized_stacked(
         lazy_weights = LazyTensor(np.asfortranarray(all_weights.reshape(-1, 1)), axis=0)
         all_results_concat: np.ndarray = (eval_kernel * lazy_weights).sum(
             axis=0,
-            backend=backend_string,
+            backend=BackendTensor.get_backend_string(),
             ranges=ranges
         ).reshape(-1)
     else:
@@ -156,7 +154,7 @@ def symbolic_evaluator_optimized_stacked(
             lazy_weights = LazyTensor(all_weights.view((-1, 1)), axis=0)
             all_results_concat = (eval_kernel * lazy_weights).sum(
                 axis=0,
-                backend=backend_string,
+                backend=BackendTensor.get_backend_string(),
                 ranges=ranges
             ).reshape(-1)
         except TypeError:
