@@ -1,6 +1,7 @@
 from typing import Optional
 
 import numpy as np
+import torch
 
 import gempy_engine
 from ..kernel_constructor._kernels_assembler import create_scalar_kernel, create_grad_kernel
@@ -68,7 +69,10 @@ def _build_block_sparse_ranges(M_sizes: list[int], N_sizes: list[int]):
     slices_j = np.arange(1, n_fields + 1, dtype=np.int32)
 
     # Order: (ranges_i, slices_i, redranges_j, ranges_j, slices_j, redranges_i)
-    return (ranges_i, slices_i, ranges_j, ranges_j, slices_j, ranges_i)
+
+    numpy_ranges = (ranges_i, slices_i, ranges_j, ranges_j, slices_j, ranges_i)
+    tensor_ranges = (BackendTensor.t.array(range_) for range_ in numpy_ranges)
+    return tensor_ranges
 
 
 def symbolic_evaluator_optimized_stacked(
@@ -106,12 +110,12 @@ def symbolic_evaluator_optimized_stacked(
     ranges = _build_block_sparse_ranges(M_sizes, N_sizes)
 
     # Concatenate weights
-    all_weights = np.concatenate(weights_list, axis=0)
+    all_weights = BackendTensor.t.concatenate(weights_list, axis=0)
     if options.compute_scalar_gradient is True:
         if options.number_dimensions == 3:
-            all_weights = np.tile(all_weights, 4)
+            all_weights = BackendTensor.t.tile(all_weights, 4)
         else:
-            all_weights = np.tile(all_weights, 3)
+            all_weights = BackendTensor.t.tile(all_weights, 3)
 
     kernel_data_list = []
     for ei in eval_inputs:
@@ -148,16 +152,25 @@ def symbolic_evaluator_optimized_stacked(
         ).reshape(-1)
     else:
         from pykeops.torch import LazyTensor
-        lazy_weights = LazyTensor(all_weights.view((-1, 1)), axis=0)
-        all_results_concat: np.ndarray = (eval_kernel * lazy_weights).sum(
-            axis=0, backend=backend_string, ranges=ranges
-        ).reshape(-1)
+        try:
+            lazy_weights = LazyTensor(all_weights.view((-1, 1)), axis=0)
+            all_results_concat = (eval_kernel * lazy_weights).sum(
+                axis=0,
+                backend=backend_string,
+                ranges=ranges
+            ).reshape(-1)
+        except TypeError:
+            raise ValueError("Failed to compute symbolic evaluation with PyKeOps. Ensure that all_weights and eval_kernel are compatible for lazy tensor operations.")
 
-    # Split results back per field and per type (scalar, gx, gy, gz)
+
+    # For torch
+    all_results_split = BackendTensor.t.split(all_results_concat, M_sizes)
+
+    # For numpy
+    # split_indices = np.cumsum(M_sizes)[:-1]
+    # all_results_split = np.split(all_results_concat, split_indices)
+
     original_n_fields = len(eval_inputs)
-    split_indices = np.cumsum(M_sizes)[:-1]
-    all_results_split = np.split(all_results_concat, split_indices)
-
     scalar_fields = all_results_split[:original_n_fields]
     gx_fields = [None] * original_n_fields
     gy_fields = [None] * original_n_fields
@@ -202,13 +215,13 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInp
 
         for field_name in items[0].__dict__:
             vals = [getattr(item, field_name) for item in items]
-            if not isinstance(vals[0], np.ndarray):
+            if isinstance(vals[0], int):
                 setattr(result, field_name, vals[0])
                 continue
             if vals[0].shape[0] > vals[0].shape[1]:  # _i field: (M, 1, D)
-                setattr(result, field_name, np.concatenate(vals, axis=0))
+                setattr(result, field_name, BackendTensor.t.concatenate(vals, axis=0))
             else:  # _j field: (1, N, D)
-                setattr(result, field_name, np.concatenate(vals, axis=1))
+                setattr(result, field_name, BackendTensor.t.concatenate(vals, axis=1))
         _cast_tensors(result)
         return result
 
