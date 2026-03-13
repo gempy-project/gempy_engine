@@ -95,12 +95,8 @@ def symbolic_evaluator_optimized_stacked(
     if options.compute_scalar_gradient is True:
         # We will stack scalar, then gx, then gy, and optionally gz
         # All of them have the same M_sizes and N_sizes
-        if options.number_dimensions == 3:
-            M_sizes = M_sizes * 4
-            N_sizes = N_sizes * 4
-        else:
-            M_sizes = M_sizes * 3
-            N_sizes = N_sizes * 3
+        M_sizes = M_sizes * 4
+        N_sizes = N_sizes * 4
 
     # Build block-sparse ranges
     ranges = _build_block_sparse_ranges(M_sizes, N_sizes)
@@ -108,30 +104,36 @@ def symbolic_evaluator_optimized_stacked(
     # Concatenate weights
     all_weights = BackendTensor.t.concatenate(weights_list, axis=0)
     if options.compute_scalar_gradient is True:
-        if options.number_dimensions == 3:
-            all_weights = BackendTensor.t.tile(all_weights, 4)
-        else:
-            all_weights = BackendTensor.t.tile(all_weights, 3)
+        all_weights = BackendTensor.t.tile(all_weights, 4)
 
     kernel_data_list = []
-    for ei in eval_inputs:
-        # noinspection PyTypeChecker
-        kernel_data_list.append(evaluation_vectors_preparations(ei, options.kernel_options, axis=None, slice_array=None))
+    # 1. Build a sequentially ordered list of task arguments: (eval_input, axis)
+    prep_tasks = [(ei, None) for ei in eval_inputs]
 
     if options.compute_scalar_gradient is True:
         # X gradient
-        for ei in eval_inputs:
-            # noinspection PyTypeChecker
-            kernel_data_list.append(evaluation_vectors_preparations(ei, options.kernel_options, axis=0, slice_array=None))
+        prep_tasks.extend([(ei, 0) for ei in eval_inputs])
         # Y gradient
-        for ei in eval_inputs:
-            # noinspection PyTypeChecker
-            kernel_data_list.append(evaluation_vectors_preparations(ei, options.kernel_options, axis=1, slice_array=None))
+        prep_tasks.extend([(ei, 1) for ei in eval_inputs])
         # Z gradient
         if options.number_dimensions == 3:
-            for ei in eval_inputs:
-                # noinspection PyTypeChecker
-                kernel_data_list.append(evaluation_vectors_preparations(ei, options.kernel_options, axis=2, slice_array=None))
+            prep_tasks.extend([(ei, 2) for ei in eval_inputs])
+
+    # 2. Define a small wrapper function for the executor to map over
+    def _run_prep(args):
+        ei, axis = args
+        # noinspection PyTypeChecker
+        return evaluation_vectors_preparations(
+            ei,
+            options.kernel_options,
+            axis=axis,
+            slice_array=None
+        )
+
+    # 3. Execute in parallel (preserving order)
+    # Note: You can pass a specific max_workers or let Python decide based on your CPU cores
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        kernel_data_list = list(executor.map(_run_prep, prep_tasks))
 
     concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
     eval_kernel = create_scalar_kernel(concat_kernel_data, options.kernel_options) \
@@ -149,6 +151,7 @@ def symbolic_evaluator_optimized_stacked(
     else:
         from pykeops.torch import LazyTensor
         try:
+            all_weights = all_weights.pin_memory().to("cuda", non_blocking=True)
             lazy_weights = LazyTensor(all_weights.view((-1, 1)), axis=0)
             all_results_concat = (eval_kernel * lazy_weights).sum(
                 axis=0,
@@ -159,6 +162,7 @@ def symbolic_evaluator_optimized_stacked(
             raise ValueError("Failed to compute symbolic evaluation with PyKeOps. Ensure that all_weights and eval_kernel are compatible for lazy tensor operations.")
 
     # For torch
+    all_results_concat = all_results_concat.to("cpu")
     all_results_split = BackendTensor.t.split(all_results_concat, M_sizes)
 
     # For numpy
@@ -197,13 +201,11 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput], max_workers:
     BackendTensor.pykeops_enabled = True
 
     def _stack_sub_struct(items, cls):
-        """Concatenate fields of a sub-dataclass."""
+        """Concatenate fields of a sub-dataclass and move to GPU."""
         if items[0] is None:
             return None
 
         result = cls.__new__(cls)
-
-        # Pre-extracting the first item saves repetitive list lookups
         first_item = items[0]
 
         for field_name in first_item.__dict__:
@@ -214,10 +216,22 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput], max_workers:
                 setattr(result, field_name, first_val)
                 continue
 
-            # Use the shape heuristic to determine axis
+            # 1. Concatenate
             axis = 0 if first_val.shape[0] > first_val.shape[1] else 1
-            setattr(result, field_name, BackendTensor.t.concatenate(vals, axis=axis))
+            concat_val = BackendTensor.t.concatenate(vals, axis=axis)
 
+            # 2. Enforce Contiguity & 3. Move to GPU
+            if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
+                concat_val = concat_val.copy()
+            else:
+                concat_val = concat_val.contiguous()
+
+                # Move to GPU asynchronously if using PyTorch
+                concat_val = concat_val.to('cuda', non_blocking=True)
+
+            setattr(result, field_name, concat_val)
+
+        # Ensure _cast_tensors safely handles tensors that are already on the GPU!
         _cast_tensors(result)
         return result
 
@@ -260,84 +274,6 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput], max_workers:
                 raise RuntimeError(f"Stacking field {field_name} generated an exception: {exc}")
 
     # Handle scalars
-    stacked.nugget_scalar = kernel_data_list[0].nugget_scalar
-    stacked.nugget_grad = kernel_data_list[0].nugget_grad
-
-    return stacked
-
-
-def _build_stacked_kernel_data_(kernel_data_list: list[KernelInput]) -> KernelInput:
-    """Build a stacked KernelInput by concatenating the internal arrays from multiple KernelInput instances.
-    
-    For each sub-dataclass field, arrays with suffix '_i' (shape (M, 1, D)) are concatenated along axis=0,
-    and arrays with suffix '_j' (shape (1, N, D)) are concatenated along axis=1.
-    Scalar fields (nuggets) are taken from the first element (assumed identical across inputs).
-    """
-    from ..kernel_constructor._structs import (
-        OrientationSurfacePointsCoords, CartesianSelector, OrientationsDrift,
-        PointsDrift, FaultDrift, DriftMatrixSelector, _cast_tensors
-    )
-    BackendTensor.pykeops_enabled = True
-
-    def _stack_sub_struct_(items, cls):
-        """Concatenate fields of a sub-dataclass: _i fields along axis=0, _j fields along axis=1.
-        
-        Handles both raw numpy arrays and PyKeOps LazyTensor fields by extracting
-        the underlying numpy data before concatenation, then re-applying _cast_tensors.
-        """
-        result = cls.__new__(cls)
-        if items[0] is None:
-            return None
-
-        for field_name in items[0].__dict__:
-            vals = [getattr(item, field_name) for item in items]
-            if isinstance(vals[0], int):
-                setattr(result, field_name, vals[0])
-                continue
-            if vals[0].shape[0] > vals[0].shape[1]:  # _i field: (M, 1, D)
-                setattr(result, field_name, BackendTensor.t.concatenate(vals, axis=0))
-            else:  # _j field: (1, N, D)
-                setattr(result, field_name, BackendTensor.t.concatenate(vals, axis=1))
-        _cast_tensors(result)
-        return result
-
-    def _stack_sub_struct(items, cls):
-        if not items or items[0] is None:
-            return None
-
-        result = cls.__new__(cls)
-        # Fetch the dict from the first item once to establish fields
-        first_item_dict = items[0].__dict__
-
-        for field_name, first_val in first_item_dict.items():
-            if isinstance(first_val, int):
-                setattr(result, field_name, first_val)
-                continue
-
-            # Use the naming convention instead of shape evaluation
-            axis = 0 if field_name.endswith('_i') else 1
-
-            vals = [getattr(item, field_name) for item in items]
-            setattr(result, field_name, BackendTensor.t.concatenate(vals, axis=axis))
-
-        _cast_tensors(result)
-        return result
-
-    stacked = KernelInput.__new__(KernelInput)
-    stacked.ori_sp_matrices = _stack_sub_struct([kd.ori_sp_matrices for kd in kernel_data_list], OrientationSurfacePointsCoords)
-    stacked.cartesian_selector = _stack_sub_struct([kd.cartesian_selector for kd in kernel_data_list], CartesianSelector)
-    stacked.ori_drift = _stack_sub_struct([kd.ori_drift for kd in kernel_data_list], OrientationsDrift)
-    stacked.ref_drift = _stack_sub_struct([kd.ref_drift for kd in kernel_data_list], PointsDrift)
-    stacked.rest_drift = _stack_sub_struct([kd.rest_drift for kd in kernel_data_list], PointsDrift)
-    stacked.drift_matrix_selector = _stack_sub_struct([kd.drift_matrix_selector for kd in kernel_data_list], DriftMatrixSelector)
-
-    if kernel_data_list[0].ref_fault is not None:
-        stacked.ref_fault = _stack_sub_struct([kd.ref_fault for kd in kernel_data_list], FaultDrift)
-        stacked.rest_fault = _stack_sub_struct([kd.rest_fault for kd in kernel_data_list], FaultDrift)
-    else:
-        stacked.ref_fault = None
-        stacked.rest_fault = None
-
     stacked.nugget_scalar = kernel_data_list[0].nugget_scalar
     stacked.nugget_grad = kernel_data_list[0].nugget_grad
 
