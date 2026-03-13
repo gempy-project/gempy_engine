@@ -159,8 +159,10 @@ def symbolic_evaluator_optimized_stacked(
     else:
         from pykeops.torch import LazyTensor
         try:
-            all_weights = all_weights.pin_memory().to("cuda", non_blocking=True)
+            if BackendTensor.use_gpu:
+                all_weights = all_weights.pin_memory().to("cuda", non_blocking=True)
             lazy_weights = LazyTensor(all_weights.view((-1, 1)), axis=0)
+            
             all_results_concat = (eval_kernel * lazy_weights).sum(
                 axis=0,
                 backend=BackendTensor.get_backend_string(),
@@ -240,11 +242,11 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput], max_workers:
             # 2. Enforce Contiguity & 3. Move to GPU
             if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
                 concat_val = concat_val.copy()
+            elif BackendTensor.use_gpu:
+                concat_val = concat_val.contiguous()
+                concat_val = concat_val.to("cuda", non_blocking=True) # Move to GPU asynchronously if using PyTorch
             else:
                 concat_val = concat_val.contiguous()
-
-                # Move to GPU asynchronously if using PyTorch
-                concat_val = concat_val.to('cuda', non_blocking=True)
 
             setattr(result, field_name, concat_val)
 
