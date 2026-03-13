@@ -136,9 +136,10 @@ def symbolic_evaluator_optimized_stacked(
         kernel_data_list = list(executor.map(_run_prep, prep_tasks))
 
     concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
-    eval_kernel = create_scalar_kernel(concat_kernel_data, options.kernel_options) \
-        if options.compute_scalar_gradient is False \
-        else create_grad_kernel(concat_kernel_data, options.kernel_options)
+    if options.compute_scalar_gradient is True:
+        eval_kernel = create_grad_kernel(concat_kernel_data, options.kernel_options)
+    if options.compute_scalar is True:
+        eval_kernel = create_scalar_kernel(concat_kernel_data, options.kernel_options)
 
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
         from pykeops.numpy import LazyTensor
