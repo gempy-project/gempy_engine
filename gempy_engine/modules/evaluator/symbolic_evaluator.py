@@ -85,12 +85,10 @@ def symbolic_evaluator_optimized_stacked(
     Concatenates all evaluation inputs across stacks, builds block-diagonal ranges,
     performs a single PyKeOps reduction, then splits results back per field.
     """
-    from ...modules.kernel_constructor.kernel_constructor_interface import yield_evaluation_kernel, yield_evaluation_grad_kernel
 
     n_fields = len(eval_inputs)
 
     # Collect sizes: M = grid/eval points (j-dim), N = weights/cov_size (i-dim)
-    # TODO: Reuse grid
     M_sizes = [ei.xyz_to_interpolate.shape[0] for ei in eval_inputs]
     N_sizes = [w.shape[0] for w in weights_list]
 
@@ -160,7 +158,6 @@ def symbolic_evaluator_optimized_stacked(
         except TypeError:
             raise ValueError("Failed to compute symbolic evaluation with PyKeOps. Ensure that all_weights and eval_kernel are compatible for lazy tensor operations.")
 
-
     # For torch
     all_results_split = BackendTensor.t.split(all_results_concat, M_sizes)
 
@@ -188,7 +185,88 @@ def symbolic_evaluator_optimized_stacked(
     return results
 
 
-def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInput:
+import concurrent.futures
+
+
+def _build_stacked_kernel_data(kernel_data_list: list[KernelInput], max_workers: int = 8) -> KernelInput:
+    """Build a stacked KernelInput by concatenating the internal arrays in parallel."""
+    from ..kernel_constructor._structs import (
+        OrientationSurfacePointsCoords, CartesianSelector, OrientationsDrift,
+        PointsDrift, FaultDrift, DriftMatrixSelector, _cast_tensors
+    )
+    BackendTensor.pykeops_enabled = True
+
+    def _stack_sub_struct(items, cls):
+        """Concatenate fields of a sub-dataclass."""
+        if items[0] is None:
+            return None
+
+        result = cls.__new__(cls)
+
+        # Pre-extracting the first item saves repetitive list lookups
+        first_item = items[0]
+
+        for field_name in first_item.__dict__:
+            vals = [getattr(item, field_name) for item in items]
+            first_val = vals[0]
+
+            if isinstance(first_val, int):
+                setattr(result, field_name, first_val)
+                continue
+
+            # Use the shape heuristic to determine axis
+            axis = 0 if first_val.shape[0] > first_val.shape[1] else 1
+            setattr(result, field_name, BackendTensor.t.concatenate(vals, axis=axis))
+
+        _cast_tensors(result)
+        return result
+
+    stacked = KernelInput.__new__(KernelInput)
+
+    # Define the base fields to extract and their corresponding classes
+    tasks = [
+            ("ori_sp_matrices", OrientationSurfacePointsCoords),
+            ("cartesian_selector", CartesianSelector),
+            ("ori_drift", OrientationsDrift),
+            ("ref_drift", PointsDrift),
+            ("rest_drift", PointsDrift),
+            ("drift_matrix_selector", DriftMatrixSelector),
+    ]
+
+    # Safely check for ref_fault using getattr
+    if getattr(kernel_data_list[0], 'ref_fault', None) is not None:
+        tasks.extend([
+                ("ref_fault", FaultDrift),
+                ("rest_fault", FaultDrift)
+        ])
+    else:
+        # Explicitly set them to None on the stacked object to match your original structure
+        stacked.ref_fault = None
+        stacked.rest_fault = None
+    # Execute concatenation in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit tasks: extract the list of sub-structs once before passing to the thread
+        future_to_field = {
+                executor.submit(_stack_sub_struct, [getattr(kd, field) for kd in kernel_data_list], cls): field
+                for field, cls in tasks
+        }
+
+        # Collect results as they finish
+        for future in concurrent.futures.as_completed(future_to_field):
+            field_name = future_to_field[future]
+            try:
+                setattr(stacked, field_name, future.result())
+            except Exception as exc:
+                raise RuntimeError(f"Stacking field {field_name} generated an exception: {exc}")
+
+    # Handle scalars
+    stacked.nugget_scalar = kernel_data_list[0].nugget_scalar
+    stacked.nugget_grad = kernel_data_list[0].nugget_grad
+
+    return stacked
+
+
+def _build_stacked_kernel_data_(kernel_data_list: list[KernelInput]) -> KernelInput:
     """Build a stacked KernelInput by concatenating the internal arrays from multiple KernelInput instances.
     
     For each sub-dataclass field, arrays with suffix '_i' (shape (M, 1, D)) are concatenated along axis=0,
@@ -201,7 +279,7 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInp
     )
     BackendTensor.pykeops_enabled = True
 
-    def _stack_sub_struct(items, cls):
+    def _stack_sub_struct_(items, cls):
         """Concatenate fields of a sub-dataclass: _i fields along axis=0, _j fields along axis=1.
         
         Handles both raw numpy arrays and PyKeOps LazyTensor fields by extracting
@@ -220,6 +298,28 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInp
                 setattr(result, field_name, BackendTensor.t.concatenate(vals, axis=0))
             else:  # _j field: (1, N, D)
                 setattr(result, field_name, BackendTensor.t.concatenate(vals, axis=1))
+        _cast_tensors(result)
+        return result
+
+    def _stack_sub_struct(items, cls):
+        if not items or items[0] is None:
+            return None
+
+        result = cls.__new__(cls)
+        # Fetch the dict from the first item once to establish fields
+        first_item_dict = items[0].__dict__
+
+        for field_name, first_val in first_item_dict.items():
+            if isinstance(first_val, int):
+                setattr(result, field_name, first_val)
+                continue
+
+            # Use the naming convention instead of shape evaluation
+            axis = 0 if field_name.endswith('_i') else 1
+
+            vals = [getattr(item, field_name) for item in items]
+            setattr(result, field_name, BackendTensor.t.concatenate(vals, axis=axis))
+
         _cast_tensors(result)
         return result
 
