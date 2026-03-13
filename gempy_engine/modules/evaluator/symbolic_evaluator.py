@@ -3,7 +3,7 @@ from typing import Optional
 import numpy as np
 
 import gempy_engine
-from ..kernel_constructor._kernels_assembler import create_scalar_kernel
+from ..kernel_constructor._kernels_assembler import create_scalar_kernel, create_grad_kernel
 from ..kernel_constructor._structs import KernelInput
 from ..kernel_constructor._vectors_preparation import evaluation_vectors_preparations
 from ...core.backend_tensor import BackendTensor
@@ -92,30 +92,56 @@ def symbolic_evaluator_optimized_stacked(
     M_sizes = [ei.xyz_to_interpolate.shape[0] for ei in eval_inputs]
     N_sizes = [w.shape[0] for w in weights_list]
 
+    if options.compute_scalar_gradient is True:
+        # We will stack scalar, then gx, then gy, and optionally gz
+        # All of them have the same M_sizes and N_sizes
+        if options.number_dimensions == 3:
+            M_sizes = M_sizes * 4
+            N_sizes = N_sizes * 4
+        else:
+            M_sizes = M_sizes * 3
+            N_sizes = N_sizes * 3
+
     # Build block-sparse ranges
     ranges = _build_block_sparse_ranges(M_sizes, N_sizes)
 
     # Concatenate weights
     all_weights = np.concatenate(weights_list, axis=0)
+    if options.compute_scalar_gradient is True:
+        if options.number_dimensions == 3:
+            all_weights = np.tile(all_weights, 4)
+        else:
+            all_weights = np.tile(all_weights, 3)
 
     kernel_data_list = []
+    for ei in eval_inputs:
+        # noinspection PyTypeChecker
+        kernel_data_list.append(evaluation_vectors_preparations(ei, options.kernel_options, axis=None, slice_array=None))
 
-    if n_fields == 1:
-        BackendTensor.pykeops_enabled = True
-        concat_kernel_data: KernelInput = evaluation_vectors_preparations(eval_inputs[0], options.kernel_options, axis=None, slice_array=None)
-        # BackendTensor.pykeops_enabled = False
-    else:
-        for i in range(n_fields):
-            kernel_data: KernelInput = evaluation_vectors_preparations(eval_inputs[i], options.kernel_options, axis=None, slice_array=None)
-            kernel_data_list.append(kernel_data)
+    if options.compute_scalar_gradient is True:
+        # X gradient
+        for ei in eval_inputs:
+            # noinspection PyTypeChecker
+            kernel_data_list.append(evaluation_vectors_preparations(ei, options.kernel_options, axis=0, slice_array=None))
+        # Y gradient
+        for ei in eval_inputs:
+            # noinspection PyTypeChecker
+            kernel_data_list.append(evaluation_vectors_preparations(ei, options.kernel_options, axis=1, slice_array=None))
+        # Z gradient
+        if options.number_dimensions == 3:
+            for ei in eval_inputs:
+                # noinspection PyTypeChecker
+                kernel_data_list.append(evaluation_vectors_preparations(ei, options.kernel_options, axis=2, slice_array=None))
 
-        concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
-    eval_kernel = create_scalar_kernel(concat_kernel_data, options.kernel_options)
+    concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
+    eval_kernel = create_scalar_kernel(concat_kernel_data, options.kernel_options) \
+        if options.compute_scalar_gradient is False \
+        else create_grad_kernel(concat_kernel_data, options.kernel_options)
 
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
         from pykeops.numpy import LazyTensor
         lazy_weights = LazyTensor(np.asfortranarray(all_weights.reshape(-1, 1)), axis=0)
-        scalar_field_concat: np.ndarray = (eval_kernel * lazy_weights).sum(
+        all_results_concat: np.ndarray = (eval_kernel * lazy_weights).sum(
             axis=0,
             backend=backend_string,
             ranges=ranges
@@ -123,39 +149,25 @@ def symbolic_evaluator_optimized_stacked(
     else:
         from pykeops.torch import LazyTensor
         lazy_weights = LazyTensor(all_weights.view((-1, 1)), axis=0)
-        scalar_field_concat: np.ndarray = (eval_kernel * lazy_weights).sum(
+        all_results_concat: np.ndarray = (eval_kernel * lazy_weights).sum(
             axis=0, backend=backend_string, ranges=ranges
         ).reshape(-1)
 
-    # Split scalar field results back per field
-    split_indices_M = np.cumsum(M_sizes)[:-1]
-    scalar_fields = np.split(scalar_field_concat, split_indices_M)
+    # Split results back per field and per type (scalar, gx, gy, gz)
+    original_n_fields = len(eval_inputs)
+    split_indices = np.cumsum(M_sizes)[:-1]
+    all_results_split = np.split(all_results_concat, split_indices)
 
-    # Handle gradient fields
-    gx_fields = [None] * n_fields
-    gy_fields = [None] * n_fields
-    gz_fields = [None] * n_fields
+    scalar_fields = all_results_split[:original_n_fields]
+    gx_fields = [None] * original_n_fields
+    gy_fields = [None] * original_n_fields
+    gz_fields = [None] * original_n_fields
 
     if options.compute_scalar_gradient is True:
-        eval_gx_kernel = yield_evaluation_grad_kernel(stacked_eval_input, options.kernel_options, axis=0)
-        eval_gy_kernel = yield_evaluation_grad_kernel(stacked_eval_input, options.kernel_options, axis=1)
-
-        gx_concat = (eval_gx_kernel * lazy_weights).sum(axis=0, backend=backend_string, ranges=ranges).reshape(-1)
-        gy_concat = (eval_gy_kernel * lazy_weights).sum(axis=0, backend=backend_string, ranges=ranges).reshape(-1)
-
-        gx_split = np.split(gx_concat, split_indices_M)
-        gy_split = np.split(gy_concat, split_indices_M)
-        gx_fields = list(gx_split)
-        gy_fields = list(gy_split)
-
+        gx_fields = all_results_split[original_n_fields: 2 * original_n_fields]
+        gy_fields = all_results_split[2 * original_n_fields: 3 * original_n_fields]
         if options.number_dimensions == 3:
-            eval_gz_kernel = yield_evaluation_grad_kernel(stacked_eval_input, options.kernel_options, axis=2)
-            gz_concat = (eval_gz_kernel * lazy_weights).sum(axis=0, backend=backend_string, ranges=ranges).reshape(-1)
-            gz_fields = list(np.split(gz_concat, split_indices_M))
-        elif options.number_dimensions == 2:
-            gz_fields = [None] * n_fields
-        else:
-            raise ValueError("Number of dimensions have to be 2 or 3")
+            gz_fields = all_results_split[3 * original_n_fields: 4 * original_n_fields]
 
     # Build ExportedFields per stack
     results = []
