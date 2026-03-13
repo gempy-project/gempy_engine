@@ -186,11 +186,7 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInp
         """
         result = cls.__new__(cls)
         for field_name in items[0].__dict__:
-            vals_raw = [getattr(item, field_name) for item in items]
-            vals = vals_raw
-            if not isinstance(vals[0], np.ndarray):
-                setattr(result, field_name, vals_raw[0])
-                continue
+            vals = [getattr(item, field_name) for item in items]
             if vals[0].shape[0] > vals[0].shape[1]:  # _i field: (M, 1, D)
                 setattr(result, field_name, np.concatenate(vals, axis=0))
             else:  # _j field: (1, N, D)
