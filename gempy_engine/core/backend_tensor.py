@@ -400,5 +400,10 @@ class BackendTensor:
         else:
             return False
 
+    @classmethod
+    def clear_gpu_memory(cls):
+        if BackendTensor.use_gpu:
+            torch.cuda.empty_cache()
+
 
 BackendTensor._change_backend(DEFAULT_BACKEND)
