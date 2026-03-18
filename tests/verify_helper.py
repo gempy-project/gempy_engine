@@ -7,12 +7,16 @@ from approvaltests.reporters import GenericDiffReporter
 
 
 def gempy_verify_array(item, name: str, rtol: float = 1e-5, atol: float = 1e-5, ):
-    # ! You will have to set the path to your diff tool
-    reporter = GenericDiffReporter.create(
-        diff_tool_path=r"pycharm"
-    )
-
-    reporter.extra_args = ["diff"]
+    import os
+    if os.environ.get('CI'):
+        from approvaltests.reporters import PythonNativeReporter
+        reporter = PythonNativeReporter()
+    else:
+        # ! You will have to set the path to your diff tool
+        reporter = GenericDiffReporter.create(
+            diff_tool_path=r"pycharm"
+        )
+        reporter.extra_args = ["diff"]
 
     parameters: Options = NamerFactory \
         .with_parameters(name) \
