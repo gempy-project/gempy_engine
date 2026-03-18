@@ -97,7 +97,7 @@ def test_visualize_uv_map_configurations():
     fig.colorbar(im, ax=axes.tolist(), label='Slip Multiplier')
     plt.suptitle("Finite Fault UV Slip Maps - Various Anisotropy and Tapers", fontsize=16)
     
-    plt.savefig('tests/test_common/test_api/test_faults/finite_fault_uv_maps.png')
+    # plt.savefig('tests/test_common/test_api/test_faults/finite_fault_uv_maps.png')
     plt.show()
 
     print("UV map configurations plotted.")

@@ -69,7 +69,7 @@ def test_spline_taper_configurations():
     plt.grid(True, alpha=0.3)
     
     # Save the plot
-    plt.savefig('tests/test_common/test_api/test_faults/spline_taper_plots.png')
+    # plt.savefig('tests/test_common/test_api/test_faults/spline_taper_plots.png')
     plt.show()
 
     # Assertions
