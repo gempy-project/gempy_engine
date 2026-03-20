@@ -1,7 +1,6 @@
 from typing import Optional
 
 import numpy as np
-import torch
 
 import gempy_engine
 from ..kernel_constructor._kernels_assembler import create_scalar_kernel, create_grad_kernel
@@ -92,32 +91,7 @@ def symbolic_evaluator_optimized_stacked(
     M_sizes = [ei.xyz_to_interpolate.shape[0] for ei in eval_inputs]
     N_sizes = [w.shape[0] for w in weights_list]
 
-    if options.compute_scalar_gradient is True:
-        # We will stack scalar, then gx, then gy, and optionally gz
-        # All of them have the same M_sizes and N_sizes
-        M_sizes = M_sizes * 4
-        N_sizes = N_sizes * 4
-
-    # Build block-sparse ranges
-    ranges = _build_block_sparse_ranges(M_sizes, N_sizes)
-
-    # Concatenate weights
-    all_weights = BackendTensor.t.concatenate(weights_list, axis=0)
-    if options.compute_scalar_gradient is True:
-        all_weights = BackendTensor.t.tile(all_weights, 4)
-
     kernel_data_list = []
-    # 1. Build a sequentially ordered list of task arguments: (eval_input, axis)
-    prep_tasks = [(ei, None) for ei in eval_inputs]
-
-    if options.compute_scalar_gradient is True:
-        # X gradient
-        prep_tasks.extend([(ei, 0) for ei in eval_inputs])
-        # Y gradient
-        prep_tasks.extend([(ei, 1) for ei in eval_inputs])
-        # Z gradient
-        if options.number_dimensions == 3:
-            prep_tasks.extend([(ei, 2) for ei in eval_inputs])
 
     # 2. Define a small wrapper function for the executor to map over
     def _run_prep(args):
@@ -130,15 +104,49 @@ def symbolic_evaluator_optimized_stacked(
             slice_array=None
         )
 
-    # 3. Execute in parallel (preserving order)
-    # Note: You can pass a specific max_workers or let Python decide based on your CPU cores
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        kernel_data_list = list(executor.map(_run_prep, prep_tasks))
+    if options.compute_scalar is True:
+        prep_tasks = [(ei, None) for ei in eval_inputs]
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            kernel_data_list = list(executor.map(_run_prep, prep_tasks))
 
-    concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
-    eval_kernel = create_scalar_kernel(concat_kernel_data, options.kernel_options) \
-        if options.compute_scalar_gradient is False \
-        else create_grad_kernel(concat_kernel_data, options.kernel_options)
+        concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
+        eval_kernel_scalar = create_scalar_kernel(concat_kernel_data, options.kernel_options)
+
+    if options.compute_scalar_gradient is True:
+        prep_tasks =[(ei, 0) for ei in eval_inputs]
+        prep_tasks.extend([(ei, 1) for ei in eval_inputs])  # Y gradient
+        prep_tasks.extend([(ei, 2) for ei in eval_inputs])  # Z gradient
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            kernel_data_list = list(executor.map(_run_prep, prep_tasks))
+
+        concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
+        eval_kernel_grad = create_grad_kernel(concat_kernel_data, options.kernel_options)
+
+    # region kernels
+    prep_tasks = []
+    match (options.compute_scalar, options.compute_scalar_gradient):
+        case (True, True):
+            # Concatenate eval kernel
+            eval_kernel = BackendTensor.t.concatenate([eval_kernel_scalar, eval_kernel_grad], axis=1)
+            tile_factor = 4
+        case (True, False):
+            eval_kernel = eval_kernel_scalar
+            tile_factor = 1
+        case (False, True):
+            eval_kernel = eval_kernel_grad
+            tile_factor = 3
+        case (False, False):
+            raise ValueError("Cannot compute scalar and scalar gradient simultaneously")
+    # endregion
+
+    M_sizes = M_sizes * tile_factor
+    N_sizes = N_sizes * tile_factor
+    # Build block-sparse ranges
+    ranges = _build_block_sparse_ranges(M_sizes, N_sizes)
+    # Concatenate weights
+    all_weights = BackendTensor.t.concatenate(weights_list, axis=0)
+    all_weights = BackendTensor.t.tile(all_weights, tile_factor)
 
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
         from pykeops.numpy import LazyTensor
@@ -175,11 +183,20 @@ def symbolic_evaluator_optimized_stacked(
     gy_fields = [None] * original_n_fields
     gz_fields = [None] * original_n_fields
 
-    if options.compute_scalar_gradient is True:
-        gx_fields = all_results_split[original_n_fields: 2 * original_n_fields]
-        gy_fields = all_results_split[2 * original_n_fields: 3 * original_n_fields]
-        if options.number_dimensions == 3:
+    match (options.compute_scalar, options.compute_scalar_gradient):
+        case (True, True):
+            # Concatenate eval kernel
+            gx_fields = all_results_split[original_n_fields: 2 * original_n_fields]
+            gy_fields = all_results_split[2 * original_n_fields: 3 * original_n_fields]
             gz_fields = all_results_split[3 * original_n_fields: 4 * original_n_fields]
+        case (True, False):
+            pass
+        case (False, True):
+            gx_fields = all_results_split[0 * original_n_fields: 1 * original_n_fields]
+            gy_fields = all_results_split[1 * original_n_fields: 2 * original_n_fields]
+            gz_fields = all_results_split[2 * original_n_fields: 3 * original_n_fields]
+        case (False, False):
+            raise ValueError("Cannot compute scalar and scalar gradient simultaneously")
 
     # Build ExportedFields per stack
     results = []

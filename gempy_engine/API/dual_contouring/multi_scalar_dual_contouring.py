@@ -56,6 +56,7 @@ def dual_contouring_multi_scalar(
 
     dual_contouring_options = copy.deepcopy(options)
     dual_contouring_options.evaluation_options.compute_scalar_gradient = True
+    dual_contouring_options.evaluation_options.compute_scalar          = False
 
     # * 1) Triangulation code
     left_right_codes, base_number = get_triangulation_codes(octree_list)
