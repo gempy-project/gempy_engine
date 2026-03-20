@@ -26,7 +26,7 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
                            data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
     """Interpolate all scalar fields given a xyz array of points"""
 
-    if False:
+    if True:
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
     else:
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack_flat(data_descriptor, interpolation_input, options)
