@@ -26,7 +26,8 @@ def gempy_verify_array(item, name: str, rtol: float = 1e-5, atol: float = 1e-5, 
         reporter=reporter
     )
 
-    verify(np.asarray(item), options=parameters)
+    array_str = np.array2string(np.asarray(item), precision=3, separator=' ', max_line_width=np.inf)
+    verify(array_str, options=parameters)
 
 
 class ArrayComparator(Comparator):
