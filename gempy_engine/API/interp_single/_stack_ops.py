@@ -2,6 +2,7 @@ from typing import List
 
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
 from ._interp_scalar_field import _evaluate_sys_eq, compute_weights
+from ...core.backend_tensor import BackendTensor
 from ...core.data import TensorsStructure, SurfacePoints, Orientations, SurfacePointsInternals, OrientationsInternals
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.input_data_descriptor import InputDataDescriptor
@@ -74,7 +75,7 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
         state.solver_inputs[i] = chunk_solver_inputs[idx]
 
     # Evaluate this chunk
-    chunk_eval_inputs, chunk_exported_fields = _evaluate(
+    chunk_eval_inputs, chunk_exported_fields = _evaluate_optimized(
         interpolation_inputs=chunk_interpolation_inputs,
         options=state.options,
         solver_inputs=chunk_solver_inputs,
@@ -189,6 +190,40 @@ def _evaluate(interpolation_inputs: list[InterpolationInput], options: Interpola
         exported_fields_per_stack.append(exported_fields)
         # endregion
     return eval_inputs, exported_fields_per_stack
+
+
+def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
+                        tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
+    from gempy_engine.modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
+    import numpy as np
+    
+    eval_inputs: list[EvaluatorInput] = []
+    for idx, global_i in enumerate(stack_indices):
+        stack_structure.stack_number = global_i
+
+        eval_input: EvaluatorInput = EvaluatorInput(
+            solver_input=solver_inputs[idx],
+            interpolation_input=(interpolation_inputs[idx]),
+            tensor_struct=tensor_structs[idx],
+            only_surface_points=False
+        )
+        eval_inputs.append(eval_input)
+
+    # Collect weights per stack
+    weights_list = [ei.solver_input.weights_x0 for ei in eval_inputs]
+
+    # Call the stacked evaluator (single PyKeOps call with block-sparse ranges)
+    exported_fields_list: list[ExportedFields] = symbolic_evaluator_optimized_stacked(
+        eval_inputs=eval_inputs,
+        weights_list=weights_list,
+        options=options
+    )
+
+    for idx, exported_fields in enumerate(exported_fields_list):
+        exported_fields.set_structure_values_from_eval_input(eval_inputs[idx])
+        exported_fields.debug = eval_inputs[idx].solver_input.debug
+
+    return eval_inputs, exported_fields_list
 
 
 def _compute_weights_for_stacks(

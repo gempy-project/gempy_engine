@@ -156,10 +156,19 @@ def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: Orien
 
     is_cached_matrices = DistancesBuffer.last_internal_distances_matrices is not None
     if is_gradient and is_cached_matrices and is_testing is False:
-        distance_matrices: InternalDistancesMatrices = _compute_distances_using_cache(
-            cs=cs,
-            last_internal_distances_matrices=DistancesBuffer.last_internal_distances_matrices
-        )
+        # Check if the cached matrices have the same ni as the current cartesian selector
+        # If we are stacking scalar and gradients, the ni of the stacked cartesian selector will be larger
+        if DistancesBuffer.last_internal_distances_matrices.dif_ref_ref.shape[0] == cs.hu_sel_i.shape[0]:
+            distance_matrices: InternalDistancesMatrices = _compute_distances_using_cache(
+                cs=cs,
+                last_internal_distances_matrices=DistancesBuffer.last_internal_distances_matrices
+            )
+        else:
+            distance_matrices: InternalDistancesMatrices = _compute_distances_new(
+                cs=cs,
+                ori_sp_matrices=ori_sp_matrices,
+                square_distance=square_distance
+            )
     else:
         distance_matrices: InternalDistancesMatrices = _compute_distances_new(
             cs=cs,
@@ -255,6 +264,9 @@ def _compute_distances_new(cs: CartesianSelector, ori_sp_matrices, square_distan
         r_rest_ref = bt.t.sqrt(r_rest_ref + epsilon)
     # endregion
 
+    hu_ref_grad = bt.t.sum(dif_ref_ref * (cs.h_sel_ref_i * cs.hu_sel_j), axis=-1)  # Axis dependent
+    hu_rest_grad = bt.t.sum(dif_rest_rest * (cs.h_sel_ref_i * cs.hu_sel_j), axis=-1)  # Axis dependent
+
     new_distance_matrices = InternalDistancesMatrices(
         dif_ref_ref=dif_ref_ref,
         dif_rest_rest=dif_rest_rest,
@@ -269,8 +281,8 @@ def _compute_distances_new(cs: CartesianSelector, ori_sp_matrices, square_distan
         r_rest_rest=r_rest_rest, # used
         hu_ref=hu_ref, # used for normal scalar
         hu_rest=hu_rest,
-        hu_ref_grad=None,  # * These are set on the compute_from_cache because we assume that we have already computed the rest at least once
-        hu_rest_grad=None,
+        hu_ref_grad=hu_ref_grad,
+        hu_rest_grad=hu_rest_grad,
     )
     return new_distance_matrices
 
