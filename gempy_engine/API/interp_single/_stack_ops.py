@@ -1,4 +1,5 @@
-from typing import List
+from typing import List, Optional
+import concurrent.futures
 
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
 from ._interp_scalar_field import _evaluate_sys_eq, compute_weights
@@ -196,7 +197,7 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
                         tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
     from gempy_engine.modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
     import numpy as np
-    
+
     eval_inputs: list[EvaluatorInput] = []
     for idx, global_i in enumerate(stack_indices):
         stack_structure.stack_number = global_i
@@ -227,6 +228,43 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
 
 
 def _compute_weights_for_stacks(
+        interpolation_inputs: list[InterpolationInput],
+        options: InterpolationOptions,
+        stack_structure: StacksStructure,
+        tensor_structs: list[TensorsStructure],
+        stack_indices: list[int] | None = None
+) -> list[SolverInput_v2]:
+    if stack_indices is None:
+        stack_indices = list(range(stack_structure.n_stacks))
+
+    def _run_prep(idx_global_i: tuple[int, int]) -> SolverInput_v2:
+        idx, global_i = idx_global_i
+        # Copy stack_structure to avoid race conditions on stack_number
+        from copy import copy
+        local_stack_structure = copy(stack_structure)
+        local_stack_structure.stack_number = global_i
+
+        solver_input: SolverInput_v2 = input_preprocess_v2(
+            data_shape=tensor_structs[idx],
+            interpolation_input=interpolation_inputs[idx]
+        )
+
+        # region compute weights
+        weights = compute_weights(
+            solver_input=solver_input,
+            stack_number=global_i,
+            options=options
+        )
+        solver_input.weights_x0 = weights
+        return solver_input
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        solver_inputs = list(executor.map(_run_prep, enumerate(stack_indices)))
+
+    return solver_inputs
+
+
+def _compute_weights_for_stacks_single_thread(
         interpolation_inputs: list[InterpolationInput],
         options: InterpolationOptions,
         stack_structure: StacksStructure,
