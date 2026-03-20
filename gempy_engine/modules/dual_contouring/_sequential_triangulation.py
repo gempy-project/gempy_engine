@@ -1,7 +1,7 @@
 from typing import Any
 
 from ._aux import _surface_slicer
-from ._gen_vertices import _compute_vertices
+from ._gen_vertices_legacy import _compute_vertices
 from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
 from ...modules.dual_contouring.fancy_triangulation import triangulate

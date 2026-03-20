@@ -22,6 +22,8 @@ from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.octree_level import OctreeLevel
 from ...core.utils import gempy_profiler_decorator
 from ...modules.dual_contouring._aux import _surface_slicer
+from ...modules.dual_contouring._apply_mesh_modifications import _remove_triangles_in_voxels
+from ...modules.dual_contouring._weighted_qef_setup import find_and_inject_multi_surface_constraints
 from ...modules.dual_contouring.dual_contouring_interface import (find_intersection_on_edge, get_triangulation_codes,
                                                                   get_masked_codes, mask_generation, apply_relations_vertex_overlap)
 
@@ -107,6 +109,7 @@ def dual_contouring_multi_scalar(
     
     # region Vertex gen and triangulation
     left_right_per_mesh = []
+    surface_to_stack = []  # track which stack each surface belongs to
     # Generate meshes for each scalar field
     if LEGACY:=False:
         for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
@@ -138,15 +141,35 @@ def dual_contouring_multi_scalar(
                 )
                 
                 dc_data_per_surface_all.append(dc_data_per_surface)
+                surface_to_stack.append(n_scalar_field)
                 if (compute_overlap):
                     left_right_per_mesh.append(all_left_right_codes[n_scalar_field][dc_data_per_surface.valid_voxels])
+
+        # --- Weighted QEF: inject cross-surface constraints before vertex generation ---
+        if compute_overlap and left_right_per_mesh:
+            find_and_inject_multi_surface_constraints(
+                dc_data_list=dc_data_per_surface_all,
+                left_right_per_mesh=left_right_per_mesh,
+                base_number=base_number,
+            )
 
         all_meshes = compute_dual_contouring_v2(
             dc_data_list=dc_data_per_surface_all,
         )
     # endregion
-        if compute_overlap:
-            apply_relations_vertex_overlap(all_meshes, data_descriptor.stack_structure, left_right_per_mesh)
+        # --- Vertex averaging for exact watertightness at overlap voxels ---
+        if compute_overlap and left_right_per_mesh:
+            _average_overlapping_vertices(all_meshes, left_right_per_mesh, base_number)
+
+        # --- Remove triangles from layer surfaces at fault overlap voxels ---
+        if compute_overlap and left_right_per_mesh:
+            _remove_fault_overlap_triangles(
+                all_meshes=all_meshes,
+                left_right_per_mesh=left_right_per_mesh,
+                base_number=base_number,
+                surface_to_stack=surface_to_stack,
+                stacks_structure=data_descriptor.stack_structure,
+            )
 
     return all_meshes
 
@@ -263,4 +286,102 @@ def _interp_on_edges(
         slicer_idx_start = slicer_idx_end
     
     return gradients
+
+
+def _average_overlapping_vertices(
+        all_meshes: List[DualContouringMesh],
+        left_right_per_mesh: List[np.ndarray],
+        base_number: tuple[int, int, int],
+) -> None:
+    """Average vertex positions at shared voxels for exact watertightness.
+
+    For each unique voxel code that appears in multiple surfaces, compute the
+    mean vertex position across *all* surfaces that share it and write that
+    single position back to every surface.  This avoids the cumulative drift
+    that pairwise averaging would cause when 3+ surfaces meet at a voxel.
+    """
+    from collections import defaultdict
+    from ...modules.dual_contouring._find_vertex_overlap import _generate_voxel_codes
+
+    n = len(all_meshes)
+    if n < 2:
+        return
+
+    codes = _generate_voxel_codes(left_right_per_mesh, base_number)
+
+    # Build a map: voxel_code -> list of (mesh_idx, local_vertex_idx)
+    code_to_entries: dict[int, list[tuple[int, int]]] = defaultdict(list)
+    for mesh_idx in range(n):
+        for local_idx, code in enumerate(codes[mesh_idx]):
+            code_to_entries[int(code)].append((mesh_idx, local_idx))
+
+    # For each voxel code shared by 2+ surfaces, average and write back
+    for code, entries in code_to_entries.items():
+        if len(entries) < 2:
+            continue
+
+        # Compute mean vertex position across all surfaces at this voxel
+        positions = np.array([all_meshes[mi].vertices[li] for mi, li in entries])
+        avg = positions.mean(axis=0)
+
+        # Write the averaged position back to every surface
+        for mi, li in entries:
+            all_meshes[mi].vertices[li] = avg
+
+
+def _remove_fault_overlap_triangles(
+        all_meshes: List[DualContouringMesh],
+        left_right_per_mesh: List[np.ndarray],
+        base_number: tuple[int, int, int],
+        surface_to_stack: List[int],
+        stacks_structure: 'StacksStructure',
+) -> None:
+    """Remove triangles from layer surfaces at voxels that overlap with a fault.
+
+    For every (fault_stack, layer_stack) pair indicated by
+    ``stacks_structure.faults_relations``, find the voxels shared between each
+    fault surface and each layer surface and call
+    ``_remove_triangles_in_voxels`` on the *layer* mesh with mode ``'all'``
+    (conservative: only remove triangles whose **all** vertices lie in the
+    overlap zone).
+    """
+    from ...modules.dual_contouring._find_vertex_overlap import _generate_voxel_codes
+
+    faults_relations = stacks_structure.faults_relations
+    if faults_relations is None:
+        return
+
+    n_meshes = len(all_meshes)
+    if n_meshes < 2:
+        return
+
+    codes = _generate_voxel_codes(left_right_per_mesh, base_number)
+
+    n_stacks = stacks_structure.n_stacks
+
+    # Iterate over fault → destination stack pairs
+    for fault_stack in range(n_stacks):
+        for dest_stack in range(n_stacks):
+            if not faults_relations[fault_stack, dest_stack]:
+                continue
+
+            # Collect surface indices belonging to each stack
+            fault_surface_indices = [si for si in range(n_meshes) if surface_to_stack[si] == fault_stack]
+            dest_surface_indices = [si for si in range(n_meshes) if surface_to_stack[si] == dest_stack]
+
+            for fi in fault_surface_indices:
+                for di in dest_surface_indices:
+                    common = np.intersect1d(codes[fi], codes[di], assume_unique=False)
+                    if common.size == 0:
+                        continue
+
+                    # Find local vertex indices in the destination mesh
+                    mask_d = np.isin(codes[di], common)
+                    dest_voxel_indices = np.where(mask_d)[0]
+
+                    _remove_triangles_in_voxels(
+                        mesh=all_meshes[di],
+                        voxel_indices=dest_voxel_indices,
+                        mode='all'
+                    )
 

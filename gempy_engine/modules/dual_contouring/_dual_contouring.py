@@ -8,7 +8,7 @@ from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.utils import gempy_profiler_decorator
 from ._parallel_triangulation import _should_use_parallel_processing, _process_surface_batch, _init_worker
 from ._sequential_triangulation import _sequential_triangulation
-from ._gen_vertices import _compute_vertices
+from ._gen_vertices_legacy import _compute_vertices
 
 # Multiprocessing imports
 try:
