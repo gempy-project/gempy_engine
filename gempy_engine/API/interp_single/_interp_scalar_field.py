@@ -1,26 +1,29 @@
 import warnings
-
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Any, Union
 
 import numpy as np
+from numpy import dtype, ndarray
 
 import gempy_engine.config
 from ...core.backend_tensor import BackendTensor
 from ...core.data.exported_fields import ExportedFields
-from ...core.data.internal_structs import SolverInput
+from ...core.data.internal_structs import SolverInput, SolverInput_v2, EvaluatorInput
 from ...core.data.options import KernelOptions, InterpolationOptions
 from ...modules.evaluator.generic_evaluator import generic_evaluator
 from ...modules.evaluator.symbolic_evaluator import symbolic_evaluator
-
 from ...modules.kernel_constructor import kernel_constructor_interface as kernel_constructor
 from ...modules.solver import solver_interface
 from ...modules.weights_cache.weights_cache_interface import WeightCache, generate_cache_key
 
 
-
 def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions, stack_number: int) -> Tuple[np.ndarray, ExportedFields]:
-    # region Solver
+    weights = compute_weights(solver_input, stack_number, options)
+    exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options)
 
+    return weights, exported_fields
+
+
+def compute_weights(solver_input: Union[SolverInput, SolverInput_v2] , stack_number: int, options: InterpolationOptions) -> ndarray[tuple[Any, ...], dtype[Any]]:
     weights_key = f"{options.cache_model_name}.{stack_number}"
     weights_hash = None
     match options.cache_mode:
@@ -29,7 +32,7 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
         case InterpolationOptions.CacheMode.CACHE | InterpolationOptions.CacheMode.IN_MEMORY_CACHE:
             weights_cached: Optional[dict] = WeightCache.load_weights(
                 key=weights_key,
-                look_in_disk= not options.cache_mode == InterpolationOptions.CacheMode.IN_MEMORY_CACHE
+                look_in_disk=not options.cache_mode == InterpolationOptions.CacheMode.IN_MEMORY_CACHE
             )
             ts = options.temp_interpolation_values.start_computation_ts
             if ts == -1:
@@ -42,16 +45,15 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
                             "ts": ts
                     }
                 )
-        case  InterpolationOptions.CacheMode.CLEAR_CACHE:
+        case InterpolationOptions.CacheMode.CLEAR_CACHE:
             WeightCache.initialize_cache_dir()
             weights_cached = None
         case _:
             raise ValueError("Cache mode not recognized")
 
-    
     BackendTensor.pykeops_enabled = False
     match weights_cached:
-        case None :
+        case None:
             weights = _solve_and_store_weights(
                 solver_input=solver_input,
                 kernel_options=options.kernel_options,
@@ -69,13 +71,7 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
             weights = weights_cached["weights"]
         case _:
             raise ValueError("Something went wrong with the cache")
-
-    # endregion
-
-    BackendTensor.pykeops_enabled = BackendTensor.use_pykeops
-    exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options)
-
-    return weights, exported_fields
+    return weights
 
 
 def _solve_and_store_weights(solver_input, kernel_options, weights_key, weights_hash):
@@ -128,10 +124,12 @@ def _optimize_nuggets_against_condition_number(A_matrix, interp_input, kernel_op
     raise ContinueEpoch()
 
 
-def _evaluate_sys_eq(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions) -> ExportedFields:
-    if BackendTensor.pykeops_enabled is True:
-        exported_fields = symbolic_evaluator(solver_input, weights, options)
+def _evaluate_sys_eq(eval_input: Union[SolverInput, EvaluatorInput], weights: np.ndarray, options: InterpolationOptions) -> ExportedFields:
+    BackendTensor.pykeops_enabled = BackendTensor.use_pykeops
+    if BackendTensor.pykeops_enabled:
+        exported_fields = symbolic_evaluator(eval_input, weights, options)
     else:
-        exported_fields = generic_evaluator(solver_input, weights, options)
+        exported_fields = generic_evaluator(eval_input, weights, options)
+
 
     return exported_fields

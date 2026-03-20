@@ -12,7 +12,7 @@ from gempy_engine.core.data.stack_relation_type import StackRelationType
 
 @dataclass
 class ScalarFieldOutput:
-    weights: np.ndarray
+    weights: np.ndarray | None
     grid: EngineGrid
 
     exported_fields: ExportedFields

@@ -6,6 +6,9 @@ from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data import InterpolationOptions, SurfacePoints, Orientations, TensorsStructure
 from gempy_engine.core.data.engine_grid import EngineGrid, RegularGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+from gempy_engine.core.data.interp_output import InterpOutput
+from gempy_engine.core.data.octree_level import OctreeLevel
+from gempy_engine.core.data.options import MeshExtractionMaskingOptions
 from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
@@ -26,19 +29,19 @@ def test_public_interface_simplest_model():
     # region InterpolationInput
     surface_points: SurfacePoints = SurfacePoints(
         sp_coords=np.array([
-            [0.25010, 0.50010, 0.37510],
-            [0.50010, 0.50010, 0.37510],
-            [0.66677, 0.50010, 0.41677],
-            [0.70843, 0.50010, 0.47510],
-            [0.75010, 0.50010, 0.54177],
-            [0.58343, 0.50010, 0.39177],
-            [0.73343, 0.50010, 0.50010],
+                [0.25010, 0.50010, 0.37510],
+                [0.50010, 0.50010, 0.37510],
+                [0.66677, 0.50010, 0.41677],
+                [0.70843, 0.50010, 0.47510],
+                [0.75010, 0.50010, 0.54177],
+                [0.58343, 0.50010, 0.39177],
+                [0.73343, 0.50010, 0.50010],
         ]))
 
     orientations: Orientations = Orientations(
         dip_positions=np.array([
-            [0.25010, 0.50010, 0.54177],
-            [0.66677, 0.50010, 0.62510],
+                [0.25010, 0.50010, 0.54177],
+                [0.66677, 0.50010, 0.62510],
         ]),
         dip_gradients=np.array([[0, 0, 1],
                                 [-.6, 0, .8]])
@@ -94,7 +97,12 @@ def test_public_interface_simplest_model():
         options=interpolation_options,
         structure=input_data_descriptor
     )
-    
+
+    _verify_scalar_field(
+        solutions=solutions,
+        name="simplest_model"
+    )
+
     if plot_pyvista or False:
         pv.global_theme.show_edges = True
         p = pv.Plotter()
@@ -104,9 +112,87 @@ def test_public_interface_simplest_model():
         # If they are torch tensors convert to numpy
         if BackendTensor.engine_backend == AvailableBackends.PYTORCH and isinstance(surface_points_to_plot, BackendTensor.t.Tensor):
             surface_points_to_plot = BackendTensor.t.to_numpy(surface_points_to_plot)
-            
+
         plot_points(p, surface_points_to_plot)
         p.show()
+
+
+def test_graben_fault_model(graben_fault_model):
+    interpolation_input: InterpolationInput
+    structure: InputDataDescriptor
+    options: InterpolationOptions
+
+    interpolation_input, structure, options = graben_fault_model
+
+    options.compute_scalar_gradient = False
+    options.evaluation_options.dual_contouring = True
+    options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
+    options.evaluation_options.dual_conturing_fancy = True
+    options.debug = True
+
+    options.evaluation_options.number_octree_levels = 5
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
+
+    if plot_pyvista or False:
+        pv.global_theme.show_edges = True
+        p = pv.Plotter()
+        plot_octree_pyvista(p, solutions.octrees_output, options.number_octree_levels - 1)
+        plot_dc_meshes(p, solutions.dc_meshes[0])
+        surface_points_to_plot = interpolation_input.surface_points.sp_coords
+        # If they are torch tensors convert to numpy
+        if BackendTensor.engine_backend == AvailableBackends.PYTORCH and isinstance(surface_points_to_plot, BackendTensor.t.Tensor):
+            surface_points_to_plot = BackendTensor.t.to_numpy(surface_points_to_plot)
+
+        plot_points(p, surface_points_to_plot)
+        p.show()
+
+    _verify_scalar_field(
+        solutions=solutions,
+        name="Graben"
+    )
+
+
+def test_graben_fault_model_independent(graben_fault_model):
+    interpolation_input: InterpolationInput
+    structure: InputDataDescriptor
+    options: InterpolationOptions
+
+    interpolation_input, structure, options = graben_fault_model
+    structure.stack_structure.faults_relations = np.array(
+        [[False, False, True],
+         [False, False, True],
+         [False, False, False]
+         ]
+    )
+
+    options.compute_scalar_gradient = False
+    options.evaluation_options.dual_contouring = True
+    options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
+    options.evaluation_options.dual_conturing_fancy = True
+    options.debug = True
+
+    options.evaluation_options.number_octree_levels = 5
+    solutions: Solutions = compute_model(interpolation_input, options, structure)
+
+    if plot_pyvista or False:
+        pv.global_theme.show_edges = True
+        p = pv.Plotter()
+        plot_octree_pyvista(p, solutions.octrees_output, options.number_octree_levels - 1)
+        plot_dc_meshes(p, solutions.dc_meshes[0])
+        surface_points_to_plot = interpolation_input.surface_points.sp_coords
+        # If they are torch tensors convert to numpy
+        if BackendTensor.engine_backend == AvailableBackends.PYTORCH and isinstance(surface_points_to_plot, BackendTensor.t.Tensor):
+            surface_points_to_plot = BackendTensor.t.to_numpy(surface_points_to_plot)
+
+        plot_points(p, surface_points_to_plot)
+        p.show()
+
+
+def _verify_scalar_field(solutions, name):
+    outputs_centers_: InterpOutput = solutions.octrees_output[-1].outputs_centers[0]
+    scalar_field = outputs_centers_.exported_fields.scalar_field
+    scalar_field = scalar_field[::int(len(scalar_field) / 50)]  # Pick 50 values from the scalar field array
+    gempy_verify_array(scalar_field, name)
 
 
 # noinspection DuplicatedCode

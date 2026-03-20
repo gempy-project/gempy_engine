@@ -37,7 +37,6 @@ class InterpolationOptions(BaseModel):
     cache_model_name: str  # : Model name for the cache
     block_solutions_type: RawArraysSolution.BlockSolutionType
     sigmoid_slope: int
-    debug_water_tight: bool = False
 
     # region Volatile
     temp_interpolation_values: TempInterpolationValues = Field(
