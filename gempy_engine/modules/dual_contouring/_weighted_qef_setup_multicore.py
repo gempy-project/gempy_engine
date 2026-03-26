@@ -107,8 +107,6 @@ def _build_allowed_partners(
                 continue
             # Skip fault-related pairs: the destination triangles will be
             # removed and the fault should keep its own clean QEF.
-            if faults_relations[si, sj] or faults_relations[sj, si]:
-                continue
             # Allow non-fault overlapping pairs (erosion/onlap watertight)
             allowed.add(j)
         partners[i] = allowed if allowed else None
