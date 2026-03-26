@@ -149,7 +149,9 @@ def dual_contouring_multi_scalar(
                 dc_data_list=dc_data_per_surface_all,
                 left_right_per_mesh=left_right_per_mesh,
                 base_number=base_number,
-                max_workers=None
+                max_workers=None,
+                surface_to_stack=surface_to_stack,
+                faults_relations=data_descriptor.stack_structure.faults_relations
             )
 
         all_meshes = compute_dual_contouring_v2(
