@@ -168,7 +168,7 @@ def dual_contouring_multi_scalar(
             )
 
         # --- Remove triangles from layer surfaces at fault overlap voxels ---
-        if compute_overlap and left_right_per_mesh and False:
+        if compute_overlap and left_right_per_mesh and True:
             _remove_fault_overlap_triangles(
                 all_meshes=all_meshes,
                 left_right_per_mesh=left_right_per_mesh,
@@ -353,6 +353,26 @@ def _average_overlapping_vertices(
     for fi, di in fault_directed_pairs:
         fault_involved_pairs.add((fi, di))
         fault_involved_pairs.add((di, fi))
+
+    # Also exclude fault–fault pairs (both surfaces belong to fault stacks)
+    if (surface_to_stack is not None
+            and stacks_structure is not None
+            and stacks_structure.faults_relations is not None):
+        faults_relations = stacks_structure.faults_relations
+        n_stacks = stacks_structure.n_stacks
+        is_fault_stack = set()
+        for fs in range(n_stacks):
+            for ds in range(n_stacks):
+                if faults_relations[fs, ds]:
+                    is_fault_stack.add(fs)
+                    break
+        for i in range(n):
+            for j in range(i + 1, n):
+                si = surface_to_stack[i]
+                sj = surface_to_stack[j]
+                if si in is_fault_stack and sj in is_fault_stack:
+                    fault_involved_pairs.add((i, j))
+                    fault_involved_pairs.add((j, i))
 
     # --- 1. Averaging for erosion/onlap pairs only -------------------------
     # Only average vertices between surfaces that are in different stacks
