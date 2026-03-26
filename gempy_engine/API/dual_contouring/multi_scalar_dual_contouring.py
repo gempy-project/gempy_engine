@@ -161,7 +161,11 @@ def dual_contouring_multi_scalar(
         # endregion
         # --- Vertex averaging for exact watertightness at overlap voxels ---
         if compute_overlap and left_right_per_mesh:
-            _average_overlapping_vertices(all_meshes, left_right_per_mesh, base_number)
+            _average_overlapping_vertices(
+                all_meshes, left_right_per_mesh, base_number,
+                surface_to_stack=surface_to_stack,
+                stacks_structure=data_descriptor.stack_structure
+            )
 
         # --- Remove triangles from layer surfaces at fault overlap voxels ---
         if compute_overlap and left_right_per_mesh:
@@ -292,9 +296,16 @@ def _interp_on_edges(
 def _average_overlapping_vertices(
         all_meshes: List[DualContouringMesh],
         left_right_per_mesh: List[np.ndarray],
-        base_number: tuple[int, int, int]
+        base_number: tuple[int, int, int],
+        surface_to_stack: List[int] = None,
+        stacks_structure: 'StacksStructure' = None
 ) -> None:
-    """Vectorized vertex averaging (No threads, pure C-level NumPy)."""
+    """Vertex sharing at overlap voxels.
+    
+    For fault–layer overlaps the fault vertex is copied one-directionally
+    to the layer so the fault plane stays smooth (destination triangles
+    will be removed anyway).  For all other overlaps vertices are averaged.
+    """
     from ...modules.dual_contouring._find_vertex_overlap import _generate_voxel_codes
 
     n = len(all_meshes)
@@ -303,38 +314,62 @@ def _average_overlapping_vertices(
 
     codes = _generate_voxel_codes(left_right_per_mesh, base_number)
 
-    # 1. Flatten everything into global 1D/2D arrays
-    all_codes = np.concatenate(codes)
-    all_vertices = np.concatenate([m.vertices for m in all_meshes])
+    # --- Determine directed fault pairs (origin_surface → dest_surface) ---
+    fault_directed_pairs: set = set()  # (fault_surf, layer_surf)
+    if (surface_to_stack is not None
+            and stacks_structure is not None
+            and stacks_structure.faults_relations is not None):
+        faults_relations = stacks_structure.faults_relations
+        n_stacks = stacks_structure.n_stacks
 
-    # Track split points so we can rebuild the individual mesh arrays later
+        _stack_to_surfs: dict = defaultdict(list)
+        for si, sk in enumerate(surface_to_stack):
+            _stack_to_surfs[sk].append(si)
+
+        for fs in range(n_stacks):
+            for ds in range(n_stacks):
+                if faults_relations[fs, ds]:
+                    for fi in _stack_to_surfs[fs]:
+                        for di in _stack_to_surfs[ds]:
+                            fault_directed_pairs.add((fi, di))
+
+    # --- 0. Save original fault-surface vertices --------------------------
+    fault_origin_indices = {fi for fi, _ in fault_directed_pairs}
+    saved_fault_vertices = {fi: all_meshes[fi].vertices.copy() for fi in fault_origin_indices}
+
+    # --- 1. Global averaging (all surfaces) -------------------------------
+    all_codes_arr = np.concatenate(codes)
+    all_vertices = np.concatenate([m.vertices for m in all_meshes])
     splits = np.cumsum([len(c) for c in codes])[:-1]
 
-    # 2. Find unique groups and map every voxel to a unique ID
-    unique_codes, inverse_indices, counts = np.unique(all_codes, return_inverse=True, return_counts=True)
+    unique_codes, inverse_indices, counts = np.unique(
+        all_codes_arr, return_inverse=True, return_counts=True
+    )
 
-    # If no shared voxels exist anywhere, exit early to save compute
-    if not (counts >= 2).any():
-        return
+    if (counts >= 2).any():
+        sum_vertices = np.zeros((len(unique_codes), 3), dtype=np.float64)
+        np.add.at(sum_vertices, inverse_indices, all_vertices)
+        full_means = sum_vertices / counts[:, np.newaxis]
+        averaged_flattened = full_means[inverse_indices]
+        split_vertices = np.split(averaged_flattened, splits)
 
-    # 3. Sum the vertices for each unique voxel code
-    # np.add.at safely accumulates values based on their mapped indices
-    sum_vertices = np.zeros((len(unique_codes), 3), dtype=np.float64)
-    np.add.at(sum_vertices, inverse_indices, all_vertices)
+        for mi in range(n):
+            all_meshes[mi].vertices[:] = split_vertices[mi]
 
-    # 4. Compute the mean for ALL unique voxels. 
-    # (Using np.newaxis broadcasts the 1D counts array to match the 3D vertex coordinates)
-    full_means = sum_vertices / counts[:, np.newaxis]
-
-    # 5. Instantly broadcast the averaged vertices back to their original flattened positions
-    averaged_flattened = full_means[inverse_indices]
-
-    # 6. Split the flattened array back into the original mesh chunks and assign
-    split_vertices = np.split(averaged_flattened, splits)
-
-    for mi in range(n):
-        # Update the meshes in-place
-        all_meshes[mi].vertices[:] = split_vertices[mi]
+    # --- 2. At fault–destination overlaps, copy the fault's ORIGINAL vertex
+    #     to the destination layer.  The destination's triangles will be
+    #     removed, so the exact position only matters for watertightness
+    #     with the fault plane.  The fault surface itself keeps its averaged
+    #     value (needed for non-fault overlaps with other stacks).
+    for fi, di in fault_directed_pairs:
+        common, idx_fi, idx_di = np.intersect1d(
+            codes[fi], codes[di],
+            assume_unique=True, return_indices=True
+        )
+        if common.size == 0:
+            continue
+        # Copy original (unperturbed) fault vertex to destination layer
+        all_meshes[di].vertices[idx_di] = saved_fault_vertices[fi][idx_fi]
 
 
 def _remove_fault_overlap_triangles(

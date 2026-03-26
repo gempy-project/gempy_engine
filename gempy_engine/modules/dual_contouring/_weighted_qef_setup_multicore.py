@@ -84,9 +84,11 @@ def _build_allowed_partners(
     """Build per-surface sets of partner surface indices based on geological relations.
     
     A surface *i* should only exchange QEF constraints with surface *j* when their
-    respective stacks are linked by a fault relation (in either direction).  For
-    non-fault stack pairs the overlap is handled by masking/erosion logic, not by
-    shared vertices.
+    respective stacks overlap and are NOT linked by a fault relation.  Fault–layer
+    pairs are excluded because the destination (layer) triangles will be removed
+    anyway, and injecting layer gradients into the fault QEF would distort the
+    fault plane.  For fault overlaps the fault vertex is copied directly to the
+    layer in the vertex-sharing step.
     
     Returns ``None`` when no filtering should be applied (legacy behaviour).
     """
@@ -103,9 +105,12 @@ def _build_allowed_partners(
             sj = surface_to_stack[j]
             if si == sj:
                 continue
-            # Allow if there is a fault relation in either direction
+            # Skip fault-related pairs: the destination triangles will be
+            # removed and the fault should keep its own clean QEF.
             if faults_relations[si, sj] or faults_relations[sj, si]:
-                allowed.add(j)
+                continue
+            # Allow non-fault overlapping pairs (erosion/onlap watertight)
+            allowed.add(j)
         partners[i] = allowed if allowed else None
     return partners
 
