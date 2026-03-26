@@ -160,7 +160,7 @@ def dual_contouring_multi_scalar(
         )
         # endregion
         # --- Vertex averaging for exact watertightness at overlap voxels ---
-        if compute_overlap and left_right_per_mesh:
+        if compute_overlap and left_right_per_mesh and True:
             _average_overlapping_vertices(
                 all_meshes, left_right_per_mesh, base_number,
                 surface_to_stack=surface_to_stack,
@@ -168,7 +168,7 @@ def dual_contouring_multi_scalar(
             )
 
         # --- Remove triangles from layer surfaces at fault overlap voxels ---
-        if compute_overlap and left_right_per_mesh:
+        if compute_overlap and left_right_per_mesh and False:
             _remove_fault_overlap_triangles(
                 all_meshes=all_meshes,
                 left_right_per_mesh=left_right_per_mesh,
@@ -302,9 +302,14 @@ def _average_overlapping_vertices(
 ) -> None:
     """Vertex sharing at overlap voxels.
     
-    For fault–layer overlaps the fault vertex is copied one-directionally
-    to the layer so the fault plane stays smooth (destination triangles
-    will be removed anyway).  For all other overlaps vertices are averaged.
+    Three cases based on the relationship between overlapping surfaces:
+    
+    1. **Same stack**: no vertex sharing at all (surfaces within the same
+       geological stack should not modify each other's vertices).
+    2. **Fault→layer**: the layer takes the fault's vertex directly (no
+       averaging).  The fault surface keeps its own vertex untouched.
+    3. **Erosion/onlap (different stacks, non-fault)**: vertices are averaged
+       so both surfaces meet at a shared position for watertightness.
     """
     from ...modules.dual_contouring._find_vertex_overlap import _generate_voxel_codes
 
@@ -314,53 +319,72 @@ def _average_overlapping_vertices(
 
     codes = _generate_voxel_codes(left_right_per_mesh, base_number)
 
-    # --- Determine directed fault pairs (origin_surface → dest_surface) ---
+    # --- Determine directed fault pairs and same-stack pairs ---------------
     fault_directed_pairs: set = set()  # (fault_surf, layer_surf)
-    if (surface_to_stack is not None
-            and stacks_structure is not None
-            and stacks_structure.faults_relations is not None):
-        faults_relations = stacks_structure.faults_relations
-        n_stacks = stacks_structure.n_stacks
+    same_stack_pairs: set = set()      # unordered pairs within same stack
 
+    if surface_to_stack is not None:
+        # Build same-stack pairs
         _stack_to_surfs: dict = defaultdict(list)
         for si, sk in enumerate(surface_to_stack):
             _stack_to_surfs[sk].append(si)
 
-        for fs in range(n_stacks):
-            for ds in range(n_stacks):
-                if faults_relations[fs, ds]:
-                    for fi in _stack_to_surfs[fs]:
-                        for di in _stack_to_surfs[ds]:
-                            fault_directed_pairs.add((fi, di))
+        for surfs in _stack_to_surfs.values():
+            for a in surfs:
+                for b in surfs:
+                    if a != b:
+                        same_stack_pairs.add((a, b))
 
-    # --- 0. Save original fault-surface vertices --------------------------
-    fault_origin_indices = {fi for fi, _ in fault_directed_pairs}
-    saved_fault_vertices = {fi: all_meshes[fi].vertices.copy() for fi in fault_origin_indices}
+        # Build fault directed pairs
+        if (stacks_structure is not None
+                and stacks_structure.faults_relations is not None):
+            faults_relations = stacks_structure.faults_relations
+            n_stacks = stacks_structure.n_stacks
 
-    # --- 1. Global averaging (all surfaces) -------------------------------
-    all_codes_arr = np.concatenate(codes)
-    all_vertices = np.concatenate([m.vertices for m in all_meshes])
-    splits = np.cumsum([len(c) for c in codes])[:-1]
+            for fs in range(n_stacks):
+                for ds in range(n_stacks):
+                    if faults_relations[fs, ds]:
+                        for fi in _stack_to_surfs[fs]:
+                            for di in _stack_to_surfs[ds]:
+                                fault_directed_pairs.add((fi, di))
 
-    unique_codes, inverse_indices, counts = np.unique(
-        all_codes_arr, return_inverse=True, return_counts=True
-    )
+    # Collect all surface indices involved in fault relations (either direction)
+    fault_involved_pairs: set = set()  # both (i,j) and (j,i)
+    for fi, di in fault_directed_pairs:
+        fault_involved_pairs.add((fi, di))
+        fault_involved_pairs.add((di, fi))
 
-    if (counts >= 2).any():
-        sum_vertices = np.zeros((len(unique_codes), 3), dtype=np.float64)
-        np.add.at(sum_vertices, inverse_indices, all_vertices)
-        full_means = sum_vertices / counts[:, np.newaxis]
-        averaged_flattened = full_means[inverse_indices]
-        split_vertices = np.split(averaged_flattened, splits)
+    # --- 1. Averaging for erosion/onlap pairs only -------------------------
+    # Only average vertices between surfaces that are in different stacks
+    # and NOT linked by a fault relation.  Same-stack and fault pairs are
+    # excluded entirely.
+    #
+    # Vectorized approach: process each eligible pair (i, j) and average
+    # their shared-voxel vertices using numpy intersections.
 
-        for mi in range(n):
-            all_meshes[mi].vertices[:] = split_vertices[mi]
+    # Build the set of averaging-eligible surface pairs
+    avg_pairs: list = []  # list of (i, j) with i < j
+    for i in range(n):
+        for j in range(i + 1, n):
+            if (i, j) in same_stack_pairs:
+                continue
+            if (i, j) in fault_involved_pairs:
+                continue
+            avg_pairs.append((i, j))
 
-    # --- 2. At fault–destination overlaps, copy the fault's ORIGINAL vertex
-    #     to the destination layer.  The destination's triangles will be
-    #     removed, so the exact position only matters for watertightness
-    #     with the fault plane.  The fault surface itself keeps its averaged
-    #     value (needed for non-fault overlaps with other stacks).
+    # For each eligible pair, average vertices at shared voxels
+    for i, j in avg_pairs:
+        common, idx_i, idx_j = np.intersect1d(
+            codes[i], codes[j],
+            assume_unique=True, return_indices=True
+        )
+        if common.size == 0:
+            continue
+        avg = (all_meshes[i].vertices[idx_i] + all_meshes[j].vertices[idx_j]) / 2.0
+        all_meshes[i].vertices[idx_i] = avg
+        all_meshes[j].vertices[idx_j] = avg
+
+    # --- 2. Fault→layer: copy fault vertex to layer -----------------------
     for fi, di in fault_directed_pairs:
         common, idx_fi, idx_di = np.intersect1d(
             codes[fi], codes[di],
@@ -368,8 +392,8 @@ def _average_overlapping_vertices(
         )
         if common.size == 0:
             continue
-        # Copy original (unperturbed) fault vertex to destination layer
-        all_meshes[di].vertices[idx_di] = saved_fault_vertices[fi][idx_fi]
+        # Layer takes the fault's vertex directly (fault keeps its own)
+        all_meshes[di].vertices[idx_di] = all_meshes[fi].vertices[idx_fi]
 
 
 def _remove_fault_overlap_triangles(
