@@ -194,7 +194,7 @@ class BackendTensor:
                 # Ensure numpy arrays are contiguous before converting to torch tensor
                 if isinstance(array_like, numpy.ndarray):
                     if not array_like.flags.c_contiguous:
-                array_like = numpy.ascontiguousarray(array_like)
+                        array_like = numpy.ascontiguousarray(array_like)
                     if not array_like.flags.aligned:
                         array_like = numpy.copy(array_like, order="C")
                 return torch.tensor(array_like, dtype=dtype)
