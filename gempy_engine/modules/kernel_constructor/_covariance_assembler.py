@@ -81,7 +81,8 @@ def _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, 
         cov_shape = cov_surface_points.shape[0]
         shape_sp_size = nugget_effect.shape[0]
         
-        diag = BackendTensor.t.array(np.eye(cov_shape, dtype=BackendTensor.dtype))
+        # diag = BackendTensor.t.array(np.eye(cov_shape, dtype=BackendTensor.dtype))
+        diag = BackendTensor.t.eye(cov_shape)
         # Nullify all the diagonal values that are not in the surface points block
         modified_diag = BackendTensor.t.zeros((cov_shape, cov_shape), dtype=BackendTensor.dtype_obj)
         modified_diag[
