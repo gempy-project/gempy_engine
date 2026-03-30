@@ -109,7 +109,7 @@ def symbolic_evaluator_optimized_stacked(
         with concurrent.futures.ThreadPoolExecutor() as executor:
             kernel_data_list = list(executor.map(_run_prep, prep_tasks))
 
-        concat_kernel_data: KernelInput = _build_stacked_kernel_data_parallel(kernel_data_list)
+        concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
         eval_kernel_scalar = create_scalar_kernel(concat_kernel_data, options.kernel_options)
 
     if options.compute_scalar_gradient is True:
