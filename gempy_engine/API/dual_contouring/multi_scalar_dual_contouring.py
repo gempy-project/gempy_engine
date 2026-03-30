@@ -7,7 +7,7 @@ import numpy as np
 from gempy_engine.modules.dual_contouring._dual_contouring import compute_dual_contouring
 from ._mask_buffer import MaskBuffer
 from ..interp_single.interp_features import interpolate_all_fields_no_octree
-from ...config import DUAL_CONTOURING_VERTEX_OVERLAP, DualContouringOverlap
+from ...config import DUAL_CONTOURING_VERTEX_OVERLAP, DualContouringOverlap, AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_data import DualContouringData
@@ -56,7 +56,7 @@ def dual_contouring_multi_scalar(
 
     dual_contouring_options = copy.deepcopy(options)
     dual_contouring_options.evaluation_options.compute_scalar_gradient = True
-    dual_contouring_options.evaluation_options.compute_scalar          = False
+    dual_contouring_options.evaluation_options.compute_scalar = False
 
     # * 1) Triangulation code
     left_right_codes, base_number = get_triangulation_codes(octree_list)
@@ -95,8 +95,8 @@ def dual_contouring_multi_scalar(
 
     # * 5) Interpolate on edges for all stacks
     output_on_edges = _interp_on_edges(
-        all_stack_intersection=all_surfaces_intersection, 
-        data_descriptor=data_descriptor, 
+        all_stack_intersection=all_surfaces_intersection,
+        data_descriptor=data_descriptor,
         dual_contouring_options=dual_contouring_options,
         interpolation_input=interpolation_input
     )
@@ -177,6 +177,10 @@ def dual_contouring_multi_scalar(
                 stacks_structure=data_descriptor.stack_structure,
                 max_workers=None
             )
+
+        for mesh in all_meshes:
+            mesh.vertices = BackendTensor.t.to_numpy(mesh.vertices)
+            mesh.edges = BackendTensor.t.to_numpy(mesh.edges)
 
     return all_meshes
 

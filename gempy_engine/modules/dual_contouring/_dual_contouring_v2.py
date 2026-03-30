@@ -68,13 +68,16 @@ def _process_one_surface(dc_data: DualContouringData, left_right_codes) -> DualC
     edges_normals[:] = 0
     edges_normals[valid_edges] = dc_data.gradients
 
-    indices_numpy = _compute_triangulation(
+    indices = _compute_triangulation(
         dc_data_per_surface=dc_data,
         left_right_codes=left_right_codes,
         edges_normals=edges_normals,
         vertex=vertices
     )
 
-    vertices_numpy = BackendTensor.t.to_numpy(vertices)
-    mesh = DualContouringMesh(vertices_numpy, indices_numpy, dc_data)
+    # vertices_numpy = BackendTensor.t.to_numpy(vertices)
+    # indices_numpy = BackendTensor.t.to_numpy(indices)
+    # mesh = DualContouringMesh(vertices_numpy, indices_numpy, dc_data)
+    
+    mesh = DualContouringMesh(vertices, indices, dc_data)
     return mesh
