@@ -1,3 +1,4 @@
+import gc
 from typing import Union, Any, Optional
 import warnings
 
@@ -429,6 +430,14 @@ class BackendTensor:
     @classmethod
     def clear_gpu_memory(cls):
         if BackendTensor.use_gpu:
+            # 1. Barrier: Wait for all GPU threads to finish
+            torch.cuda.synchronize()
+
+        # 2. GC: Safely destroy orphaned Python/C++ objects
+        gc.collect()
+
+        if BackendTensor.use_gpu:
+            # 3. Release VRAM: Give the memory back to the OS
             torch.cuda.empty_cache()
 
 
