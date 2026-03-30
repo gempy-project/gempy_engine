@@ -1,4 +1,5 @@
 ﻿import enum
+import os
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
@@ -162,33 +163,33 @@ def _fill_block_solutions_with_octree_output(octrees_output, raw_arrays_solution
         return BackendTensor.t.to_numpy(scalar_field_stacked)
 
     # Endregion
-
-    raw_arrays_solution.block_matrix = ___get_regular_grid_values_for_all_structural_groups(
-        octree_output=octrees_output,
-        scalar_type=ValueType.values_block
-    )
-    raw_arrays_solution.fault_block = BackendTensor.t.to_numpy(get_regular_grid_value_for_level(
-        octree_list=octrees_output,
-        level=None,
-        value_type=ValueType.faults_block
-    )).astype("int8").ravel()
-    raw_arrays_solution.litho_faults_block = BackendTensor.t.to_numpy(get_regular_grid_value_for_level(
-        octree_list=octrees_output,
-        level=None,
-        value_type=ValueType.litho_faults_block
-    )).astype("int32").ravel()
-    raw_arrays_solution.scalar_field_matrix = ___get_regular_grid_values_for_all_structural_groups(
-        octree_output=octrees_output,
-        scalar_type=ValueType.scalar
-    )
-    raw_arrays_solution.mask_matrix = ___get_regular_grid_values_for_all_structural_groups(
-        octree_output=octrees_output,
-        scalar_type=ValueType.mask_component
-    )
-    raw_arrays_solution.mask_matrix_squeezed = ___get_regular_grid_values_for_all_structural_groups(
-        octree_output=octrees_output,
-        scalar_type=ValueType.squeeze_mask
-    )
+    if ~(os.getenv("ONLY_LITH_SOLUTION") == "True"):
+        raw_arrays_solution.block_matrix = ___get_regular_grid_values_for_all_structural_groups(
+            octree_output=octrees_output,
+            scalar_type=ValueType.values_block
+        )
+        raw_arrays_solution.fault_block = BackendTensor.t.to_numpy(get_regular_grid_value_for_level(
+            octree_list=octrees_output,
+            level=None,
+            value_type=ValueType.faults_block
+        )).astype("int8").ravel()
+        raw_arrays_solution.litho_faults_block = BackendTensor.t.to_numpy(get_regular_grid_value_for_level(
+            octree_list=octrees_output,
+            level=None,
+            value_type=ValueType.litho_faults_block
+        )).astype("int32").ravel()
+        raw_arrays_solution.scalar_field_matrix = ___get_regular_grid_values_for_all_structural_groups(
+            octree_output=octrees_output,
+            scalar_type=ValueType.scalar
+        )
+        raw_arrays_solution.mask_matrix = ___get_regular_grid_values_for_all_structural_groups(
+            octree_output=octrees_output,
+            scalar_type=ValueType.mask_component
+        )
+        raw_arrays_solution.mask_matrix_squeezed = ___get_regular_grid_values_for_all_structural_groups(
+            octree_output=octrees_output,
+            scalar_type=ValueType.squeeze_mask
+        )
 
     lith_block_temp = BackendTensor.t.to_numpy(get_regular_grid_value_for_level(
         octree_list=octrees_output,
