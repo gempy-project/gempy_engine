@@ -159,7 +159,7 @@ def symbolic_evaluator_optimized_stacked(
         from pykeops.torch import LazyTensor
         try:
             if BackendTensor.use_gpu:
-                all_weights = all_weights.pin_memory().to("cuda", non_blocking=True)
+                all_weights = all_weights.to("cuda", non_blocking=True)
             lazy_weights = LazyTensor(all_weights.view((-1, 1)), axis=0)
 
             all_results_concat = (eval_kernel * lazy_weights).sum(
@@ -176,7 +176,7 @@ def symbolic_evaluator_optimized_stacked(
             raise ValueError("Failed to compute symbolic evaluation with PyKeOps. Ensure that all_weights and eval_kernel are compatible for lazy tensor operations.")
 
     # For torch
-    all_results_concat = all_results_concat.to("cpu")
+    # all_results_concat = all_results_concat.to("cpu")
     all_results_split = BackendTensor.t.split(all_results_concat, M_sizes)
 
     # For numpy
