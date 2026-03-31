@@ -302,9 +302,13 @@ class BackendTensor:
         from torch import sum, repeat_interleave, isclose, zeros as torch_zeros, eye as torch_eye, ones as torch_ones
 
         def _zeros(shape, dtype=None, device=None):
+            if isinstance(dtype, str):
+                dtype = getattr(torch, dtype)
             return torch_zeros(shape, dtype=dtype, device=cls.device)
 
         def _ones(shape, dtype=None, device=None):
+            if isinstance(dtype, str):
+                dtype = getattr(torch, dtype)
             return torch_ones(shape, dtype=dtype, device=cls.device)
 
         def _eye(n, dtype=None, device=None):
