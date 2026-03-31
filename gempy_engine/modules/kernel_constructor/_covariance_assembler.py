@@ -149,6 +149,10 @@ def _get_faults_terms(ki: KernelInput) -> np.ndarray:
         drift_start_post_x=cov_size - fault_n,
         drift_start_post_y=cov_size - fault_n
     )
+    
+    if BackendTensor.pykeops_enabled:
+        selector_components = selector_components.upgrade_tensors()
+    
     selector = (selector_components.sel_ui * (selector_components.sel_vj + 1)).sum(axis=-1)
 
     fault_matrix = selector * (fault_ref - fault_rest + 0.00000001) * 1

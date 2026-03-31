@@ -12,6 +12,9 @@ from ...core.data.options import KernelOptions, InterpolationOptions
 from ...modules.evaluator.generic_evaluator import generic_evaluator
 from ...modules.evaluator.symbolic_evaluator import symbolic_evaluator
 from ...modules.kernel_constructor import kernel_constructor_interface as kernel_constructor
+from ...modules.kernel_constructor._kernels_assembler import create_cov_kernel
+from ...modules.kernel_constructor._structs import KernelInput
+from ...modules.kernel_constructor._vectors_preparation import cov_vectors_preparation
 from ...modules.solver import solver_interface
 from ...modules.weights_cache.weights_cache_interface import WeightCache, generate_cache_key
 
@@ -23,7 +26,7 @@ def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOp
     return weights, exported_fields
 
 
-def compute_weights(solver_input: Union[SolverInput, SolverInput_v2] , stack_number: int, options: InterpolationOptions) -> ndarray[tuple[Any, ...], dtype[Any]]:
+def compute_weights(solver_input: Union[SolverInput, SolverInput_v2], stack_number: int, options: InterpolationOptions) -> ndarray[tuple[Any, ...], dtype[Any]]:
     weights_key = f"{options.cache_model_name}.{stack_number}"
     weights_hash = None
     match options.cache_mode:
@@ -81,7 +84,13 @@ def _solve_and_store_weights(solver_input, kernel_options, weights_key, weights_
 
 
 def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOptions) -> np.ndarray:
-    A_matrix = kernel_constructor.yield_covariance(interp_input, kernel_options)
+    kernel_data_tensor: KernelInput = cov_vectors_preparation(interp_input, kernel_options)
+    if BackendTensor.pykeops_enabled:
+        kernel_data: KernelInput = kernel_data_tensor.upgrade_tensors()
+    else:
+        kernel_data = kernel_data_tensor
+    
+    A_matrix = create_cov_kernel(kernel_data, kernel_options)
     b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
 
     if kernel_options.optimizing_condition_number:
@@ -93,6 +102,18 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
         kernel_options=kernel_options,
         x0=interp_input.weights_x0
     )
+
+    if weights is None:
+        BackendTensor.pykeops_enabled = False
+        A_matrix = create_cov_kernel(kernel_data_tensor, kernel_options)
+        weights = solver_interface.kernel_reduction(
+            cov=A_matrix,
+            b=b_vector,
+            kernel_options=kernel_options,
+            x0=interp_input.weights_x0
+        )
+
+        BackendTensor.pykeops_enabled = True
 
     if gempy_engine.config.DEBUG_MODE:
         # Save debug data for later
@@ -130,6 +151,5 @@ def _evaluate_sys_eq(eval_input: Union[SolverInput, EvaluatorInput], weights: np
         exported_fields = symbolic_evaluator(eval_input, weights, options)
     else:
         exported_fields = generic_evaluator(eval_input, weights, options)
-
 
     return exported_fields

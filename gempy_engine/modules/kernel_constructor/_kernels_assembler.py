@@ -92,7 +92,10 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
             drift_start_post_x=cov_size - fault_n,
             drift_start_post_y=j_size
         )
-
+        
+        if BackendTensor.pykeops_enabled:
+            selector_components = selector_components.upgrade_tensors()
+    
         selector = bt.t.sum(selector_components.sel_ui * (selector_components.sel_vj + 1), axis=-1)
         fault_drift = selector * bt.t.sum(ki.ref_fault.faults_i * ki.ref_fault.faults_j, axis=-1)
     else:
