@@ -26,7 +26,7 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, interpolation_
     full_cov_size = matrices_size.cov_size
     shift = matrices_size.sp_size + matrices_size.ori_size
 
-    z = np.zeros((full_cov_size, n_dim), dtype=BackendTensor.dtype)
+    z = BackendTensor.t.zeros((full_cov_size, n_dim), dtype=BackendTensor.dtype)
 
     # Assembly vectors for degree 1
     if interpolation_options.uni_degree != 0:
@@ -41,7 +41,7 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, interpolation_
     # region Second term:
     dips_b_aux = ori_internals.dip_positions_tiled
 
-    z2 = np.zeros((full_cov_size, n_dim), dtype=BackendTensor.dtype)
+    z2 = BackendTensor.t.zeros((full_cov_size, n_dim), dtype=BackendTensor.dtype)
 
     if interpolation_options.uni_degree == 2:
         for i in range(interpolation_options.number_dimensions):
@@ -52,8 +52,8 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, interpolation_
     # endregion
 
     # region Third term:
-    z3 = np.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=BackendTensor.dtype)
-    uni_second_degree_selector = np.zeros_like(z3, dtype=BackendTensor.dtype)
+    z3 = BackendTensor.t.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=BackendTensor.dtype)
+    uni_second_degree_selector = BackendTensor.t.zeros_like(z3, dtype=BackendTensor.dtype_obj)
 
     if interpolation_options.uni_degree == 2:
         for i in range(interpolation_options.number_dimensions):
