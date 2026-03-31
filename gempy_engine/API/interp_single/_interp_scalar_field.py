@@ -51,7 +51,7 @@ def compute_weights(solver_input: Union[SolverInput, SolverInput_v2] , stack_num
         case _:
             raise ValueError("Cache mode not recognized")
 
-    BackendTensor.pykeops_enabled = False
+    BackendTensor.pykeops_enabled = True
     match weights_cached:
         case None:
             weights = _solve_and_store_weights(

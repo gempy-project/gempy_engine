@@ -93,7 +93,7 @@ def symbolic_evaluator_optimized_stacked(
 
     kernel_data_list = []
 
-    # BackendTensor.pykeops_enabled = False
+    BackendTensor.pykeops_enabled = False
     # 2. Define a small wrapper function for the executor to map over
     def _run_prep(args):
         ei, axis = args
