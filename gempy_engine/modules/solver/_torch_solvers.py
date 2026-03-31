@@ -45,13 +45,7 @@ def pykeops_torch_direct(b, cov):
 
 
 def torch_solve(b, cov):
-    if (os.getenv("CHOLESKY") == "True"):
-        if b.dim() == 1:
-            b = b.unsqueeze(1)
-        w = bt.t.cholesky_solve(b, cov)
-        w = w.squeeze(1)
-    else:
-        w = bt.t.linalg.solve(cov, b)
+    w = bt.t.linalg.solve(cov, b)
     return w
 
 ''' 
