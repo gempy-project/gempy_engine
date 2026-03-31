@@ -142,7 +142,7 @@ def _segment(
 
         # endregion
         output = ScalarFieldOutput(
-            weights=solver_inputs[idx].weights_x0,
+            weights=BackendTensor.t.to_numpy(solver_inputs[idx].weights_x0),
             grid=interpolation_inputs[idx].grid,
             exported_fields=exported_fields_per_stack[idx],
             values_block=values_block,
@@ -319,6 +319,6 @@ def input_preprocess_v2(data_shape: TensorsStructure, interpolation_input: Inter
         ori_internal=ori_internal,
         fault_internal=fault_values
     )
-    solver_input.weights_x0 = interpolation_input.weights
+    solver_input.weights_x0 = BackendTensor.t.array(interpolation_input.weights)
 
     return solver_input
