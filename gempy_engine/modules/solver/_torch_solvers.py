@@ -26,13 +26,14 @@ def pykeops_torch_cg(b, cov, x0, use_gpu):
             alpha=0,
             backend="GPU" if use_gpu else "CPU",
             call=False,
-            dtype_acc="float64", # * For now we always use float 64 even on gpu
+            # dtype_acc="float64", # * For now we always use float 64 even on gpu
+            use_double_acc=True,
             sum_scheme="kahan_scheme"
         )
 
-        w = solver(
+        w, success = solver(
             eps=1e-5,
-            x0=BackendTensor.t.array(x0)
+            x0=None
         )
         
     return w.squeeze(1)

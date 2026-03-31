@@ -130,11 +130,12 @@ class KernelSolveAutograd(torch.autograd.Function):
             b=varinv.data,
             eps=1e-4,
             x0=x0,
-            regularization=None,
-            preconditioning=preconditioner,
-            adaptive_tolerance=False,
+            nugget=1e-8,
+            # regularization=None,
+            # preconditioning=preconditioner,
+            # adaptive_tolerance=False,
             max_iterations=500,
-            verbose=False
+            verbose=True
         )
 
         # relying on the 'ctx.saved_variables' attribute is necessary  if you want to be able to differentiate the output
