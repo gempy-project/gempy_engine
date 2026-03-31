@@ -398,7 +398,7 @@ def _average_overlapping_vertices(
 
     # For each eligible pair, average vertices at shared voxels
     for i, j in avg_pairs:
-        common, idx_i, idx_j = np.intersect1d(
+        common, idx_i, idx_j = BackendTensor.t.intersect1d(
             codes[i], codes[j],
             assume_unique=True, return_indices=True
         )
@@ -410,7 +410,7 @@ def _average_overlapping_vertices(
 
     # --- 2. Fault→layer: copy fault vertex to layer -----------------------
     for fi, di in fault_directed_pairs:
-        common, idx_fi, idx_di = np.intersect1d(
+        common, idx_fi, idx_di = BackendTensor.t.intersect1d(
             codes[fi], codes[di],
             assume_unique=True, return_indices=True
         )

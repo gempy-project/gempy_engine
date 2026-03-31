@@ -310,6 +310,60 @@ class BackendTensor:
         def _eye(n, dtype=None, device=None):
             return torch_eye(n, dtype=dtype, device=cls.device)
 
+        import torch
+
+        def _torch_intersect1d_indices(codes_i: torch.Tensor, codes_j: torch.Tensor, max_memory_mb: float = 250.0, assume_unique: bool = True,
+                                       return_indices: bool = False):
+            """
+            Finds the intersection of two 1D tensors and returns the sorted common values 
+            and their corresponding indices, mimicking np.intersect1d(assume_unique=True).
+
+            Dynamically routes to a fast broadcasting method or a memory-safe isin method 
+            based on the expected VRAM footprint.
+            """
+            N = codes_i.numel()
+            M = codes_j.numel()
+
+            # Calculate the theoretical memory footprint of the boolean broadcast matrix
+            # A boolean tensor in PyTorch takes 1 byte per element
+            memory_footprint_mb = (N * M) / (1024 ** 2)
+
+            if memory_footprint_mb <= max_memory_mb:
+                # ==========================================
+                # ROUTE 1: FAST BROADCASTING (Low Memory)
+                # ==========================================
+                # Creates an N x M boolean mask
+                matches = codes_i.unsqueeze(1) == codes_j.unsqueeze(0)
+                idx_i, idx_j = torch.where(matches)
+                common = codes_i[idx_i]
+
+                # Sort to perfectly match numpy's default behavior
+                sort_idx = torch.argsort(common)
+                return common[sort_idx], idx_i[sort_idx], idx_j[sort_idx]
+
+            else:
+                # ==========================================
+                # ROUTE 2: MEMORY-SAFE ISIN (High Memory)
+                # ==========================================
+                # 1. Find elements of codes_i in codes_j
+                mask_i = torch.isin(codes_i, codes_j)
+                idx_i_unsorted = torch.nonzero(mask_i).squeeze(-1)
+                common_unsorted = codes_i[idx_i_unsorted]
+
+                # 2. Find elements of codes_j in codes_i
+                mask_j = torch.isin(codes_j, codes_i)
+                idx_j_unsorted = torch.nonzero(mask_j).squeeze(-1)
+
+                # 3. Align and sort both index arrays based on the actual common values
+                sort_i = torch.argsort(common_unsorted)
+                sort_j = torch.argsort(codes_j[idx_j_unsorted])
+
+                common_sorted = common_unsorted[sort_i]
+                idx_i_sorted = idx_i_unsorted[sort_i]
+                idx_j_sorted = idx_j_unsorted[sort_j]
+
+                return common_sorted, idx_i_sorted, idx_j_sorted
+
         cls.tfnp.sum = _sum
         cls.tfnp.repeat = _repeat
         cls.tfnp.expand_dims = lambda tensor, axis: tensor
@@ -343,6 +397,7 @@ class BackendTensor:
         cls.tfnp.zeros = _zeros
         cls.tfnp.ones = _ones
         cls.tfnp.eye = _eye
+        cls.tfnp.intersect1d = _torch_intersect1d_indices
 
 
     @classmethod
