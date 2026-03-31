@@ -93,6 +93,7 @@ def symbolic_evaluator_optimized_stacked(
 
     kernel_data_list = []
 
+    # BackendTensor.pykeops_enabled = False
     # 2. Define a small wrapper function for the executor to map over
     def _run_prep(args):
         ei, axis = args
@@ -282,116 +283,6 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInp
         _cast_tensors(result)
         return result
 
-    def _stack_sub_struct_pinned(items, cls):
-        """Concatenate on CPU, pin memory, and do a single high-speed transfer."""
-        if items[0] is None:
-            return None
-
-        result = cls.__new__(cls)
-        first_item = items[0]
-
-        for field_name in first_item.__dict__:
-            vals = [getattr(item, field_name) for item in items]
-            first_val = vals[0]
-
-            if isinstance(first_val, int):
-                setattr(result, field_name, first_val)
-                continue
-
-            axis = 0 if first_val.shape[0] > first_val.shape[1] else 1
-
-            if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
-                concat_val = BackendTensor.t.concatenate(vals, axis=axis).copy()
-
-            elif BackendTensor.use_gpu:
-                # 1. Concatenate on the CPU first (reduces transfer overhead to exactly 1 call)
-                cpu_concat = BackendTensor.t.concatenate(vals, axis=axis)
-
-                # 2. Force contiguity on the CPU *before* pinning
-                cpu_concat = cpu_concat.contiguous()
-
-                # 3. PIN THE MEMORY: This page-locks the RAM, unlocking maximum PCIe bandwidth
-                pinned_concat = cpu_concat.pin_memory()
-
-                # 4. Transfer: Now `non_blocking=True` will actually work in the background!
-                concat_val = pinned_concat.to("cuda", non_blocking=True)
-
-            else:
-                concat_val = BackendTensor.t.concatenate(vals, axis=axis).contiguous()
-
-            setattr(result, field_name, concat_val)
-
-        _cast_tensors(result)
-        return result
-
-    def _stack_sub_struct(items, cls):
-        """Concatenate fields of a sub-dataclass and move to GPU."""
-        if items[0] is None:
-            return None
-
-        result = cls.__new__(cls)
-        first_item = items[0]
-
-        for field_name in first_item.__dict__:
-            vals = [getattr(item, field_name) for item in items]
-            first_val = vals[0]
-
-            if isinstance(first_val, int):
-                setattr(result, field_name, first_val)
-                continue
-
-            # 1. Concatenate
-            axis = 0 if first_val.shape[0] > first_val.shape[1] else 1
-            concat_val = BackendTensor.t.concatenate(vals, axis=axis)
-
-            # 2. Enforce Contiguity & 3. Move to GPU
-            if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
-                concat_val = concat_val.copy()
-            elif BackendTensor.use_gpu:
-                concat_val = concat_val.contiguous()
-                concat_val = concat_val.to("cuda", non_blocking=True)  # Move to GPU asynchronously if using PyTorch
-            else:
-                concat_val = concat_val.contiguous()
-
-            setattr(result, field_name, concat_val)
-
-        # Ensure _cast_tensors safely handles tensors that are already on the GPU!
-        _cast_tensors(result)
-        return result
-
-    def _stack_sub_struct_gpu_first(items, cls):
-        if items[0] is None:
-            return None
-
-        result = cls.__new__(cls)
-        first_item = items[0]
-
-        for field_name in first_item.__dict__:
-            vals = [getattr(item, field_name) for item in items]
-            first_val = vals[0]
-
-            if isinstance(first_val, int):
-                setattr(result, field_name, first_val)
-                continue
-
-            axis = 0 if first_val.shape[0] > first_val.shape[1] else 1
-
-            if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
-                concat_val = BackendTensor.t.concatenate(vals, axis=axis).copy()
-            elif BackendTensor.use_gpu:
-                # 1. Move individual chunks to GPU first (leverages faster GPU concatenation)
-                gpu_vals = [v.to("cuda", non_blocking=True) for v in vals]
-                # 2. Concatenate directly on the GPU
-                concat_val = BackendTensor.t.concatenate(gpu_vals, axis=axis)
-                # 3. Ensure contiguity (often a no-op if torch.cat handles it cleanly)
-                concat_val = concat_val.contiguous()
-            else:
-                concat_val = BackendTensor.t.concatenate(vals, axis=axis).contiguous()
-
-            setattr(result, field_name, concat_val)
-
-        _cast_tensors(result)
-        return result
 
     stacked = KernelInput.__new__(KernelInput)
 
