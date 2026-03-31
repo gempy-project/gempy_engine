@@ -34,7 +34,8 @@ def pykeops_torch_cg(b, cov, x0, use_gpu):
             eps=1e-5,
             x0=BackendTensor.t.array(x0)
         )
-    return w
+        
+    return w.squeeze(1)
 
 def pykeops_torch_direct(b, cov):
     raise NotImplementedError
