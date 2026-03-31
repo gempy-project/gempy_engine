@@ -43,8 +43,6 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
         )
         # region Geophysics
         # ---------------------
-        # TODO: [x] Gravity
-        # TODO: [ ] Magnetics
 
         if geophysics_input is not None:
             first_level_last_field: InterpOutput = output[0].outputs_centers[-1]

@@ -28,7 +28,7 @@ elif os.path.exists(dotenv_gempy_engine_path):
 else:
     load_dotenv()
 
-DEBUG_MODE = os.getenv('DEBUG_MODE', 'True') == 'True'  # Note the handling of Boolean values
+DEBUG_MODE = os.getenv('DEBUG_MODE', 'False') == 'True'  # Note the handling of Boolean values
 OPTIMIZE_MEMORY = os.getenv('OPTIMIZE_MEMORY', 'True') == 'True'
 DEFAULT_BACKEND = AvailableBackends[os.getenv('DEFAULT_BACKEND', 'numpy')]
 DEFAULT_PYKEOPS = os.getenv('DEFAULT_PYKEOPS', 'False') == 'True'
