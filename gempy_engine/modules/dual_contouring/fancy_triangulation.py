@@ -34,7 +34,7 @@ def get_left_right_array(octree_list: list[OctreeLevel]):
         left_right_all = left_right_all[::-1]
         voxel_select_op = voxel_select_op[::-1]
 
-        for e, left_right_per_lvl in enumerate(left_right_all): # size is equal to the depth of the tree (except root)
+        for e, left_right_per_lvl in enumerate(left_right_all):  # size is equal to the depth of the tree (except root)
             left_right_per_lvl_dir = left_right_per_lvl[:, dir_idx]
             for n_rep in range(e):
                 inner = left_right_per_lvl_dir[voxel_select_op[e - n_rep]]
@@ -92,7 +92,7 @@ def get_left_right_array(octree_list: list[OctreeLevel]):
         base_x = bool_to_int_x.max() + 1
         base_y = bool_to_int_y.max() + 1
         base_z = bool_to_int_z.max() + 1
-        
+
     return left_right_array, (base_x, base_y, base_z)
 
 
@@ -189,13 +189,18 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
     )
 
     # Step 3: Map voxels and filter by extent
-    code__a_p, code__b_p, code__c_p = _map_and_filter_voxels(
+    # code__a_p, code__b_p, code__c_p = _map_and_filter_voxels(
+    #     voxel_code,
+    #     compressed_idx_0, compressed_idx_1, compressed_idx_2
+    # )
+    # 
+    # # # Step 4: Convert boolean masks to indices
+    # x, y, z = _convert_masks_to_indices(code__a_p, code__b_p, code__c_p)
+
+    x, y, z = _get_indices_via_searchsorted(
         voxel_code,
         compressed_idx_0, compressed_idx_1, compressed_idx_2
     )
-
-    # Step 4: Convert boolean masks to indices
-    x, y, z = _convert_masks_to_indices(code__a_p, code__b_p, code__c_p)
 
     # Step 5: Calculate normals and order triangles
     normals = _calculate_normals_and_order_triangles(
@@ -206,11 +211,11 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
     return indices, normals
 
 
-def _filter_edges_with_neighbors(edge_vector_a, edge_vector_b, edge_vector_c,
-                                 left_right_array_active_edge, dtype, base_number):
+def _filter_edges_with_neighbors_(edge_vector_a, edge_vector_b, edge_vector_c,
+                                  left_right_array_active_edge, dtype, base_number):
     """Remove edges that don't have voxels next to them."""
 
-    def check_voxels_exist_next_to_edge(coord_col, edge_vector, 
+    def check_voxels_exist_next_to_edge(coord_col, edge_vector,
                                         _left_right_array_active_edge, _base_number_inner):
         match edge_vector:
             case 0:
@@ -228,22 +233,23 @@ def _filter_edges_with_neighbors(edge_vector_a, edge_vector_b, edge_vector_c,
     valid_edges_z = check_voxels_exist_next_to_edge(2, edge_vector_c, left_right_array_active_edge, _base_number_inner=base_number[2])
 
     valid_edges_with_neighbour_voxels = valid_edges_x * valid_edges_y * valid_edges_z
+    valid_edges_with_neighbour = valid_edges_x & valid_edges_y & valid_edges_z
     return left_right_array_active_edge[valid_edges_with_neighbour_voxels]
 
 
-def _compress_binary_indices(left_right_array_active_edge, edge_vector_a, edge_vector_b, edge_vector_c, pack_factors):
+def _compress_binary_indices_(left_right_array_active_edge, edge_vector_a, edge_vector_b, edge_vector_c, pack_factors):
     """Compress voxel codes per direction."""
     # Ensure edge vectors are tensors on the same device as the data
     device = left_right_array_active_edge.device if hasattr(left_right_array_active_edge, 'device') else None
     dtype = left_right_array_active_edge.dtype
-    
+
     # Create scalar tensors on the correct device
     if BackendTensor.engine_backend == BackendTensor.engine_backend.PYTORCH:
         edge_a_tensor = BackendTensor.tfnp.tensor(edge_vector_a, dtype=dtype, device=device)
         edge_b_tensor = BackendTensor.tfnp.tensor(edge_vector_b, dtype=dtype, device=device)
         edge_c_tensor = BackendTensor.tfnp.tensor(edge_vector_c, dtype=dtype, device=device)
         zero_tensor = BackendTensor.tfnp.tensor(0, dtype=dtype, device=device)
-        
+
         edge_vector_0 = BackendTensor.tfnp.stack([edge_a_tensor, zero_tensor, zero_tensor])
         edge_vector_1 = BackendTensor.tfnp.stack([zero_tensor, edge_b_tensor, zero_tensor])
         edge_vector_2 = BackendTensor.tfnp.stack([zero_tensor, zero_tensor, edge_c_tensor])
@@ -262,6 +268,7 @@ def _compress_binary_indices(left_right_array_active_edge, edge_vector_a, edge_v
     compressed_binary_idx_2 = (binary_idx_2 * pack_factors).sum(axis=1)
 
     return compressed_binary_idx_0, compressed_binary_idx_1, compressed_binary_idx_2
+
 
 def _map_and_filter_voxels(voxel_code, compressed_idx_0, compressed_idx_1, compressed_idx_2):
     """Map compressed binary codes to all leaf codes and filter by extent (optimized v3)."""
@@ -293,6 +300,7 @@ def _map_and_filter_voxels(voxel_code, compressed_idx_0, compressed_idx_1, compr
     code__c_p = (voxel_code == compressed_idx_2_valid)
 
     return code__a_p, code__b_p, code__c_p
+
 
 def _convert_masks_to_indices(code__a_p, code__b_p, code__c_p):
     """Convert boolean masks to integer indices (optimized)."""
@@ -332,3 +340,148 @@ def _calculate_normals_and_order_triangles(x, y, z, voxel_normals, n):
     else:
         normal = BackendTensor.tfnp.ones(x.shape[0], dtype=BackendTensor.tfnp.float32)
     return normal
+
+
+def _get_indices_via_searchsorted(voxel_code, compressed_0, compressed_1, compressed_2):
+    """
+    Memory-efficient replacement for broadcasting, preserving exact original indices.
+    """
+    vc_1d = voxel_code.squeeze()
+
+    # 1. Get sorting indices to map back to original positions later
+    sort_indices = BackendTensor.tfnp.argsort(vc_1d)
+    sorted_vc = vc_1d[sort_indices]
+
+    # 2. Search in the correctly sorted array (O(M log N) time)
+    idx_0_sorted = BackendTensor.tfnp.searchsorted(sorted_vc, compressed_0)
+    idx_1_sorted = BackendTensor.tfnp.searchsorted(sorted_vc, compressed_1)
+    idx_2_sorted = BackendTensor.tfnp.searchsorted(sorted_vc, compressed_2)
+
+    # 3. Clamp to avoid out-of-bounds errors on validation
+    max_idx = len(sorted_vc) - 1
+    idx_0_c = BackendTensor.tfnp.clip(idx_0_sorted, 0, max_idx)
+    idx_1_c = BackendTensor.tfnp.clip(idx_1_sorted, 0, max_idx)
+    idx_2_c = BackendTensor.tfnp.clip(idx_2_sorted, 0, max_idx)
+
+    # 4. Validate that the matches are actual equality, not just nearest neighbors
+    valid_0 = sorted_vc[idx_0_c] == compressed_0
+    valid_1 = sorted_vc[idx_1_c] == compressed_1
+    valid_2 = sorted_vc[idx_2_c] == compressed_2
+
+    # 5. Filter down to only edges where ALL three neighbors exist
+    valid_all = valid_0 & valid_1 & valid_2
+
+    # Early exit if nothing is valid
+    if not BackendTensor.tfnp.any(valid_all):
+        empty = BackendTensor.tfnp.zeros(0, dtype=BackendTensor.tfnp.int64)
+        return empty, empty, empty
+
+    # 6. Extract the valid sorted indices
+    valid_idx_0_sorted = idx_0_sorted[valid_all]
+    valid_idx_1_sorted = idx_1_sorted[valid_all]
+    valid_idx_2_sorted = idx_2_sorted[valid_all]
+
+    # 7. CRITICAL FIX: Map the sorted indices back to the original voxel_code row indices!
+    x = sort_indices[valid_idx_0_sorted]
+    y = sort_indices[valid_idx_1_sorted]
+    z = sort_indices[valid_idx_2_sorted]
+
+    return x, y, z
+
+
+def _get_indices_via_searchsorted_(voxel_code, compressed_0, compressed_1, compressed_2):
+    """
+    Replaces _map_and_filter_voxels AND _convert_masks_to_indices.
+    Requires voxel_code to be a sorted 1D tensor.
+    """
+    # Ensure voxel_code is 1D for searchsorted
+    vc_1d = voxel_code.squeeze()
+
+    # 1. Find potential indices directly (O(M log N) time, O(M) memory)
+    idx_0 = BackendTensor.tfnp.searchsorted(vc_1d, compressed_0)
+    idx_1 = BackendTensor.tfnp.searchsorted(vc_1d, compressed_1)
+    idx_2 = BackendTensor.tfnp.searchsorted(vc_1d, compressed_2)
+
+    # 2. Clamp indices to avoid out-of-bounds errors on the next step
+    # searchsorted returns len(vc_1d) if the element is larger than all elements
+    max_idx = len(vc_1d) - 1
+    idx_0_c = BackendTensor.tfnp.clip(idx_0, 0, max_idx)
+    idx_1_c = BackendTensor.tfnp.clip(idx_1, 0, max_idx)
+    idx_2_c = BackendTensor.tfnp.clip(idx_2, 0, max_idx)
+
+    # 3. Validate that the found elements actually match the compressed codes
+    valid_0 = vc_1d[idx_0_c] == compressed_0
+    valid_1 = vc_1d[idx_1_c] == compressed_1
+    valid_2 = vc_1d[idx_2_c] == compressed_2
+
+    # 4. Filter down to only edges where ALL three neighbors exist
+    valid_all = valid_0 & valid_1 & valid_2
+
+    # Early exit if nothing is valid
+    if not BackendTensor.tfnp.any(valid_all):
+        empty = BackendTensor.tfnp.zeros(0, dtype=BackendTensor.tfnp.int64)
+        return empty, empty, empty
+
+    # 5. Extract the final valid indices
+    x = idx_0[valid_all]
+    y = idx_1[valid_all]
+    z = idx_2[valid_all]
+
+    return x, y, z
+
+
+def _compress_binary_indices(left_right_array_active_edge, edge_vector_a, edge_vector_b, edge_vector_c, pack_factors):
+    """Compress voxel codes using matrix multiplication for GPU speed."""
+    device = getattr(left_right_array_active_edge, 'device', None)
+    dtype = left_right_array_active_edge.dtype
+
+    # Constructing offset vectors directly is faster than stacking scalar tensors
+    if BackendTensor.engine_backend == BackendTensor.engine_backend.PYTORCH:
+        edge_vector_0 = BackendTensor.tfnp.tensor([edge_vector_a, 0, 0], dtype=dtype, device=device)
+        edge_vector_1 = BackendTensor.tfnp.tensor([0, edge_vector_b, 0], dtype=dtype, device=device)
+        edge_vector_2 = BackendTensor.tfnp.tensor([0, 0, edge_vector_c], dtype=dtype, device=device)
+    else:
+        edge_vector_0 = BackendTensor.tfnp.array([edge_vector_a, 0, 0], dtype=dtype)
+        edge_vector_1 = BackendTensor.tfnp.array([0, edge_vector_b, 0], dtype=dtype)
+        edge_vector_2 = BackendTensor.tfnp.array([0, 0, edge_vector_c], dtype=dtype)
+
+    # Broadcast add
+    binary_idx_0 = left_right_array_active_edge + edge_vector_0
+    binary_idx_1 = left_right_array_active_edge + edge_vector_1
+    binary_idx_2 = left_right_array_active_edge + edge_vector_2
+
+    # OPTIMIZATION: Use matrix-vector multiplication (@) instead of element-wise multiply + sum
+    # Make sure pack_factors is a 1D tensor of shape (3,)
+    if hasattr(pack_factors, 'squeeze'):
+        pack_factors = pack_factors.squeeze()
+
+    # Cast to float for matmul if necessary, or keep as int if PyTorch version supports int matmul well
+    compressed_0 = (binary_idx_0 * pack_factors).sum(axis=1)
+    compressed_1 = (binary_idx_1 * pack_factors).sum(axis=1)
+    compressed_2 = (binary_idx_2 * pack_factors).sum(axis=1)
+
+    return compressed_0, compressed_1, compressed_2
+
+
+def _filter_edges_with_neighbors(edge_vector_a, edge_vector_b, edge_vector_c,
+                                 left_right_array_active_edge, dtype, base_number):
+    def check_voxels_exist_next_to_edge(coord_col, edge_vector,
+                                        _left_right_array_active_edge, _base_number_inner):
+        match edge_vector:
+            case 0:
+                _valid_edges = BackendTensor.tfnp.ones(_left_right_array_active_edge.shape[0], dtype=dtype)
+            case 1:
+                _valid_edges = _left_right_array_active_edge[:, coord_col] != _base_number_inner - 1
+            case -1:
+                _valid_edges = _left_right_array_active_edge[:, coord_col] != 0
+            case _:
+                raise ValueError("edge_vector must be -1, 0 or 1")
+        return _valid_edges
+
+    valid_edges_x = check_voxels_exist_next_to_edge(0, edge_vector_a, left_right_array_active_edge, base_number[0])
+    valid_edges_y = check_voxels_exist_next_to_edge(1, edge_vector_b, left_right_array_active_edge, base_number[1])
+    valid_edges_z = check_voxels_exist_next_to_edge(2, edge_vector_c, left_right_array_active_edge, base_number[2])
+
+    # OPTIMIZATION: Use bitwise & instead of multiplication
+    valid_edges_with_neighbour = valid_edges_x & valid_edges_y & valid_edges_z
+    return left_right_array_active_edge[valid_edges_with_neighbour]

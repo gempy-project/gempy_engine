@@ -45,19 +45,24 @@ def compute_dual_contouring_v2(dc_data_list: list[DualContouringData], max_worke
         _dummy_matrix = torch.ones((1, 1), device=BackendTensor.device, dtype=BackendTensor.dtype_obj)
         _ = torch.linalg.inv(_dummy_matrix)
     # ------------------------------
-    # Use ThreadPoolExecutor to parallelize surface processing
-    # This is similar to the approach in _weighted_qef_setup_multicore.py
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all tasks
-        futures = [
-            executor.submit(_process_one_surface, dc_data, dc_data.left_right_codes)
-            for dc_data in dc_data_list
-        ]
+    
+    if os.getenv("DUAL_CONTOURING_MULTITHREAD", "False") == "True":
+        # Use ThreadPoolExecutor to parallelize surface processing
+        # This is similar to the approach in _weighted_qef_setup_multicore.py
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            futures = [
+                executor.submit(_process_one_surface, dc_data, dc_data.left_right_codes)
+                for dc_data in dc_data_list
+            ]
 
-        # Collect results in order
-        stack_meshes: List[DualContouringMesh] = []
-        for future in futures:
-            stack_meshes.append(future.result())
+            # Collect results in order
+            stack_meshes: List[DualContouringMesh] = []
+            for future in futures:
+                stack_meshes.append(future.result())
+                
+    else:
+        stack_meshes = [_process_one_surface(dc_data, dc_data.left_right_codes) for dc_data in dc_data_list]
 
     return stack_meshes
 
@@ -82,9 +87,5 @@ def _process_one_surface(dc_data: DualContouringData, left_right_codes) -> DualC
         vertex=vertices
     )
 
-    # vertices_numpy = BackendTensor.t.to_numpy(vertices)
-    # indices_numpy = BackendTensor.t.to_numpy(indices)
-    # mesh = DualContouringMesh(vertices_numpy, indices_numpy, dc_data)
-    
     mesh = DualContouringMesh(vertices, indices, dc_data)
     return mesh
