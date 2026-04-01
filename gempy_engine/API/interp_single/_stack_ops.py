@@ -3,6 +3,7 @@ import concurrent.futures
 
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
 from ._interp_scalar_field import _evaluate_sys_eq, compute_weights
+from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.data import TensorsStructure, SurfacePoints, Orientations, SurfacePointsInternals, OrientationsInternals
 from ...core.data.exported_fields import ExportedFields
@@ -41,6 +42,11 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
     # region preparation - build inputs for this chunk
     chunk_interpolation_inputs: list[InterpolationInput] = []
     chunk_tensor_structs: list[TensorsStructure] = []
+
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH and BackendTensor.use_gpu:
+        import torch
+        _dummy_matrix = torch.ones((1, 1), device=BackendTensor.device, dtype=BackendTensor.dtype_obj)
+        _ = torch.linalg.inv(_dummy_matrix)
 
     for i in chunk:
         state.stack_structure.stack_number = i
@@ -238,27 +244,31 @@ def _compute_weights_for_stacks(
         stack_indices = list(range(stack_structure.n_stacks))
 
     def _run_prep(idx_global_i: tuple[int, int]) -> SolverInput_v2:
-        idx, global_i = idx_global_i
-        # Copy stack_structure to avoid race conditions on stack_number
-        from copy import copy
-        local_stack_structure = copy(stack_structure)
-        local_stack_structure.stack_number = global_i
+        import torch
+        stream = torch.cuda.Stream()
+        with torch.cuda.stream(stream):
+            idx, global_i = idx_global_i
+            # Copy stack_structure to avoid race conditions on stack_number
+            from copy import copy
+            local_stack_structure = copy(stack_structure)
+            local_stack_structure.stack_number = global_i
 
-        solver_input: SolverInput_v2 = input_preprocess_v2(
-            data_shape=tensor_structs[idx],
-            interpolation_input=interpolation_inputs[idx]
-        )
+            solver_input: SolverInput_v2 = input_preprocess_v2(
+                data_shape=tensor_structs[idx],
+                interpolation_input=interpolation_inputs[idx]
+            )
 
-        # region compute weights
-        weights = compute_weights(
-            solver_input=solver_input,
-            stack_number=global_i,
-            options=options
-        )
-        solver_input.weights_x0 = weights
+            # region compute weights
+            weights = compute_weights(
+                solver_input=solver_input,
+                stack_number=global_i,
+                options=options
+            )
+            solver_input.weights_x0 = weights
+        stream.synchronize()
         return solver_input
 
-    if CONCURRENT:=False:
+    if CONCURRENT:=True:
         with concurrent.futures.ThreadPoolExecutor() as executor:
             solver_inputs = list(executor.map(_run_prep, enumerate(stack_indices)))
     else:
