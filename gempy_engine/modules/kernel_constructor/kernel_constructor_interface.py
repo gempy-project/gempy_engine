@@ -1,5 +1,3 @@
-import torch
-
 from ...core.backend_tensor import BackendTensor
 from ...core.data.internal_structs import SolverInput
 from ...core.data.kernel_classes.orientations import OrientationsInternals

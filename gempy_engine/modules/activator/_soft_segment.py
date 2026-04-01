@@ -25,7 +25,9 @@ def soft_segment_unbounded(Z, edges, ids, sigmoid_slope):
     match sigmoid_slope:
         case numbers.Number():
             membership = _lith_segmentation(Z, edges, ids, sigmoid_slope)
-        case _ if isinstance(sigmoid_slope, (np.ndarray, torch.Tensor)):
+        case _ if isinstance(sigmoid_slope, (np.ndarray)):
+            membership = _final_faults_segmentation(Z, edges, sigmoid_slope)
+        case _ if isinstance(sigmoid_slope, (torch.Tensor)):
             membership = _final_faults_segmentation(Z, edges, sigmoid_slope)
         case _:
             raise ValueError("sigmoid_slope must be a float or an array")
@@ -110,12 +112,12 @@ def _sigmoid_stable(scalar_field, edges, tau_k):
 
     # for x>=0: safe to compute exp(-x)
     x_pos = x[pos]
-    exp_neg = bt.t.exp(-x_pos)            # no overflow since -x_pos <= 0
+    exp_neg = bt.t.exp(-x_pos)  # no overflow since -x_pos <= 0
     out[pos] = 1.0 / (1.0 + exp_neg)
 
     # for x<0: safe to compute exp(x)
     x_neg = x[neg]
-    exp_pos = bt.t.exp(x_neg)             # no overflow since x_neg < 0
+    exp_pos = bt.t.exp(x_neg)  # no overflow since x_neg < 0
     out[neg] = exp_pos / (1.0 + exp_pos)
 
     return out

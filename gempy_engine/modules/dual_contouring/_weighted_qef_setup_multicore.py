@@ -11,10 +11,10 @@ from ...core.data.dual_contouring_data import DualContouringData
 
 DEFAULT_CROSS_SURFACE_WEIGHT = 10.0
 
-import torch
 
 
 def intersect1d_assume_unique(codes_i, codes_j):
+    import torch
     # 1. Concatenate the tensors
     cat = torch.cat([codes_i, codes_j])
 

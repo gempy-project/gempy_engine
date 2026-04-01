@@ -8,6 +8,7 @@ from gempy_engine.core.data.output.blocks_value_type import ValueType
 from ._octree_internals import compute_next_octree_locations
 from gempy_engine.core.data.octree_level import OctreeLevel
 from gempy_engine.core.data.engine_grid import EngineGrid
+from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.data.options.evaluation_options import EvaluationOptions
 
@@ -29,6 +30,14 @@ def get_next_octree_grid(prev_octree: OctreeLevel, evaluation_options: Evaluatio
 
 def get_regular_grid_value_for_level(octree_list: List['OctreeLevel'], level: Optional[int] = None,
                                      value_type: 'ValueType' = ValueType.ids, scalar_n=-1) -> "torch.Tensor":
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        return get_regular_grid_value_for_level_torch(octree_list, level, value_type, scalar_n)
+    else:
+        return get_regular_grid_value_for_level_numpy(octree_list, level, value_type, scalar_n)
+
+
+def get_regular_grid_value_for_level_torch(octree_list: List['OctreeLevel'], level: Optional[int] = None,
+                                           value_type: 'ValueType' = ValueType.ids, scalar_n=-1) -> "torch.Tensor":
     import torch
     # region Internal Functions ==================================================
     def calculate_oct(shape, n_rep: int, device: torch.device) -> torch.Tensor:
@@ -155,7 +164,7 @@ def get_regular_grid_value_for_level(octree_list: List['OctreeLevel'], level: Op
     # return regular_grid.view(tuple(regular_grid_shape.tolist()))
 
 
-def get_regular_grid_value_for_level_(octree_list: List[OctreeLevel], level: Optional[int] = None,
+def get_regular_grid_value_for_level_numpy(octree_list: List[OctreeLevel], level: Optional[int] = None,
                                       value_type: ValueType = ValueType.ids, scalar_n=-1) -> np.ndarray:
     # region Internal Functions ==================================================
     def calculate_oct(shape, n_rep: int) -> np.ndarray:

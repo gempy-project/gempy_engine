@@ -1,6 +1,5 @@
 from typing import Tuple
 
-import pandas as pd
 import numpy as np
 import pytest
 import os
@@ -22,6 +21,7 @@ data_path = dir_name + "/simple_geometries/"
 
 @pytest.fixture(scope="session")
 def unconformity() -> Tuple[InterpolationInput, InterpolationOptions, InputDataDescriptor]:
+    import pandas as pd
     orientations = pd.read_csv(data_path + "model6_orientations.csv")
     sp = pd.read_csv(data_path + "model6_surface_points.csv")
 
