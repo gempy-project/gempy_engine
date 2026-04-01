@@ -7,6 +7,7 @@ from ._gen_vertices import generate_dual_contouring_vertices
 from ._parallel_triangulation import _should_use_parallel_processing, _init_worker
 from ._sequential_triangulation import _compute_triangulation
 from ... import optional_dependencies
+from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.dual_contouring_mesh import DualContouringMesh
@@ -36,7 +37,14 @@ def compute_dual_contouring_v2(dc_data_list: list[DualContouringData], max_worke
     n_surfaces = len(dc_data_list)
     if n_surfaces == 0:
         return []
-
+    # --- PYTORCH BUG WORKAROUND ---
+    # Force the lazy initialization of the linalg module on the main thread 
+    # to prevent race conditions during parallel voxel processing.
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH and BackendTensor.use_gpu:
+        import torch
+        _dummy_matrix = torch.ones((1, 1), device=BackendTensor.device, dtype=BackendTensor.dtype_obj)
+        _ = torch.linalg.inv(_dummy_matrix)
+    # ------------------------------
     # Use ThreadPoolExecutor to parallelize surface processing
     # This is similar to the approach in _weighted_qef_setup_multicore.py
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:

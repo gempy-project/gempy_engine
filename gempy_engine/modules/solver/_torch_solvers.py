@@ -26,15 +26,17 @@ def pykeops_torch_cg(b, cov, x0, use_gpu):
             alpha=0,
             backend="GPU" if use_gpu else "CPU",
             call=False,
-            dtype_acc="float64", # * For now we always use float 64 even on gpu
+            # dtype_acc="float64", # * For now we always use float 64 even on gpu
+            use_double_acc=True,
             sum_scheme="kahan_scheme"
         )
 
-        w = solver(
+        w, success = solver(
             eps=1e-5,
-            x0=BackendTensor.t.array(x0)
+            x0=None
         )
-    return w
+        
+    return w.squeeze(1)
 
 def pykeops_torch_direct(b, cov):
     raise NotImplementedError
@@ -45,13 +47,7 @@ def pykeops_torch_direct(b, cov):
 
 
 def torch_solve(b, cov):
-    if (os.getenv("CHOLESKY") == "True"):
-        if b.dim() == 1:
-            b = b.unsqueeze(1)
-        w = bt.t.cholesky_solve(b, cov)
-        w = w.squeeze(1)
-    else:
-        w = bt.t.linalg.solve(cov, b)
+    w = bt.t.linalg.solve(cov, b)
     return w
 
 ''' 

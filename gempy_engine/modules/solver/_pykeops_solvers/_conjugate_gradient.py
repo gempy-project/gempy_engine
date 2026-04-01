@@ -1,13 +1,253 @@
 ﻿from pykeops.common.utils import get_tools
 from gempy_engine.core.backend_tensor import BackendTensor
 import warnings
+import warnings
 
 
-def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None,
-                            regularization=None, preconditioning=None,
-                            adaptive_tolerance=True, max_iterations=5000,
-                            verbose=False
-                            ):
+def ConjugateGradientSolver(binding, linop, b, eps=1e-5, nugget=1e-8, x0=None,
+                            check_freq=10, max_iterations=5000, verbose=False):
+    tools = get_tools(binding)
+
+    # ---------------------------------------------------------
+    # 1. INITIALIZATION & SETUP
+    # ---------------------------------------------------------
+
+    # Clean wrapper for the linear operator (Matrix-Vector multiplication)
+    def apply_A(x):
+        Ax = linop(x)
+        if nugget > 0.0:
+            Ax += nugget * x  # Adds diagonal jitter for stability
+        return Ax
+
+    # Initialize solution vector 'a'
+    if x0 is not None:
+        a = tools.copy(x0.to(BackendTensor.dtype_obj)).reshape(-1, 1)
+    else:
+        # Small random perturbation avoids getting stuck in numerical null spaces
+        a = 0.001 * tools.randn_like(b) if hasattr(tools, 'randn_like') else 0 * b
+
+    # Compute initial residual (r = b - Ax)
+    r = tools.copy(b) - apply_A(a)
+    nr2 = (r ** 2).sum()
+
+    # Calculate convergence thresholds based on the initial state
+    initial_nr2_val = nr2.item()  # Force ONE sync at the very beginning
+    target_threshold = initial_nr2_val * (eps ** 2)
+
+    if initial_nr2_val < target_threshold:
+        return a
+
+    # Initialize search direction
+    p = tools.copy(r)
+
+    # Trackers
+    k = 1
+    prev_nr2_val = initial_nr2_val
+
+    while k < max_iterations:
+        # -- ASYNCHRONOUS TENSOR MATH (GPU runs free here) --
+        Mp = apply_A(p)
+
+        # Add tiny epsilon to denominator to prevent division by zero without CPU syncs
+        denominator = (p * Mp).sum() + 1e-16
+        alp = nr2 / denominator
+
+        a = a + alp * p
+        r = r - alp * Mp
+        nr2new = (r ** 2).sum()
+
+        beta = nr2new / nr2
+        p = r + beta * p
+
+        # Swap references for next iteration
+        nr2 = nr2new
+        k += 1
+
+        # LAZY CHECK BLOCK
+        if k % check_freq == 0:
+            current_nr2_val = nr2new.item()
+
+            # 1. Convergence Check
+            if current_nr2_val < target_threshold:
+                return a, True  # SUCCESS!
+
+            # ---------------------------------------------------------
+            # NEW: EARLY BAILOUT TRIGGERS
+            # ---------------------------------------------------------
+
+            # Trigger A: The Flatline (Check at iteration 20)
+            if k == check_freq * 2:
+                reduction_rate = current_nr2_val / initial_nr2_val
+                if reduction_rate > 0.5:  # Error hasn't even halved in 20 steps
+                    if verbose: print(f"Bailout at {k}: Matrix too stiff. (Reduction: {reduction_rate:.2f})")
+                    return None, False  # ABORT CG
+
+            # Trigger B: Immediate Divergence
+            if current_nr2_val > initial_nr2_val * 2.0:
+                if verbose: print(f"Bailout at {k}: Algorithm diverging instantly.")
+                return None, False  # ABORT CG
+
+            # Trigger C: Persistent Stagnation (Slightly more aggressive now)
+            residual_change = abs(current_nr2_val - prev_nr2_val) / max(prev_nr2_val, 1e-16)
+            if residual_change < 1e-6:
+                if verbose: print(f"Bailout at {k}: Solver hit a mathematical flatline.")
+                return None, False  # ABORT CG
+
+            # 4. Fletcher-Reeves Safety Override
+            if beta.item() > 1.0:
+                p = tools.copy(r)
+                
+            prev_nr2_val = current_nr2_val
+
+    return a, False  # Max iterations reached without converging -> Fail
+
+
+def ConjugateGradientSolver_(binding, linop, b, eps=1e-5, x0=None,
+                             nugget=1e-5, preconditioning=None,
+                             check_freq=10, max_iterations=5000,
+                             verbose=False):
+    """
+    Robust, Asynchronous Conjugate Gradient solver for PyKeOps.
+
+    Uses 'Lazy Checking' to prevent CPU-GPU synchronization bottlenecks.
+    The GPU computes `check_freq` iterations completely asynchronously 
+    before the CPU pauses to check for convergence or stagnation.
+    """
+    tools = get_tools(binding)
+
+    # ---------------------------------------------------------
+    # 1. INITIALIZATION & SETUP
+    # ---------------------------------------------------------
+
+    # Define the base target vector
+    working_b = preconditioning(b) if preconditioning else b
+
+    # Clean wrapper for the linear operator (Matrix-Vector multiplication)
+    def apply_A(x):
+        Ax = linop(x)
+        if nugget > 0.0:
+            Ax += nugget * x  # Adds diagonal jitter for stability
+        if preconditioning:
+            Ax = preconditioning(Ax)
+        return Ax
+
+    # Initialize solution vector 'a'
+    if x0 is not None:
+        a = tools.copy(x0.to(BackendTensor.dtype_obj)).reshape(-1, 1)
+    else:
+        # Small random perturbation avoids getting stuck in numerical null spaces
+        a = 0.001 * tools.randn_like(b) if hasattr(tools, 'randn_like') else 0 * b
+
+    # Compute initial residual (r = b - Ax)
+    r = tools.copy(working_b) - apply_A(a)
+    nr2 = (r ** 2).sum()
+
+    # Calculate convergence thresholds based on the initial state
+    initial_nr2_val = nr2.item()  # Force ONE sync at the very beginning
+    target_threshold = initial_nr2_val * (eps ** 2)
+
+    if initial_nr2_val < target_threshold:
+        return a
+
+    # Initialize search direction
+    p = tools.copy(r)
+
+    # ---------------------------------------------------------
+    # 2. TRACKERS FOR LAZY CHECKING
+    # ---------------------------------------------------------
+    k = 1
+    prev_nr2_val = initial_nr2_val
+    stagnation_counter = 0
+    consecutive_divergence = 0
+    last_restart = 0
+
+    # Tuning parameters for stability
+    stagnation_threshold = 1e-12
+    stagnation_tolerance = 50
+    restart_limit = max_iterations // 4
+
+    # ---------------------------------------------------------
+    # 3. THE ASYNCHRONOUS CG LOOP
+    # ---------------------------------------------------------
+    while k < max_iterations:
+
+        # -- ASYNCHRONOUS TENSOR MATH (GPU runs free here) --
+        Mp = apply_A(p)
+
+        # Add tiny epsilon to denominator to prevent division by zero without CPU syncs
+        denominator = (p * Mp).sum() + 1e-16
+        alp = nr2 / denominator
+
+        a = a + alp * p
+        r = r - alp * Mp
+        nr2new = (r ** 2).sum()
+
+        beta = nr2new / nr2
+        p = r + beta * p
+
+        # Swap references for next iteration
+        nr2 = nr2new
+        k += 1
+
+        # -- LAZY CHECK BLOCK (CPU syncs only every `check_freq` iterations) --
+        if k % check_freq == 0:
+
+            # .item() pulls the scalar to the CPU, forcing the hardware to sync
+            current_nr2_val = nr2new.item()
+
+            # 1. Convergence Check
+            if current_nr2_val < target_threshold:
+                if verbose:
+                    print(f"Converged at iteration {k} | Relative Residual: {current_nr2_val / initial_nr2_val:.2e}")
+                break
+
+            # 2. Stagnation Check
+            residual_change = abs(current_nr2_val - prev_nr2_val) / max(prev_nr2_val, 1e-16)
+            if residual_change < stagnation_threshold:
+                stagnation_counter += check_freq
+            else:
+                stagnation_counter = 0
+
+            if stagnation_counter >= stagnation_tolerance:
+                if k - last_restart > restart_limit:
+                    if verbose: print(f"Stagnation at {k}. Restarting search direction...")
+                    p = tools.copy(r)  # Reset to steepest descent
+                    stagnation_counter = 0
+                    last_restart = k
+                else:
+                    warnings.warn(f"Persistent stagnation. Stopping at {current_nr2_val:.2e}")
+                    break
+
+            # 3. Divergence Check
+            if current_nr2_val > prev_nr2_val * 1.5:
+                consecutive_divergence += check_freq
+                if consecutive_divergence >= 30:  # Hardcoded tolerance for divergence
+                    warnings.warn("Algorithm diverging. Matrix may be too ill-conditioned.")
+                    break
+            else:
+                consecutive_divergence = 0
+
+            # 4. Fletcher-Reeves Safety Override
+            if beta.item() > 1.0:
+                p = tools.copy(r)
+
+            # Update tracker for the next check block
+            prev_nr2_val = current_nr2_val
+
+    # ---------------------------------------------------------
+    # 4. FINAL DIAGNOSTICS
+    # ---------------------------------------------------------
+    if k >= max_iterations:
+        warnings.warn("Maximum iterations reached without full convergence.")
+
+    return a
+
+
+def ConjugateGradientSolver__(binding, linop, b, eps=1e-6, x0=None,
+                              regularization=None, preconditioning=None,
+                              adaptive_tolerance=True, max_iterations=5000,
+                              verbose=False
+                              ):
     """
     Robust Conjugate Gradient solver for ill-conditioned linear systems using PyKeOps.
     
@@ -40,7 +280,6 @@ def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None,
 
     tools = get_tools(binding)
 
-
     # --- inside INITIALIZATION AND STABILITY SETUP -----------------
     if adaptive_tolerance:
         b_norm = (b ** 2).sum().sqrt()
@@ -49,16 +288,15 @@ def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None,
         # Absolute part scaled by vector size
         abs_thresh = eps * tools.size(b)
         # Minimum practical threshold to avoid over-tightening
-        min_thresh = 1e-4 * b_norm        # <- tweak to taste
+        min_thresh = 1e-4 * b_norm  # <- tweak to taste
         initial_residual_threshold = max(rel_thresh, abs_thresh, min_thresh)
         delta = initial_residual_threshold ** 2
     else:
         delta = tools.size(b) * eps ** 2
 
-
     # Initialize solution vector with better conditioning
     if x0 is not None:
-        a = tools.copy(x0.to(BackendTensor.dtype_obj)).reshape(-1, 1) 
+        a = tools.copy(x0.to(BackendTensor.dtype_obj)).reshape(-1, 1)
 
     else:
         # For ill-conditioned systems, start with small random perturbation
@@ -287,4 +525,3 @@ def ConjugateGradientSolver(binding, linop, b, eps=1e-6, x0=None,
                 warnings.warn("Very slow convergence detected. Consider preconditioning.")
 
     return a
-
