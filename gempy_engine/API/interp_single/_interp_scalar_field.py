@@ -1,3 +1,4 @@
+import os
 import warnings
 from typing import Optional, Any, Union
 
@@ -47,8 +48,10 @@ def compute_weights(solver_input: Union[SolverInput, SolverInput_v2], stack_numb
         case _:
             raise ValueError("Cache mode not recognized")
 
-    # TODO: This should be an env solver
-    BackendTensor.pykeops_enabled = False
+    if (os.getenv("PYKEOPS_SOLVER, False") == "True"):
+        BackendTensor.pykeops_enabled = True
+    else:
+        BackendTensor.pykeops_enabled = False
     match weights_cached:
         case None:
             weights = _solve_and_store_weights(
@@ -83,7 +86,7 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
         kernel_data: KernelInput = kernel_data_tensor.upgrade_tensors()
     else:
         kernel_data = kernel_data_tensor
-    
+
     A_matrix = create_cov_kernel(kernel_data, kernel_options)
     b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
 
@@ -97,7 +100,7 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
         x0=interp_input.weights_x0
     )
 
-    if weights is None:
+    if weights is None:  # * This can happen if we are using the pykeops solver and does not converge
         BackendTensor.pykeops_enabled = False
         A_matrix = create_cov_kernel(kernel_data_tensor, kernel_options)
         weights = solver_interface.kernel_reduction(
