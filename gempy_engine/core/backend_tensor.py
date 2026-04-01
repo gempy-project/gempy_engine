@@ -169,17 +169,22 @@ class BackendTensor:
 
     @classmethod
     def _wrap_pytorch_functions(cls):
-        from torch import sum, repeat_interleave, isclose
         import torch
+        _true_torch_zeros = torch._C._VariableFunctions.zeros
+        _true_torch_ones = torch._C._VariableFunctions.ones
+        _true_torch_eye = torch._C._VariableFunctions.eye
+        _true_torch_sum = torch._C._VariableFunctions.sum
+        _true_torch_repeat_interleave = torch._C._VariableFunctions.repeat_interleave
+        _true_torch_isclose = torch._C._VariableFunctions.isclose
 
         def _sum(tensor, axis=None, dtype=None, keepdims=False):
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
 
-            return sum(tensor, axis, dtype=dtype)
+            return _true_torch_sum(tensor, axis, dtype=dtype)
 
         def _repeat(tensor, n_repeats, axis=None):
-            return repeat_interleave(tensor, n_repeats, dim=axis)
+            return _true_torch_repeat_interleave(tensor, n_repeats, dim=axis)
 
         def _array(array_like, dtype=None):
             if array_like is None:
@@ -299,20 +304,21 @@ class BackendTensor:
             tensor[diagonal_indices, diagonal_indices] = value
             return tensor
 
-        from torch import sum, repeat_interleave, isclose, zeros as torch_zeros, eye as torch_eye, ones as torch_ones
 
         def _zeros(shape, dtype=None, device=None):
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
-            return torch_zeros(shape, dtype=dtype, device=cls.device)
+            return _true_torch_zeros(shape, dtype=dtype, device=cls.device)
 
         def _ones(shape, dtype=None, device=None):
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
-            return torch_ones(shape, dtype=dtype, device=cls.device)
+            return _true_torch_ones(shape, dtype=dtype, device=cls.device)
 
         def _eye(n, dtype=None, device=None):
-            return torch_eye(n, dtype=dtype, device=cls.device)
+            if isinstance(dtype, str):
+                dtype = getattr(torch, dtype)
+            return _true_torch_eye(n, dtype=dtype, device=cls.device)
 
         import torch
 
@@ -390,7 +396,7 @@ class BackendTensor:
         cls.tfnp.packbits = _packbits
         cls.tfnp.ascontiguousarray = lambda tensor: tensor.contiguous()
         cls.tfnp.fill_diagonal = _fill_diagonal
-        cls.tfnp.isclose = lambda a, b, rtol=1e-05, atol=1e-08, equal_nan=False: isclose(
+        cls.tfnp.isclose = lambda a, b, rtol=1e-05, atol=1e-08, equal_nan=False: _true_torch_isclose(
             a,
             torch.tensor(b, dtype=a.dtype, device=a.device),
             rtol=rtol,

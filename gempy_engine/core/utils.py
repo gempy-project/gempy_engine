@@ -4,7 +4,7 @@ import gempy_engine.config
 from ..core.backend_tensor import BackendTensor
 
 
-def cast_type_inplace(data_instance: Any, requires_grad:bool = False):
+def cast_type_inplace(data_instance: Any, requires_grad:bool = False, keep_dtype: bool=False):
     """Converts all numpy arrays to the global dtype"""    
     for key, val in data_instance.__dict__.items():
         if type(val) != np.ndarray: continue
@@ -12,11 +12,11 @@ def cast_type_inplace(data_instance: Any, requires_grad:bool = False):
             case (gempy_engine.config.AvailableBackends.numpy):
                 data_instance.__dict__[key] = val.astype(BackendTensor.dtype)
             case (gempy_engine.config.AvailableBackends.PYTORCH):
-                # tensor = BackendTensor.t.from_numpy(val.astype(BackendTensor.dtype))
-                # if (BackendTensor.use_gpu):
-                #     tensor = tensor.cuda()
-
-                tensor = BackendTensor.tfnp.array(val, dtype=BackendTensor.dtype_obj)
+                if keep_dtype:
+                    _dtype = str(val.dtype)
+                else:
+                    _dtype = BackendTensor.dtype_obj
+                tensor = BackendTensor.tfnp.array(val, dtype=_dtype)
                 tensor.requires_grad = requires_grad
                 data_instance.__dict__[key] = tensor
         
