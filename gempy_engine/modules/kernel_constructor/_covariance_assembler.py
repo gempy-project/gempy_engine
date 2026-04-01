@@ -50,7 +50,7 @@ def _get_cov_grad(dm, k_a, k_p_ref, nugget):
     grad_nugget = nugget[0, 0]
     if BackendTensor.pykeops_enabled is False:
         # eye = BackendTensor.t.array(np.eye(cov_grad.shape[0], dtype=BackendTensor.dtype))
-        eye = BackendTensor.t.eye(cov_grad.shape[0], dtype=BackendTensor.dtype_obj, device=BackendTensor.device)
+        eye = BackendTensor.t.eye(cov_grad.shape[0])
         nugget_selector = eye * dm.perp_matrix
         nugget_matrix = nugget_selector * grad_nugget
         cov_grad += nugget_matrix

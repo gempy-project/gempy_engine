@@ -4,9 +4,7 @@ from dataclasses import dataclass, field
 from typing import Type
 
 import numpy as np
-import torch
 
-from gempy_engine.config import AvailableBackends
 from ..backend_tensor import BackendTensor as b, BackendTensor
 from ..utils import cast_type_inplace
 

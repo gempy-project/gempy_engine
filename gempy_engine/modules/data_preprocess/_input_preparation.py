@@ -44,10 +44,10 @@ def surface_points_preprocess(sp_input: SurfacePoints, tensors_structure: Tensor
     return SurfacePointsInternals(ref_points_repeated, rest_points, nugget_effect_ref_rest)
 
 
-import torch
 
 
 def surface_points_preprocess_(sp_input: SurfacePoints, tensors_structure: TensorsStructure) -> SurfacePointsInternals:
+    import torch
     # 1. Ensure inputs are PyTorch tensors on the correct device (GPU)
     # If they are currently NumPy arrays, convert them ONCE before this function is called.
     partitions_bool = tensors_structure.partitions_bool

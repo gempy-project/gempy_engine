@@ -3,6 +3,7 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pytest
 
 from gempy_engine.API.interp_single._interp_scalar_field import _solve_interpolation, _evaluate_sys_eq
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
@@ -42,6 +43,7 @@ def test_activator_3_layers_segmentation_function_II(simple_model_3_layers, simp
         _plot_continious(grid, ids_block, interpolation_input)
 
 
+@pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.PYTORCH, reason="Only for PyTorch")
 def test_activator_3_layers_segmentation_function_torch(simple_model_3_layers, simple_grid_3d_more_points_grid):
     Z_x, grid, ids_block, interpolation_input = _run_test(
         backend=AvailableBackends.PYTORCH,

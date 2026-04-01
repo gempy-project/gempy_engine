@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 from typing import Tuple, Optional
 
 import numpy as np
-from pykeops.numpy import LazyTensor
 
 from gempy_engine.core.utils import cast_type_inplace
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
