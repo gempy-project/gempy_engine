@@ -1,6 +1,6 @@
 import warnings
-from dataclasses import dataclass, asdict
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import List
 
 import numpy as np
 
@@ -30,13 +30,13 @@ class OctreeLevel:
         return self.grid.octree_dxdydz
 
     @property
-    def output_centers(self):  # * Alias
-        warnings.warn('This function is deprecated', DeprecationWarning)
-        return self.last_output_center
-
-    @property
     def last_output_center(self):
         return self.outputs[-1]
+    
+    @property
+    def outputs_centers(self):
+        warnings.warn('This function is deprecated', DeprecationWarning)
+        return self.outputs
 
     @property
     def litho_faults_ids_corners_grid(self):

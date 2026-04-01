@@ -160,7 +160,7 @@ def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
         octrees_output=interpolate_n_octree_levels(interpolation_input, options, structure)
     )
 
-    final_block = solution.octrees_output[0].output_centers.final_block
+    final_block = solution.octrees_output[0].last_output_center.final_block
     final_block2 = get_regular_grid_value_for_level(solution.octrees_output, 1).astype("int8")
 
     if plot_2d := False or False:
