@@ -19,6 +19,7 @@ from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.options import InterpolationOptions
 from ...core.data.scalar_field_output import ScalarFieldOutput
 from ...core.data.stack_relation_type import StackRelationType
+from ...core.data.stacks_structure import StacksStructure
 
 
 # @off
@@ -58,9 +59,8 @@ def _interpolate_stack_flat(root_data_descriptor: InputDataDescriptor, root_inte
 
     # Compute independent chunks from fault relations
     chunks: list[list[int]] = _compute_independent_chunks(
-        faults_relations=stack_structure.faults_relations,
-        n_stacks=stack_structure.n_stacks,
-        masking_descriptor=stack_structure.masking_descriptor
+        stack_structure=stack_structure,
+        len_grid=root_interpolation_input.grid.len_all_grids
     )
 
     # Pre-allocate result lists indexed by global stack number
@@ -146,13 +146,18 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
     return all_scalar_fields_outputs
 
 
-def _compute_independent_chunks(faults_relations: np.ndarray, n_stacks: int, masking_descriptor: list) -> list[list[int]]:
+def _compute_independent_chunks(stack_structure: StacksStructure, len_grid: int) -> list[list[int]]:
     """Analyze the fault_relations matrix to find chunks of independent stacks.
     
     faults_relations[j, i] == True means stack i depends on fault stack j.
     Stacks are processed in chunks where all stacks in a chunk have their
     fault dependencies already resolved by previous chunks.
     """
+
+    faults_relations = stack_structure.faults_relations
+    masking_descriptor = stack_structure.masking_descriptor
+    n_stacks = stack_structure.n_stacks
+
     if faults_relations is None:
         return [list(range(n_stacks))]
 
@@ -175,5 +180,29 @@ def _compute_independent_chunks(faults_relations: np.ndarray, n_stacks: int, mas
         chunks.append(chunk)
         remaining -= set(chunk)
         resolved.update(i for i in chunk if i in fault_stacks)
+
+
+    # Second check to ensure we do not end up with a massive chunk that does not fit in the VRAM
+    max_chunk_memory: int = int(os.getenv("GEMPY_MAX_CHUNK_SIZE", "32_000_000_000"))  # Default to ~1GB worth of "cost"
+    n_points_per_stack = stack_structure.number_of_points_per_stack
+    n_orientations_per_stack = stack_structure.number_of_orientations_per_stack
+    n_grid_points = len_grid
+
+    new_chunks = []
+    for chunk in chunks:
+        current_sub_chunk = []
+        current_chunk_cost = 0
+        for stack_idx in chunk:
+            stack_cost = (n_points_per_stack[stack_idx] + n_orientations_per_stack[stack_idx]) * n_grid_points
+            if current_sub_chunk and current_chunk_cost + stack_cost > max_chunk_memory:
+                new_chunks.append(current_sub_chunk)
+                current_sub_chunk = [stack_idx]
+                current_chunk_cost = stack_cost
+            else:
+                current_sub_chunk.append(stack_idx)
+                current_chunk_cost += stack_cost
+        if current_sub_chunk:
+            new_chunks.append(current_sub_chunk)
+    chunks = new_chunks
 
     return chunks

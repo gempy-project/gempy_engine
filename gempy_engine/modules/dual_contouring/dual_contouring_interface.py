@@ -6,6 +6,7 @@ import numpy as np
 from ._find_vertex_overlap import find_repeated_voxels_across_stacks
 from ._apply_vertex_overlap_logic import apply_relations_to_overlaps
 from .fancy_triangulation import get_left_right_array
+from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_mesh import DualContouringMesh
@@ -17,8 +18,17 @@ from ...core.data.stacks_structure import StacksStructure
 
 
 # region edges
+
 def find_intersection_on_edge(_xyz_corners, scalar_field_on_corners,
                               scalar_at_sp, masking=None) -> Tuple:
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        return find_intersection_on_edge_torch(_xyz_corners, scalar_field_on_corners, scalar_at_sp, masking)
+    else:
+        return find_intersection_on_edge_numpy(_xyz_corners, scalar_field_on_corners, scalar_at_sp, masking)
+
+
+def find_intersection_on_edge_numpy(_xyz_corners, scalar_field_on_corners,
+                                    scalar_at_sp, masking=None) -> Tuple:
     """This function finds all the intersections for multiple layers per series
     
     - The shape of valid edges is n_surfaces * xyz_corners. Where xyz_corners is 8 * the octree leaf
@@ -26,6 +36,7 @@ def find_intersection_on_edge(_xyz_corners, scalar_field_on_corners,
     
     
     """
+
     scalar_8_ = scalar_field_on_corners
     scalar_8 = scalar_8_.reshape((1, -1, 8))
     xyz_8 = _xyz_corners.reshape((-1, 8, 3))
@@ -79,6 +90,73 @@ def find_intersection_on_edge(_xyz_corners, scalar_field_on_corners,
     intersection_xyz = xyz_8_edges[valid_edges] + intersect_segment[valid_edges]
 
     return intersection_xyz, valid_edges
+
+
+def find_intersection_on_edge_torch(_xyz_corners, scalar_field_on_corners,
+                                    scalar_at_sp, masking=None):
+    """
+    Optimized for VRAM: Replaces tiling and dense intermediate arrays 
+    with zero-copy broadcasting and sparse coordinate extraction.
+    """
+    # 1. Base Setup (Notice we keep a leading '1' dimension for broadcasting)
+    scalar_8 = scalar_field_on_corners.reshape(1, -1, 8)
+    xyz_8 = _xyz_corners.reshape(1, -1, 8, 3)
+
+    if masking is not None:
+        xyz_8 = xyz_8[:, masking, :, :]
+        scalar_8 = scalar_8[:, masking, :]
+
+    scalar_at_sp = scalar_at_sp.reshape(-1, 1, 1)  # Shape: (M, 1, 1)
+
+    M = scalar_at_sp.shape[0]  # Number of isosurfaces
+    N = xyz_8.shape[1]  # Number of voxels
+
+    # 2. Compute Scalar Differences (Shape: 1, N, 4)
+    # We add 1e-10 directly to avoid allocating an extra tensor via +=
+    eps = 1e-10
+    scalar_dx = scalar_8[:, :, :4] - scalar_8[:, :, 4:] + eps
+    scalar_dy = scalar_8[:, :, [0, 1, 4, 5]] - scalar_8[:, :, [2, 3, 6, 7]] + eps
+    scalar_dz = scalar_8[:, :, ::2] - scalar_8[:, :, 1::2] + eps
+
+    # 3. Compute Weights using Broadcasting (Shape: M, N, 4)
+    # PyTorch automatically broadcasts (M, 1, 1) against (1, N, 4) without allocating memory
+    weight_x = (scalar_at_sp - scalar_8[:, :, 4:]) / scalar_dx
+    weight_y = (scalar_at_sp - scalar_8[:, :, [2, 3, 6, 7]]) / scalar_dy
+    weight_z = (scalar_at_sp - scalar_8[:, :, 1::2]) / scalar_dz
+
+    # Group all 12 edge weights together: Shape (M, N, 12)
+    weights = BackendTensor.t.cat([weight_x, weight_y, weight_z], dim=2)
+
+    # 4. Compute Geometric Distances ONCE (Shape: 1, N, 4, 3)
+    # We do NOT tile xyz_8. We only compute the physical distances once for the whole grid.
+    d_x = xyz_8[:, :, :4, :] - xyz_8[:, :, 4:, :]
+    d_y = xyz_8[:, :, [0, 1, 4, 5], :] - xyz_8[:, :, [2, 3, 6, 7], :]
+    d_z = xyz_8[:, :, ::2, :] - xyz_8[:, :, 1::2, :]
+
+    # Group direction vectors and base points: Shape (1, N, 12, 3)
+    d_xyz = BackendTensor.t.cat([d_x, d_y, d_z], dim=2)
+    base_xyz = BackendTensor.t.cat([
+            xyz_8[:, :, 4:, :],
+            xyz_8[:, :, [2, 3, 6, 7], :],
+            xyz_8[:, :, 1::2, :]
+    ], dim=2)
+
+    # 5. Mask Valid Edges (Shape: M, N, 12)
+    valid_edges = (weights > -0.01) & (weights < 1.01)
+
+    # 6. Final Extraction (Sparse Computation)
+    # .expand() creates a ZERO-COPY view, stretching our 1-sized dim to M without using VRAM
+    valid_base = base_xyz.expand(M, N, 12, 3)[valid_edges]  # Shape: (V, 3)
+    valid_d_xyz = d_xyz.expand(M, N, 12, 3)[valid_edges]  # Shape: (V, 3)
+
+    # Extract only the valid weights and add a dimension for broadcasting against XYZ
+    valid_w = weights[valid_edges].unsqueeze(-1)  # Shape: (V, 1)
+
+    # We only compute the final multiplication/addition on the EXACT vertices we are keeping
+    intersection_xyz = valid_base + valid_d_xyz * valid_w
+
+    # Flatten the mask to match the 1D boolean array format of your original code
+    return intersection_xyz, valid_edges.view(-1)
 
 
 # endregion
@@ -143,9 +221,9 @@ def mask_generation(
 
     mask_matrix = BackendTensor.t.zeros((n_scalar_fields, grid_size // 8), dtype=bool)
     onlap_chain_counter = 0
-    
+
     accumulated_voxel_mask = BackendTensor.t.zeros(grid_size // 8, dtype=bool)
-    
+
     for i in range(n_scalar_fields):
         stack_relation = all_scalar_fields_outputs[i].scalar_fields.stack_relation
 
@@ -242,7 +320,7 @@ def apply_relations_vertex_overlap(all_meshes: list[DualContouringMesh],
         all_left_right_codes=left_right_per_mesh,
         base_numbers=all_meshes[0].dc_data.base_number
     )
-    
+
     if voxel_overlaps:
         print(f"Found voxel overlaps between stacks: {voxel_overlaps.keys()}")
         apply_relations_to_overlaps(all_meshes, voxel_overlaps, stack_structure)
