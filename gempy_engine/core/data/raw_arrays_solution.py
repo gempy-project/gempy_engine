@@ -163,7 +163,7 @@ def _fill_block_solutions_with_octree_output(octrees_output, raw_arrays_solution
         return BackendTensor.t.to_numpy(scalar_field_stacked)
 
     # Endregion
-    if ~(os.getenv("ONLY_LITH_SOLUTION") == "True"):
+    if not (os.getenv("ONLY_LITH_SOLUTION") == "True"):
         raw_arrays_solution.block_matrix = ___get_regular_grid_values_for_all_structural_groups(
             octree_output=octrees_output,
             scalar_type=ValueType.values_block
