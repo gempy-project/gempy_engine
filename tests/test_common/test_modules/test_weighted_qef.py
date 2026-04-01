@@ -40,7 +40,9 @@ def test_weighted_qef_produces_valid_meshes(one_fault_model):
 
 def test_weighted_qef_shared_vertices_are_close(one_fault_model):
     """At overlapping voxels, vertices from different meshes should be identical
-    (after the averaging step)."""
+    (after the averaging step).  Fault–destination pairs are excluded because
+    the destination triangles are removed and the fault vertex is intentionally
+    kept at its original (unperturbed) position."""
     from gempy_engine.modules.dual_contouring._find_vertex_overlap import (
         _generate_voxel_codes
     )
@@ -49,6 +51,26 @@ def test_weighted_qef_shared_vertices_are_close(one_fault_model):
     meshes = solutions.dc_meshes
     if len(meshes) < 2:
         pytest.skip("Need at least 2 meshes to test overlap")
+
+    # --- Determine fault-related surface pairs to skip --------------------
+    interpolation_input, structure, _ = one_fault_model
+    stacks_structure = structure.stack_structure
+    faults_relations = stacks_structure.faults_relations
+    surfaces_per_stack_vec = stacks_structure.number_of_surfaces_per_stack_vector
+
+    surface_to_stack = []
+    for sk in range(stacks_structure.n_stacks):
+        n_surf = stacks_structure.number_of_surfaces_per_stack[sk]
+        surface_to_stack.extend([sk] * n_surf)
+
+    fault_dest_surfaces: set = set()
+    if faults_relations is not None:
+        for fs in range(stacks_structure.n_stacks):
+            for ds in range(stacks_structure.n_stacks):
+                if faults_relations[fs, ds]:
+                    for si in range(len(surface_to_stack)):
+                        if surface_to_stack[si] == ds:
+                            fault_dest_surfaces.add(si)
 
     # Build left_right codes for valid voxels of each mesh
     left_right_per_mesh = []
@@ -61,10 +83,13 @@ def test_weighted_qef_shared_vertices_are_close(one_fault_model):
     base_number = meshes[0].dc_data.base_number
     codes = _generate_voxel_codes(left_right_per_mesh, base_number)
 
-    # Check all pairs
+    # Check non-fault pairs
     found_overlap = False
     for i in range(len(codes)):
         for j in range(i + 1, len(codes)):
+            if i in fault_dest_surfaces or j in fault_dest_surfaces:
+                continue  # skip pairs involving fault destinations
+
             common = np.intersect1d(codes[i], codes[j])
             if common.size == 0:
                 continue

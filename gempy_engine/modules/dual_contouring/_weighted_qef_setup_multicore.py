@@ -14,9 +14,16 @@ def _process_single_surface(
         i: int,
         n_surfaces: int,
         surface_cache: list,
-        cross_weight: float
+        cross_weight: float,
+        allowed_partners: Optional[set] = None
 ) -> Tuple[int, Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
-    """Worker function to process one target surface against all others."""
+    """Worker function to process one target surface against its allowed partners.
+    
+    Args:
+        allowed_partners: If provided, only inject constraints from surface indices
+            in this set.  When ``None`` (legacy behaviour), all other surfaces are
+            considered.
+    """
     if surface_cache[i] is None:
         return i, None, None, None
 
@@ -27,6 +34,8 @@ def _process_single_surface(
 
     for j in range(n_surfaces):
         if i == j or surface_cache[j] is None:
+            continue
+        if allowed_partners is not None and j not in allowed_partners:
             continue
 
         codes_j = surface_cache[j]['codes']
@@ -67,16 +76,67 @@ def _process_single_surface(
     return i, None, None, None
 
 
+def _build_allowed_partners(
+        surface_to_stack: Optional[List[int]],
+        faults_relations: Optional[np.ndarray],
+        n_surfaces: int
+) -> Optional[List[Optional[set]]]:
+    """Build per-surface sets of partner surface indices based on geological relations.
+    
+    A surface *i* should only exchange QEF constraints with surface *j* when their
+    respective stacks overlap.  Surfaces within the same stack are skipped.
+    Fault–fault pairs (both stacks are fault stacks) are also excluded so that
+    independent faults do not distort each other's QEF.
+    
+    Returns ``None`` when no filtering should be applied (legacy behaviour).
+    """
+    if surface_to_stack is None or faults_relations is None:
+        return None
+
+    # Determine which stacks are fault stacks (i.e. act as a fault on any other stack)
+    n_stacks = faults_relations.shape[0]
+    is_fault_stack = set()
+    for fs in range(n_stacks):
+        for ds in range(n_stacks):
+            if faults_relations[fs, ds]:
+                is_fault_stack.add(fs)
+                break
+
+    partners: List[Optional[set]] = [None] * n_surfaces
+    for i in range(n_surfaces):
+        si = surface_to_stack[i]
+        allowed = set()
+        for j in range(n_surfaces):
+            if i == j:
+                continue
+            sj = surface_to_stack[j]
+            if si == sj:
+                continue
+            # Skip fault–fault pairs: faults should not affect each other
+            if si in is_fault_stack and sj in is_fault_stack:
+                continue
+            allowed.add(j)
+        partners[i] = allowed if allowed else None
+    return partners
+
+
 def find_and_inject_multi_surface_constraints_multicore(
         dc_data_list: List[DualContouringData],
         left_right_per_mesh: List[np.ndarray],
         base_number: tuple[int, int, int],
         cross_weight: float = DEFAULT_CROSS_SURFACE_WEIGHT,
-        max_workers: int = None  # None defaults to min(32, os.cpu_count() + 4)
+        max_workers: int = None,  # None defaults to min(32, os.cpu_count() + 4)
+        surface_to_stack: Optional[List[int]] = None,
+        faults_relations: Optional[np.ndarray] = None
 ) -> None:
     n_surfaces = len(dc_data_list)
     if n_surfaces < 2:
         return
+
+    # --- 0. Determine allowed pairwise partners (improvement 4.1 + 4.2) ---
+    allowed_partners_per_surface = _build_allowed_partners(
+        surface_to_stack, faults_relations, n_surfaces
+    )
 
     # --- 1. Generate codes ---
     voxel_codes_per_surface = _generate_voxel_codes(left_right_per_mesh, base_number)
@@ -109,7 +169,10 @@ def find_and_inject_multi_surface_constraints_multicore(
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
         futures = [
-                executor.submit(_process_single_surface, i, n_surfaces, surface_cache, cross_weight)
+                executor.submit(
+                    _process_single_surface, i, n_surfaces, surface_cache, cross_weight,
+                    allowed_partners_per_surface[i] if allowed_partners_per_surface is not None else None
+                )
                 for i in range(n_surfaces)
         ]
 

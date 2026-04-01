@@ -149,7 +149,9 @@ def dual_contouring_multi_scalar(
                 dc_data_list=dc_data_per_surface_all,
                 left_right_per_mesh=left_right_per_mesh,
                 base_number=base_number,
-                max_workers=None
+                max_workers=None,
+                surface_to_stack=surface_to_stack,
+                faults_relations=data_descriptor.stack_structure.faults_relations
             )
 
         all_meshes = compute_dual_contouring_v2(
@@ -158,11 +160,15 @@ def dual_contouring_multi_scalar(
         )
         # endregion
         # --- Vertex averaging for exact watertightness at overlap voxels ---
-        if compute_overlap and left_right_per_mesh:
-            _average_overlapping_vertices(all_meshes, left_right_per_mesh, base_number)
+        if compute_overlap and left_right_per_mesh and True:
+            _average_overlapping_vertices(
+                all_meshes, left_right_per_mesh, base_number,
+                surface_to_stack=surface_to_stack,
+                stacks_structure=data_descriptor.stack_structure
+            )
 
         # --- Remove triangles from layer surfaces at fault overlap voxels ---
-        if compute_overlap and left_right_per_mesh:
+        if compute_overlap and left_right_per_mesh and True:
             _remove_fault_overlap_triangles(
                 all_meshes=all_meshes,
                 left_right_per_mesh=left_right_per_mesh,
@@ -290,9 +296,21 @@ def _interp_on_edges(
 def _average_overlapping_vertices(
         all_meshes: List[DualContouringMesh],
         left_right_per_mesh: List[np.ndarray],
-        base_number: tuple[int, int, int]
+        base_number: tuple[int, int, int],
+        surface_to_stack: List[int] = None,
+        stacks_structure: 'StacksStructure' = None
 ) -> None:
-    """Vectorized vertex averaging (No threads, pure C-level NumPy)."""
+    """Vertex sharing at overlap voxels.
+    
+    Three cases based on the relationship between overlapping surfaces:
+    
+    1. **Same stack**: no vertex sharing at all (surfaces within the same
+       geological stack should not modify each other's vertices).
+    2. **Fault→layer**: the layer takes the fault's vertex directly (no
+       averaging).  The fault surface keeps its own vertex untouched.
+    3. **Erosion/onlap (different stacks, non-fault)**: vertices are averaged
+       so both surfaces meet at a shared position for watertightness.
+    """
     from ...modules.dual_contouring._find_vertex_overlap import _generate_voxel_codes
 
     n = len(all_meshes)
@@ -301,38 +319,101 @@ def _average_overlapping_vertices(
 
     codes = _generate_voxel_codes(left_right_per_mesh, base_number)
 
-    # 1. Flatten everything into global 1D/2D arrays
-    all_codes = np.concatenate(codes)
-    all_vertices = np.concatenate([m.vertices for m in all_meshes])
+    # --- Determine directed fault pairs and same-stack pairs ---------------
+    fault_directed_pairs: set = set()  # (fault_surf, layer_surf)
+    same_stack_pairs: set = set()      # unordered pairs within same stack
 
-    # Track split points so we can rebuild the individual mesh arrays later
-    splits = np.cumsum([len(c) for c in codes])[:-1]
+    if surface_to_stack is not None:
+        # Build same-stack pairs
+        _stack_to_surfs: dict = defaultdict(list)
+        for si, sk in enumerate(surface_to_stack):
+            _stack_to_surfs[sk].append(si)
 
-    # 2. Find unique groups and map every voxel to a unique ID
-    unique_codes, inverse_indices, counts = np.unique(all_codes, return_inverse=True, return_counts=True)
+        for surfs in _stack_to_surfs.values():
+            for a in surfs:
+                for b in surfs:
+                    if a != b:
+                        same_stack_pairs.add((a, b))
 
-    # If no shared voxels exist anywhere, exit early to save compute
-    if not (counts >= 2).any():
-        return
+        # Build fault directed pairs
+        if (stacks_structure is not None
+                and stacks_structure.faults_relations is not None):
+            faults_relations = stacks_structure.faults_relations
+            n_stacks = stacks_structure.n_stacks
 
-    # 3. Sum the vertices for each unique voxel code
-    # np.add.at safely accumulates values based on their mapped indices
-    sum_vertices = np.zeros((len(unique_codes), 3), dtype=np.float64)
-    np.add.at(sum_vertices, inverse_indices, all_vertices)
+            for fs in range(n_stacks):
+                for ds in range(n_stacks):
+                    if faults_relations[fs, ds]:
+                        for fi in _stack_to_surfs[fs]:
+                            for di in _stack_to_surfs[ds]:
+                                fault_directed_pairs.add((fi, di))
 
-    # 4. Compute the mean for ALL unique voxels. 
-    # (Using np.newaxis broadcasts the 1D counts array to match the 3D vertex coordinates)
-    full_means = sum_vertices / counts[:, np.newaxis]
+    # Collect all surface indices involved in fault relations (either direction)
+    fault_involved_pairs: set = set()  # both (i,j) and (j,i)
+    for fi, di in fault_directed_pairs:
+        fault_involved_pairs.add((fi, di))
+        fault_involved_pairs.add((di, fi))
 
-    # 5. Instantly broadcast the averaged vertices back to their original flattened positions
-    averaged_flattened = full_means[inverse_indices]
+    # Also exclude fault–fault pairs (both surfaces belong to fault stacks)
+    if (surface_to_stack is not None
+            and stacks_structure is not None
+            and stacks_structure.faults_relations is not None):
+        faults_relations = stacks_structure.faults_relations
+        n_stacks = stacks_structure.n_stacks
+        is_fault_stack = set()
+        for fs in range(n_stacks):
+            for ds in range(n_stacks):
+                if faults_relations[fs, ds]:
+                    is_fault_stack.add(fs)
+                    break
+        for i in range(n):
+            for j in range(i + 1, n):
+                si = surface_to_stack[i]
+                sj = surface_to_stack[j]
+                if si in is_fault_stack and sj in is_fault_stack:
+                    fault_involved_pairs.add((i, j))
+                    fault_involved_pairs.add((j, i))
 
-    # 6. Split the flattened array back into the original mesh chunks and assign
-    split_vertices = np.split(averaged_flattened, splits)
+    # --- 1. Averaging for erosion/onlap pairs only -------------------------
+    # Only average vertices between surfaces that are in different stacks
+    # and NOT linked by a fault relation.  Same-stack and fault pairs are
+    # excluded entirely.
+    #
+    # Vectorized approach: process each eligible pair (i, j) and average
+    # their shared-voxel vertices using numpy intersections.
 
-    for mi in range(n):
-        # Update the meshes in-place
-        all_meshes[mi].vertices[:] = split_vertices[mi]
+    # Build the set of averaging-eligible surface pairs
+    avg_pairs: list = []  # list of (i, j) with i < j
+    for i in range(n):
+        for j in range(i + 1, n):
+            if (i, j) in same_stack_pairs:
+                continue
+            if (i, j) in fault_involved_pairs:
+                continue
+            avg_pairs.append((i, j))
+
+    # For each eligible pair, average vertices at shared voxels
+    for i, j in avg_pairs:
+        common, idx_i, idx_j = np.intersect1d(
+            codes[i], codes[j],
+            assume_unique=True, return_indices=True
+        )
+        if common.size == 0:
+            continue
+        avg = (all_meshes[i].vertices[idx_i] + all_meshes[j].vertices[idx_j]) / 2.0
+        all_meshes[i].vertices[idx_i] = avg
+        all_meshes[j].vertices[idx_j] = avg
+
+    # --- 2. Fault→layer: copy fault vertex to layer -----------------------
+    for fi, di in fault_directed_pairs:
+        common, idx_fi, idx_di = np.intersect1d(
+            codes[fi], codes[di],
+            assume_unique=True, return_indices=True
+        )
+        if common.size == 0:
+            continue
+        # Layer takes the fault's vertex directly (fault keeps its own)
+        all_meshes[di].vertices[idx_di] = all_meshes[fi].vertices[idx_fi]
 
 
 def _remove_fault_overlap_triangles(
