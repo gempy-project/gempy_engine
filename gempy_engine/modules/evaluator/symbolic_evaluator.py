@@ -280,8 +280,8 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInp
 
             setattr(result, field_name, concat_val)
 
-        _cast_tensors(result)
-        return result
+        return result.upgrade_tensors()
+        # return result
 
 
     stacked = KernelInput.__new__(KernelInput)
@@ -363,8 +363,8 @@ def _build_stacked_kernel_data_parallel(kernel_data_list: list[KernelInput], max
             setattr(result, field_name, concat_val)
 
         # Ensure _cast_tensors safely handles tensors that are already on the GPU!
-        _cast_tensors(result)
-        return result
+        return _cast_tensors(result)
+        # return result
 
     stacked = KernelInput.__new__(KernelInput)
 

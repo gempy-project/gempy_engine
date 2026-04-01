@@ -35,6 +35,8 @@ def pykeops_torch_cg(b, cov, x0, use_gpu):
             eps=1e-5,
             x0=None
         )
+        if success is False:
+            return None
         
     return w.squeeze(1)
 

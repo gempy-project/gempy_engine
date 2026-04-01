@@ -1,7 +1,9 @@
+import copy
 from dataclasses import dataclass, field
 from typing import Tuple, Optional
 
 import numpy as np
+from pykeops.numpy import LazyTensor
 
 from gempy_engine.core.utils import cast_type_inplace
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
@@ -19,20 +21,44 @@ def _upgrade_kernel_input_to_keops_tensor_numpy(struct_data_instance):
 
 def _upgrade_kernel_input_to_keops_tensor_pytorch(struct_data_instance):
     from pykeops.torch import LazyTensor
+    import torch
 
-    for key, val in struct_data_instance.__dict__.items():
+    for key, array_like in struct_data_instance.__dict__.items():
         if key == "n_faults_i": continue
-        if (val.is_contiguous() is False):
-            raise ValueError("Input tensors are not contiguous")
+        if not isinstance(array_like, torch.Tensor):
+            array_like = BackendTensor.t.array(array_like)
 
-        if BackendTensor.use_gpu:
-            val_type = val.type(BackendTensor.dtype_obj).to("cuda", non_blocking=True)
-        else:
-            val_type = val.type(BackendTensor.dtype_obj)
-        struct_data_instance.__dict__[key] = LazyTensor(val_type)
+        struct_data_instance.__dict__[key] =  LazyTensor(array_like.type(BackendTensor.dtype_obj))
+    return struct_data_instance
+        # if (val.is_contiguous() is False):
+        #     raise ValueError("Input tensors are not contiguous")
+        # 
+        # if BackendTensor.use_gpu:
+        #     val_type = val.type(BackendTensor.dtype_obj).to("cuda", non_blocking=True)
+        # else:
+        #     val_type = val.type(BackendTensor.dtype_obj)
+        # struct_data_instance.__dict__[key] = LazyTensor(val_type)
 
+
+# def _cast_tensors(data_class_instance):
+#     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled):
+#         case (AvailableBackends.numpy, True):
+#             _upgrade_kernel_input_to_keops_tensor_numpy(data_class_instance)
+#         case (AvailableBackends.PYTORCH, False):
+#             cast_type_inplace(data_class_instance)
+#         case (AvailableBackends.PYTORCH, True):
+#             cast_type_inplace(data_class_instance, requires_grad=False)
+#             _upgrade_kernel_input_to_keops_tensor_pytorch(cloned_instance)
+#         case (_, _):
+#             pass
+# 
+#     return cloned_instance
 
 def _cast_tensors(data_class_instance):
+    cloned_instance = copy.copy(data_class_instance)
+    return _upgrade_kernel_input_to_keops_tensor_pytorch(cloned_instance)
+    return _secure_cast(cloned_instance)
+
     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled):
         case (AvailableBackends.numpy, True):
             _upgrade_kernel_input_to_keops_tensor_numpy(data_class_instance)
@@ -40,41 +66,45 @@ def _cast_tensors(data_class_instance):
             cast_type_inplace(data_class_instance)
         case (AvailableBackends.PYTORCH, True):
             cast_type_inplace(data_class_instance, requires_grad=False)
-            _upgrade_kernel_input_to_keops_tensor_pytorch(data_class_instance)
+            _upgrade_kernel_input_to_keops_tensor_pytorch(cloned_instance)
         case (_, _):
             pass
+
+    return cloned_instance
 
 
 # --- 1. The New Helper Function (Replaces _cast_tensors logic) ---
 def _secure_cast(array_like):
+    return array_like
     """
     Applies the backend logic (Torch/KeOps/NumPy) to a SINGLE item.
     Compiler-safe because it doesn't loop over __dict__.
     """
     # CASE A: NumPy Backend
-    if BackendTensor.engine_backend == AvailableBackends.numpy:
+    if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
         from pykeops.numpy import LazyTensor
         # Note: explicit .astype fixes cost issues
         return LazyTensor(array_like.astype(BackendTensor.dtype))
 
     # CASE B: PyTorch Backend (Standard)
-    elif BackendTensor.engine_backend == AvailableBackends.PYTORCH and not BackendTensor.pykeops_enabled:
+    elif BackendTensor.engine_backend == AvailableBackends.PYTORCH: #and not BackendTensor.pykeops_enabled:
         # Use our "Fixed" _array method from previous chat (handles contiguity safely)
         return BackendTensor.t.array(array_like)
-
-    # CASE C: PyTorch + KeOps
-    elif BackendTensor.engine_backend == AvailableBackends.PYTORCH and BackendTensor.pykeops_enabled:
-        from pykeops.torch import LazyTensor
-        import torch
-        # Ensure contiguous (using our safe logic implicitly via _array if needed)
-        # But KeOps usually wants pure torch tensors wrapped:
-        if not isinstance(array_like, torch.Tensor):
-            array_like = BackendTensor.t.array(array_like)
-
-        return LazyTensor(array_like.type(BackendTensor.dtype_obj))
+    # 
+    # # CASE C: PyTorch + KeOps
+    # elif BackendTensor.engine_backend == AvailableBackends.PYTORCH and BackendTensor.pykeops_enabled:
+    #     from pykeops.torch import LazyTensor
+    #     import torch
+    #     # Ensure contiguous (using our safe logic implicitly via _array if needed)
+    #     # But KeOps usually wants pure torch tensors wrapped:
+    #     if not isinstance(array_like, torch.Tensor):
+    #         array_like = BackendTensor.t.array(array_like)
+    # 
+    #     return LazyTensor(array_like.type(BackendTensor.dtype_obj))
 
     # Fallback
     return array_like
+
 
 @dataclass
 class OrientationSurfacePointsCoords:
@@ -97,16 +127,8 @@ class OrientationSurfacePointsCoords:
         self.diprest_i = _secure_cast(dips_points2)
         self.diprest_j = _secure_cast(dips_points3)
 
-    def ___init__(self, x_ref: np.ndarray, y_ref: np.ndarray, x_rest: np.ndarray, y_rest: np.ndarray):
-        def _assembly(x, y) -> Tuple[np.ndarray, np.ndarray]:
-            dips_points0 = x[:, None, :]  # i
-            dips_points1 = y[None, :, :]  # j
-            return dips_points0, dips_points1
-
-        self.dip_ref_i, self.dip_ref_j = _assembly(x_ref, y_ref)
-        self.diprest_i, self.diprest_j = _assembly(x_rest, y_rest)
-
-        _cast_tensors(self)
+    def upgrade_tensors(self):
+        return _cast_tensors(self)
 
 
 @dataclass
@@ -133,22 +155,9 @@ class OrientationsDrift:
         self.dips_ug_cj = _secure_cast(y_degree_2b[None, :, :])
         self.selector_ci = _secure_cast(selector_degree_2[:, None, :])
         self.selector_cj = _secure_cast(selector_degree_2[None, :, :])
-        
-    def ___init__(self,
-                 x_degree_1: np.ndarray, y_degree_1: np.ndarray,
-                 x_degree_2: np.ndarray, y_degree_2: np.ndarray,
-                 x_degree_2b: np.ndarray, y_degree_2b: np.ndarray,
-                 selector_degree_2: np.ndarray):
-        self.dips_ug_ai = x_degree_1[:, None, :]
-        self.dips_ug_aj = y_degree_1[None, :, :]
-        self.dips_ug_bi = x_degree_2[:, None, :]
-        self.dips_ug_bj = y_degree_2[None, :, :]
-        self.dips_ug_ci = x_degree_2b[:, None, :]
-        self.dips_ug_cj = y_degree_2b[None, :, :]
-        self.selector_ci = selector_degree_2[:, None, :]
-        self.selector_cj = selector_degree_2[None, :, :]
 
-        _cast_tensors(self)
+    def upgrade_tensors(self):
+        return _cast_tensors(self)
 
 
 @dataclass
@@ -169,16 +178,8 @@ class PointsDrift:
         self.dipsPoints_ui_bi2 = _secure_cast(x_degree_2b[:, None, :])
         self.dipsPoints_ui_bj2 = _secure_cast(y_degree_2b[None, :, :])
         
-    def ___init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, x_degree_2a: np.ndarray,
-                 y_degree_2a: np.ndarray, x_degree_2b: np.ndarray, y_degree_2b: np.ndarray):
-        self.dipsPoints_ui_ai = x_degree_1[:, None, :]
-        self.dipsPoints_ui_aj = y_degree_1[None, :, :]
-        self.dipsPoints_ui_bi1 = x_degree_2a[:, None, :]
-        self.dipsPoints_ui_bj1 = y_degree_2a[None, :, :]
-        self.dipsPoints_ui_bi2 = x_degree_2b[:, None, :]
-        self.dipsPoints_ui_bj2 = y_degree_2b[None, :, :]
-
-        _cast_tensors(self)
+    def upgrade_tensors(self):
+        return _cast_tensors(self)
 
 
 @dataclass
@@ -193,14 +194,9 @@ class FaultDrift:
         self.faults_j = _secure_cast(y_degree_1[None, :, :])
 
         self.n_faults_i = x_degree_1.shape[1]
-        
-    def ___init__(self, x_degree_1: np.ndarray, y_degree_1: np.ndarray, ):
-        self.faults_i = x_degree_1[:, None, :]
-        self.faults_j = y_degree_1[None, :, :]
 
-        self.n_faults_i = x_degree_1.shape[1]
-
-        _cast_tensors(self)
+    def upgrade_tensors(self):
+        return _cast_tensors(self)
 
 
 @dataclass
@@ -215,6 +211,7 @@ class CartesianSelector:
 
     h_sel_rest_i: tensor_types = field(default_factory=lambda: np.empty((0, 1, 3)))
     h_sel_rest_j: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
+
     # is_gradient: bool = False (June) This seems to be unused
     def __init__(self,
                  x_sel_hu, y_sel_hu,
@@ -234,26 +231,10 @@ class CartesianSelector:
 
         self.h_sel_rest_i = _secure_cast(x_sel_h_rest[:, None, :])
         self.h_sel_rest_j = _secure_cast(y_sel_h_rest[None, :, :])
-        
-    def ___init__(self,
-                 x_sel_hu, y_sel_hu,
-                 x_sel_hv, y_sel_hv,
-                 x_sel_h_ref, y_sel_h_ref,
-                 x_sel_h_rest, y_sel_h_rest,
-                 is_gradient=False):
-        self.hu_sel_i = x_sel_hu[:, None, :]
-        self.hu_sel_j = y_sel_hu[None, :, :]
 
-        self.hv_sel_i = x_sel_hv[:, None, :]
-        self.hv_sel_j = y_sel_hv[None, :, :]
-
-        self.h_sel_ref_i = x_sel_h_ref[:, None, :]
-        self.h_sel_ref_j = y_sel_h_ref[None, :, :]
-
-        self.h_sel_rest_i = x_sel_h_rest[:, None, :]
-        self.h_sel_rest_j = y_sel_h_rest[None, :, :]
-
-        _cast_tensors(self)
+    
+    def upgrade_tensors(self):
+        return _cast_tensors(self)
 
 
 @dataclass
@@ -263,9 +244,12 @@ class DriftMatrixSelector:
 
     def __init__(self, x_size: int, y_size: int, n_drift_eq: int, drift_start_post_x: int, drift_start_post_y: int):
         # Logic remains the same
-        sel_i = np.zeros((x_size, 2), dtype=BackendTensor.dtype)
-        sel_j = np.zeros((y_size, 2), dtype=BackendTensor.dtype)
+        # sel_i = np.zeros((x_size, 2), dtype=BackendTensor.dtype)
+        # sel_j = np.zeros((y_size, 2), dtype=BackendTensor.dtype)
 
+        sel_i = BackendTensor.t.zeros((x_size, 2), dtype=BackendTensor.dtype)
+        sel_j = BackendTensor.t.zeros((y_size, 2), dtype=BackendTensor.dtype)
+        
         drift_pos_0_x = drift_start_post_x
         drift_pos_1_x = drift_start_post_x + n_drift_eq + 1
         drift_pos_0_y = drift_start_post_y
@@ -281,28 +265,9 @@ class DriftMatrixSelector:
         # Explicit Cast
         self.sel_ui = _secure_cast(sel_i[:, None, :])
         self.sel_vj = _secure_cast(sel_j[None, :, :])
-    
-    def ___init__(self, x_size: int, y_size: int, n_drift_eq: int, drift_start_post_x: int, drift_start_post_y: int):
-        sel_i = np.zeros((x_size, 2), dtype=BackendTensor.dtype)
-        sel_j = np.zeros((y_size, 2), dtype=BackendTensor.dtype)
-
-        drift_pos_0_x = drift_start_post_x
-        drift_pos_1_x = drift_start_post_x + n_drift_eq + 1
-
-        drift_pos_0_y = drift_start_post_y
-        drift_pos_1_y = drift_start_post_y + n_drift_eq + 1
-
-        if n_drift_eq != 0:
-            sel_i[:drift_pos_0_x, 0] = 1
-            sel_i[drift_pos_0_x:drift_pos_1_x, 1] = 1
-
-            sel_j[:drift_pos_0_y, 0] = -1
-            sel_j[drift_pos_0_y:drift_pos_1_y, 1] = -1
-
-        self.sel_ui = sel_i[:, None, :]
-        self.sel_vj = sel_j[None, :, :]
-        
-        _cast_tensors(self)
+   
+    def upgrade_tensors(self):
+        return _cast_tensors(self)
 
 
 @dataclass
@@ -321,3 +286,21 @@ class KernelInput:
 
     ref_fault: Optional[FaultDrift]
     rest_fault: Optional[FaultDrift]
+    
+    def upgrade_tensors(self):
+        return KernelInput(
+            ori_sp_matrices=self.ori_sp_matrices.upgrade_tensors(),
+            cartesian_selector=self.cartesian_selector.upgrade_tensors(),
+            nugget_scalar=self.nugget_scalar,
+            nugget_grad=self.nugget_grad,
+            ori_drift=self.ori_drift.upgrade_tensors(),
+            ref_drift=self.ref_drift.upgrade_tensors(),
+            rest_drift=self.rest_drift.upgrade_tensors(),
+            drift_matrix_selector=self.drift_matrix_selector.upgrade_tensors(),
+            ref_fault=self.ref_fault.upgrade_tensors() if self.ref_fault is not None else None,
+            rest_fault=self.rest_fault.upgrade_tensors() if self.rest_fault is not None else None,
+        )
+            
+    def __repr__(self):
+        return f"KernelInput(ori_sp_matrices={self.ori_sp_matrices}, cartesian_selector={self.cartesian_selector}, nugget_scalar={self.nugget_scalar}, nugget_grad={self.nugget_grad}, ori_drift={self.ori_drift}, ref_drift={self.ref_drift}, rest_drift={self.rest_drift}, drift_matrix_selector={self.drift_matrix_selector}, ref_fault={self.ref_fault})"
+    
