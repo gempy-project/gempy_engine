@@ -1,5 +1,5 @@
 import warnings
-from typing import Tuple, Optional, Any, Union
+from typing import Optional, Any, Union
 
 import numpy as np
 from numpy import dtype, ndarray
@@ -17,13 +17,6 @@ from ...modules.kernel_constructor._structs import KernelInput
 from ...modules.kernel_constructor._vectors_preparation import cov_vectors_preparation
 from ...modules.solver import solver_interface
 from ...modules.weights_cache.weights_cache_interface import WeightCache, generate_cache_key
-
-
-def interpolate_scalar_field(solver_input: SolverInput, options: InterpolationOptions, stack_number: int) -> Tuple[np.ndarray, ExportedFields]:
-    weights = compute_weights(solver_input, stack_number, options)
-    exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options)
-
-    return weights, exported_fields
 
 
 def compute_weights(solver_input: Union[SolverInput, SolverInput_v2], stack_number: int, options: InterpolationOptions) -> ndarray[tuple[Any, ...], dtype[Any]]:

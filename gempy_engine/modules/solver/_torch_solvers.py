@@ -33,7 +33,7 @@ def pykeops_torch_cg(b, cov, x0, use_gpu):
 
         w, success = solver(
             eps=1e-5,
-            x0=None
+            x0=x0
         )
         if success is False:
             return None

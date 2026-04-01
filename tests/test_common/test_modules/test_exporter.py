@@ -7,10 +7,11 @@ import numpy as np
 import pytest
 
 import gempy_engine
-from gempy_engine.API.interp_single._interp_scalar_field import interpolate_scalar_field
+from gempy_engine.API.interp_single._interp_scalar_field import compute_weights, _evaluate_sys_eq
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
 from gempy_engine.API.interp_single._multi_scalar_field_manager import interpolate_all_fields
 from gempy_engine.core import data
+from gempy_engine.core.data.exported_fields import ExportedFields
 from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
@@ -75,11 +76,11 @@ def _interpolate_single_field(interpolation_input: InterpolationInput, options: 
                              data_shape: gempy_engine.core.data.tensors_structure.TensorsStructure) -> InterpOutput:  # * Only For testing
 
     grid = interpolation_input.grid
-    weights, exported_fields = interpolate_scalar_field(
-        solver_input=(input_preprocess(data_shape, interpolation_input)),
-        options=options,
-        stack_number=0
-    )
+    solver_input = (input_preprocess(data_shape, interpolation_input))
+    weights1 = compute_weights(solver_input, 0, options)
+    fields: ExportedFields = _evaluate_sys_eq(solver_input, weights1, options)
+    result = weights1, fields
+    weights, exported_fields = result
 
     exported_fields.set_structure_values(
         reference_sp_position=data_shape.reference_sp_position,
