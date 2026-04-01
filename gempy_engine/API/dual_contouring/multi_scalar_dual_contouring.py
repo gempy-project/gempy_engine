@@ -48,6 +48,10 @@ def dual_contouring_multi_scalar(
     Returns:
         List of dual contouring meshes for all processed scalar fields
     """
+
+    if interpolation_input.grid.octree_grid is None:
+        raise ValueError("Octree grid must be defined to extract the mesh")
+    
     # Dual Contouring prep:
     MaskBuffer.clean()
 
