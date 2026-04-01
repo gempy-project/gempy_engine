@@ -5,8 +5,7 @@ import numpy as np
 
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
 from ._interp_single_feature import input_preprocess, interpolate_feature_with_cokrig, interpolate_feature_with_external_function
-
-from ._masking_ops import _lithology_mask, _faults_mask, _combine_scalar_fields
+from ._masking_ops import combine_scalar_fields
 from ._stack_ops import InterpolationState, process_chunk
 from ...core.backend_tensor import BackendTensor
 from ...core.data import TensorsStructure
@@ -33,10 +32,9 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
     else:
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
 
-    combined_scalar_output: List[CombinedScalarFieldsOutput] = _combine_scalar_fields(
+    combined_scalar_output: List[CombinedScalarFieldsOutput] = combine_scalar_fields(
         all_scalar_fields_outputs=all_scalar_fields_outputs,
-        lithology_mask=_lithology_mask(all_scalar_fields_outputs, data_descriptor.stack_relation),
-        faults_mask=_faults_mask(all_scalar_fields_outputs, data_descriptor.stack_relation),
+        data_descriptor=data_descriptor,
         compute_scalar_grad=options.compute_scalar_gradient
     )
 
@@ -110,7 +108,6 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
             grid_size=interpolation_input_i.grid.len_all_grids
         )
         interpolation_input_i.fault_values = fault_input
-
         solver_input: SolverInput = input_preprocess(tensor_struct_i, interpolation_input_i)
 
         if stack_structure.interp_function is None:

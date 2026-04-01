@@ -2,8 +2,7 @@ import numbers
 
 import numpy as np
 
-from ...core.backend_tensor import BackendTensor as bt, BackendTensor
-from ...core.data.kernel_classes.kernel_functions import dtype
+from ...core.backend_tensor import BackendTensor as bt
 
 try:
     import torch
@@ -97,6 +96,7 @@ def _sigmoid(scalar_field, edges, tau_k):
     return 1.0 / (1.0 + bt.t.exp(x))
 
 
+# Obsolete
 def _sigmoid_stable(scalar_field, edges, tau_k):
     """
     Numerically‐stable sigmoid of (scalar_field - edges)/tau_k,
