@@ -6,6 +6,7 @@ import numpy as np
 from ..backend_tensor import BackendTensor
 from ..utils import _check_and_convert_list_to_array, cast_type_inplace
 from .kernel_classes.server.input_parser import GridSchema
+from ...config import AvailableBackends
 
 
 @dataclass(frozen=False)  # TODO: I want to do this class immutable
@@ -24,8 +25,8 @@ class RegularGrid:
         return self.values.shape[0]
 
     def __post_init__(self):
-        self.regular_grid_shape = _check_and_convert_list_to_array(self.regular_grid_shape)
-        self.orthogonal_extent = _check_and_convert_list_to_array(self.orthogonal_extent) + 1e-6  # * This to avoid some errors evaluating in 0 (e.g. bias in dual contouring)
+        self.regular_grid_shape = BackendTensor.t.array(self.regular_grid_shape)
+        self.orthogonal_extent = BackendTensor.t.array(self.orthogonal_extent) + 1e-6  # * This to avoid some errors evaluating in 0 (e.g. bias in dual contouring)
 
         self._create_regular_grid_3d()
 
@@ -45,15 +46,15 @@ class RegularGrid:
     
     @property
     def x_coord(self):
-        return np.linspace(self.orthogonal_extent[0] + self.dx / 2, self.orthogonal_extent[1] - self.dx / 2, self.resolution[0], dtype="float64")
+        return BackendTensor.t.linspace(self.orthogonal_extent[0] + self.dx / 2, self.orthogonal_extent[1] - self.dx / 2, self.resolution[0])
 
     @property
     def y_coord(self):
-        return np.linspace(self.orthogonal_extent[2] + self.dy / 2, self.orthogonal_extent[3] - self.dy / 2, self.resolution[1], dtype="float64")
+        return BackendTensor.t.linspace(self.orthogonal_extent[2] + self.dy / 2, self.orthogonal_extent[3] - self.dy / 2, self.resolution[1])
 
     @property
     def z_coord(self):
-        return np.linspace(self.orthogonal_extent[4] + self.dz / 2, self.orthogonal_extent[5] - self.dz / 2, self.resolution[2], dtype="float64")
+        return BackendTensor.t.linspace(self.orthogonal_extent[4] + self.dz / 2, self.orthogonal_extent[5] - self.dz / 2, self.resolution[2])
 
     @classmethod
     def from_octree_level(cls, xyz_coords_octree: np.ndarray, previous_regular_grid: "RegularGrid",
@@ -195,9 +196,12 @@ class RegularGrid:
     def _create_regular_grid_3d(self):
         coords = self.x_coord, self.y_coord, self.z_coord
 
-        g = np.meshgrid(*coords, indexing="ij")
-        values = np.vstack(tuple(map(np.ravel, g))).T.astype("float64")
-        values = np.ascontiguousarray(values)
-        values = BackendTensor.tfnp.array(values, dtype=BackendTensor.dtype_obj)
+        g = BackendTensor.t.meshgrid(*coords, indexing="ij")
+        if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+            values = BackendTensor.t.stack(g, dim=-1).view(-1, 3)
+        else:
+            values = np.vstack(tuple(map(np.ravel, g))).T.astype("float64")
+            values = np.ascontiguousarray(values)
+            values = BackendTensor.tfnp.array(values, dtype=BackendTensor.dtype_obj)
 
         self.values = values
