@@ -4,15 +4,17 @@ from dataclasses import dataclass, field
 from typing import Type
 
 import numpy as np
+import torch
 
 from gempy_engine.config import AvailableBackends
-from ..backend_tensor import BackendTensor as b
+from ..backend_tensor import BackendTensor as b, BackendTensor
+from ..utils import cast_type_inplace
 
 
-def _cast_type_inplace(struct_data_instance: "TensorStructure"):
-    for key, val in struct_data_instance.__dict__.items():
-        if type(val) != np.ndarray: continue
-        struct_data_instance.__dict__[key] = val.astype(struct_data_instance.dtype)
+# def _cast_type_inplace(struct_data_instance: "TensorStructure"):
+#     for key, val in struct_data_instance.__dict__.items():
+#         if type(val) != np.ndarray: continue
+#         struct_data_instance.__dict__[key] = val.astype(struct_data_instance.dtype)
 
 
 @dataclass
@@ -23,13 +25,13 @@ class TensorsStructure:
     _reference_sp_position: np.ndarray =  field(default_factory=lambda: np.ones(1))
 
     def __post_init__(self):  # TODO: Move this to init
-        _cast_type_inplace(self)
+        cast_type_inplace(self, keep_dtype=True)
 
         # Set _number_of_points_per_surface_vector
         self.number_of_points_per_surface = self.number_of_points_per_surface[self.number_of_points_per_surface != 0]  # remove 0s
-        per_surface_cumsum = self.number_of_points_per_surface.cumsum()
+        per_surface_cumsum = BackendTensor.t.cumsum(self.number_of_points_per_surface, 0)#.cumsum()
 
-        self._reference_sp_position = np.concatenate([np.array([0]), per_surface_cumsum])[:-1]
+        self._reference_sp_position = BackendTensor.t.concatenate([BackendTensor.t.array([0]), per_surface_cumsum])[:-1]
 
     def __hash__(self):
         return hash(656)  # TODO: Make a proper hash
@@ -51,7 +53,7 @@ class TensorsStructure:
 
     @property
     def total_number_sp(self):
-        return self.number_of_points_per_surface.sum()
+        return BackendTensor.t.sum(self.number_of_points_per_surface, dtype='int32')
 
     @property
     def n_surfaces(self):
@@ -60,8 +62,7 @@ class TensorsStructure:
     @property
     def partitions_bool(self):
         ref_positions = self.reference_sp_position
-
-        res = np.eye(self.total_number_sp, dtype='int32')[np.array(ref_positions).reshape(-1)]
+        res = BackendTensor.t.eye(self.total_number_sp, dtype='int32')[BackendTensor.t.array(ref_positions, dtype="int").reshape(-1)]
         one_hot_ = res.reshape(list(ref_positions.shape) + [self.total_number_sp])
         
         one_hot_ = b.tfnp.array(one_hot_)

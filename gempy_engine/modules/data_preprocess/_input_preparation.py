@@ -1,6 +1,4 @@
-import numpy as np
-
-from gempy_engine.core.backend_tensor import BackendTensor, BackendTensor as b, AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor, BackendTensor as b
 from gempy_engine.core.data import TensorsStructure
 from gempy_engine.core.data.kernel_classes.orientations import Orientations, OrientationsInternals
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints, SurfacePointsInternals
@@ -21,8 +19,17 @@ def orientations_preprocess(orientations: Orientations):
 def surface_points_preprocess(sp_input: SurfacePoints, tensors_structure: TensorsStructure) -> SurfacePointsInternals:
 
     partitions_bool = tensors_structure.partitions_bool
+
+    # reference point: every first point of each layer
+    nugget_effect = sp_input.nugget_effect_scalar
+    sp_coords = sp_input.sp_coords
     
-    ref_nugget, ref_points, rest_nugget, rest_points = _compute_rest_ref_in_numpy(partitions_bool, sp_input)
+    points = sp_coords[partitions_bool]
+    points1 = sp_coords[~partitions_bool]
+    nugget = nugget_effect[partitions_bool]
+    nugget1 = nugget_effect[~partitions_bool]
+    result = nugget, points, nugget1, points1
+    ref_nugget, ref_points, rest_nugget, rest_points = result
 
     # repeat the reference points (the number of persurface -1)  times
     number_repetitions = tensors_structure.number_of_points_per_surface - 1
@@ -37,15 +44,37 @@ def surface_points_preprocess(sp_input: SurfacePoints, tensors_structure: Tensor
     return SurfacePointsInternals(ref_points_repeated, rest_points, nugget_effect_ref_rest)
 
 
-def _compute_rest_ref_in_numpy(partitions_bool: np.ndarray, sp: SurfacePoints):
-    # reference point: every first point of each layer
-    nugget_effect = sp.nugget_effect_scalar
-    sp_coords = sp.sp_coords
+import torch
 
+
+def surface_points_preprocess_(sp_input: SurfacePoints, tensors_structure: TensorsStructure) -> SurfacePointsInternals:
+    # 1. Ensure inputs are PyTorch tensors on the correct device (GPU)
+    # If they are currently NumPy arrays, convert them ONCE before this function is called.
+    partitions_bool = tensors_structure.partitions_bool
+    sp_coords = sp_input.sp_coords
+    nugget_effect = sp_input.nugget_effect_scalar
+
+    # 2. Perform boolean masking directly on the GPU
+    # PyTorch handles this natively and parallelizes it perfectly.
     ref_points = sp_coords[partitions_bool]
     rest_points = sp_coords[~partitions_bool]
 
-    ref_nugget = nugget_effect[partitions_bool]
+    # ref_nugget = nugget_effect[partitions_bool] # Only uncomment if you need it later
     rest_nugget = nugget_effect[~partitions_bool]
-    return ref_nugget, ref_points, rest_nugget, rest_points
+
+    # 3. Get the repetitions tensor
+    number_repetitions = tensors_structure.number_of_points_per_surface - 1
+
+    # Ensure number_repetitions is a tensor on the same device as ref_points
+    if not isinstance(number_repetitions, torch.Tensor):
+        number_repetitions = torch.tensor(number_repetitions, device=ref_points.device)
+
+    # 4. Use repeat_interleave instead of repeat
+    ref_points_repeated = torch.repeat_interleave(ref_points, number_repetitions, dim=0)
+
+    # nugget_effect_ref_rest = (rest_nugget + ref_nugget_repeated)/2
+    nugget_effect_ref_rest = rest_nugget
+
+    return SurfacePointsInternals(ref_points_repeated, rest_points, nugget_effect_ref_rest)
+
 
