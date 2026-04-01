@@ -1,8 +1,6 @@
 import copy
 from typing import List
 
-import numpy as np
-
 from ._multi_scalar_field_manager import interpolate_all_fields
 from ...config import NOT_MAKE_INPUT_DEEP_COPY, AvailableBackends
 from ...core.backend_tensor import BackendTensor

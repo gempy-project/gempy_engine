@@ -112,7 +112,6 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
         interpolation_input_i.fault_values = fault_input
 
         solver_input: SolverInput = input_preprocess(tensor_struct_i, interpolation_input_i)
-        # TODO: Add external function!
 
         if stack_structure.interp_function is None:
             output: ScalarFieldOutput = interpolate_feature_with_cokrig(
