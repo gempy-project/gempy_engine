@@ -258,8 +258,11 @@ def _compute_weights_for_stacks(
         solver_input.weights_x0 = weights
         return solver_input
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        solver_inputs = list(executor.map(_run_prep, enumerate(stack_indices)))
+    if CONCURRENT:=False:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            solver_inputs = list(executor.map(_run_prep, enumerate(stack_indices)))
+    else:
+        solver_inputs = [_run_prep(idx_global_i) for idx_global_i in enumerate(stack_indices)]
 
     return solver_inputs
 

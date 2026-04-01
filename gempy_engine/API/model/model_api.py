@@ -103,8 +103,6 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
     finally:
         options.temp_interpolation_values.start_computation_ts = -1
         WeightCache.clear_cache()
-        
-        gc.collect()
         BackendTensor.clear_gpu_memory()
 
     return solutions

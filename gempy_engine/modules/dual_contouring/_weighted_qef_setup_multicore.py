@@ -3,11 +3,40 @@ import concurrent.futures
 from typing import List, Tuple, Optional
 
 from ._find_vertex_overlap import _generate_voxel_codes
+from ...config import AvailableBackends
+from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
 
 # Assuming _generate_voxel_codes is available
 
 DEFAULT_CROSS_SURFACE_WEIGHT = 10.0
+
+import torch
+
+
+def intersect1d_assume_unique(codes_i, codes_j):
+    # 1. Concatenate the tensors
+    cat = torch.cat([codes_i, codes_j])
+
+    # 2. Sort stably. Stable sort is CRITICAL here: it guarantees that 
+    # if an element exists in both, the one from codes_i stays before the one from codes_j.
+    sorted_cat, perm = torch.sort(cat, stable=True)
+
+    # 3. Because the arrays are unique internally, any adjacent duplicates 
+    # in the sorted array MUST be a match between codes_i and codes_j.
+    mask = sorted_cat[1:] == sorted_cat[:-1]
+
+    # 4. Extract the values and indices
+    common_codes = sorted_cat[:-1][mask]
+
+    # The first element of the matched pair came from codes_i
+    idx_i_common = perm[:-1][mask]
+
+    # The second element came from codes_j. We subtract the length of codes_i 
+    # to get its original index in codes_j.
+    idx_j_common = perm[1:][mask] - codes_i.numel()
+
+    return common_codes, idx_i_common, idx_j_common
 
 
 def _process_single_surface(
@@ -41,23 +70,28 @@ def _process_single_surface(
         codes_j = surface_cache[j]['codes']
 
         # Fast C-level intersection. NumPy releases the GIL here!
-        common_codes, idx_i_common, idx_j_common = np.intersect1d(
-            codes_i, codes_j, assume_unique=True, return_indices=True
-        )
+        if BackendTensor.engine_backend is AvailableBackends.PYTORCH:
+            common_codes, idx_i_common, idx_j_common = intersect1d_assume_unique(
+                codes_i, codes_j
+            )
+        else:
+            common_codes, idx_i_common, idx_j_common = np.intersect1d(
+                codes_i, codes_j, assume_unique=True, return_indices=True
+            )
 
         if common_codes.size == 0:
             continue
 
         # Pre-allocate
-        block_xyz = np.zeros((n_valid_i, 12, 3), dtype=np.float64)
-        block_norm = np.zeros((n_valid_i, 12, 3), dtype=np.float64)
-        block_w = np.zeros((n_valid_i, 12), dtype=np.float64)
+        block_xyz = BackendTensor.t.zeros((n_valid_i, 12, 3))
+        block_norm = BackendTensor.t.zeros((n_valid_i, 12, 3))
+        block_w = BackendTensor.t.zeros((n_valid_i, 12))
 
         # Direct assignment (GIL released again)
         block_xyz[idx_i_common] = surface_cache[j]['xyz'][idx_j_common]
         block_norm[idx_i_common] = surface_cache[j]['norm'][idx_j_common]
 
-        has_data = np.any(block_norm[idx_i_common] != 0, axis=-1)
+        has_data = BackendTensor.t.any(block_norm[idx_i_common] != 0, axis=-1)
         block_w[idx_i_common] = has_data * cross_weight
 
         extra_xyz_rows.append(block_xyz)
@@ -68,9 +102,9 @@ def _process_single_surface(
     if extra_xyz_rows:
         return (
                 i,
-                np.concatenate(extra_xyz_rows, axis=1),
-                np.concatenate(extra_norm_rows, axis=1),
-                np.concatenate(extra_w_rows, axis=1)
+                BackendTensor.t.concatenate(extra_xyz_rows, axis=1),
+                BackendTensor.t.concatenate(extra_norm_rows, axis=1),
+                BackendTensor.t.concatenate(extra_w_rows, axis=1)
         )
 
     return i, None, None, None
@@ -151,11 +185,11 @@ def find_and_inject_multi_surface_constraints_multicore(
             continue
 
         valid_edges_bool = dc.valid_edges[valid] > 0
-        tmp_xyz = np.zeros((n_valid, 12, 3), dtype=np.float64)
-        tmp_norm = np.zeros((n_valid, 12, 3), dtype=np.float64)
+        tmp_xyz = BackendTensor.t.zeros((n_valid, 12, 3))
+        tmp_norm = BackendTensor.t.zeros((n_valid, 12, 3))
 
-        tmp_xyz[valid_edges_bool] = np.asarray(dc.xyz_on_edge)
-        tmp_norm[valid_edges_bool] = np.asarray(dc.gradients)
+        tmp_xyz[valid_edges_bool] = dc.xyz_on_edge
+        tmp_norm[valid_edges_bool] = dc.gradients
 
         surface_cache.append({
                 'n_valid': n_valid,

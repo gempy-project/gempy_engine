@@ -29,7 +29,7 @@ def surface_points_preprocess(sp_input: SurfacePoints, tensors_structure: Tensor
     number_repetitions = BackendTensor.t.array(number_repetitions)
     
     ref_points_repeated = b.t.repeat(ref_points, number_repetitions, 0)  # ref_points shape: (1, 3)
-    ref_nugget_repeated = b.t.repeat(ref_nugget, number_repetitions, 0)  # ref_nugget shape: (1)
+    # ref_nugget_repeated = b.t.repeat(ref_nugget, number_repetitions, 0)  # ref_nugget shape: (1)
 
     # ? (miguel April 24) I need to decide what to do with this -- nugget_effect_ref_rest = (rest_nugget + ref_nugget_repeated)/2
     nugget_effect_ref_rest = rest_nugget

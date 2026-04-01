@@ -29,7 +29,7 @@ def _sequential_triangulation(dc_data_per_stack: DualContouringData,
     edges_normals[:] = 0
     edges_normals[valid_edges] = dc_data_per_stack.gradients[slice_object]
 
-    indices_numpy = _compute_triangulation(
+    indices = _compute_triangulation(
         dc_data_per_surface=dc_data_per_surface,
         left_right_codes=left_right_codes,
         edges_normals=edges_normals,
@@ -37,6 +37,7 @@ def _sequential_triangulation(dc_data_per_stack: DualContouringData,
     )
 
     vertices_numpy = BackendTensor.t.to_numpy(vertices)
+    indices_numpy = BackendTensor.t.to_numpy(indices)
     return dc_data_per_surface, indices_numpy, vertices_numpy
 
 
@@ -63,5 +64,4 @@ def _compute_triangulation(dc_data_per_surface: DualContouringData,
     )
 
     # @on
-    indices_numpy = BackendTensor.t.to_numpy(indices)
-    return indices_numpy
+    return indices

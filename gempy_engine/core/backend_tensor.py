@@ -1,3 +1,4 @@
+import gc
 from typing import Union, Any, Optional
 import warnings
 
@@ -128,13 +129,15 @@ class BackendTensor:
                     # Check if CUDA is available
                     if not pytorch_copy.cuda.is_available():
                         raise RuntimeError("GPU requested but CUDA is not available in PyTorch")
-                    if False:  # * (Miguel) this slows down the code a lot
+                    # Test
+                    if True:  # * (Miguel) this slows down the code a lot
                         # Check if CUDA device is available
                         if not pytorch_copy.cuda.device_count():
                             raise RuntimeError("GPU requested but no CUDA device is available in PyTorch")
                         # Set default device to CUDA
                         cls.device = pytorch_copy.device("cuda")
                         pytorch_copy.set_default_device("cuda")
+                        torch.set_default_device("cuda")
                         print(f"GPU enabled. Using device: {cls.device}")
                         print(f"GPU device count: {pytorch_copy.cuda.device_count()}")
                         print(f"Current GPU device: {pytorch_copy.cuda.current_device()}")
@@ -183,19 +186,19 @@ class BackendTensor:
                 return None
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
+            # 1. Fast Path: It's already a Tensor (Compiler Friendly)
             if isinstance(array_like, torch.Tensor):
                 if dtype is None:
                     return array_like
-                else:
-                    return array_like.type(dtype)
-            else:
-                # Ensure numpy arrays are contiguous before converting to torch tensor
-                if isinstance(array_like, numpy.ndarray):
-                    if not array_like.flags.c_contiguous:
-                        array_like = numpy.ascontiguousarray(array_like)
-                    if not array_like.flags.aligned:
-                        array_like = numpy.copy(array_like, order="C")
-                return torch.tensor(array_like, dtype=dtype)
+                return array_like.to(dtype)
+            # 2. Slow Path: NumPy / Lists (The "Dirty" Data)
+            # Fix the "ValueError": Force memory alignment
+            if isinstance(array_like, (numpy.ndarray, list, tuple)):
+                # We call this UNCONDITIONALLY. 
+                # 1. It fixes your ValueError (misaligned strides).
+                # 2. It avoids 'if array.flags.c_contiguous' (which crashes the compiler).
+                array_like = numpy.ascontiguousarray(array_like)
+            return torch.tensor(array_like, dtype=dtype, device=cls.device)
 
         def _concatenate(tensors, axis=0, dtype=None):
             # Switch if tensor is numpy array or a torch tensor
@@ -227,7 +230,7 @@ class BackendTensor:
                 # Pad with zeros if we don't have multiples of 8 rows
                 if n_rows % 8 != 0:
                     padding_rows = 8 - (n_rows % 8)
-                    padding = torch.zeros(padding_rows, n_cols, dtype=torch.uint8, device=tensor.device)
+                    padding = torch.zeros((padding_rows, n_cols), dtype=torch.uint8, device=tensor.device)
                     tensor = torch.cat([tensor, padding], dim=0)
 
                 # Reshape to group every 8 rows together: (n_output_rows, 8, n_cols)
@@ -237,7 +240,7 @@ class BackendTensor:
                 if bitorder == "little":
                     # Little endian: LSB first [1, 2, 4, 8, 16, 32, 64, 128]
                     powers = torch.tensor([1, 2, 4, 8, 16, 32, 64, 128],
-                                          dtype=torch.uint8, device=tensor.device).view(1, 8, 1)
+                                          dtype=torch.uint8 ).view(1, 8, 1)
                 else:
                     # Big endian: MSB first [128, 64, 32, 16, 8, 4, 2, 1]
                     powers = torch.tensor([128, 64, 32, 16, 8, 4, 2, 1],
@@ -256,7 +259,7 @@ class BackendTensor:
                 # Pad with zeros if needed
                 if n_cols % 8 != 0:
                     padding_cols = 8 - (n_cols % 8)
-                    padding = torch.zeros(n_rows, padding_cols, dtype=torch.uint8, device=tensor.device)
+                    padding = torch.zeros((n_rows, padding_cols), dtype=torch.uint8, device=tensor.device)
                     tensor = torch.cat([tensor, padding], dim=1)
 
                 # Reshape: (n_rows, n_output_cols, 8)
@@ -296,6 +299,71 @@ class BackendTensor:
             tensor[diagonal_indices, diagonal_indices] = value
             return tensor
 
+        from torch import sum, repeat_interleave, isclose, zeros as torch_zeros, eye as torch_eye, ones as torch_ones
+
+        def _zeros(shape, dtype=None, device=None):
+            return torch_zeros(shape, dtype=dtype, device=cls.device)
+
+        def _ones(shape, dtype=None, device=None):
+            return torch_ones(shape, dtype=dtype, device=cls.device)
+
+        def _eye(n, dtype=None, device=None):
+            return torch_eye(n, dtype=dtype, device=cls.device)
+
+        import torch
+
+        def _torch_intersect1d_indices(codes_i: torch.Tensor, codes_j: torch.Tensor, max_memory_mb: float = 250.0, assume_unique: bool = True,
+                                       return_indices: bool = False):
+            """
+            Finds the intersection of two 1D tensors and returns the sorted common values 
+            and their corresponding indices, mimicking np.intersect1d(assume_unique=True).
+
+            Dynamically routes to a fast broadcasting method or a memory-safe isin method 
+            based on the expected VRAM footprint.
+            """
+            N = codes_i.numel()
+            M = codes_j.numel()
+
+            # Calculate the theoretical memory footprint of the boolean broadcast matrix
+            # A boolean tensor in PyTorch takes 1 byte per element
+            memory_footprint_mb = (N * M) / (1024 ** 2)
+
+            if memory_footprint_mb <= max_memory_mb:
+                # ==========================================
+                # ROUTE 1: FAST BROADCASTING (Low Memory)
+                # ==========================================
+                # Creates an N x M boolean mask
+                matches = codes_i.unsqueeze(1) == codes_j.unsqueeze(0)
+                idx_i, idx_j = torch.where(matches)
+                common = codes_i[idx_i]
+
+                # Sort to perfectly match numpy's default behavior
+                sort_idx = torch.argsort(common)
+                return common[sort_idx], idx_i[sort_idx], idx_j[sort_idx]
+
+            else:
+                # ==========================================
+                # ROUTE 2: MEMORY-SAFE ISIN (High Memory)
+                # ==========================================
+                # 1. Find elements of codes_i in codes_j
+                mask_i = torch.isin(codes_i, codes_j)
+                idx_i_unsorted = torch.nonzero(mask_i).squeeze(-1)
+                common_unsorted = codes_i[idx_i_unsorted]
+
+                # 2. Find elements of codes_j in codes_i
+                mask_j = torch.isin(codes_j, codes_i)
+                idx_j_unsorted = torch.nonzero(mask_j).squeeze(-1)
+
+                # 3. Align and sort both index arrays based on the actual common values
+                sort_i = torch.argsort(common_unsorted)
+                sort_j = torch.argsort(codes_j[idx_j_unsorted])
+
+                common_sorted = common_unsorted[sort_i]
+                idx_i_sorted = idx_i_unsorted[sort_i]
+                idx_j_sorted = idx_j_unsorted[sort_j]
+
+                return common_sorted, idx_i_sorted, idx_j_sorted
+
         cls.tfnp.sum = _sum
         cls.tfnp.repeat = _repeat
         cls.tfnp.expand_dims = lambda tensor, axis: tensor
@@ -325,6 +393,12 @@ class BackendTensor:
             atol=atol,
             equal_nan=equal_nan
         )
+        
+        cls.tfnp.zeros = _zeros
+        cls.tfnp.ones = _ones
+        cls.tfnp.eye = _eye
+        cls.tfnp.intersect1d = _torch_intersect1d_indices
+
 
     @classmethod
     def _wrap_pykeops_functions(cls):
@@ -341,41 +415,49 @@ class BackendTensor:
                 case _:
                     raise TypeError("Unsupported tensor type")
 
-        @torch.jit.ignore
         def _sum(tensor, axis=None, dtype=None, keepdims=False):
-            match tensor:
-                case numpy.ndarray():
-                    return numpy.sum(tensor, axis=axis, keepdims=keepdims, dtype=dtype)
-                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor():
-                    return tensor.sum(axis)
-                case torch.Tensor() if torch_available:
-                    if isinstance(dtype, str):
-                        dtype = getattr(torch, dtype)
-                    return tensor.sum(axis, keepdims=keepdims, dtype=dtype)
-                case _:
-                    raise TypeError("Unsupported tensor type")
+            if isinstance(tensor, numpy.ndarray):
+                return numpy.sum(tensor, axis=axis, keepdims=keepdims, dtype=dtype)
+
+            # Handle LazyTensors (KeOps)
+            # We check for the attribute or common base if imports are tricky, 
+            # but explicit isinstance is safest if they are already in scope.
+            import pykeops
+            if isinstance(tensor, (pykeops.numpy.LazyTensor, pykeops.torch.LazyTensor)):
+                return tensor.sum(axis)
+
+            if torch_available and isinstance(tensor, torch.Tensor):
+                if isinstance(dtype, str):
+                    dtype = getattr(torch, dtype)
+                return tensor.sum(axis, keepdims=keepdims, dtype=dtype)
+
+            raise TypeError(f"Unsupported tensor type: {type(tensor)}")
 
         def _divide(tensor, other, dtype=None):
-            match tensor:
-                case numpy.ndarray():
-                    return numpy.divide(tensor, other, dtype=dtype)
-                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor():
-                    return tensor / other
-                case torch.Tensor() if torch_available:
-                    return tensor / other
-                case _:
-                    raise TypeError("Unsupported tensor type")
+            if isinstance(tensor, numpy.ndarray):
+                return numpy.divide(tensor, other, dtype=dtype)
+
+            import pykeops
+            if isinstance(tensor, (pykeops.numpy.LazyTensor, pykeops.torch.LazyTensor)):
+                return tensor / other
+
+            if torch_available and isinstance(tensor, torch.Tensor):
+                return tensor / other
+
+            raise TypeError(f"Unsupported tensor type: {type(tensor)}")
 
         def _sqrt_fn(tensor):
-            match tensor:
-                case numpy.ndarray():
-                    return numpy.sqrt(tensor)
-                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor():
-                    return tensor.sqrt()
-                case torch.Tensor() if torch_available:
-                    return tensor.sqrt()
-                case _:
-                    raise TypeError("Unsupported tensor type")
+            if isinstance(tensor, numpy.ndarray):
+                return numpy.sqrt(tensor)
+
+            import pykeops
+            if isinstance(tensor, (pykeops.numpy.LazyTensor, pykeops.torch.LazyTensor)):
+                return tensor.sqrt()
+
+            if torch_available and isinstance(tensor, torch.Tensor):
+                return tensor.sqrt()
+
+            raise TypeError(f"Unsupported tensor type: {type(tensor)}")
 
         cls.tfnp.sqrt = _sqrt_fn
         cls.tfnp.sum = _sum
@@ -403,6 +485,14 @@ class BackendTensor:
     @classmethod
     def clear_gpu_memory(cls):
         if BackendTensor.use_gpu:
+            # 1. Barrier: Wait for all GPU threads to finish
+            torch.cuda.synchronize()
+
+        # 2. GC: Safely destroy orphaned Python/C++ objects
+        gc.collect()
+
+        if BackendTensor.use_gpu:
+            # 3. Release VRAM: Give the memory back to the OS
             torch.cuda.empty_cache()
 
 
