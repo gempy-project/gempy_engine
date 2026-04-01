@@ -214,7 +214,6 @@ def _evaluate(interpolation_inputs: list[InterpolationInput], options: Interpola
 def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
                         tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
     from gempy_engine.modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
-    import numpy as np
 
     eval_inputs: list[EvaluatorInput] = []
     for idx, global_i in enumerate(stack_indices):

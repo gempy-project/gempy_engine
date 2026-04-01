@@ -15,7 +15,6 @@ from tests.fixtures.complex_geometries import *
 from tests.fixtures.simple_models import *
 from tests.fixtures.heavy_models import *
 
-pykeops_enabled = False
 backend = AvailableBackends.numpy
 use_gpu = False
 plot_pyvista = False  # ! Set here if you want to plot the results
