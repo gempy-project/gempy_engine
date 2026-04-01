@@ -130,33 +130,45 @@ def _segment(
         stack_structure: StacksStructure,
         stack_indices: list[int]
 ) -> list[ScalarFieldOutput | None]:
-    all_scalar_fields_outputs: List[ScalarFieldOutput | None] = [None] * len(stack_indices)
-    for idx, global_i in enumerate(stack_indices):
-        stack_structure.stack_number = global_i
-        # region segmentation
+    def _run_segment(idx_global_i: tuple[int, int]) -> ScalarFieldOutput:
+        import torch
+        stream = torch.cuda.Stream()
+        with torch.cuda.stream(stream):
+            idx, global_i = idx_global_i
+            # Copy stack_structure to avoid race conditions on stack_number
+            from copy import copy
+            local_stack_structure = copy(stack_structure)
+            local_stack_structure.stack_number = global_i
 
-        segmentation_input = SegmentationInput(
-            unit_values=interpolation_inputs[idx].unit_values,
-            sigmoid_slope=(stack_structure.segmentation_function(eval_inputs[idx].xyz_to_interpolate)
-                           if stack_structure.segmentation_function is not None
-                           else options.sigmoid_slope)
-        )
-        values_block = _scalar_field_segmentation_v2(
-            exported_fields=exported_fields_per_stack[idx],
-            segmentation_input=segmentation_input
-        )
+            # region segmentation
+            segmentation_input = SegmentationInput(
+                unit_values=interpolation_inputs[idx].unit_values,
+                sigmoid_slope=(local_stack_structure.segmentation_function(eval_inputs[idx].xyz_to_interpolate)
+                               if local_stack_structure.segmentation_function is not None
+                               else options.sigmoid_slope)
+            )
+            values_block = _scalar_field_segmentation_v2(
+                exported_fields=exported_fields_per_stack[idx],
+                segmentation_input=segmentation_input
+            )
 
-        # endregion
-        output = ScalarFieldOutput(
-            weights=BackendTensor.t.to_numpy(solver_inputs[idx].weights_x0),
-            grid=interpolation_inputs[idx].grid,
-            exported_fields=exported_fields_per_stack[idx],
-            values_block=values_block,
-            stack_relation=interpolation_inputs[idx].stack_relation
-        )
+            # endregion
+            output = ScalarFieldOutput(
+                weights=BackendTensor.t.to_numpy(solver_inputs[idx].weights_x0),
+                grid=interpolation_inputs[idx].grid,
+                exported_fields=exported_fields_per_stack[idx],
+                values_block=values_block,
+                stack_relation=interpolation_inputs[idx].stack_relation
+            )
+        stream.synchronize()
+        return output
 
-        # @on
-        all_scalar_fields_outputs[idx] = output
+    if CONCURRENT := True:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            all_scalar_fields_outputs = list(executor.map(_run_segment, enumerate(stack_indices)))
+    else:
+        all_scalar_fields_outputs = [_run_segment(idx_global_i) for idx_global_i in enumerate(stack_indices)]
+
     return all_scalar_fields_outputs
 
 
@@ -268,7 +280,7 @@ def _compute_weights_for_stacks(
         stream.synchronize()
         return solver_input
 
-    if CONCURRENT:=True:
+    if CONCURRENT := True:
         with concurrent.futures.ThreadPoolExecutor() as executor:
             solver_inputs = list(executor.map(_run_prep, enumerate(stack_indices)))
     else:
