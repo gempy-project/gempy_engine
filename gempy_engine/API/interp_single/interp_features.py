@@ -39,6 +39,7 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
 
 def interpolate_all_fields_no_octree(interpolation_input: InterpolationInput, options: InterpolationOptions,
                                      data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
+    """Used in dual contouring"""
     # TODO (miguel March 2026): These copies I do not think are necessary since a while
     # if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
     #     temp_interpolation_input = copy.deepcopy(interpolation_input)

@@ -70,7 +70,7 @@ class RawArraysSolution:
         raw_arrays_solution = cls()
 
         first_level_octree: OctreeLevel = octrees_output[0]
-        stacks_output = first_level_octree.outputs_centers
+        stacks_output = first_level_octree.outputs
         collapsed_output: InterpOutput = stacks_output[-1]  # ! This is the scalar field. Usually we want the last one but not necessarily
         # ? DEP: last_octree_level: OctreeLevel = octrees_output[(-1)]
 
@@ -108,7 +108,7 @@ class RawArraysSolution:
         temp_list = []
         self.n_surfaces = 0
         for i in range(octree_output.number_of_outputs):
-            at_surface_points = octree_output.outputs_centers[i].scalar_fields.exported_fields.scalar_field_at_surface_points
+            at_surface_points = octree_output.outputs[i].scalar_fields.exported_fields.scalar_field_at_surface_points
             temp_list.append(BackendTensor.t.to_numpy(at_surface_points))
             self.n_surfaces += at_surface_points.shape[0]
 

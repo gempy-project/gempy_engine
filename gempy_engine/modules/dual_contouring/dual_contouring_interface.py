@@ -213,7 +213,7 @@ def mask_generation(
         NotImplementedError: For unsupported masking options
         ValueError: For invalid option combinations
     """
-    all_scalar_fields_outputs: List[InterpOutput] = octree_leaves.outputs_centers
+    all_scalar_fields_outputs: List[InterpOutput] = octree_leaves.outputs
     n_scalar_fields = len(all_scalar_fields_outputs)
     outputs_ = all_scalar_fields_outputs[0]
     slice_corners = outputs_.grid.corners_grid_slice

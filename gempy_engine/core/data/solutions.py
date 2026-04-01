@@ -35,7 +35,7 @@ class Solutions:
 
         self._set_scalar_field_at_surface_points_and_elements_order(octrees_output)
             
-        if SET_RAW_ARRAYS_IN_SOLUTION and octrees_output[0].grid_centers.octree_grid is not None:  # * This can add an unnecessary overhead
+        if SET_RAW_ARRAYS_IN_SOLUTION and octrees_output[0].grid.octree_grid is not None:  # * This can add an unnecessary overhead
             # TODO: Trying to guess if is dense or octree
             self._raw_arrays = RawArraysSolution.from_gempy_engine_solutions(
                 octrees_output=octrees_output,
@@ -55,7 +55,7 @@ class Solutions:
     @property
     def block_solution_resolution(self) -> np.ndarray:
         """Get the resolution of the block solution."""
-        grid_centers = self.octrees_output[-1].grid_centers
+        grid_centers = self.octrees_output[-1].grid
         match self.block_solution_type:
             case RawArraysSolution.BlockSolutionType.DENSE_GRID:
                 resolution = grid_centers.dense_grid.resolution
@@ -117,7 +117,7 @@ class Solutions:
         self.scalar_field_at_surface_points = np.empty(0)
         self._ordered_elements = []
         
-        for structural_group in octrees_output[0].outputs_centers:
+        for structural_group in octrees_output[0].outputs:
             scalar_field_at_surface_points_data = BackendTensor.t.to_numpy(structural_group.scalar_field_at_sp)
             self.scalar_field_at_surface_points = np.append(
                 self.scalar_field_at_surface_points,

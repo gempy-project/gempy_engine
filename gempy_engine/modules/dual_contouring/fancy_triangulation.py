@@ -52,12 +52,12 @@ def get_left_right_array(octree_list: list[OctreeLevel]):
         # * Not only that, the current implementation only works with pure octree starting at [2,2,2]
         raise ValueError("Octree list must have more than one level")
 
-    voxel_select_all = [octree_iter.grid_centers.octree_grid.active_cells for octree_iter in octree_list[1:]]
-    left_right_all = [octree_iter.grid_centers.octree_grid.left_right for octree_iter in octree_list[1:]]
+    voxel_select_all = [octree_iter.grid.octree_grid.active_cells for octree_iter in octree_list[1:]]
+    left_right_all = [octree_iter.grid.octree_grid.left_right for octree_iter in octree_list[1:]]
 
     # Dynamic generation of root indices
     import numpy as np
-    root_res = octree_list[0].grid_centers.octree_grid_shape
+    root_res = octree_list[0].grid.octree_grid_shape
     nx, ny, nz = int(root_res[0]), int(root_res[1]), int(root_res[2])
 
     # Generate coordinate grids (Order: Z fast, Y, X slow)

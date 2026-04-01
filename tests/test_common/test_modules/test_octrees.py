@@ -52,15 +52,15 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
         n = options.number_octree_levels - 1
         debug_vals = get_next_octree_grid(octree_list[n])
         a = debug_vals[-2]
-        grid_centers = octree_list[n].grid_centers
+        grid_centers = octree_list[n].grid
         debug_vals_prev = get_next_octree_grid(octree_list[n - 1]) 
         anch = debug_vals_prev[1]
         grid_centers.values = grid_centers.values[a]
 
         p = _plot_points_in_vista(grid_centers, mesh, anch)
 
-        shape = octree_list[n].grid_centers.regular_grid_shape
-        regular_grid_values = octree_list[n].grid_centers.regular_grid.values_vtk_format
+        shape = octree_list[n].grid.regular_grid_shape
+        regular_grid_values = octree_list[n].grid.regular_grid.values_vtk_format
         regular_grid_scalar = get_regular_grid_value_for_level(octree_list, n)
 
         grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T
@@ -84,7 +84,7 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
 def test_octree_lvl_collapse(simple_model, simple_grid_3d_octree):
     octree_list = _run_octree_api(simple_model, simple_grid_3d_octree)
     for i in range(len(octree_list)):
-        shape = octree_list[i].grid_centers.octree_grid_shape
+        shape = octree_list[i].grid.octree_grid_shape
         slice = shape[1] // 2
         regular_grid_scalar = get_regular_grid_value_for_level(octree_list, level=i).astype("int8")
         plt.imshow(regular_grid_scalar[:, slice, :].T, origin="lower")

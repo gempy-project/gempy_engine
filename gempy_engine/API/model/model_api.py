@@ -79,7 +79,7 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
 
 
 def _compute_geophysics(geophysics_input: GeophysicsInput, output: list[OctreeLevel]) -> tuple[Any, Any]:
-    first_level_last_field: InterpOutput = output[0].outputs_centers[-1]
+    first_level_last_field: InterpOutput = output[0].outputs[-1]
 
     # Gravity (optional)
     if getattr(geophysics_input, 'tz', None) is not None and getattr(geophysics_input, 'densities', None) is not None:

@@ -77,9 +77,9 @@ def dual_contouring_multi_scalar(
         all_left_right_codes.append(left_right_codes_per_stack)
 
         # * 4) Find edges 
-        output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
+        output: InterpOutput = octree_leaves.outputs[n_scalar_field]
         intersection_xyz, valid_edges = find_intersection_on_edge(
-            _xyz_corners=octree_leaves.grid_centers.corners_grid.values,
+            _xyz_corners=octree_leaves.grid.corners_grid.values,
             scalar_field_on_corners=output.exported_fields.scalar_field[output.grid.corners_grid_slice],
             scalar_at_sp=output.scalar_field_at_sp,
             masking=mask
@@ -106,7 +106,7 @@ def dual_contouring_multi_scalar(
     # Generate meshes for each scalar field
     dc_data_per_surface_all = []
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
-        output: InterpOutput = octree_leaves.outputs_centers[n_scalar_field]
+        output: InterpOutput = octree_leaves.outputs[n_scalar_field]
         mask = all_mask_arrays[n_scalar_field]
         n_surfaces_to_export = output.scalar_field_at_sp.shape[0]
         for surface_i in range(n_surfaces_to_export):
@@ -118,10 +118,10 @@ def dual_contouring_multi_scalar(
                 xyz_on_edge=all_surfaces_intersection[n_scalar_field][slice_object],
                 valid_edges=valid_edges_per_surface[surface_i],
                 xyz_on_centers=(
-                        octree_leaves.grid_centers.octree_grid.values if mask is None
-                        else octree_leaves.grid_centers.octree_grid.values[mask]
+                        octree_leaves.grid.octree_grid.values if mask is None
+                        else octree_leaves.grid.octree_grid.values[mask]
                 ),
-                dxdydz=octree_leaves.grid_centers.octree_dxdydz,
+                dxdydz=octree_leaves.grid.octree_dxdydz,
                 left_right_codes=all_left_right_codes[n_scalar_field],
                 gradients=output_on_edges[n_scalar_field][slice_object],
                 n_surfaces_to_export=n_scalar_field,
