@@ -189,20 +189,27 @@ class BackendTensor:
         def _array(array_like, dtype=None):
             if array_like is None:
                 return None
+
+            # Resolve string dtypes safely
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
-            # 1. Fast Path: It's already a Tensor (Compiler Friendly)
+
+            # 1. Fast Path: It's already a Tensor
             if isinstance(array_like, torch.Tensor):
-                if dtype is None:
-                    return array_like
-                return array_like.to(dtype)
+                return array_like if dtype is None else array_like.to(dtype)
+
             # 2. Slow Path: NumPy / Lists (The "Dirty" Data)
-            # Fix the "ValueError": Force memory alignment
-            if isinstance(array_like, (numpy.ndarray, list, tuple)):
-                # We call this UNCONDITIONALLY. 
-                # 1. It fixes your ValueError (misaligned strides).
-                # 2. It avoids 'if array.flags.c_contiguous' (which crashes the compiler).
+            # Use bool(array_like) instead of len() > 0 for a cleaner empty-check
+            is_list_of_arrays = (isinstance(array_like, (list, tuple)) and bool(array_like) and isinstance(array_like[0], numpy.ndarray))
+
+            # Check for memory misalignment
+            is_misaligned_array = (isinstance(array_like, numpy.ndarray) and any(s % array_like.itemsize != 0 for s in array_like.strides))
+
+            # Apply the fix if either dirty condition is met
+            if is_list_of_arrays or is_misaligned_array:
                 array_like = numpy.ascontiguousarray(array_like)
+
+            # 3. Final Conversion
             return torch.tensor(array_like, dtype=dtype, device=cls.device)
 
         def _concatenate(tensors, axis=0, dtype=None):
@@ -245,7 +252,7 @@ class BackendTensor:
                 if bitorder == "little":
                     # Little endian: LSB first [1, 2, 4, 8, 16, 32, 64, 128]
                     powers = torch.tensor([1, 2, 4, 8, 16, 32, 64, 128],
-                                          dtype=torch.uint8 ).view(1, 8, 1)
+                                          dtype=torch.uint8).view(1, 8, 1)
                 else:
                     # Big endian: MSB first [128, 64, 32, 16, 8, 4, 2, 1]
                     powers = torch.tensor([128, 64, 32, 16, 8, 4, 2, 1],
@@ -303,7 +310,6 @@ class BackendTensor:
             diagonal_indices = torch.arange(min(tensor.size(0), tensor.size(1)))
             tensor[diagonal_indices, diagonal_indices] = value
             return tensor
-
 
         def _zeros(shape, dtype=None, device=None):
             if isinstance(dtype, str):
@@ -403,12 +409,11 @@ class BackendTensor:
             atol=atol,
             equal_nan=equal_nan
         )
-        
+
         cls.tfnp.zeros = _zeros
         cls.tfnp.ones = _ones
         cls.tfnp.eye = _eye
         cls.tfnp.intersect1d = _torch_intersect1d_indices
-
 
     @classmethod
     def _wrap_pykeops_functions(cls):

@@ -79,11 +79,11 @@ class InterpOutput:
     @property
     def custom_grid_values(self):
         return self.block[self.grid.custom_grid_slice]
-    
+
     @property
     def geophysics_grid_values(self):
         return self.block[self.grid.geophysics_grid_slice]
-    
+
     @property
     def cornersGrid_values(self):
         return self.block[self.grid.corners_grid_slice]
@@ -100,7 +100,7 @@ class InterpOutput:
     def ids_block_octree_grid(self):
         block = self.block.reshape(-1)
         return BackendTensor.t.rint(block[self.grid.octree_grid_slice].reshape(self.grid.octree_grid_shape.tolist()))
-    
+
     @property
     def ids_block_dense_grid(self):
         block = self.block.reshape(-1)
@@ -136,7 +136,7 @@ class InterpOutput:
 
         # Get the number of unique lithology IDs
         multiplier = len(BackendTensor.t.unique(litho_ids))
-    
+
         # Generate the unique IDs
         unique_ids = litho_ids + faults_ids * multiplier
         return unique_ids
@@ -174,7 +174,7 @@ class InterpOutput:
                 block = self.mask_components
             case _:
                 raise ValueError("ValueType not supported.")
-        
+
         match (BackendTensor.engine_backend):
             case AvailableBackends.PYTORCH:
                 block = BackendTensor.t.to_numpy(block)
