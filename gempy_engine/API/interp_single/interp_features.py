@@ -23,7 +23,7 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
         # * Here it goes all the different grids
         next_octree: OctreeLevel = interpolate_on_octree(interpolation_input, options, data_descriptor)
         
-        if options.is_last_octree_level is False:
+        if not options.is_last_octree_level:
             # * This is only a Grid with a Regular grid
             grid_1_centers: EngineGrid = get_next_octree_grid(
                 prev_octree=next_octree,

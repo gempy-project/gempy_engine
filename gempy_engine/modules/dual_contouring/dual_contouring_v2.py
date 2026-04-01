@@ -1,35 +1,14 @@
-import os
-import numpy as np
 import concurrent.futures
+import os
 from typing import List
 
 from ._gen_vertices import generate_dual_contouring_vertices
-from ._parallel_triangulation import _should_use_parallel_processing, _init_worker
-from ._sequential_triangulation import _compute_triangulation
-from ... import optional_dependencies
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.utils import gempy_profiler_decorator
-
-# Multiprocessing imports
-try:
-    import torch.multiprocessing as mp
-
-    MULTIPROCESSING_AVAILABLE = True
-except ImportError:
-    import multiprocessing as mp
-
-    MULTIPROCESSING_AVAILABLE = False
-
-# Import trimesh once at module level
-TRIMESH_AVAILABLE = False
-try:
-    trimesh = optional_dependencies.require_trimesh()
-    TRIMESH_AVAILABLE = True
-except ImportError:
-    trimesh = None
+from ...modules.dual_contouring.fancy_triangulation import triangulate
 
 
 @gempy_profiler_decorator
@@ -44,23 +23,22 @@ def compute_dual_contouring_v2(dc_data_list: list[DualContouringData], max_worke
         import torch
         _dummy_matrix = torch.ones((1, 1), device=BackendTensor.device, dtype=BackendTensor.dtype_obj)
         _ = torch.linalg.inv(_dummy_matrix)
-    # ------------------------------
-    
+
     if os.getenv("DUAL_CONTOURING_MULTITHREAD", "False") == "True":
         # Use ThreadPoolExecutor to parallelize surface processing
         # This is similar to the approach in _weighted_qef_setup_multicore.py
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
             futures = [
-                executor.submit(_process_one_surface, dc_data, dc_data.left_right_codes)
-                for dc_data in dc_data_list
+                    executor.submit(_process_one_surface, dc_data, dc_data.left_right_codes)
+                    for dc_data in dc_data_list
             ]
 
             # Collect results in order
             stack_meshes: List[DualContouringMesh] = []
             for future in futures:
                 stack_meshes.append(future.result())
-                
+
     else:
         stack_meshes = [_process_one_surface(dc_data, dc_data.left_right_codes) for dc_data in dc_data_list]
 
@@ -71,7 +49,7 @@ def _process_one_surface(dc_data: DualContouringData, left_right_codes) -> DualC
     vertices = generate_dual_contouring_vertices(dc_data, slice_surface=None, debug=False)
 
     if os.getenv("GEMPY_SKIP_TRIANGULATION", "0").lower() in ("true", "1", "t", "y", "yes"):
-        mesh = DualContouringMesh(vertices, BackendTensor.t.array([[],[]]), dc_data)
+        mesh = DualContouringMesh(vertices, BackendTensor.t.array([[], []]), dc_data)
         return mesh
 
     # * Average gradient for the edges
@@ -89,3 +67,29 @@ def _process_one_surface(dc_data: DualContouringData, left_right_codes) -> DualC
 
     mesh = DualContouringMesh(vertices, indices, dc_data)
     return mesh
+
+
+def _compute_triangulation(dc_data_per_surface: DualContouringData,
+                           left_right_codes, edges_normals, vertex):
+    """Compute triangulation indices for a specific surface."""
+
+    # * Fancy triangulation 👗
+    valid_voxels = dc_data_per_surface.valid_voxels
+
+    left_right_per_surface = left_right_codes[valid_voxels]
+    valid_voxels_per_surface = dc_data_per_surface.valid_edges[valid_voxels]
+    tree_depth_per_surface = dc_data_per_surface.tree_depth
+
+    voxels_normals = edges_normals[valid_voxels]
+
+    indices = triangulate(
+        left_right_array=left_right_per_surface,
+        valid_edges=valid_voxels_per_surface,
+        tree_depth=tree_depth_per_surface,
+        voxel_normals=voxels_normals,
+        vertex=vertex,
+        base_number=dc_data_per_surface.base_number
+    )
+
+    # @on
+    return indices

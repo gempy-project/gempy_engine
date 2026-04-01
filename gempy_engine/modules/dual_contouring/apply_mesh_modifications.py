@@ -37,7 +37,7 @@ def apply_overlap_to_surface_pair(
         )
 
         # STEP 2: Conservative Triangle Removal
-        _remove_triangles_in_voxels(
+        remove_triangles_in_voxels(
             mesh=all_meshes[destination_surface_idx],
             voxel_indices=overlap_data[dest_indices_key],
             mode='all'
@@ -66,7 +66,7 @@ def _are_valid_mesh_indices(all_meshes: List['DualContouringMesh'], *indices: in
     return all(0 <= idx < len(all_meshes) for idx in indices)
 
 
-def _remove_triangles_in_voxels(
+def remove_triangles_in_voxels(
         mesh: 'DualContouringMesh',
         voxel_indices: np.ndarray,
         mode: str = 'any'

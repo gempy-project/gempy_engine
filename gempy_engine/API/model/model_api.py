@@ -32,7 +32,7 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
             interpolation_input = copy.deepcopy(interpolation_input)
 
         # Check input is valid
-        _check_input_validity(interpolation_input, options, data_descriptor)
+        _check_input_validity(interpolation_input, options, data_descriptor) # TODO
 
         output: list[OctreeLevel] = interpolate_n_octree_levels(
             interpolation_input=interpolation_input,
