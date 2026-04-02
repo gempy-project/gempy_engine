@@ -20,7 +20,7 @@ def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: 
     # ! We need to benchmark GPU vs CPU with more input
     backend_string = BackendTensor.get_backend_string()
 
-    eval_kernel = yield_evaluation_kernel(solver_input, options.kernel_options)
+    eval_kernel = yield_evaluation_kernel(solver_input, options.kernel_options, pykeops=True)
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
         from pykeops.numpy import LazyTensor
         # Create lazy_weights with correct dimensions: we want (16, 1) to match eval_kernel's nj dimension
@@ -37,14 +37,14 @@ def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: 
     gz_field: Optional[np.ndarray] = None
 
     if options.compute_scalar_gradient is True:
-        eval_gx_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=0)
-        eval_gy_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=1)
+        eval_gx_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=0, pykeops=True)
+        eval_gy_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=1, pykeops=True)
 
         gx_field = (eval_gx_kernel * lazy_weights).sum(axis=0, backend=backend_string).reshape(-1)
         gy_field = (eval_gy_kernel * lazy_weights).sum(axis=0, backend=backend_string).reshape(-1)
 
         if options.number_dimensions == 3:
-            eval_gz_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=2)
+            eval_gz_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=2, pykeops=True)
             gz_field = (eval_gz_kernel * lazy_weights).sum(axis=0, backend=backend_string).reshape(-1)
         elif options.number_dimensions == 2:
             gz_field = None

@@ -1,7 +1,7 @@
 from typing import List, Dict, TYPE_CHECKING
 import numpy as np
 from gempy_engine.config import DualContouringOverlap, DUAL_CONTOURING_VERTEX_OVERLAP
-from ._apply_mesh_modifications import apply_overlap_to_surface_pair
+from .apply_mesh_modifications import apply_overlap_to_surface_pair
 
 if TYPE_CHECKING:
     from ...core.data.dual_contouring_mesh import DualContouringMesh

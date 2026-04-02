@@ -21,10 +21,10 @@ except ImportError:
 
 
 def _grab_xyz_edges(last_octree_level: OctreeLevel) -> tuple:
-    corners = last_octree_level.outputs_centers[0]
+    corners = last_octree_level.outputs[0]
     # First find xyz on edges:
     xyz, edges = find_intersection_on_edge(
-        _xyz_corners=last_octree_level.grid_centers.corners_grid.values,
+        _xyz_corners=last_octree_level.grid.corners_grid.values,
         scalar_field_on_corners=corners.exported_fields.scalar_field[corners.grid.corners_grid_slice],
         scalar_at_sp=corners.scalar_field_at_sp,
         masking=None
@@ -45,7 +45,7 @@ def test_compute_dual_contouring_complex(unconformity_complex_one_layer, n_oct_l
     dc_data = solutions.dc_meshes[0].dc_data
 
     if plot_pyvista or False:
-        output_corners: InterpOutput = solutions.octrees_output[-1].outputs_centers[-1]
+        output_corners: InterpOutput = solutions.octrees_output[-1].outputs[-1]
         vertices = output_corners.grid.values
 
         intersection_xyz = dc_data.xyz_on_edge
@@ -74,10 +74,10 @@ def _plot_pyvista(last_octree_level, octree_list, simple_model, ids, grid_0_cent
     p = pv.Plotter()
 
     # Plot Regular grid Octree
-    regular_grid_values = octree_list[n].grid_centers.octree_grid.values_vtk_format
+    regular_grid_values = octree_list[n].grid.octree_grid.values_vtk_format
     regular_grid_scalar = get_regular_grid_value_for_level(octree_list, n)
 
-    shape = octree_list[n].grid_centers.octree_grid_shape
+    shape = octree_list[n].grid.octree_grid_shape
     grid_3d = regular_grid_values.reshape(*(shape + 1), 3).T
     regular_grid_mesh = pv.StructuredGrid(*grid_3d)
     regular_grid_mesh["lith"] = regular_grid_scalar.ravel()

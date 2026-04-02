@@ -17,7 +17,7 @@ from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance
 from gempy_engine.core.data.output.blocks_value_type import ValueType
 from gempy_engine.plugins.plotting import helper_functions_pyvista
-from tests.conftest import pykeops_enabled, plot_pyvista
+from tests.conftest import plot_pyvista
 from gempy_engine.plugins.plotting.helper_functions import plot_block_and_input_2d, plot_scalar_and_input_2d
 
 
@@ -40,7 +40,7 @@ def test_one_fault_model(one_fault_model, n_oct_levels=5):
     outputs: list[OctreeLevel] = solutions.octrees_output
 
     if check_cov := False:  # * This is in case we need to compare the covariance matrices
-        last_cov = outputs[-1].outputs_centers.exported_fields.debug
+        last_cov = outputs[-1].outputs.exported_fields.debug
         gempy_v2_cov = _covariance_for_one_fault_model_from_gempy_v2()
         diff = last_cov - gempy_v2_cov
 
@@ -151,7 +151,7 @@ def test_one_fault_model_finite_fault(one_fault_model, n_oct_levels=4):
     meshes = solutions.dc_meshes  # + meshes
 
     outputs: list[OctreeLevel] = solutions.octrees_output
-    scalar = f1_finite_fault(solutions.octrees_output[-1].grid_centers.values)
+    scalar = f1_finite_fault(solutions.octrees_output[-1].grid.values)
     # endregion
 
     if True:
@@ -201,7 +201,7 @@ def test_implicit_ellipsoid_projection_on_fault(one_fault_model):
 
     fault_mesh = solutions.dc_meshes[0]
 
-    centers_: InterpOutput = solutions.octrees_output[0].outputs_centers[0]
+    centers_: InterpOutput = solutions.octrees_output[0].outputs[0]
     dense_grid = centers_.grid.dense_grid
     resolution = dense_grid.resolution
 

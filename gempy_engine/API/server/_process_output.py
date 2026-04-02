@@ -39,7 +39,7 @@ def process_output(
     
     # Serialize octrees
     unstructured_data_volume = subsurface.UnstructuredData.from_array(
-        vertex=solutions.octrees_output[0].grid_centers.values,
+        vertex=solutions.octrees_output[0].grid.values,
         cells="points",
         cells_attr=pd.DataFrame(
             data=solutions.octrees_output[0].last_output_center.ids_block,

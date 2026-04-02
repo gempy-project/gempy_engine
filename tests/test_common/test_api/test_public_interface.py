@@ -195,7 +195,7 @@ def test_graben_fault_model_independent(graben_fault_model):
 
 
 def _verify_scalar_field(solutions, name):
-    outputs_centers_: InterpOutput = solutions.octrees_output[-1].outputs_centers[0]
+    outputs_centers_: InterpOutput = solutions.octrees_output[-1].outputs[0]
     scalar_field = outputs_centers_.exported_fields.scalar_field
     scalar_field = scalar_field[::int(len(scalar_field) / 50)]  # Pick 50 values from the scalar field array
     gempy_verify_array(scalar_field, name)

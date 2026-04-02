@@ -130,7 +130,7 @@ def test_finite_fault_full_pipeline(one_fault_model):
     # Get the scalar field and gradients for the fault (stack 0)
     # octrees_output[0] is the root level (contains dense grid)
     # outputs_centers[0] is the output for stack 0 (the fault)
-    fault_output = solutions.octrees_output[0].outputs_centers[0]
+    fault_output = solutions.octrees_output[0].outputs[0]
     grid = fault_output.grid
 
     scalar_field = fault_output.exported_fields.scalar_field
@@ -203,7 +203,7 @@ def test_visualize_slip_on_fault_mesh(one_fault_model):
 
     # We need the gradient to find the center and normal
     # fault_output[0] is the root level (contains dense grid)
-    fault_output = solutions.octrees_output[0].outputs_centers[0]
+    fault_output = solutions.octrees_output[0].outputs[0]
 
     # Calculate slip for the MESH VERTICES
     # To do this correctly, we need the gradient and scalar field at the mesh vertices
@@ -257,7 +257,7 @@ def test_visualize_projected_points_on_fault(one_fault_model):
     # Run the model
     solutions = compute_model(interpolation_input, options, structure)
     fault_mesh = solutions.dc_meshes[0]
-    fault_output = solutions.octrees_output[0].outputs_centers[0]
+    fault_output = solutions.octrees_output[0].outputs[0]
 
     # Pick some points in a small box around the fault
     # We use the grid points and filter them
@@ -324,7 +324,7 @@ def test_visualize_spline_slip_on_fault_mesh(one_fault_model):
 
     # We need the gradient to find the center and normal
     # fault_output[0] is the root level (contains dense grid)
-    fault_output = solutions.octrees_output[0].outputs_centers[0]
+    fault_output = solutions.octrees_output[0].outputs[0]
 
     mesh_vertices = fault_mesh.vertices
     center = np.mean(mesh_vertices, axis=0)

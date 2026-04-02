@@ -32,7 +32,7 @@ def test_finite_fault_integration_suite(finite_fault_setup):
     fault_mesh = solutions.dc_meshes[0]
 
     # Get the scalar field and gradients for the fault (stack 0)
-    fault_output = solutions.octrees_output[0].outputs_centers[0]
+    fault_output = solutions.octrees_output[0].outputs[0]
     grid_points = fault_output.grid.values
     scalar_field = fault_output.exported_fields.scalar_field
     gx = fault_output.exported_fields.gx_field

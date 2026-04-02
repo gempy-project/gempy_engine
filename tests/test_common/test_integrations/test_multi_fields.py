@@ -147,7 +147,7 @@ def test_plot_corners(unconformity_complex, n_oct_levels=2):
     interpolation_input, options, structure = unconformity_complex
     options.number_octree_levels = n_oct_levels
     solutions: Solutions = compute_model(interpolation_input, options, structure)
-    vertices = solutions.octrees_output[-1].grid_centers.corners_grid.values
+    vertices = solutions.octrees_output[-1].grid.corners_grid.values
     if plot_pyvista or False:
         helper_functions_pyvista.plot_pyvista(solutions.octrees_output, v_just_points=vertices)
 
@@ -160,12 +160,12 @@ def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
         octrees_output=interpolate_n_octree_levels(interpolation_input, options, structure)
     )
 
-    final_block = solution.octrees_output[0].output_centers.final_block
+    final_block = solution.octrees_output[0].last_output_center.final_block
     final_block2 = get_regular_grid_value_for_level(solution.octrees_output, 1).astype("int8")
 
     if plot_2d := False or False:
         grid = interpolation_input.grid.regular_grid
         plot_block(final_block, grid)
 
-        grid2 = solution.octrees_output[1].grid_centers.regular_grid
+        grid2 = solution.octrees_output[1].grid.regular_grid
         plot_block(final_block2, grid2)

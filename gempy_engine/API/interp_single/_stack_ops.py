@@ -1,4 +1,3 @@
-from typing import List, Optional
 import concurrent.futures
 
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
@@ -147,9 +146,10 @@ def _segment(
                                if local_stack_structure.segmentation_function is not None
                                else options.sigmoid_slope)
             )
-            values_block = _scalar_field_segmentation_v2(
+            values_block = activator_interface.activate_formation_block(
                 exported_fields=exported_fields_per_stack[idx],
-                segmentation_input=segmentation_input
+                ids=segmentation_input.unit_values,
+                sigmoid_slope=segmentation_input.sigmoid_slope
             )
 
             # endregion
@@ -170,15 +170,6 @@ def _segment(
         all_scalar_fields_outputs = [_run_segment(idx_global_i) for idx_global_i in enumerate(stack_indices)]
 
     return all_scalar_fields_outputs
-
-
-def _scalar_field_segmentation_v2(exported_fields: ExportedFields, segmentation_input: SegmentationInput) \
-        -> ndarray[tuple[Any, ...], dtype[Any]]:
-    return activator_interface.activate_formation_block(
-        exported_fields=exported_fields,
-        ids=segmentation_input.unit_values,
-        sigmoid_slope=segmentation_input.sigmoid_slope
-    )
 
 
 def _evaluate(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
@@ -214,7 +205,6 @@ def _evaluate(interpolation_inputs: list[InterpolationInput], options: Interpola
 def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
                         tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
     from gempy_engine.modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
-    import numpy as np
 
     eval_inputs: list[EvaluatorInput] = []
     for idx, global_i in enumerate(stack_indices):
@@ -285,40 +275,6 @@ def _compute_weights_for_stacks(
             solver_inputs = list(executor.map(_run_prep, enumerate(stack_indices)))
     else:
         solver_inputs = [_run_prep(idx_global_i) for idx_global_i in enumerate(stack_indices)]
-
-    return solver_inputs
-
-
-def _compute_weights_for_stacks_single_thread(
-        interpolation_inputs: list[InterpolationInput],
-        options: InterpolationOptions,
-        stack_structure: StacksStructure,
-        tensor_structs: list[TensorsStructure],
-        stack_indices: list[int] | None = None
-) -> list[SolverInput_v2]:
-    solver_inputs: list[SolverInput_v2] = []
-
-    if stack_indices is None:
-        stack_indices = list(range(stack_structure.n_stacks))
-
-    for idx, global_i in enumerate(stack_indices):
-        stack_structure.stack_number = global_i
-        solver_input: SolverInput_v2 = input_preprocess_v2(
-            data_shape=tensor_structs[idx],
-            interpolation_input=interpolation_inputs[idx]
-        )
-        solver_inputs.append(solver_input)
-
-        # region compute weights
-        # TODO: Adding external function
-        weights = compute_weights(
-            solver_input=solver_input,
-            stack_number=global_i,
-            options=options
-        )
-        solver_input.weights_x0 = weights
-
-        # endregion
 
     return solver_inputs
 

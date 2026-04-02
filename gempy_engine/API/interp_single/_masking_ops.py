@@ -6,8 +6,20 @@ from numpy import ndarray
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_fields import ExportedFields
 from gempy_engine.core.data.exported_structs import CombinedScalarFieldsOutput
+from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data.stack_relation_type import StackRelationType
+
+
+def combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
+                          data_descriptor: InputDataDescriptor,
+                          compute_scalar_grad: bool = False) -> List[CombinedScalarFieldsOutput]:
+    return _combine_scalar_fields(
+        all_scalar_fields_outputs=all_scalar_fields_outputs,
+        lithology_mask=_lithology_mask(all_scalar_fields_outputs, data_descriptor.stack_relation),
+        faults_mask=_faults_mask(all_scalar_fields_outputs, data_descriptor.stack_relation),
+        compute_scalar_grad=compute_scalar_grad
+    )
 
 
 def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relation: List[StackRelationType]) -> np.ndarray:

@@ -101,7 +101,7 @@ def get_regular_grid_value_for_level_torch(octree_list: List['OctreeLevel'], lev
 
     # Octree - Level 0
     root = octree_list[0]
-    regular_grid_shape = torch.tensor(root.grid_centers.octree_grid_shape)  # Ensure it's a tensor/array
+    regular_grid_shape = torch.tensor(root.grid.octree_grid_shape)  # Ensure it's a tensor/array
 
     # Fetch block as a PyTorch tensor
     block = _get_block_from_value_type(root, scalar_n, value_type)
@@ -125,12 +125,12 @@ def get_regular_grid_value_for_level_torch(octree_list: List['OctreeLevel'], lev
         n_rep = (level - e)
 
         # Keep active_cells on the GPU! Do not convert to NumPy.
-        active_cells = octree.grid_centers.octree_grid.active_cells
+        active_cells = octree.grid.octree_grid.active_cells
         if not isinstance(active_cells, torch.Tensor):
             active_cells = torch.tensor(active_cells, device=device)
 
         local_active_cells = torch.where(active_cells)[0]
-        shape = torch.tensor(octree.grid_centers.octree_grid_shape, device=device)
+        shape = torch.tensor(octree.grid.octree_grid_shape, device=device)
 
         oct_tensor = calculate_oct(shape, n_rep, device)
 
@@ -222,7 +222,7 @@ def get_regular_grid_value_for_level_numpy(octree_list: List[OctreeLevel], level
     # Octree - Level 0
     root: OctreeLevel = octree_list[0]
 
-    regular_grid_shape = root.grid_centers.octree_grid_shape
+    regular_grid_shape = root.grid.octree_grid_shape
 
     block = _get_block_from_value_type(root, scalar_n, value_type)
 
@@ -239,11 +239,11 @@ def get_regular_grid_value_for_level_numpy(octree_list: List[OctreeLevel], level
     # Octree - Level n
     for e, octree in enumerate(octree_list[1:level + 1]):
         n_rep = (level - e)
-        active_cells: np.ndarray = octree.grid_centers.octree_grid.active_cells
+        active_cells: np.ndarray = octree.grid.octree_grid.active_cells
         active_cells = BackendTensor.t.to_numpy(active_cells)
 
         local_active_cells: np.ndarray = np.where(active_cells)[0]
-        shape: np.ndarray = octree.grid_centers.octree_grid_shape
+        shape: np.ndarray = octree.grid.octree_grid_shape
         oct: np.ndarray = calculate_oct(shape, n_rep)
 
         block = _get_block_from_value_type(octree, scalar_n, value_type)
@@ -271,6 +271,6 @@ def get_regular_grid_value_for_level_numpy(octree_list: List[OctreeLevel], level
 
 
 def _get_block_from_value_type(root: OctreeLevel, scalar_n: int, value_type: ValueType):
-    element_output: InterpOutput = root.outputs_centers[scalar_n]
+    element_output: InterpOutput = root.outputs[scalar_n]
     block = element_output.get_block_from_value_type(value_type, element_output.grid.octree_grid_slice)
     return block

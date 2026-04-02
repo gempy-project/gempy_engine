@@ -13,7 +13,7 @@ DEFAULT_CROSS_SURFACE_WEIGHT = 10.0
 
 
 
-def intersect1d_assume_unique(codes_i, codes_j):
+def _intersect1d_assume_unique(codes_i, codes_j):
     import torch
     # 1. Concatenate the tensors
     cat = torch.cat([codes_i, codes_j])
@@ -71,9 +71,7 @@ def _process_single_surface(
 
         # Fast C-level intersection. NumPy releases the GIL here!
         if BackendTensor.engine_backend is AvailableBackends.PYTORCH:
-            common_codes, idx_i_common, idx_j_common = intersect1d_assume_unique(
-                codes_i, codes_j
-            )
+            common_codes, idx_i_common, idx_j_common = _intersect1d_assume_unique(codes_i, codes_j)
         else:
             common_codes, idx_i_common, idx_j_common = np.intersect1d(
                 codes_i, codes_j, assume_unique=True, return_indices=True
