@@ -17,7 +17,7 @@ from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance
 from gempy_engine.core.data.output.blocks_value_type import ValueType
 from gempy_engine.plugins.plotting import helper_functions_pyvista
-from tests.conftest import pykeops_enabled, plot_pyvista
+from tests.conftest import plot_pyvista
 from gempy_engine.plugins.plotting.helper_functions import plot_block_and_input_2d, plot_scalar_and_input_2d
 
 
