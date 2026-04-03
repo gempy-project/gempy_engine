@@ -3,6 +3,7 @@ from typing import Union, Any, Optional
 import warnings
 
 import numpy
+import numpy as np
 
 from gempy_engine.config import (is_pykeops_installed, is_numpy_installed, is_tensorflow_installed,
                                  is_pytorch_installed,
@@ -207,10 +208,10 @@ class BackendTensor:
 
             # Apply the fix if either dirty condition is met
             if is_list_of_arrays or is_misaligned_array:
-                array_like = numpy.ascontiguousarray(array_like)
+                array_like = numpy.ascontiguousarray(np.array(array_like))
 
             # 3. Final Conversion
-            return torch.tensor(array_like, dtype=dtype, device=cls.device)
+            return torch.tensor(np.array(array_like), dtype=dtype, device=cls.device)
 
         def _concatenate(tensors, axis=0, dtype=None):
             # Switch if tensor is numpy array or a torch tensor
