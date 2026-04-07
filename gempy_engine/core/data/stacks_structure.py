@@ -33,9 +33,9 @@ class StacksStructure:
 
     def __post_init__(self):
                 
-        # self.number_of_points_per_stack       = self.number_of_points_per_stack[self.number_of_points_per_stack != 0]
-        # self.number_of_orientations_per_stack = self.number_of_orientations_per_stack[self.number_of_orientations_per_stack != 0]
-        # self.number_of_surfaces_per_stack     = self.number_of_surfaces_per_stack[self.number_of_surfaces_per_stack != 0]
+        self.number_of_points_per_stack       = self.number_of_points_per_stack[self.number_of_points_per_stack != 0]
+        self.number_of_orientations_per_stack = self.number_of_orientations_per_stack[self.number_of_orientations_per_stack != 0]
+        self.number_of_surfaces_per_stack     = self.number_of_surfaces_per_stack[self.number_of_surfaces_per_stack != 0]
         
         consistent_shapes: bool =  len(self.number_of_points_per_stack) == \
                                    len(self.number_of_orientations_per_stack) == \
