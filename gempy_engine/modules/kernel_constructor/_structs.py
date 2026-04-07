@@ -27,81 +27,20 @@ def _upgrade_kernel_input_to_keops_tensor_pytorch(struct_data_instance):
         if not isinstance(array_like, torch.Tensor):
             array_like = BackendTensor.t.array(array_like)
 
-        struct_data_instance.__dict__[key] =  LazyTensor(array_like.type(BackendTensor.dtype_obj))
+        if (len(array_like.shape) == 2):
+            struct_data_instance.__dict__[key] = LazyTensor(array_like.type(BackendTensor.dtype_obj), axis=0)  # default to axis 0 for 2D
+        else:
+            struct_data_instance.__dict__[key] = LazyTensor(array_like.type(BackendTensor.dtype_obj))
     return struct_data_instance
-        # if (val.is_contiguous() is False):
-        #     raise ValueError("Input tensors are not contiguous")
-        # 
-        # if BackendTensor.use_gpu:
-        #     val_type = val.type(BackendTensor.dtype_obj).to("cuda", non_blocking=True)
-        # else:
-        #     val_type = val.type(BackendTensor.dtype_obj)
-        # struct_data_instance.__dict__[key] = LazyTensor(val_type)
 
-
-# def _cast_tensors(data_class_instance):
-#     match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled):
-#         case (AvailableBackends.numpy, True):
-#             _upgrade_kernel_input_to_keops_tensor_numpy(data_class_instance)
-#         case (AvailableBackends.PYTORCH, False):
-#             cast_type_inplace(data_class_instance)
-#         case (AvailableBackends.PYTORCH, True):
-#             cast_type_inplace(data_class_instance, requires_grad=False)
-#             _upgrade_kernel_input_to_keops_tensor_pytorch(cloned_instance)
-#         case (_, _):
-#             pass
-# 
-#     return cloned_instance
 
 def _cast_tensors(data_class_instance):
     cloned_instance = copy.copy(data_class_instance)
     return _upgrade_kernel_input_to_keops_tensor_pytorch(cloned_instance)
-    return _secure_cast(cloned_instance)
-
-    match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled):
-        case (AvailableBackends.numpy, True):
-            _upgrade_kernel_input_to_keops_tensor_numpy(data_class_instance)
-        case (AvailableBackends.PYTORCH, False):
-            cast_type_inplace(data_class_instance)
-        case (AvailableBackends.PYTORCH, True):
-            cast_type_inplace(data_class_instance, requires_grad=False)
-            _upgrade_kernel_input_to_keops_tensor_pytorch(cloned_instance)
-        case (_, _):
-            pass
-
-    return cloned_instance
 
 
 # --- 1. The New Helper Function (Replaces _cast_tensors logic) ---
 def _secure_cast(array_like):
-    return array_like
-    """
-    Applies the backend logic (Torch/KeOps/NumPy) to a SINGLE item.
-    Compiler-safe because it doesn't loop over __dict__.
-    """
-    # CASE A: NumPy Backend
-    if BackendTensor.engine_backend == AvailableBackends.numpy and BackendTensor.pykeops_enabled:
-        from pykeops.numpy import LazyTensor
-        # Note: explicit .astype fixes cost issues
-        return LazyTensor(array_like.astype(BackendTensor.dtype))
-
-    # CASE B: PyTorch Backend (Standard)
-    elif BackendTensor.engine_backend == AvailableBackends.PYTORCH: #and not BackendTensor.pykeops_enabled:
-        # Use our "Fixed" _array method from previous chat (handles contiguity safely)
-        return BackendTensor.t.array(array_like)
-    # 
-    # # CASE C: PyTorch + KeOps
-    # elif BackendTensor.engine_backend == AvailableBackends.PYTORCH and BackendTensor.pykeops_enabled:
-    #     from pykeops.torch import LazyTensor
-    #     import torch
-    #     # Ensure contiguous (using our safe logic implicitly via _array if needed)
-    #     # But KeOps usually wants pure torch tensors wrapped:
-    #     if not isinstance(array_like, torch.Tensor):
-    #         array_like = BackendTensor.t.array(array_like)
-    # 
-    #     return LazyTensor(array_like.type(BackendTensor.dtype_obj))
-
-    # Fallback
     return array_like
 
 
@@ -176,7 +115,7 @@ class PointsDrift:
         self.dipsPoints_ui_bj1 = _secure_cast(y_degree_2a[None, :, :])
         self.dipsPoints_ui_bi2 = _secure_cast(x_degree_2b[:, None, :])
         self.dipsPoints_ui_bj2 = _secure_cast(y_degree_2b[None, :, :])
-        
+
     def upgrade_tensors(self):
         return _cast_tensors(self)
 
@@ -231,7 +170,6 @@ class CartesianSelector:
         self.h_sel_rest_i = _secure_cast(x_sel_h_rest[:, None, :])
         self.h_sel_rest_j = _secure_cast(y_sel_h_rest[None, :, :])
 
-    
     def upgrade_tensors(self):
         return _cast_tensors(self)
 
@@ -248,7 +186,7 @@ class DriftMatrixSelector:
 
         sel_i = BackendTensor.t.zeros((x_size, 2), dtype=BackendTensor.dtype)
         sel_j = BackendTensor.t.zeros((y_size, 2), dtype=BackendTensor.dtype)
-        
+
         drift_pos_0_x = drift_start_post_x
         drift_pos_1_x = drift_start_post_x + n_drift_eq + 1
         drift_pos_0_y = drift_start_post_y
@@ -264,7 +202,7 @@ class DriftMatrixSelector:
         # Explicit Cast
         self.sel_ui = _secure_cast(sel_i[:, None, :])
         self.sel_vj = _secure_cast(sel_j[None, :, :])
-   
+
     def upgrade_tensors(self):
         return _cast_tensors(self)
 
@@ -285,7 +223,7 @@ class KernelInput:
 
     ref_fault: Optional[FaultDrift]
     rest_fault: Optional[FaultDrift]
-    
+
     def upgrade_tensors(self):
         return KernelInput(
             ori_sp_matrices=self.ori_sp_matrices.upgrade_tensors(),
@@ -299,7 +237,6 @@ class KernelInput:
             ref_fault=self.ref_fault.upgrade_tensors() if self.ref_fault is not None else None,
             rest_fault=self.rest_fault.upgrade_tensors() if self.rest_fault is not None else None,
         )
-            
+
     def __repr__(self):
         return f"KernelInput(ori_sp_matrices={self.ori_sp_matrices}, cartesian_selector={self.cartesian_selector}, nugget_scalar={self.nugget_scalar}, nugget_grad={self.nugget_grad}, ori_drift={self.ori_drift}, ref_drift={self.ref_drift}, rest_drift={self.rest_drift}, drift_matrix_selector={self.drift_matrix_selector}, ref_fault={self.ref_fault})"
-    

@@ -76,7 +76,6 @@ def test_stack_options_override_serial(override_setup):
     assert not np.array_equal(field_0, field_1)
 
 def test_stack_options_override_flat(override_setup):
-    # This test might require PyKeOps/GPU if it's strictly enforced by the code
     ii, global_options, ts = override_setup
     
     custom_options = InterpolationOptions.from_args(
@@ -97,22 +96,25 @@ def test_stack_options_override_flat(override_setup):
 
     dd = InputDataDescriptor(tensors_structure=ts, stack_structure=stack_structure)
 
-    # Force flat execution (if supported by environment)
+    # Force flat execution
     os.environ["GEMPY_FLAT_STACKS"] = "True"
     
-    # We might need to mock BackendTensor.use_pykeops to True to trigger this path
     from gempy_engine.core.backend_tensor import BackendTensor
     original_use_pykeops = BackendTensor.use_pykeops
+    # We must mock use_pykeops to True to enter the flat path in _multi_scalar_field_manager.py
     BackendTensor.use_pykeops = True
     
     try:
-        # This might fail if PyKeOps is not really there, so we wrap it
         solutions = compute_model(ii, global_options, dd)
-        assert len(solutions.octrees_output[0].outputs) == 2
-    except Exception as e:
-        print(f"Flat path failed (expected if PyKeOps missing): {e}")
+        
+        # Verify that results are different because of different ranges
+        field_0 = solutions.octrees_output[0].outputs[0].scalar_fields.exported_fields.scalar_field
+        field_1 = solutions.octrees_output[0].outputs[1].scalar_fields.exported_fields.scalar_field
+        
+        assert not np.array_equal(field_0, field_1)
     finally:
         BackendTensor.use_pykeops = original_use_pykeops
+        os.environ["GEMPY_FLAT_STACKS"] = "False"
 
 def test_backward_compatibility(override_setup):
     ii, global_options, ts = override_setup
