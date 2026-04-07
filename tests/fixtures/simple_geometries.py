@@ -32,7 +32,7 @@ def unconformity() -> Tuple[InterpolationInput, InterpolationOptions, InputDataD
                                         orientations["polarity"])
     dip_gradients = np.vstack(dip_gradients_).T
 
-    stack_structure = StacksStructure(number_of_points_per_stack=np.array([30, 39]),
+    stack_structure = StacksStructure(number_of_points_per_stack=np.array([30, 9]),
                                       number_of_orientations_per_stack=np.array([4, 1]),
                                       number_of_surfaces_per_stack=np.array([2, 1]),
                                       masking_descriptor=[StackRelationType.ERODE, StackRelationType.ERODE]
