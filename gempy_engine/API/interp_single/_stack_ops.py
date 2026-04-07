@@ -139,12 +139,15 @@ def _segment(
             local_stack_structure = copy(stack_structure)
             local_stack_structure.stack_number = global_i
 
+            # Check for stack specific options override
+            options_i = local_stack_structure.interpolation_options if local_stack_structure.interpolation_options is not None else options
+
             # region segmentation
             segmentation_input = SegmentationInput(
                 unit_values=interpolation_inputs[idx].unit_values,
                 sigmoid_slope=(local_stack_structure.segmentation_function(eval_inputs[idx].xyz_to_interpolate)
                                if local_stack_structure.segmentation_function is not None
-                               else options.sigmoid_slope)
+                               else options_i.sigmoid_slope)
             )
             values_block = activator_interface.activate_formation_block(
                 exported_fields=exported_fields_per_stack[idx],
@@ -222,10 +225,15 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
     weights_list = [ei.solver_input.weights_x0 for ei in eval_inputs]
 
     # Call the stacked evaluator (single PyKeOps call with block-sparse ranges)
+    # TODO: This symbolic_evaluator_optimized_stacked needs to handle per stack options
+    #  For now we use the first stack options if available, otherwise global options
+    stack_structure.stack_number = stack_indices[0]
+    options_0 = stack_structure.interpolation_options if stack_structure.interpolation_options is not None else options
+
     exported_fields_list: list[ExportedFields] = symbolic_evaluator_optimized_stacked(
         eval_inputs=eval_inputs,
         weights_list=weights_list,
-        options=options
+        options=options_0
     )
 
     for idx, exported_fields in enumerate(exported_fields_list):
@@ -255,6 +263,9 @@ def _compute_weights_for_stacks(
             local_stack_structure = copy(stack_structure)
             local_stack_structure.stack_number = global_i
 
+            # Check for stack specific options override
+            options_i = local_stack_structure.interpolation_options if local_stack_structure.interpolation_options is not None else options
+
             solver_input: SolverInput_v2 = input_preprocess_v2(
                 data_shape=tensor_structs[idx],
                 interpolation_input=interpolation_inputs[idx]
@@ -264,7 +275,7 @@ def _compute_weights_for_stacks(
             weights = compute_weights(
                 solver_input=solver_input,
                 stack_number=global_i,
-                options=options
+                options=options_i
             )
             solver_input.weights_x0 = weights
         stream.synchronize()

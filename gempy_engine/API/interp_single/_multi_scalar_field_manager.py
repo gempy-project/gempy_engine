@@ -110,10 +110,13 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
         interpolation_input_i.fault_values = fault_input
         solver_input: SolverInput = input_preprocess(tensor_struct_i, interpolation_input_i)
 
+        # Check for stack specific options override
+        options_i = stack_structure.interpolation_options if stack_structure.interpolation_options is not None else options
+
         if stack_structure.interp_function is None:
             output: ScalarFieldOutput = interpolate_feature_with_cokrig(
                 interpolation_input=interpolation_input_i,
-                options=options,
+                options=options_i,
                 data_shape=tensor_struct_i,
                 solver_input=solver_input,
                 external_segment_funct=stack_structure.segmentation_function,
@@ -122,7 +125,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
         else:
             output: ScalarFieldOutput = interpolate_feature_with_external_function(
                 interpolation_input=interpolation_input_i,
-                options=options,
+                options=options_i,
                 external_interp_funct=stack_structure.interp_function,
                 external_segment_funct=stack_structure.segmentation_function,
             )
