@@ -211,7 +211,7 @@ class BackendTensor:
                 array_like = numpy.ascontiguousarray(np.array(array_like))
 
             # 3. Final Conversion
-            return torch.tensor(np.array(array_like), dtype=dtype, device=cls.device)
+            return torch.tensor(array_like, dtype=dtype, device=cls.device)
 
         def _concatenate(tensors, axis=0, dtype=None):
             # Switch if tensor is numpy array or a torch tensor
