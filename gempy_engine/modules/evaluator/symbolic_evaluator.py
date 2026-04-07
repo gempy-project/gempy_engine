@@ -115,7 +115,13 @@ def symbolic_evaluator_optimized_stacked(
             kernel_data_list = list(executor.map(_run_prep, prep_tasks))
 
         concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
-        eval_kernel_scalar = create_scalar_kernel(concat_kernel_data, base_options.kernel_options)
+        
+        original_pykeops_enabled = BackendTensor.pykeops_enabled
+        BackendTensor.pykeops_enabled = True
+        try:
+            eval_kernel_scalar = create_scalar_kernel(concat_kernel_data, base_options.kernel_options)
+        finally:
+            BackendTensor.pykeops_enabled = original_pykeops_enabled
 
     if base_options.compute_scalar_gradient is True:
         prep_tasks = []
@@ -130,7 +136,13 @@ def symbolic_evaluator_optimized_stacked(
             kernel_data_list = list(executor.map(_run_prep, prep_tasks))
 
         concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
-        eval_kernel_grad = create_grad_kernel(concat_kernel_data, base_options.kernel_options)
+        
+        original_pykeops_enabled = BackendTensor.pykeops_enabled
+        BackendTensor.pykeops_enabled = True
+        try:
+            eval_kernel_grad = create_grad_kernel(concat_kernel_data, base_options.kernel_options)
+        finally:
+            BackendTensor.pykeops_enabled = original_pykeops_enabled
 
     # region kernels
     match (base_options.compute_scalar, base_options.compute_scalar_gradient):
@@ -158,7 +170,16 @@ def symbolic_evaluator_optimized_stacked(
 
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
         from pykeops.numpy import LazyTensor
-        lazy_weights = LazyTensor(np.asfortranarray(all_weights.reshape(-1, 1)), axis=0)
+        all_weights_np = BackendTensor.t.to_numpy(all_weights)
+        lazy_weights = LazyTensor(np.asfortranarray(all_weights_np.reshape(-1, 1)), axis=0)
+        
+        # Ensure eval_kernel is also a LazyTensor
+        import pykeops.numpy
+        if not isinstance(eval_kernel, pykeops.numpy.LazyTensor):
+             print(f"DEBUG: eval_kernel type: {type(eval_kernel)}")
+             if isinstance(eval_kernel, np.ndarray):
+                 eval_kernel = LazyTensor(eval_kernel)
+
         all_results_concat: np.ndarray = (eval_kernel * lazy_weights).sum(
             axis=0,
             backend=BackendTensor.get_backend_string(),
@@ -216,7 +237,19 @@ def symbolic_evaluator_optimized_stacked(
     # Build ExportedFields per stack
     results = []
     for idx in range(n_fields):
-        results.append(ExportedFields(scalar_fields[idx], gx_fields[idx], gy_fields[idx], gz_fields[idx]))
+        # We need to make sure the results are numpy arrays if using numpy backend
+        s_field = scalar_fields[idx]
+        gx_field = gx_fields[idx]
+        gy_field = gy_fields[idx]
+        gz_field = gz_fields[idx]
+        
+        if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
+            s_field = BackendTensor.t.to_numpy(s_field)
+            if gx_field is not None: gx_field = BackendTensor.t.to_numpy(gx_field)
+            if gy_field is not None: gy_field = BackendTensor.t.to_numpy(gy_field)
+            if gz_field is not None: gz_field = BackendTensor.t.to_numpy(gz_field)
+
+        results.append(ExportedFields(s_field, gx_field, gy_field, gz_field))
 
     return results
 
@@ -298,7 +331,12 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInp
             import gempy_engine.config
             import torch
             if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
-                concat_val = _concatenate_tensors(vals, axis).copy()
+                tensor_vals = []
+                for v in vals:
+                    if not isinstance(v, np.ndarray):
+                        v = np.array(v)
+                    tensor_vals.append(v.astype(BackendTensor.dtype_obj))
+                concat_val = _concatenate_tensors(tensor_vals, axis).copy()
             else:
                 # noinspection PyUnresolvedReferences
                 tensor_vals = []

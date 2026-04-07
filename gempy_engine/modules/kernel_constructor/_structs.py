@@ -15,7 +15,14 @@ def _upgrade_kernel_input_to_keops_tensor_numpy(struct_data_instance):
 
     for key, val in struct_data_instance.__dict__.items():
         if key == "n_faults_i": continue
-        struct_data_instance.__dict__[key] = LazyTensor(val.astype(BackendTensor.dtype))  # ! This as type is quite expensive
+        if val is None: continue
+        if isinstance(val, (int, float)): continue
+        
+        if (len(val.shape) == 2):
+            struct_data_instance.__dict__[key] = LazyTensor(val.astype(BackendTensor.dtype), axis=0)
+        else:
+            struct_data_instance.__dict__[key] = LazyTensor(val.astype(BackendTensor.dtype))
+    return struct_data_instance
 
 
 def _upgrade_kernel_input_to_keops_tensor_pytorch(struct_data_instance):
@@ -36,7 +43,11 @@ def _upgrade_kernel_input_to_keops_tensor_pytorch(struct_data_instance):
 
 def _cast_tensors(data_class_instance):
     cloned_instance = copy.copy(data_class_instance)
-    return _upgrade_kernel_input_to_keops_tensor_pytorch(cloned_instance)
+    if BackendTensor.engine_backend == AvailableBackends.numpy:
+        _upgrade_kernel_input_to_keops_tensor_numpy(cloned_instance)
+    else:
+        _upgrade_kernel_input_to_keops_tensor_pytorch(cloned_instance)
+    return cloned_instance
 
 
 # --- 1. The New Helper Function (Replaces _cast_tensors logic) ---
