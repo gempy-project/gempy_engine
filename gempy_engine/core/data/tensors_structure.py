@@ -26,7 +26,7 @@ class TensorsStructure:
         cast_type_inplace(self, keep_dtype=True)
 
         # Set _number_of_points_per_surface_vector
-        self.number_of_points_per_surface = self.number_of_points_per_surface[self.number_of_points_per_surface != 0]  # remove 0s
+        # self.number_of_points_per_surface = self.number_of_points_per_surface[self.number_of_points_per_surface != 0]  # remove 0s
         per_surface_cumsum = BackendTensor.t.cumsum(self.number_of_points_per_surface, 0)#.cumsum()
 
         self._reference_sp_position = BackendTensor.t.concatenate([BackendTensor.t.array([0]), per_surface_cumsum])[:-1]
