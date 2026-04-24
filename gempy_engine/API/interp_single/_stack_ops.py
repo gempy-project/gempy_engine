@@ -130,37 +130,47 @@ def _segment(
         stack_indices: list[int]
 ) -> list[ScalarFieldOutput | None]:
     def _run_segment(idx_global_i: tuple[int, int]) -> ScalarFieldOutput:
+        idx, global_i = idx_global_i
+        # Copy stack_structure to avoid race conditions on stack_number
+        from copy import copy
+        local_stack_structure = copy(stack_structure)
+        local_stack_structure.stack_number = global_i
+
+        # Check for stack specific options override
+        options_i = local_stack_structure.interpolation_options if local_stack_structure.interpolation_options is not None else options
+
         import torch
-        stream = torch.cuda.Stream()
-        with torch.cuda.stream(stream):
-            idx, global_i = idx_global_i
-            # Copy stack_structure to avoid race conditions on stack_number
-            from copy import copy
-            local_stack_structure = copy(stack_structure)
-            local_stack_structure.stack_number = global_i
+        if torch.cuda.is_available():
+            stream = torch.cuda.Stream()
+            with torch.cuda.stream(stream):
+                output = _segment_stack(idx, global_i, local_stack_structure, options_i)
+            stream.synchronize()
+        else:
+            output = _segment_stack(idx, global_i, local_stack_structure, options_i)
+        return output
 
-            # region segmentation
-            segmentation_input = SegmentationInput(
-                unit_values=interpolation_inputs[idx].unit_values,
-                sigmoid_slope=(local_stack_structure.segmentation_function(eval_inputs[idx].xyz_to_interpolate)
-                               if local_stack_structure.segmentation_function is not None
-                               else options.sigmoid_slope)
-            )
-            values_block = activator_interface.activate_formation_block(
-                exported_fields=exported_fields_per_stack[idx],
-                ids=segmentation_input.unit_values,
-                sigmoid_slope=segmentation_input.sigmoid_slope
-            )
+    def _segment_stack(idx, global_i, local_stack_structure, options_i):
+        # region segmentation
+        segmentation_input = SegmentationInput(
+            unit_values=interpolation_inputs[idx].unit_values,
+            sigmoid_slope=(local_stack_structure.segmentation_function(eval_inputs[idx].xyz_to_interpolate)
+                           if local_stack_structure.segmentation_function is not None
+                           else options_i.sigmoid_slope)
+        )
+        values_block = activator_interface.activate_formation_block(
+            exported_fields=exported_fields_per_stack[idx],
+            ids=segmentation_input.unit_values,
+            sigmoid_slope=segmentation_input.sigmoid_slope
+        )
 
-            # endregion
-            output = ScalarFieldOutput(
-                weights=BackendTensor.t.to_numpy(solver_inputs[idx].weights_x0),
-                grid=interpolation_inputs[idx].grid,
-                exported_fields=exported_fields_per_stack[idx],
-                values_block=values_block,
-                stack_relation=interpolation_inputs[idx].stack_relation
-            )
-        stream.synchronize()
+        # endregion
+        output = ScalarFieldOutput(
+            weights=BackendTensor.t.to_numpy(solver_inputs[idx].weights_x0),
+            grid=interpolation_inputs[idx].grid,
+            exported_fields=exported_fields_per_stack[idx],
+            values_block=values_block,
+            stack_relation=interpolation_inputs[idx].stack_relation
+        )
         return output
 
     if CONCURRENT := True:
@@ -221,11 +231,18 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
     # Collect weights per stack
     weights_list = [ei.solver_input.weights_x0 for ei in eval_inputs]
 
+    # Collect options per stack
+    options_list = []
+    for global_i in stack_indices:
+        stack_structure.stack_number = global_i
+        opt_i = stack_structure.interpolation_options if stack_structure.interpolation_options is not None else options
+        options_list.append(opt_i)
+
     # Call the stacked evaluator (single PyKeOps call with block-sparse ranges)
     exported_fields_list: list[ExportedFields] = symbolic_evaluator_optimized_stacked(
         eval_inputs=eval_inputs,
         weights_list=weights_list,
-        options=options
+        options_list=options_list
     )
 
     for idx, exported_fields in enumerate(exported_fields_list):
@@ -246,28 +263,38 @@ def _compute_weights_for_stacks(
         stack_indices = list(range(stack_structure.n_stacks))
 
     def _run_prep(idx_global_i: tuple[int, int]) -> SolverInput_v2:
+        idx, global_i = idx_global_i
+        # Copy stack_structure to avoid race conditions on stack_number
+        from copy import copy
+        local_stack_structure = copy(stack_structure)
+        local_stack_structure.stack_number = global_i
+
+        # Check for stack specific options override
+        options_i = local_stack_structure.interpolation_options if local_stack_structure.interpolation_options is not None else options
+
         import torch
-        stream = torch.cuda.Stream()
-        with torch.cuda.stream(stream):
-            idx, global_i = idx_global_i
-            # Copy stack_structure to avoid race conditions on stack_number
-            from copy import copy
-            local_stack_structure = copy(stack_structure)
-            local_stack_structure.stack_number = global_i
+        if torch.cuda.is_available():
+            stream = torch.cuda.Stream()
+            with torch.cuda.stream(stream):
+                solver_input = _prepare_solver_input(idx, global_i, local_stack_structure, options_i)
+            stream.synchronize()
+        else:
+            solver_input = _prepare_solver_input(idx, global_i, local_stack_structure, options_i)
+        return solver_input
 
-            solver_input: SolverInput_v2 = input_preprocess_v2(
-                data_shape=tensor_structs[idx],
-                interpolation_input=interpolation_inputs[idx]
-            )
+    def _prepare_solver_input(idx, global_i, local_stack_structure, options_i):
+        solver_input: SolverInput_v2 = input_preprocess_v2(
+            data_shape=tensor_structs[idx],
+            interpolation_input=interpolation_inputs[idx]
+        )
 
-            # region compute weights
-            weights = compute_weights(
-                solver_input=solver_input,
-                stack_number=global_i,
-                options=options
-            )
-            solver_input.weights_x0 = weights
-        stream.synchronize()
+        # region compute weights
+        weights = compute_weights(
+            solver_input=solver_input,
+            stack_number=global_i,
+            options=options_i
+        )
+        solver_input.weights_x0 = weights
         return solver_input
 
     if CONCURRENT := True:

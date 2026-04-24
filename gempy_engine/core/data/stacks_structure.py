@@ -23,6 +23,7 @@ class StacksStructure:
     # * These two fields are optional but public
     interp_functions_per_stack      : List[CustomInterpolationFunctions] = None
     segmentation_functions_per_stack: Optional[List[Callable[[np.ndarray], float]]] = None
+    interpolation_options_per_stack : Optional[List[InterpolationOptions]] = None
 
     _number_of_points_per_stack_vector      : np.ndarray = field(default_factory=lambda: np.ones(1))
     _number_of_orientations_per_stack_vector: np.ndarray = field(default_factory=lambda: np.ones(1))
@@ -103,3 +104,9 @@ class StacksStructure:
         if self.segmentation_functions_per_stack is None:
             return None
         return self.segmentation_functions_per_stack[self.stack_number]
+
+    @property
+    def interpolation_options(self):
+        if self.interpolation_options_per_stack is None:
+            return None
+        return self.interpolation_options_per_stack[self.stack_number]
