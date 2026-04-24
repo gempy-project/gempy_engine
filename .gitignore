@@ -130,3 +130,4 @@ dmypy.json
 
 .idea
 /gempy_engine/_version.py
+.junie
