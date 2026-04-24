@@ -10,6 +10,15 @@ from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 import os
 
+# Check if pykeops is available
+try:
+    import pykeops
+
+    PYKEOPS_AVAILABLE = True
+except ImportError:
+    PYKEOPS_AVAILABLE = False
+
+
 @pytest.fixture
 def override_setup():
     # 2 stacks, 1 surface each
@@ -75,6 +84,8 @@ def test_stack_options_override_serial(override_setup):
     # Different range -> different scalar field
     assert not np.array_equal(field_0, field_1)
 
+
+@pytest.mark.skipif(not PYKEOPS_AVAILABLE, reason="pykeops not installed")
 def test_stack_options_override_flat(override_setup):
     ii, global_options, ts = override_setup
     
