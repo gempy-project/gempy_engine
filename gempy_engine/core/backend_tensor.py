@@ -48,6 +48,13 @@ class BackendTensor:
             case (False, _):
                 return "CPU"
 
+
+    @classmethod
+    def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = False,
+                             dtype: Optional[str] = None, grads: bool = False):
+        cls._change_backend(engine_backend, use_pykeops=PYKEOPS, use_gpu=use_gpu, dtype=dtype,
+                            grads=grads)
+        
     @classmethod
     def change_backend_gempy(cls, engine_backend: AvailableBackends, use_gpu: bool = False,
                              dtype: Optional[str] = None, grads: bool = False):

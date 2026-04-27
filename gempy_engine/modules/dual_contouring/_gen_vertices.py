@@ -94,9 +94,10 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
         b = (A * edges_xyz).sum(axis=2)  # (n_voxels, 15)
         ATb = BackendTensor.tfnp.matmul(A_T, b.unsqueeze(-1)).squeeze(-1)  # (n_voxels, 3)
         
-        # Solve ATA @ x = ATb
-        ATA_inv = BackendTensor.tfnp.linalg.inv(ATA)
-        vertices = BackendTensor.tfnp.matmul(ATA_inv, ATb.unsqueeze(-1)).squeeze(-1)
+        # Solve ATA @ x = ATb  (use solve instead of inv for numerical stability)
+        import torch
+        reg = 1e-4 * torch.eye(3, device=ATA.device, dtype=ATA.dtype).unsqueeze(0)
+        vertices = torch.linalg.solve(ATA + reg, ATb)
     else:
         # NumPy: use efficient einsum
         b = (A * edges_xyz).sum(axis=2)

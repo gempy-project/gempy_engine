@@ -93,6 +93,11 @@ def _lith_segmentation(Z, edges, ids, sigmoid_slope):
 
 def _sigmoid(scalar_field, edges, tau_k):
     x = -(scalar_field - edges) / tau_k
+    # Clamp to avoid exp overflow (inf) which causes NaN gradients in float32
+    if hasattr(x, 'clamp'):
+        x = x.clamp(-50.0, 50.0)
+    else:
+        x = np.clip(x, -50.0, 50.0)
     return 1.0 / (1.0 + bt.t.exp(x))
 
 
