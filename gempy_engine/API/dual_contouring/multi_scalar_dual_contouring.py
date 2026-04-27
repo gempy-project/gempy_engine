@@ -150,6 +150,16 @@ def dual_contouring_multi_scalar(
             max_workers=None
         )
         # endregion
+        # Save differentiable vertices before in-place overlap modifications,
+        # then replace mesh.vertices with a detached copy so averaging doesn't
+        # corrupt the autograd graph of the original solve output.
+        for mesh in all_meshes:
+            mesh.vertices_tensor = mesh.vertices
+            if hasattr(mesh.vertices, 'clone'):
+                mesh.vertices = mesh.vertices.detach().clone()
+            else:
+                mesh.vertices = mesh.vertices.copy()
+
         # --- Vertex averaging for exact watertightness at overlap voxels ---
         if compute_overlap and left_right_per_mesh and True:
             average_overlapping_vertices(
