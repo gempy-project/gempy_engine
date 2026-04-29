@@ -160,7 +160,7 @@ def _fill_block_solutions_with_octree_output(octrees_output, raw_arrays_solution
             ).ravel()
             temp_list.append(dense_valuse_from_octree)
         scalar_field_stacked = BackendTensor.t.vstack(temp_list)
-        return BackendTensor.t.to_numpy(scalar_field_stacked)
+        return np.atleast_2d(BackendTensor.t.to_numpy(scalar_field_stacked))
 
     # Endregion
     if not (os.getenv("ONLY_LITH_SOLUTION") == "True"):
