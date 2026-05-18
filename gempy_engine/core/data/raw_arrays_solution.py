@@ -114,7 +114,7 @@ class RawArraysSolution:
 
         self.scalar_field_at_surface_points = temp_list
 
-    def meshes_to_subsurface(self, input_transform: Transform | None = None):
+    def meshes_to_subsurface(self, input_transform: Transform | None = None, element_ids: list[int] | None = None):
         ss = require_subsurface()
         pd = require_pandas()
 
@@ -126,8 +126,12 @@ class RawArraysSolution:
             simplex_array += idx_max
             idx_max += vertex[i].shape[0]  # Add the number of vertices in this mesh
 
-        vertex_id_array = [np.full(v.shape[0], i + 1) for i, v in enumerate(vertex)]
-        cell_id_array = [np.full(v.shape[0], i + 1) for i, v in enumerate(simplex_list)]
+        if element_ids is None:
+            vertex_id_array = [np.full(v.shape[0], i + 1) for i, v in enumerate(vertex)]
+            cell_id_array = [np.full(s.shape[0], i + 1) for i, s in enumerate(simplex_list)]
+        else:
+            vertex_id_array = [np.full(v.shape[0], element_ids[i]) for i, v in enumerate(vertex)]
+            cell_id_array = [np.full(s.shape[0], element_ids[i]) for i, s in enumerate(simplex_list)]
 
         concatenated_id_array = np.concatenate(vertex_id_array)
         concatenated_cell_id_array = np.concatenate(cell_id_array)
