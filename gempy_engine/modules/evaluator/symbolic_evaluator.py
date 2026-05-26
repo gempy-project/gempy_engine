@@ -70,7 +70,11 @@ def _build_block_sparse_ranges(M_sizes: list[int], N_sizes: list[int]):
     # Order: (ranges_i, slices_i, redranges_j, ranges_j, slices_j, redranges_i)
 
     numpy_ranges = (ranges_i, slices_i, ranges_j, ranges_j, slices_j, ranges_i)
-    tensor_ranges = (BackendTensor.t.array(range_).to("cuda") for range_ in numpy_ranges)
+    if BackendTensor.use_gpu:
+        device = "cuda"
+    else:
+        device = "cpu"
+    tensor_ranges = (BackendTensor.t.array(range_).to(device) for range_ in numpy_ranges)
     return tensor_ranges
 
 
