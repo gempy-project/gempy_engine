@@ -6,6 +6,7 @@ pytest
 
 pytest-benchmark
 pytest-approvaltests
+pytest-xdist
 
 scipy
 
