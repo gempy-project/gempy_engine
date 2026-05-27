@@ -81,17 +81,16 @@ def _process_single_surface(
             continue
 
         # Pre-allocate
-        block_xyz = BackendTensor.t.zeros((n_valid_i, 12, 3))
-        block_norm = BackendTensor.t.zeros((n_valid_i, 12, 3))
-        block_w = BackendTensor.t.zeros((n_valid_i, 12))
+        block_xyz = BackendTensor.t.zeros((n_valid_i, 12, 3), dtype=BackendTensor.dtype_obj)
+        block_norm = BackendTensor.t.zeros((n_valid_i, 12, 3), dtype=BackendTensor.dtype_obj)
+        block_w = BackendTensor.t.zeros((n_valid_i, 12), dtype=BackendTensor.dtype_obj)
 
         # Direct assignment (GIL released again)
         block_xyz[idx_i_common] = surface_cache[j]['xyz'][idx_j_common]
         block_norm[idx_i_common] = surface_cache[j]['norm'][idx_j_common]
 
         has_data = BackendTensor.t.any(block_norm[idx_i_common] != 0, axis=-1)
-        block_w[idx_i_common] = has_data * cross_weight
-
+        block_w[idx_i_common] = has_data * BackendTensor.t.array(cross_weight, dtype=BackendTensor.dtype_obj)
         extra_xyz_rows.append(block_xyz)
         extra_norm_rows.append(block_norm)
         extra_w_rows.append(block_w)
@@ -183,8 +182,8 @@ def find_and_inject_multi_surface_constraints_multicore(
             continue
 
         valid_edges_bool = dc.valid_edges[valid] > 0
-        tmp_xyz = BackendTensor.t.zeros((n_valid, 12, 3))
-        tmp_norm = BackendTensor.t.zeros((n_valid, 12, 3))
+        tmp_xyz = BackendTensor.t.zeros((n_valid, 12, 3), dtype=BackendTensor.dtype_obj)
+        tmp_norm = BackendTensor.t.zeros((n_valid, 12, 3),dtype=BackendTensor.dtype_obj)
 
         tmp_xyz[valid_edges_bool] = dc.xyz_on_edge
         tmp_norm[valid_edges_bool] = dc.gradients
