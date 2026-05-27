@@ -24,7 +24,7 @@ from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import
 import pickle
 import os
 
-from tests.verify_helper import ArrayComparator
+from tests.verify_helper import ArrayComparator, gempy_verify_array
 
 dir_name = os.path.dirname(__file__)
 
@@ -46,10 +46,9 @@ def test_covariance_cubic_kernel(simple_model_2):
 
     # todo: verify the full matrix when pykeops is False
 
-    parameters: Options = NamerFactory.with_parameters("axis=1").with_comparator(ArrayComparator())
     sol = BackendTensor.tfnp.sum(cov, axis=1, keepdims=True)
     
-    verify(sol, options=parameters)
+    gempy_verify_array(sol, "axis=1")
 
 
 def test_b_vector(simple_model_2):

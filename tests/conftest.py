@@ -1,4 +1,8 @@
 import enum
+import os
+
+# Allow overriding backend via DEFAULT_BACKEND env var (for CI matrix builds)
+_backend_name = os.getenv('DEFAULT_BACKEND', 'numpy')
 
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
 
@@ -15,8 +19,8 @@ from tests.fixtures.complex_geometries import *
 from tests.fixtures.simple_models import *
 from tests.fixtures.heavy_models import *
 
-backend = AvailableBackends.numpy
-use_gpu = False
+backend = AvailableBackends[_backend_name]
+use_gpu = os.getenv('USE_GPU', 'False') == 'True'
 plot_pyvista = False  # ! Set here if you want to plot the results
 
 
