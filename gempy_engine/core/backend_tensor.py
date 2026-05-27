@@ -192,6 +192,10 @@ class BackendTensor:
             return _true_torch_sum(tensor, axis, dtype=dtype)
 
         def _repeat(tensor, n_repeats, axis=None):
+            if not isinstance(tensor, torch.Tensor):
+                tensor = torch.as_tensor(tensor, device=cls.device)
+            if not isinstance(n_repeats, torch.Tensor):
+                n_repeats = torch.as_tensor(n_repeats, device=cls.device)
             return _true_torch_repeat_interleave(tensor, n_repeats, dim=axis)
 
         def _array(array_like, dtype=None):
@@ -248,7 +252,7 @@ class BackendTensor:
 
         def _to_numpy(tensor):
             """Convert tensor to numpy array, handling GPU tensors properly"""
-            if hasattr(tensor, 'device') and tensor.device.type == 'cuda':
+            if isinstance(tensor, torch.Tensor) and tensor.device.type == 'cuda':
                 # Move to CPU first, then detach and convert to numpy
                 return tensor.cpu().detach().numpy()
             elif hasattr(tensor, 'detach'):
@@ -372,7 +376,7 @@ class BackendTensor:
 
     @classmethod
     def _wrap_pykeops_functions(cls):
-        torch_available = cls.engine_backend == AvailableBackends.PYTORCH
+        torch_available = is_pytorch_installed
 
         def _exp(tensor):
             match tensor:

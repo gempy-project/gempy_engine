@@ -73,3 +73,12 @@ def set_up_approval_tests():
 def tests_root():
     # Return the root 'tests/' directory
     return os.path.dirname(os.path.abspath(__file__))
+
+
+@pytest.fixture(autouse=True)
+def restore_backend():
+    current_backend = BackendTensor.engine_backend
+    current_use_gpu = BackendTensor.use_gpu
+    yield
+    if BackendTensor.engine_backend != current_backend or BackendTensor.use_gpu != current_use_gpu:
+        BackendTensor._change_backend(engine_backend=current_backend, use_gpu=current_use_gpu)

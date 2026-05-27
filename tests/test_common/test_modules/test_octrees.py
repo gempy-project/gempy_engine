@@ -3,6 +3,7 @@ import numpy as np
 import os
 import pytest
 
+from gempy_engine.core.backend_tensor import BackendTensor
 import gempy_engine.API.interp_single.interp_features as interp
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.modules.octrees_topology.octrees_topology_interface import get_next_octree_grid, \
@@ -39,7 +40,7 @@ def test_octree_leaf(simple_model, simple_grid_3d_octree):
 
     # Assert
 
-    regular_grid_scalar = get_regular_grid_value_for_level(octree_list).astype("int8")
+    regular_grid_scalar = BackendTensor.t.to_numpy(get_regular_grid_value_for_level(octree_list)).astype("int8")
 
     # ===========
     if plot_pyvista or False:
@@ -86,7 +87,7 @@ def test_octree_lvl_collapse(simple_model, simple_grid_3d_octree):
     for i in range(len(octree_list)):
         shape = octree_list[i].grid.octree_grid_shape
         slice = shape[1] // 2
-        regular_grid_scalar = get_regular_grid_value_for_level(octree_list, level=i).astype("int8")
+        regular_grid_scalar = BackendTensor.t.to_numpy(get_regular_grid_value_for_level(octree_list, level=i)).astype("int8")
         plt.imshow(regular_grid_scalar[:, slice, :].T, origin="lower")
         plt.colorbar()
         plt.show()
