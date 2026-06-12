@@ -40,7 +40,8 @@ def test_transforming_implicit_ellipsoid():
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
 
-    xyz = regular_grid.values
+    from gempy_engine.core.backend_tensor import BackendTensor
+    xyz = BackendTensor.t.to_numpy(regular_grid.values)
     center = np.array([0, 0, 0])
     radius = np.array([1, 1, 2]) * 1
     f = 1

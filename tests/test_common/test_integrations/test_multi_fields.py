@@ -161,7 +161,10 @@ def test_final_block_octrees(unconformity_complex, n_oct_levels=2):
     )
 
     final_block = solution.octrees_output[0].last_output_center.final_block
-    final_block2 = get_regular_grid_value_for_level(solution.octrees_output, 1).astype("int8")
+    final_block2 = get_regular_grid_value_for_level(solution.octrees_output, 1)
+    if hasattr(final_block2, 'cpu'):
+        final_block2 = final_block2.cpu().numpy()
+    final_block2 = final_block2.astype("int8")
 
     if plot_2d := False or False:
         grid = interpolation_input.grid.regular_grid

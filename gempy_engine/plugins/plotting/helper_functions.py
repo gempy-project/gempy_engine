@@ -12,12 +12,17 @@ from gempy_engine.core.data.output.blocks_value_type import ValueType
 
 
 def plot_2d_scalar_y_direction(interpolation_input: InterpolationInput, Z_x, grid: RegularGrid = None):
+    from gempy_engine.core.backend_tensor import BackendTensor
     if grid is None:
         resolution = interpolation_input.grid.octree_grid.resolution
         extent = interpolation_input.grid.octree_grid.orthogonal_extent
     else:
         resolution = grid.resolution
         extent = grid.orthogonal_extent
+
+    resolution = tuple(BackendTensor.t.to_numpy(resolution).astype(int))
+    extent = BackendTensor.t.to_numpy(extent)
+    Z_x = BackendTensor.t.to_numpy(Z_x)
 
     plt.contourf(
         Z_x.reshape(resolution)[:, resolution[1] // 2, :].T,
@@ -57,8 +62,10 @@ def calculate_gradient(dip, az, pol):
 
 
 def plot_block(block, grid: RegularGrid, interpolation_input=None, direction="y"):
-    resolution = tuple(grid.resolution)
-    extent = grid.orthogonal_extent
+    from gempy_engine.core.backend_tensor import BackendTensor
+    resolution = tuple(BackendTensor.t.to_numpy(grid.resolution).astype(int))
+    extent = BackendTensor.t.to_numpy(grid.orthogonal_extent)
+    block = BackendTensor.t.to_numpy(block)
     if direction == "y":
         plt.imshow(block.reshape(resolution)[:, resolution[1] // 2, :].T, extent=extent[[0, 1, 4, 5]], origin="lower")
     if direction == "x":

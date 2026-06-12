@@ -188,6 +188,6 @@ def test_final_exported_fields_one_layer(unconformity_complex_one_layer):
         grid = interpolation_input.grid.octree_grid
         from gempy_engine.core.backend_tensor import BackendTensor
         plot_block(
-            BackendTensor.t.to_numpy(outputs[0].final_exported_fields._scalar_field),
+            BackendTensor.t.to_numpy(outputs[0].final_exported_fields.scalar_field),
             grid
         )
