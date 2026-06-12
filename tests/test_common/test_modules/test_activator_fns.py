@@ -47,6 +47,11 @@ def test_activator_3_layers_segmentation_function_II(simple_model_3_layers, simp
 
 @pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.PYTORCH, reason="Only for PyTorch")
 def test_activator_3_layers_segmentation_function_torch(simple_model_3_layers, simple_grid_3d_more_points_grid):
+    from gempy_engine.core.data import InterpolationInput
+    import torch
+    interp: InterpolationInput = simple_model_3_layers[0]
+    if not isinstance(interp.surface_points.sp_coords, torch.Tensor):
+        pytest.skip("Fixture data converted to numpy by previous test — requires clean PyTorch backend")
     Z_x, grid, ids_block, interpolation_input = _run_test(
         backend=AvailableBackends.PYTORCH,
         ids=np.array([1, 2, 3, 4]),
