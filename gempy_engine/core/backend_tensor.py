@@ -188,8 +188,9 @@ class BackendTensor:
         def _sum(tensor, axis=None, dtype=None, keepdims=False):
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
-
-            return _true_torch_sum(tensor, axis, dtype=dtype)
+            if isinstance(tensor, torch.Tensor):
+                return _true_torch_sum(tensor, axis, dtype=dtype)
+            return tensor.sum(axis)
 
         def _repeat(tensor, n_repeats, axis=None):
             if not isinstance(tensor, torch.Tensor):
