@@ -463,7 +463,7 @@ class BackendTensor:
             torch.cuda.synchronize()
 
         # 2. GC: Safely destroy orphaned Python/C++ objects
-        gc.collect()
+        # gc.collect() ! This takes a very long time, I have to balance the reliability vs performance
 
         if BackendTensor.use_gpu:
             # 3. Release VRAM: Give the memory back to the OS
