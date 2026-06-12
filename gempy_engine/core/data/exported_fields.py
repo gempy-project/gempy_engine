@@ -66,7 +66,7 @@ class ExportedFields:
 
     @property
     def scalar_field(self):
-        if self._slice_feature is None:
+        if self._slice_feature is None or self._grid_size is None:
             return self._scalar_field
 
         return self._scalar_field[:self._grid_size]
