@@ -17,6 +17,7 @@ dir_name = os.path.dirname(__file__)
 plot = True
 
 
+@pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="Only for numpy")
 def test_activator_3_layers_segmentation_function(simple_model_3_layers, simple_grid_3d_more_points_grid):
     Z_x, grid, ids_block, interpolation_input = _run_test(
         backend=AvailableBackends.numpy,
@@ -29,6 +30,7 @@ def test_activator_3_layers_segmentation_function(simple_model_3_layers, simple_
         _plot_continious(grid, ids_block, interpolation_input)
 
 
+@pytest.mark.skipif(BackendTensor.engine_backend != AvailableBackends.numpy, reason="Only for numpy")
 def test_activator_3_layers_segmentation_function_II(simple_model_3_layers, simple_grid_3d_more_points_grid):
     Z_x, grid, ids_block, interpolation_input = _run_test(
         backend=AvailableBackends.numpy,
@@ -74,12 +76,14 @@ def _run_test(backend, ids, simple_grid_3d_more_points_grid, simple_model_3_laye
     sasp = exported_fields.scalar_field_at_surface_points
     print(Z_x, Z_x.shape[0])
     print(sasp)
+    previous_backend = BackendTensor.engine_backend
     BackendTensor.change_backend_gempy(backend)
     ids_block = activate_formation_block(
         exported_fields=exported_fields,
         ids=ids,
         sigmoid_slope=500 * 4
     )[0, :-7]
+    BackendTensor.change_backend_gempy(previous_backend)
     return Z_x, grid, ids_block, interpolation_input
 
 

@@ -47,7 +47,7 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
     # np.testing.assert_almost_equal(gz, gz_sol[:-7], decimal=3)
 
     if plot:
-        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn", extent=(.25, .75, .25, .75))
+        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, levels=40, cmap="autumn", extent=(.25, .75, .25, .75))
 
         xyz = output.grid.dense_grid_values.reshape(-1,3)
         every = 10
@@ -55,13 +55,13 @@ def test_export_scalars(simple_model_values_block_output, plot=True, save_sol=Fa
 
         plt.show()
 
-        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn", extent=(.25, .75, .25, .75))
+        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, levels=40, cmap="autumn", extent=(.25, .75, .25, .75))
         every = 1
         plt.quiver(xyz[::every, 0], xyz[::every, 2], gx[::every], gz[::every], scale=80)
 
         plt.show()
 
-        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
+        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, levels=40, cmap="autumn")
 
         gx_np, gz_np = np.gradient(Z_x.reshape(50, 5, 50)[:, 2, :].T)
         plt.quiver(
@@ -111,7 +111,7 @@ def test_export_simple_model_low_res(plot=True):
     gz = output.exported_fields.gz_field
 
     if plot:
-        plt.contourf(Z_x.reshape(2, 2, 3)[:, 0, :].T, N=40, cmap="autumn",
+        plt.contourf(Z_x.reshape(2, 2, 3)[:, 0, :].T, levels=40, cmap="autumn",
                      extent=(.25, .75, .25, .75)
                      )
 
@@ -145,7 +145,7 @@ def test_export_3_layers(simple_model_3_layers_high_res, plot=True):
     gz = output.exported_fields_dense_grid.gz_field
 
     if plot:
-        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn",
+        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, levels=40, cmap="autumn",
                      extent=(.25, .75, .25, .75)
                      )
 

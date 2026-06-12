@@ -26,7 +26,7 @@ def plot_2d_scalar_y_direction(interpolation_input: InterpolationInput, Z_x, gri
 
     plt.contourf(
         Z_x.reshape(resolution)[:, resolution[1] // 2, :].T,
-        N=20,
+        levels=20,
         cmap="autumn",
         extent=extent[[0, 1, 4, 5]]
     )

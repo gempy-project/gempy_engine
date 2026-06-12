@@ -36,14 +36,14 @@ def test_activator(simple_model_values_block_output):
         Z_x = Z_x.detach().numpy()
         
     if plot:
-        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, N=40, cmap="autumn")
+        plt.contourf(Z_x.reshape(50, 5, 50)[:, 2, :].T, levels=40, cmap="autumn")
         plt.colorbar()
 
         plt.show()
 
         plt.contourf(
             ids_block[0].reshape(50, 5, 50)[:, 2, :].T,
-            N=40,
+            levels=40,
             cmap="viridis",
             # levels=[-1, 0.5, 1, 1.5, 2.5]
         )
@@ -103,7 +103,7 @@ def test_activator_3_layers(simple_model_3_layers, simple_grid_3d_more_points_gr
         block_ = ids_block[grid.dense_grid_slice]
         plt.contourf(
             block_.reshape(50, 5, 50)[:, 2, :].T, 
-            N=250,
+            levels=250,
             cmap="viridis"
         )
         plt.colorbar()
