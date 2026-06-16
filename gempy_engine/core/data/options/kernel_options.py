@@ -25,6 +25,9 @@ class KernelOptions:
     optimizing_condition_number: bool = False
     condition_number: Optional[float] = None
 
+    def __post_init__(self):
+        self.range = float(self.range)
+        self.c_o = float(self.c_o)
 
     @field_validator('kernel_function', mode='before', json_schema_input_type=str)
     @classmethod

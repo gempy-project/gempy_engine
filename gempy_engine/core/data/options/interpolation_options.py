@@ -105,6 +105,13 @@ class InterpolationOptions(BaseModel):
 
     # @on
 
+    @model_validator(mode='after')
+    def _normalize_kernel_options(self):
+        if self.kernel_options is not None:
+            self.kernel_options.range = float(self.kernel_options.range)
+            self.kernel_options.c_o = float(self.kernel_options.c_o)
+        return self
+
     @classmethod
     def init_octree_options(cls, range=1.7, c_o=10., refinement: int = 1):
         return InterpolationOptions.from_args(
