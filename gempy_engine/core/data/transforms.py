@@ -211,6 +211,8 @@ class Transform:
     def apply(self, points: np.ndarray, transform_op_order: TransformOpsOrder = TransformOpsOrder.SRT):
         # * NOTE: to compare with legacy we would have to add 0.5 to the coords
         assert points.shape[1] == 3
+        if hasattr(points, 'cpu'):
+            points = points.cpu().numpy()
         if self._is_default_transform:
             warnings.warn(
                 message="Interpolation is being done with the default transform. "
@@ -229,6 +231,8 @@ class Transform:
     def apply_inverse(self, points: np.ndarray, transform_op_order: TransformOpsOrder = TransformOpsOrder.SRT):
         # * NOTE: to compare with legacy we would have to add 0.5 to the coords
         assert points.shape[1] == 3
+        if hasattr(points, 'cpu'):
+            points = points.cpu().numpy()
         homogeneous_points = np.concatenate([points, np.ones((points.shape[0], 1))], axis=1)
         matrix = self.get_transform_matrix(transform_op_order)
         inv = np.linalg.inv(matrix)
