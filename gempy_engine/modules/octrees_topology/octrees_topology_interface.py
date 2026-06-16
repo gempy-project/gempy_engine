@@ -101,7 +101,7 @@ def get_regular_grid_value_for_level_torch(octree_list: List['OctreeLevel'], lev
 
     # Octree - Level 0
     root = octree_list[0]
-    regular_grid_shape = torch.tensor(root.grid.octree_grid_shape)  # Ensure it's a tensor/array
+    regular_grid_shape = torch.as_tensor(root.grid.octree_grid_shape)
 
     # Fetch block as a PyTorch tensor
     block = _get_block_from_value_type(root, scalar_n, value_type)
@@ -130,7 +130,7 @@ def get_regular_grid_value_for_level_torch(octree_list: List['OctreeLevel'], lev
             active_cells = torch.tensor(active_cells, device=device)
 
         local_active_cells = torch.where(active_cells)[0]
-        shape = torch.tensor(octree.grid.octree_grid_shape, device=device)
+        shape = torch.as_tensor(octree.grid.octree_grid_shape, device=device)
 
         oct_tensor = calculate_oct(shape, n_rep, device)
 

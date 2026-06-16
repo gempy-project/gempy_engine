@@ -70,12 +70,12 @@ def _build_block_sparse_ranges(M_sizes: list[int], N_sizes: list[int]):
     # Order: (ranges_i, slices_i, redranges_j, ranges_j, slices_j, redranges_i)
 
     numpy_ranges = (ranges_i, slices_i, ranges_j, ranges_j, slices_j, ranges_i)
-    if BackendTensor.use_gpu:
-        device = "cuda"
-    else:
-        device = "cpu"
-    tensor_ranges = (BackendTensor.t.array(range_).to(device) for range_ in numpy_ranges)
-    return tensor_ranges
+
+    if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.PYTORCH:
+        device = "cuda" if BackendTensor.use_gpu else "cpu"
+        return tuple(BackendTensor.t.array(range_).to(device) for range_ in numpy_ranges)
+
+    return numpy_ranges
 
 
 def symbolic_evaluator_optimized_stacked(

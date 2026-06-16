@@ -2,6 +2,7 @@ import warnings
 
 import numpy as np
 
+from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
 
 
@@ -40,7 +41,11 @@ def _correct_normals(vertices_numpy, indices_numpy, edges_normals):
     edge2 = v2 - v0
 
     # Calculate face normals using cross product
-    mesh_normals = BackendTensor.t.cross(edge1, edge2)
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        import torch
+        mesh_normals = torch.linalg.cross(edge1, edge2, dim=1)
+    else:
+        mesh_normals = np.cross(edge1, edge2)
 
     edge_normals_avg = edges_normals
 
