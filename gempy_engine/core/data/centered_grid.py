@@ -19,9 +19,14 @@ class CenteredGrid:
         return self.centers.shape[0] * self.kernel_grid_centers.shape[0]
 
     def __post_init__(self):
-        self.centers = np.atleast_2d(self.centers)
+        self.centers = np.atleast_2d(self.centers).astype("float64")
 
         assert self.centers.shape[1] == 3, 'Centers must be a numpy array of shape (n, 3) that contains the coordinates XYZ'
+
+        self.resolution = np.atleast_1d(self.resolution).astype(int)
+        self.radius = np.atleast_1d(self.radius).astype("float64")
+        if self.radius.size == 1:
+            self.radius = np.repeat(self.radius, 3)
 
         self.update_kernels(self.resolution, self.radius)
 
