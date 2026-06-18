@@ -91,7 +91,7 @@ class RegularGrid:
         if self._active_cells is not None:
             return self._active_cells
         else:
-            return np.ones(self.regular_grid_shape.numpy(), dtype=bool)
+            return np.ones(BackendTensor.t.to_numpy(self.regular_grid_shape), dtype=bool)
 
     @active_cells.setter
     def active_cells(self, value):
