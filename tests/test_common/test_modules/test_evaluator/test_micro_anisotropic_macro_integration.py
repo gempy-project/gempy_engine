@@ -161,7 +161,7 @@ def test_micro_correction_moves_contacts_closer_to_target(simple_model_2):
     print(f"RMS before: {rms_before:.6f}, RMS after: {rms_after:.6f}")
     print(f"Macro point drift — max: {max_macro_drift:.4f}, mean: {mean_macro_drift:.4f}")
 
-    if PLOT or True:
+    if PLOT:
         _plot_results(
             grid_xy, macro_field_2d, micro_field_2d, diff_field,
             contacts, contact_surface_ids,
@@ -378,16 +378,14 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
     target_per_surface = [float(np.median(macro_at_sp[:n_per_surface[0]]))]
     print(f"target S0 = {target_per_surface[0]:.3f}")
 
-    # --- micro contacts (3D, scattered around the model domain) ---
+    # --- micro contacts (3D, placed close to the macro interface) ---
+    # Contacts are near existing macro surface points but shifted in z
+    # (stratigraphic direction) to produce small, realistic residuals.
     contacts = np.array([
-        [0.42, 0.52, 0.42],
-        [0.58, 0.48, 0.44],
-        [0.35, 0.49, 0.40],
-        [0.65, 0.51, 0.50],
-        [0.50, 0.47, 0.38],
-        [0.55, 0.53, 0.48],
-        [0.40, 0.50, 0.46],
-        [0.60, 0.50, 0.36],
+        [0.48, 0.49, 0.38],   # near SP1 [0.50, 0.50, 0.375], above
+        [0.68, 0.51, 0.48],   # near SP2 [0.667, 0.50, 0.417], above
+        [0.60, 0.50, 0.37],   # near SP5 [0.583, 0.50, 0.392], below
+        [0.72, 0.49, 0.55],   # near SP6 [0.733, 0.50, 0.500], above
     ], dtype=np.float64)
     contact_surface_ids = np.zeros(len(contacts), dtype=int)  # all target the single surface
 
@@ -415,9 +413,9 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
     n_contacts = len(contacts)
     n_macro = len(macro_sp_coords)
 
-    micro_kernel_range = 1.0  # larger than 2D case because macro domain is ~0.5
+    micro_kernel_range = .5  # larger than 2D case because macro domain is ~0.5
     A = compute_anisotropy_matrices_from_gradients(
-        constraint_points, constraint_gradients, r_vertical=.3, r_lateral=3.0,
+        constraint_points, constraint_gradients, r_vertical=.3, r_lateral=1.0,
     )
     all_weights = solve_micro_weights(constraint_points, constraint_residuals, A,
                                       kernel_range=micro_kernel_range, nugget=1e-6)
@@ -485,6 +483,7 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
             grid_xyz, macro_field, micro_field, diff_field,
             contacts, macro_values_at_contacts, corrected_contacts, target_values_at_contacts,
             macro_sp_coords, n_per_surface, A, target_per_surface, n_contacts,
+            micro_kernel_range=micro_kernel_range,
             macro_before=macro_at_sp, macro_after=macro_after_sp,
         )
 
@@ -495,8 +494,9 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
 def _plot_3d_results(grid_xyz, macro_field, micro_field, diff,
                      contacts, macro_vals_before, macro_vals_after, target_vals,
                      macro_sp_coords, n_per_surface, A_matrices, target_per_surface,
-                     n_contacts, macro_before=None, macro_after=None):
+                     n_contacts, micro_kernel_range=1.0, macro_before=None, macro_after=None):
     import matplotlib.pyplot as plt
+    from matplotlib.patches import Ellipse
 
     # extract grid shape
     x = grid_xyz[:, 0]
@@ -542,6 +542,8 @@ def _plot_3d_results(grid_xyz, macro_field, micro_field, diff,
     for i in range(n_contacts):
         ax.annotate(f"{macro_vals_before[i]:.2f}", (contacts[i, 0], contacts[i, 2]),
                      textcoords="offset points", xytext=(4, 4), fontsize=6, color="red")
+    _draw_3d_anisotropy_disks(ax, contacts, A_matrices[:n_contacts], micro_kernel_range * 0.15,
+                               color="yellow", alpha=0.25)
     ax.set_xlim(*xlim)
     ax.set_ylim(*zlim)
     ax.set_aspect("equal")
@@ -561,6 +563,8 @@ def _plot_3d_results(grid_xyz, macro_field, micro_field, diff,
     for i in range(n_contacts):
         ax.annotate(f"{macro_vals_after[i]:.2f}", (contacts[i, 0], contacts[i, 2]),
                      textcoords="offset points", xytext=(4, 4), fontsize=6, color="red")
+    _draw_3d_anisotropy_disks(ax, contacts, A_matrices[:n_contacts], micro_kernel_range * 0.15,
+                               color="yellow", alpha=0.3)
     ax.set_xlim(*xlim)
     ax.set_ylim(*zlim)
     ax.set_aspect("equal")
@@ -604,3 +608,36 @@ def _plot_3d_results(grid_xyz, macro_field, micro_field, diff,
 
     plt.tight_layout()
     plt.show()
+
+
+def _draw_3d_anisotropy_disks(ax, points, A_matrices, display_radius, color="yellow", alpha=0.3):
+    """Project 3D anisotropy ellipsoids onto the xz plane as ellipses.
+
+    A_i is (3,3). The projected 2x2 metric on the xz plane is:
+        M = (A_i[:, [0,2]])^T @ A_i[:, [0,2]]
+    The ellipse is {v : v^T M v = display_radius^2}.
+
+    display_radius should be a fraction of kernel_range to show the core
+    influence region rather than the e^-1 decay contour.
+    """
+    from matplotlib.patches import Ellipse
+
+    for i, p in enumerate(points):
+        A = A_matrices[i]  # (3, 3)
+        B = A[:, [0, 2]]   # (3, 2) — x and z columns
+        M = B.T @ B         # (2, 2) projected metric
+        eigvals, eigvecs = np.linalg.eigh(M)
+        eigvals = np.maximum(eigvals, 1e-12)
+        semi_axes = display_radius / np.sqrt(eigvals)
+        angle = np.degrees(np.arctan2(eigvecs[1, 0], eigvecs[0, 0]))
+        ell = Ellipse(
+            xy=(p[0], p[2]),
+            width=2 * semi_axes[0],
+            height=2 * semi_axes[1],
+            angle=angle,
+            facecolor=color,
+            edgecolor="black",
+            alpha=alpha,
+            linewidth=0.5,
+        )
+        ax.add_patch(ell)
