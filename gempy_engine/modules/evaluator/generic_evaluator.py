@@ -2,6 +2,7 @@ import numpy as np
 import gc
 from typing import Optional
 
+import gempy_engine.config
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.exported_fields import ExportedFields
@@ -65,6 +66,20 @@ def generic_evaluator(
         
     if n_chunks > 5:
         print(f"Chunking done: {n_chunks} chunks")
+
+    micro = options.evaluation_options.micro_anisotropic
+    if micro.enabled and micro.weights is not None and micro.points is not None and micro.anisotropy_matrices is not None:
+        from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import evaluate_micro_correction
+        if BackendTensor.engine_backend != gempy_engine.config.AvailableBackends.numpy:
+            scalar_field = BackendTensor.t.to_numpy(scalar_field)
+        correction = evaluate_micro_correction(
+            xyz_to_interpolate=solver_input.xyz_to_interpolate,
+            micro_points=micro.points,
+            micro_weights=micro.weights,
+            anisotropy_matrices=micro.anisotropy_matrices,
+            kernel_range=micro.kernel_range,
+        )
+        scalar_field = scalar_field + correction
 
     return ExportedFields(scalar_field, gx_field, gy_field, gz_field)
 

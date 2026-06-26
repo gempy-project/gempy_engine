@@ -105,8 +105,8 @@ def compute_macro_values_at_micro_points(
 
 
 def compute_anisotropy_matrices_from_gradients(
-    micro_points: np.ndarray,            # (N, 3)
-    gradients: np.ndarray,               # (N, 3) normalized gradient vectors
+    micro_points: np.ndarray,            # (N, D)
+    gradients: np.ndarray,               # (N, D) gradient vectors
     r_vertical: float = 1.0,
     r_lateral: float = 10.0,
 ) -> np.ndarray:
@@ -115,34 +115,47 @@ def compute_anisotropy_matrices_from_gradients(
     A_i = S * R_i^T
 
     R_i^T projects world coordinates into a local frame aligned with the gradient
-    (z_axis = gradient direction = stratigraphic up).
-    S = diag(1/r_lateral, 1/r_lateral, 1/r_vertical)
+    (last axis = gradient direction = stratigraphic up).
+    S = diag(lateral scale repeated, vertical scale)
 
-    The lateral/stratal directions are derived from gradient and a fixed reference.
+    Works for 2D and 3D.
     """
-    N = micro_points.shape[0]
-    S = np.diag(np.array([1.0 / r_lateral, 1.0 / r_lateral, 1.0 / r_vertical]))
+    N, D = micro_points.shape
+    assert gradients.shape == (N, D), f"gradients shape {gradients.shape} != (N, D) {(N, D)}"
 
-    matrices = np.zeros((N, 3, 3), dtype=np.float64)
+    if D == 2:
+        lateral_scales = np.array([1.0 / r_lateral], dtype=np.float64)
+        scales = np.concatenate([lateral_scales, [1.0 / r_vertical]])
+        S = np.diag(scales)
+    else:
+        S = np.diag(np.array([1.0 / r_lateral, 1.0 / r_lateral, 1.0 / r_vertical]))
+
+    matrices = np.zeros((N, D, D), dtype=np.float64)
 
     for i in range(N):
-        grad = gradients[i]
+        grad = gradients[i].astype(np.float64)
         grad_norm = np.linalg.norm(grad)
         if grad_norm < 1e-10:
-            grad = np.array([0.0, 0.0, 1.0])
+            grad = np.zeros(D, dtype=np.float64)
+            grad[-1] = 1.0
 
         z_axis = grad / np.linalg.norm(grad)
 
-        ref = np.array([0.0, 1.0, 0.0])
-        if abs(np.dot(z_axis, ref)) > 0.99:
-            ref = np.array([1.0, 0.0, 0.0])
+        if D == 2:
+            x_axis = np.array([z_axis[1], -z_axis[0]], dtype=np.float64)
+            R = np.column_stack([x_axis, z_axis])
+        else:
+            ref = np.array([0.0, 1.0, 0.0], dtype=np.float64)
+            if abs(np.dot(z_axis, ref)) > 0.99:
+                ref = np.array([1.0, 0.0, 0.0], dtype=np.float64)
 
-        x_axis = np.cross(z_axis, ref)
-        x_axis = x_axis / np.linalg.norm(x_axis)
-        y_axis = np.cross(z_axis, x_axis)
-        y_axis = y_axis / np.linalg.norm(y_axis)
+            x_axis = np.cross(z_axis, ref)
+            x_axis = x_axis / np.linalg.norm(x_axis)
+            y_axis = np.cross(z_axis, x_axis)
+            y_axis = y_axis / np.linalg.norm(y_axis)
 
-        R = np.column_stack([x_axis, y_axis, z_axis])
+            R = np.column_stack([x_axis, y_axis, z_axis])
+
         matrices[i] = S @ R.T
 
     return matrices
