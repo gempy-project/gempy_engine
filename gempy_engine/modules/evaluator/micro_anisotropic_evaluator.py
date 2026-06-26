@@ -1,5 +1,28 @@
 import numpy as np
-from typing import Optional
+from typing import Literal, Optional
+
+MicroKernelType = Literal["exponential", "matern_3_2", "matern_5_2"]
+
+
+def _kernel_value(r: np.ndarray, kernel_type: MicroKernelType) -> np.ndarray:
+    """Evaluate the micro radial kernel K(r) where r = anisotropic_distance / kernel_range.
+
+    All kernels satisfy K(0) = 1 and are positive and finite for r >= 0.
+
+    exponential   — Matérn 1/2:   K(r) = exp(-r)
+    matern_3_2    — Matérn 3/2:   K(r) = (1 + sqrt(3) r) exp(-sqrt(3) r)
+    matern_5_2    — Matérn 5/2:   K(r) = (1 + sqrt(5) r + 5r²/3) exp(-sqrt(5) r)
+    """
+    if kernel_type == "exponential":
+        return np.exp(-r)
+    elif kernel_type == "matern_3_2":
+        a = np.sqrt(3.0) * r
+        return (1.0 + a) * np.exp(-a)
+    elif kernel_type == "matern_5_2":
+        a = np.sqrt(5.0) * r
+        return (1.0 + a + (5.0 / 3.0) * r * r) * np.exp(-a)
+    else:
+        raise ValueError(f"Unknown micro kernel type: {kernel_type}")
 
 
 def evaluate_micro_correction(
@@ -8,10 +31,11 @@ def evaluate_micro_correction(
     micro_weights: np.ndarray,           # (N,)
     anisotropy_matrices: np.ndarray,     # (N, 3, 3)
     kernel_range: float = 1.0,
+    kernel_type: MicroKernelType = "exponential",
 ) -> np.ndarray:
     """Evaluate the micro correction field at target points.
 
-    V(x) = sum_i w_i * exp(-||A_i (x - p_i)|| / range)
+    V(x) = sum_i w_i * K(||A_i (x - p_i)|| / range)
     """
     M = xyz_to_interpolate.shape[0]
     N = micro_points.shape[0]
@@ -24,7 +48,8 @@ def evaluate_micro_correction(
         diffs = xyz_to_interpolate - pj[np.newaxis, :]
         transformed = np.einsum('ij,mj->mi', Aj, diffs)
         dists = np.linalg.norm(transformed, axis=1)
-        correction += wj * np.exp(-dists / kernel_range)
+        r = dists / kernel_range
+        correction += wj * _kernel_value(r, kernel_type)
 
     return correction
 
@@ -33,14 +58,15 @@ def build_micro_covariance(
     micro_points: np.ndarray,            # (N, 3)
     anisotropy_matrices: np.ndarray,     # (N, 3, 3)
     kernel_range: float = 1.0,
+    kernel_type: MicroKernelType = "exponential",
     nugget: float = 0.0,
 ) -> np.ndarray:
     """Build the symmetric NxN covariance matrix for the micro solve.
 
-    K[i,j] = exp(-dist_sym(i,j) / range)
+    K[i,j] = K(||A_i (p_i - p_j)|| / range)
 
-    where dist_sym(i,j)^2 = (x_i - x_j)^T * M_ij * (x_i - x_j)
-    with M_ij = (A_i^T A_i + A_j^T A_j) / 2
+    where K is the selected micro kernel and distances use the symmetric
+    metric M_ij = (A_i^T A_i + A_j^T A_j) / 2.
     """
     N = micro_points.shape[0]
     K = np.zeros((N, N), dtype=np.float64)
@@ -53,7 +79,8 @@ def build_micro_covariance(
             diff = micro_points[i] - micro_points[j]
             dist_sq = diff @ M_ij @ diff
             dist = np.sqrt(max(dist_sq, 0.0))
-            val = np.exp(-dist / kernel_range)
+            r = dist / kernel_range
+            val = float(_kernel_value(np.array(r), kernel_type))
             K[i, j] = val
             K[j, i] = val
 
@@ -68,13 +95,14 @@ def solve_micro_weights(
     residuals: np.ndarray,               # (N,)
     anisotropy_matrices: np.ndarray,     # (N, 3, 3)
     kernel_range: float = 1.0,
+    kernel_type: MicroKernelType = "exponential",
     nugget: float = 0.0,
 ) -> np.ndarray:
     """Solve K @ w = residuals for the micro correction weights.
 
     Returns weights array of shape (N,).
     """
-    K = build_micro_covariance(micro_points, anisotropy_matrices, kernel_range, nugget)
+    K = build_micro_covariance(micro_points, anisotropy_matrices, kernel_range, kernel_type, nugget)
     weights = np.linalg.solve(K, residuals)
     return weights
 

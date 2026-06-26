@@ -17,7 +17,7 @@ from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import (
     solve_micro_weights,
 )
 
-PLOT = os.getenv("GEMPY_PLOT_MICRO", "") == "1"
+PLOT = os.getenv("GEMPY_PLOT_MICRO", "1") == "1"
 
 _MICRO_SURFACE_COLORS = {0: "#00bfff", 1: "#ff6b35"}
 _MACRO_SURFACE_COLORS = {0: "#0099cc", 1: "#cc5500"}
@@ -105,7 +105,8 @@ def test_micro_correction_moves_contacts_closer_to_target(simple_model_2):
         constraint_points, constraint_gradients, r_vertical=.5, r_lateral=5.0,
     )
     all_weights = solve_micro_weights(constraint_points, constraint_residuals, A,
-                                      kernel_range=micro_kernel_range, nugget=1e-6)
+                                      kernel_range=micro_kernel_range, nugget=1e-6,
+                                      kernel_type="matern_5_2")
 
     print(f"  micro weights: contacts {np.array2string(all_weights[:n_contacts], precision=3)},  "
           f"macro {np.array2string(all_weights[n_contacts:], precision=3)}")
@@ -382,10 +383,10 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
     # Contacts are near existing macro surface points but shifted in z
     # (stratigraphic direction) to produce small, realistic residuals.
     contacts = np.array([
-        [0.48, 0.49, 0.38],   # near SP1 [0.50, 0.50, 0.375], above
-        [0.68, 0.51, 0.48],   # near SP2 [0.667, 0.50, 0.417], above
-        [0.60, 0.50, 0.37],   # near SP5 [0.583, 0.50, 0.392], below
-        [0.72, 0.49, 0.55],   # near SP6 [0.733, 0.50, 0.500], above
+        [0.48, 0.55, 0.38],   # near SP1 [0.50, 0.50, 0.375], above
+        [0.68, 0.52, 0.48],   # near SP2 [0.667, 0.50, 0.417], above
+        [0.60, 0.48, 0.37],   # near SP5 [0.583, 0.50, 0.392], below
+        [0.72, 0.46, 0.55],   # near SP6 [0.733, 0.50, 0.500], above
     ], dtype=np.float64)
     contact_surface_ids = np.zeros(len(contacts), dtype=int)  # all target the single surface
 
@@ -403,25 +404,39 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
         print(f"  contact {i}: target={target_values_at_contacts[i]:.3f}  "
               f"macro={macro_values_at_contacts[i]:.3f}  residual={contact_residuals[i]:.3f}")
 
-    # --- augmented micro system: contacts + macro points as zero constraints ---
-    constraint_points = np.vstack([contacts, macro_sp_coords])
-    constraint_gradients = np.vstack([contact_gradients, macro_sp_gradients])
-    constraint_residuals = np.concatenate([
-        contact_residuals,
-        np.zeros(len(macro_sp_coords)),
-    ])
-    n_contacts = len(contacts)
-    n_macro = len(macro_sp_coords)
+    # --- build micro constraint system ---
+    # When preserve_macro_points=True: contacts + macro SP as zero-residual constraints.
+    # When False: contacts only.
+    micro = options.evaluation_options.micro_anisotropic
+    micro.preserve_macro_points = True
+    preserve = micro.preserve_macro_points
 
-    micro_kernel_range = .5  # larger than 2D case because macro domain is ~0.5
+    if preserve:
+        constraint_points = np.vstack([contacts, macro_sp_coords])
+        constraint_gradients = np.vstack([contact_gradients, macro_sp_gradients])
+        constraint_residuals = np.concatenate([
+            contact_residuals,
+            np.zeros(len(macro_sp_coords)),
+        ])
+    else:
+        constraint_points = contacts
+        constraint_gradients = contact_gradients
+        constraint_residuals = contact_residuals
+
+    n_contacts = len(contacts)
+    n_macro = len(macro_sp_coords) if preserve else 0
+    n_constraints = len(constraint_points)
+
+    micro_kernel_range = .1  # larger than 2D case because macro domain is ~0.5
     A = compute_anisotropy_matrices_from_gradients(
-        constraint_points, constraint_gradients, r_vertical=.3, r_lateral=1.0,
+        constraint_points, constraint_gradients, r_vertical=.4, r_lateral=.7,
     )
     all_weights = solve_micro_weights(constraint_points, constraint_residuals, A,
-                                      kernel_range=micro_kernel_range, nugget=1e-6)
+                                      kernel_range=micro_kernel_range, nugget=1e-6,
+                                      kernel_type="exponential")
 
-    print(f"  micro weights: contacts {np.array2string(all_weights[:n_contacts], precision=3)},  "
-          f"macro {np.array2string(all_weights[n_contacts:], precision=3)}")
+    print(f"  micro weights: contacts {np.array2string(all_weights[:n_contacts], precision=3)}"
+          f"{',  macro ' + np.array2string(all_weights[n_contacts:], precision=3) if preserve else ''}")
 
     # --- grid evaluation (small 3D dense grid) ---
     grid_xyz = _build_grid_3d(
@@ -461,19 +476,23 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
         f"Before: {rms_before:.6f}, After: {rms_after:.6f}"
     )
 
-    # --- macro point preservation ---
-    options.evaluation_options.compute_scalar_gradient = False
-    micro.enabled = True
-    macro_after_exported = _eval_3d(macro_sp_coords)
-    micro.enabled = False
-    macro_after_sp = macro_after_exported.scalar_field
-    macro_drift = np.abs(macro_after_sp - macro_at_sp)
-    max_macro_drift = np.max(macro_drift)
-    mean_macro_drift = np.mean(macro_drift)
-    assert max_macro_drift < 2.0, (  # loose tolerance for first 3D pass
-        f"3D macro points shifted too much by micro correction. "
-        f"Max drift: {max_macro_drift:.4f}, Mean: {mean_macro_drift:.4f}"
-    )
+    # --- macro point preservation (only when macro SP are constraints) ---
+    if preserve:
+        options.evaluation_options.compute_scalar_gradient = False
+        micro.enabled = True
+        macro_after_exported = _eval_3d(macro_sp_coords)
+        micro.enabled = False
+        macro_after_sp = macro_after_exported.scalar_field
+        macro_drift = np.abs(macro_after_sp - macro_at_sp)
+        max_macro_drift = np.max(macro_drift)
+        mean_macro_drift = np.mean(macro_drift)
+        assert max_macro_drift < 2.0, (
+            f"3D macro points shifted too much by micro correction. "
+            f"Max drift: {max_macro_drift:.4f}, Mean: {mean_macro_drift:.4f}"
+        )
+    else:
+        max_macro_drift = 0.0
+        mean_macro_drift = 0.0
 
     print(f"3D RMS before: {rms_before:.6f}, RMS after: {rms_after:.6f}")
     print(f"3D macro point drift — max: {max_macro_drift:.4f}, mean: {mean_macro_drift:.4f}")
@@ -484,7 +503,8 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
             contacts, macro_values_at_contacts, corrected_contacts, target_values_at_contacts,
             macro_sp_coords, n_per_surface, A, target_per_surface, n_contacts,
             micro_kernel_range=micro_kernel_range,
-            macro_before=macro_at_sp, macro_after=macro_after_sp,
+            macro_before=macro_at_sp,
+            macro_after=macro_after_sp if preserve else None,
         )
         _plot_3d_pyvista(
             grid_xyz, macro_field, micro_field,
@@ -546,8 +566,7 @@ def _plot_3d_results(grid_xyz, macro_field, micro_field, diff,
     for i in range(n_contacts):
         ax.annotate(f"{macro_vals_before[i]:.2f}", (contacts[i, 0], contacts[i, 2]),
                      textcoords="offset points", xytext=(4, 4), fontsize=6, color="red")
-    _draw_3d_anisotropy_disks(ax, contacts, A_matrices[:n_contacts], micro_kernel_range * 0.15,
-                               color="yellow", alpha=0.25)
+    _draw_3d_anisotropy_disks(ax, contacts, A_matrices[:n_contacts], micro_kernel_range)
     ax.set_xlim(*xlim)
     ax.set_ylim(*zlim)
     ax.set_aspect("equal")
@@ -567,8 +586,7 @@ def _plot_3d_results(grid_xyz, macro_field, micro_field, diff,
     for i in range(n_contacts):
         ax.annotate(f"{macro_vals_after[i]:.2f}", (contacts[i, 0], contacts[i, 2]),
                      textcoords="offset points", xytext=(4, 4), fontsize=6, color="red")
-    _draw_3d_anisotropy_disks(ax, contacts, A_matrices[:n_contacts], micro_kernel_range * 0.15,
-                               color="yellow", alpha=0.3)
+    _draw_3d_anisotropy_disks(ax, contacts, A_matrices[:n_contacts], micro_kernel_range)
     ax.set_xlim(*xlim)
     ax.set_ylim(*zlim)
     ax.set_aspect("equal")
@@ -614,37 +632,48 @@ def _plot_3d_results(grid_xyz, macro_field, micro_field, diff,
     plt.show()
 
 
-def _draw_3d_anisotropy_disks(ax, points, A_matrices, display_radius, color="yellow", alpha=0.3):
+def _draw_3d_anisotropy_disks(ax, points, A_matrices, kernel_range, color="yellow"):
     """Project 3D anisotropy ellipsoids onto the xz plane as ellipses.
+
+    Draws three contours per contact:
+      - filled core (0.15 * range) — where correction is strong
+      - solid e^-1  (1.00 * range) — half-decay contour
+      - dashed      (3.00 * range) — where correction is ~5 %
 
     A_i is (3,3). The projected 2x2 metric on the xz plane is:
         M = (A_i[:, [0,2]])^T @ A_i[:, [0,2]]
-    The ellipse is {v : v^T M v = display_radius^2}.
-
-    display_radius should be a fraction of kernel_range to show the core
-    influence region rather than the e^-1 decay contour.
+    The ellipse is {v : v^T M v = radius^2}.
     """
     from matplotlib.patches import Ellipse
 
     for i, p in enumerate(points):
-        A = A_matrices[i]  # (3, 3)
-        B = A[:, [0, 2]]   # (3, 2) — x and z columns
-        M = B.T @ B         # (2, 2) projected metric
+        A = A_matrices[i]
+        B = A[:, [0, 2]]
+        M = B.T @ B
         eigvals, eigvecs = np.linalg.eigh(M)
         eigvals = np.maximum(eigvals, 1e-12)
-        semi_axes = display_radius / np.sqrt(eigvals)
         angle = np.degrees(np.arctan2(eigvecs[1, 0], eigvecs[0, 0]))
-        ell = Ellipse(
-            xy=(p[0], p[2]),
-            width=2 * semi_axes[0],
-            height=2 * semi_axes[1],
-            angle=angle,
-            facecolor=color,
-            edgecolor="black",
-            alpha=alpha,
-            linewidth=0.5,
-        )
-        ax.add_patch(ell)
+
+        def _ellipse(radius, **kwargs):
+            semi = radius / np.sqrt(eigvals)
+            return Ellipse(xy=(p[0], p[2]), width=2 * semi[0], height=2 * semi[1],
+                           angle=angle, **kwargs)
+
+        ax.add_patch(_ellipse(kernel_range * 0.15,
+                              facecolor=color, edgecolor="none", alpha=0.35, zorder=2))
+        ax.add_patch(_ellipse(kernel_range,
+                              fill=False, edgecolor=color, linewidth=1.2,
+                              alpha=0.7, zorder=2, label="e⁻¹"))
+        ax.add_patch(_ellipse(kernel_range * 3.0,
+                              fill=False, edgecolor=color, linewidth=0.6, linestyle="--",
+                              alpha=0.3, zorder=2, label="e⁻³"))
+
+    # deduplicate legend entries
+    handles, labels = ax.get_legend_handles_labels()
+    seen = set()
+    unique = [(h, l) for h, l in zip(handles, labels) if l not in seen and not seen.add(l)]
+    ax.legend(handles=[h for h, _ in unique], labels=[l for _, l in unique],
+              fontsize=6, loc="upper right")
 
 
 def _plot_3d_pyvista(grid_xyz, macro_field, micro_field,

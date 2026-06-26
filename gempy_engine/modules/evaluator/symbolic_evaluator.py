@@ -97,6 +97,7 @@ def _apply_micro_correction(scalar_field: np.ndarray, solver_input: SolverInput,
         micro_weights=micro.weights,
         anisotropy_matrices=micro.anisotropy_matrices,
         kernel_range=micro.kernel_range,
+        kernel_type=micro.kernel_type,
     )
     return scalar_field + correction
 
@@ -116,6 +117,7 @@ def _apply_micro_correction_stacked(scalar_field: np.ndarray, eval_input: Evalua
         micro_weights=micro.weights,
         anisotropy_matrices=micro.anisotropy_matrices,
         kernel_range=micro.kernel_range,
+        kernel_type=micro.kernel_type,
     )
     return scalar_field + correction
 

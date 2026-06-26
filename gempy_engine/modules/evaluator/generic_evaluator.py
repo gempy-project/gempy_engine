@@ -78,6 +78,7 @@ def generic_evaluator(
             micro_weights=micro.weights,
             anisotropy_matrices=micro.anisotropy_matrices,
             kernel_range=micro.kernel_range,
+            kernel_type=micro.kernel_type,
         )
         scalar_field = scalar_field + correction
 
