@@ -478,13 +478,17 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
     print(f"3D RMS before: {rms_before:.6f}, RMS after: {rms_after:.6f}")
     print(f"3D macro point drift — max: {max_macro_drift:.4f}, mean: {mean_macro_drift:.4f}")
 
-    if PLOT or True:
+    if PLOT:
         _plot_3d_results(
             grid_xyz, macro_field, micro_field, diff_field,
             contacts, macro_values_at_contacts, corrected_contacts, target_values_at_contacts,
             macro_sp_coords, n_per_surface, A, target_per_surface, n_contacts,
             micro_kernel_range=micro_kernel_range,
             macro_before=macro_at_sp, macro_after=macro_after_sp,
+        )
+        _plot_3d_pyvista(
+            grid_xyz, macro_field, micro_field,
+            contacts, macro_sp_coords, target_per_surface,
         )
 
 
@@ -641,3 +645,57 @@ def _draw_3d_anisotropy_disks(ax, points, A_matrices, display_radius, color="yel
             linewidth=0.5,
         )
         ax.add_patch(ell)
+
+
+def _plot_3d_pyvista(grid_xyz, macro_field, micro_field,
+                     contacts, macro_sp_coords, target_per_surface):
+    """3D PyVista visualization of the adjusted scalar field.
+
+    Shows: semi-transparent scalar volume, target isosurfaces,
+    macro surface points (black), and micro contacts (red).
+    """
+    try:
+        import pyvista as pv
+    except ImportError:
+        print("pyvista not installed, skipping 3D plot")
+        return
+
+    x = np.unique(grid_xyz[:, 0])
+    y = np.unique(grid_xyz[:, 1])
+    z = np.unique(grid_xyz[:, 2])
+    nx, ny, nz = len(x), len(y), len(z)
+
+    xyz_reshaped = grid_xyz.reshape(nx, ny, nz, 3)
+    xv = xyz_reshaped[..., 0]
+    yv = xyz_reshaped[..., 1]
+    zv = xyz_reshaped[..., 2]
+
+    grid = pv.StructuredGrid(xv, yv, zv)
+
+    macro_3d = macro_field.reshape(nx, ny, nz)
+    micro_3d = micro_field.reshape(nx, ny, nz)
+    grid["macro_scalar"] = macro_3d.ravel(order="F")
+    grid["micro_scalar"] = micro_3d.ravel(order="F")
+
+    p = pv.Plotter()
+    p.add_text("Micro-adjusted scalar field — volume + isosurfaces", font_size=10)
+
+    p.add_mesh(grid, scalars="micro_scalar", opacity=0.3, cmap="viridis",
+               show_edges=False, show_scalar_bar=False)
+
+    for target in target_per_surface:
+        contour = grid.contour(isosurfaces=[target], scalars="micro_scalar")
+        p.add_mesh(contour, color="white", opacity=0.85, show_edges=False,
+                   label=f"target isosurface ({target:.3f})")
+
+    p.add_mesh(pv.PolyData(macro_sp_coords), color="black",
+               point_size=12, render_points_as_spheres=True,
+               label="macro SP")
+
+    p.add_mesh(pv.PolyData(contacts), color="red",
+               point_size=16, render_points_as_spheres=True,
+               label="micro contacts")
+
+    p.add_axes()
+    p.add_legend()
+    p.show()
