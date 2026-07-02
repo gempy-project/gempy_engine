@@ -408,7 +408,7 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
     # When preserve_macro_points=True: contacts + macro SP as zero-residual constraints.
     # When False: contacts only.
     micro = options.evaluation_options.micro_anisotropic
-    micro.preserve_macro_points = True
+    micro.preserve_macro_points = False # this need to be false no question
     preserve = micro.preserve_macro_points
 
     if preserve:
