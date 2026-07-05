@@ -72,13 +72,14 @@ def test_warp_topography_scalar_field_matplotlib_example(tmp_path):
     mesh = _make_flat_topography_mesh()
     mesh_id = mesh.id
 
-    n = 50
+    n = 80
     x = np.linspace(-1.5, 1.5, n)
     y = np.linspace(-1.5, 1.5, n)
-    z_offset = 0.3
 
     xx, yy = np.meshgrid(x, y)
-    pts = np.column_stack([xx.ravel(), yy.ravel(), np.full(xx.size, z_offset)])
+    zz = 0.6 * yy
+
+    pts = np.column_stack([xx.ravel(), yy.ravel(), zz.ravel()])
     pts = pts.astype(np.float32)
 
     n_total = len(pts)
@@ -91,15 +92,21 @@ def test_warp_topography_scalar_field_matplotlib_example(tmp_path):
 
     fig, ax = plt.subplots()
     c = ax.contourf(x, y, field, levels=20)
+    ax.contour(x, y, field, levels=[0.0], colors="k", linewidths=1.5)
     fig.colorbar(c)
+
+    rect = np.array([[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]])
+    ax.plot(rect[:, 0], rect[:, 1], "r-", linewidth=2, label="topography")
+
     ax.set_title("Signed Scalar Field from Topography Mesh")
     ax.set_xlabel("x")
     ax.set_ylabel("y")
+    ax.legend()
+    plt.show()
 
     out_path = tmp_path / "warp_topography_scalar_field.png"
-    plt.show()
-    # fig.savefig(out_path, dpi=72)
+    # fig.savefig(out_path, dpi=100)
     # plt.close(fig)
-
+    # 
     # assert out_path.exists()
     # assert out_path.stat().st_size > 0
