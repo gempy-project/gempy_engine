@@ -58,7 +58,8 @@ def plot_vector(p: "pv.Plotter", xyz, gradients):
 
 def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, vertices=None, indices=None,
                  gradient_pos=None, gradients=None, a=None, b=None, v_just_points=None,
-                 plot_label=False, delaunay_3d=False, scalar=None, plot=True, show_edges=True):
+                 plot_label=False, delaunay_3d=False, scalar=None, plot=True, show_edges=True,
+                 clip=None):
     p = pv.Plotter()
 
     # Plot Regular grid Octree
@@ -73,6 +74,8 @@ def plot_pyvista(octree_list=None, dc_meshes: List[DualContouringMesh] = None, v
         regular_grid_mesh = pv.StructuredGrid(*grid_3d)
         if scalar is None:
             regular_grid_mesh["lith"] = regular_grid_scalar.ravel()
+            if clip is not None:
+                regular_grid_mesh = regular_grid_mesh.threshold(value=list(clip), scalars="lith")
             p.add_mesh(regular_grid_mesh, show_edges=show_edges, opacity=.8, cmap="tab10")
         else:
             regular_grid_mesh["lith"] = scalar

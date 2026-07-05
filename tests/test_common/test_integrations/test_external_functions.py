@@ -533,22 +533,7 @@ def test_tent_topography_compute_solutions(n_oct_levels=2):
     last_level = solutions.octrees_output[-1]
     # 
     stack_0_output = last_level.outputs[0]
-    # stack_1_output = last_level.outputs[1]
-    # stack_2_output = last_level.outputs[2]
-    # 
     scalar_0 = BackendTensor.t.to_numpy(stack_0_output.exported_fields.scalar_field)
-    # scalar_1 = BackendTensor.t.to_numpy(stack_1_output.exported_fields.scalar_field)
-    # scalar_2 = BackendTensor.t.to_numpy(stack_2_output.exported_fields.scalar_field)
-    # 
-    # print(f"\nscalar_0 min={scalar_0.min():.3f} max={scalar_0.max():.3f} n_gt0={np.sum(scalar_0 > 0)} n_lt0={np.sum(scalar_0 < 0)}")
-    # print(f"scalar_1 min={scalar_1.min():.3f} max={scalar_1.max():.3f}")
-    # print(f"scalar_2 min={scalar_2.min():.3f} max={scalar_2.max():.3f}")
-    # 
-    # values_0 = BackendTensor.t.to_numpy(stack_0_output.values_block)
-    # print(f"values_block_0 shape={values_0.shape} unique={np.unique(values_0)[:10]} min={values_0.min():.3f} max={values_0.max():.3f}")
-    # 
-    # final_block = BackendTensor.t.to_numpy(stack_0_output.final_block)
-    # print(f"final_block shape={final_block.shape} unique={np.unique(final_block)[:10]} min={final_block.min():.3f} max={final_block.max():.3f}")
 
     litho_ids = solutions.raw_arrays.lith_block
 
@@ -579,7 +564,8 @@ def test_tent_topography_compute_solutions(n_oct_levels=2):
     if PLOT or True:
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
-            dc_meshes=solutions.dc_meshes,
+            dc_meshes=solutions.dc_meshes[1:],
+            clip=(1.5, 4.5),
         )
 
 
@@ -758,7 +744,7 @@ def test_tent_topography_scalar_field_3d():
     grid_3d.cell_data["lith"] = cell_lith.ravel(order="F")
 
     # Keep only cells fully below the surface
-    below = grid_3d.threshold(value=[1.5, 4.5], scalars="lith")
+    below = grid_3d.threshold(value=[0.5, 1.5], scalars="lith")
     plotter.add_mesh(below, scalars="sdf", cmap="RdBu_r",
                      clim=[-3, 3], opacity=0.7,
                      label="Below-surface region")
