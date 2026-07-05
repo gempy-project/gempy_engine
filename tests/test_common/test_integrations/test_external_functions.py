@@ -562,10 +562,14 @@ def test_tent_topography_compute_solutions(n_oct_levels=2):
     # ------------------------------------------------------------------
 
     if PLOT or True:
+        tent_verts = np.array([[2.0, 0.0, 1.0], [8.0, 0.0, 1.0], [8.0, 2.0, 1.0], [2.0, 2.0, 1.0], [5.0, 1.0, 4.5]])
+        tent_faces = np.array([[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]], dtype=np.int32)
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
             dc_meshes=solutions.dc_meshes[1:],
-            clip=(1.5, 4.5),
+            vertices=tent_verts,
+            indices=tent_faces,
+            clip=(0.5, 4.5),
         )
 
 
