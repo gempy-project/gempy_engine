@@ -7,7 +7,7 @@ import warp as wp
 wp.init()
 
 
-def _make_flat_topography_mesh(extent=(-1.0, 1.0, -1.0, 1.0), z=0.0):
+def _make_flat_topography_mesh(extent=(-1.0, 1.0, -1.0, 1.0), z=0.0, support_winding_number=False):
     x_min, x_max, y_min, y_max = extent
     vertices = wp.array(np.array([
         [x_min, y_min, z],
@@ -18,10 +18,10 @@ def _make_flat_topography_mesh(extent=(-1.0, 1.0, -1.0, 1.0), z=0.0):
     indices = wp.array(np.array(
         [0, 1, 2, 0, 2, 3], dtype=np.int32
     ), dtype=wp.int32)
-    return wp.Mesh(points=vertices, indices=indices), vertices, indices
+    return wp.Mesh(points=vertices, indices=indices, support_winding_number=support_winding_number), vertices, indices
 
 
-def _make_tent_topography_mesh():
+def _make_tent_topography_mesh(support_winding_number=False):
     vertices = wp.array(np.array([
         [-1.0, -1.0, 0.0],
         [ 1.0, -1.0, 0.0],
@@ -32,7 +32,7 @@ def _make_tent_topography_mesh():
     indices = wp.array(np.array(
         [0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4], dtype=np.int32
     ), dtype=wp.int32)
-    return wp.Mesh(points=vertices, indices=indices), vertices, indices
+    return wp.Mesh(points=vertices, indices=indices, support_winding_number=support_winding_number), vertices, indices
 
 
 @wp.kernel
@@ -162,3 +162,208 @@ def test_warp_sdf_perpendicular_to_tent_topography(tmp_path):
     ax.set_aspect("equal")
 
     out_path = tmp_path / "warp_tent_sdf_perpendicular.png"
+    fig.savefig(out_path, dpi=100)
+    plt.close(fig)
+
+    assert out_path.exists()
+    assert out_path.stat().st_size > 0
+
+
+# region mesh_query_point_sign_parity variant
+# Hashing the mesh with a small number of pixels, we use a constant value to hide the mesh from being used in the following way:
+# - Faster than winding_number, ~2-3x slower than normal
+# - Ray sampling noise with low n_sample; increase n_sample for better accuracy
+# - Does NOT require support_winding_number=True on the Mesh
+
+@wp.kernel
+def _compute_signed_scalar_field_parity(
+    mesh_id: wp.uint64,
+    mesh_vertices: wp.array(dtype=wp.vec3),
+    mesh_indices: wp.array(dtype=wp.int32),
+    query_points: wp.array(dtype=wp.vec3),
+    out_distances: wp.array(dtype=wp.float32),
+    n_sample: wp.int32,
+    perturbation_scale: wp.float32,
+):
+    tid = wp.tid()
+    p = query_points[tid]
+    hit = wp.mesh_query_point_sign_parity(mesh_id, p, 1.0e6, n_sample, perturbation_scale)
+
+    i0 = mesh_indices[hit.face * 3]
+    i1 = mesh_indices[hit.face * 3 + 1]
+    i2 = mesh_indices[hit.face * 3 + 2]
+    v0 = mesh_vertices[i0]
+    v1 = mesh_vertices[i1]
+    v2 = mesh_vertices[i2]
+
+    w = 1.0 - hit.u - hit.v
+    closest = v0 * hit.u + v1 * hit.v + v2 * w
+
+    diff = p - closest
+    dist = wp.sqrt(diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2])
+
+    out_distances[tid] = wp.where(hit.sign < 0.0, -dist, dist)
+
+
+def _launch_sdf_parity(mesh_id, vertices, indices, pts_host, n_sample=3, perturbation_scale=0.1, out=None):
+    n = len(pts_host)
+    query_wp = wp.array(pts_host.astype(np.float32), dtype=wp.vec3)
+    if out is None:
+        out = wp.zeros(n, dtype=wp.float32)
+    wp.launch(_compute_signed_scalar_field_parity, dim=n,
+              inputs=[mesh_id, vertices, indices, query_wp, out, n_sample, perturbation_scale])
+    return out.numpy()
+
+# endregion
+
+
+# region mesh_query_point_sign_winding_number variant
+# Hashing the mesh with a small number of pixels, we use a constant value to hide the mesh from being used in the following way:
+# - Most robust: handles non-watertight, self-intersecting, or degenerate meshes
+# - Smoothest sign field, naturally produces a continuous gradient across the surface
+# - Slowest: ~5-10x slower than normal, computing a second-order dipole approximation
+# - Requires support_winding_number=True on the Mesh (set at creation time)
+# - accuracy controls dipole expansion order (higher = more precise, slower)
+# - threshold is the winding number threshold for inside/outside (default 0.5)
+
+@wp.kernel
+def _compute_signed_scalar_field_winding(
+    mesh_id: wp.uint64,
+    mesh_vertices: wp.array(dtype=wp.vec3),
+    mesh_indices: wp.array(dtype=wp.int32),
+    query_points: wp.array(dtype=wp.vec3),
+    out_distances: wp.array(dtype=wp.float32),
+    accuracy: wp.float32,
+    threshold: wp.float32,
+):
+    tid = wp.tid()
+    p = query_points[tid]
+    hit = wp.mesh_query_point_sign_winding_number(mesh_id, p, 1.0e6, accuracy, threshold)
+
+    i0 = mesh_indices[hit.face * 3]
+    i1 = mesh_indices[hit.face * 3 + 1]
+    i2 = mesh_indices[hit.face * 3 + 2]
+    v0 = mesh_vertices[i0]
+    v1 = mesh_vertices[i1]
+    v2 = mesh_vertices[i2]
+
+    w = 1.0 - hit.u - hit.v
+    closest = v0 * hit.u + v1 * hit.v + v2 * w
+
+    diff = p - closest
+    dist = wp.sqrt(diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2])
+
+    out_distances[tid] = wp.where(hit.sign < 0.0, -dist, dist)
+
+
+def _launch_sdf_winding(mesh_id, vertices, indices, pts_host, accuracy=2.0, threshold=0.5, out=None):
+    n = len(pts_host)
+    query_wp = wp.array(pts_host.astype(np.float32), dtype=wp.vec3)
+    if out is None:
+        out = wp.zeros(n, dtype=wp.float32)
+    wp.launch(_compute_signed_scalar_field_winding, dim=n,
+              inputs=[mesh_id, vertices, indices, query_wp, out, accuracy, threshold])
+    return out.numpy()
+
+# endregion
+
+
+# region Tests comparing mesh_query_point_sign variants
+# The three variants differ in how they determine inside/outside:
+#
+# normal:    angle-weighted pseudo-normal at the closest surface point.
+#            Fastest. Works well on clean, watertight meshes. Can fail on
+#            degenerate (zero-area) or sharp-edge geometry.
+#
+# parity:    casts rays from the query point with random perturbations and
+#            counts face intersections. Odd count = inside. Good at avoiding
+#            edge/vertex degeneracies but introduces small stochastic noise.
+#            Increase n_sample to improve accuracy at the cost of speed.
+#
+# winding:   computes the generalized winding number (second-order dipole
+#            approximation). Naturally smooth, works on non-watertight meshes.
+#            Slowest. Requires support_winding_number=True on Mesh creation.
+
+def test_warp_sdf_perpendicular_to_tent_topography_parity(tmp_path):
+    """SDF cross-section using mesh_query_point_sign_parity (ray-cast parity).
+
+    Pros over normal: less prone to edge/vertex degeneracies on sharp geometry.
+    Cons over normal: ~2-3x slower, stochastic noise at low n_sample.
+    """
+    pytest.importorskip("matplotlib")
+    import matplotlib.pyplot as plt
+
+    mesh, verts, idxs = _make_tent_topography_mesh()
+
+    y_slice = 0.2
+    n = 120
+    x = np.linspace(-1.5, 1.5, n)
+    z = np.linspace(-0.6, 1.2, n)
+
+    xx, zz = np.meshgrid(x, z)
+    pts = np.column_stack([xx.ravel(), np.full(xx.size, y_slice, dtype=np.float32), zz.ravel()])
+
+    field = _launch_sdf_parity(mesh.id, verts, idxs, pts, n_sample=5).reshape(n, n)
+
+    fig, ax = plt.subplots(figsize=(9, 6))
+    c = ax.contourf(x, z, field, levels=30, cmap="RdBu_r")
+    ax.contour(x, z, field, levels=[0.0], colors="k", linewidths=2.0)
+    fig.colorbar(c, label="Signed Distance")
+
+    ax.set_title(f"SDF (parity) perpendicular to tent topography  (y = {y_slice})")
+    ax.set_xlabel("x")
+    ax.set_ylabel("z")
+    ax.set_aspect("equal")
+    plt.show()
+
+    out_path = tmp_path / "warp_tent_sdf_perpendicular_parity.png"
+    fig.savefig(out_path, dpi=100)
+    plt.close(fig)
+
+    assert out_path.exists()
+    assert out_path.stat().st_size > 0
+
+
+def test_warp_sdf_perpendicular_to_tent_topography_winding(tmp_path):
+    """SDF cross-section using mesh_query_point_sign_winding_number (generalized winding number).
+
+    Pros over normal: most robust — handles non-watertight, self-intersecting
+    and degenerate meshes. Produces a naturally smooth inside/outside gradient.
+    Cons over normal: ~5-10x slower. Requires mesh created with
+    support_winding_number=True (increases memory too).
+    """
+    pytest.importorskip("matplotlib")
+    import matplotlib.pyplot as plt
+
+    mesh, verts, idxs = _make_tent_topography_mesh(support_winding_number=True)
+
+    y_slice = 0.2
+    n = 120
+    x = np.linspace(-1.5, 1.5, n)
+    z = np.linspace(-0.6, 1.2, n)
+
+    xx, zz = np.meshgrid(x, z)
+    pts = np.column_stack([xx.ravel(), np.full(xx.size, y_slice, dtype=np.float32), zz.ravel()])
+
+    field = _launch_sdf_winding(mesh.id, verts, idxs, pts).reshape(n, n)
+
+    fig, ax = plt.subplots(figsize=(9, 6))
+    c = ax.contourf(x, z, field, levels=30, cmap="RdBu_r")
+    ax.contour(x, z, field, levels=[0.0], colors="k", linewidths=2.0)
+    fig.colorbar(c, label="Signed Distance")
+
+    ax.set_title(f"SDF (winding) perpendicular to tent topography  (y = {y_slice})")
+    ax.set_xlabel("x")
+    ax.set_ylabel("z")
+    ax.set_aspect("equal")
+    
+    plt.show()
+
+    out_path = tmp_path / "warp_tent_sdf_perpendicular_winding.png"
+    fig.savefig(out_path, dpi=100)
+    plt.close(fig)
+
+    assert out_path.exists()
+    assert out_path.stat().st_size > 0
+
+# endregion
