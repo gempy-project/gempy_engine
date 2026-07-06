@@ -75,7 +75,13 @@ class InputDataDescriptor:
             number_of_surfaces_per_stack=structural_frame.number_of_elements_per_group,
             masking_descriptor=making_descriptor,
             faults_relations=faults_relations,
-            faults_input_data=faults_input_data
+            faults_input_data=faults_input_data,
+            interp_functions_per_stack=[
+                group.custom_interpolation
+                for group in structural_frame.structural_groups
+            ] if any(group.custom_interpolation is not None
+                     for group in structural_frame.structural_groups)
+            else None
         )
 
         input_data_descriptor = cls(
