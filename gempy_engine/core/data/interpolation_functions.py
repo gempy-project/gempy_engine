@@ -18,9 +18,9 @@ class InterpolationFunctions(enum.Enum):
 class CustomInterpolationFunctions:
     scalar_field_at_surface_points: np.ndarray
     implicit_function: Callable
-    gx_function: Callable
-    gy_function: Callable
-    gz_function: Callable
+    gx_function: Callable | None = None
+    gy_function: Callable | None = None
+    gz_function: Callable | None = None
     
     def __post_init__(self):
         self.scalar_field_at_surface_points = BackendTensor.t.array(self.scalar_field_at_surface_points, dtype=BackendTensor.dtype_obj)

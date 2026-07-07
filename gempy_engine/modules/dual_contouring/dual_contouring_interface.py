@@ -215,9 +215,10 @@ def mask_generation(
     """
     all_scalar_fields_outputs: List[InterpOutput] = octree_leaves.outputs
     n_scalar_fields = len(all_scalar_fields_outputs)
-    outputs_ = all_scalar_fields_outputs[0]
-    slice_corners = outputs_.grid.corners_grid_slice
-    grid_size = outputs_.cornersGrid_values.shape[0]
+    # Use the octree leaf grid (guaranteed to have corners)
+    outputs_ = octree_leaves.grid
+    slice_corners = outputs_.corners_grid_slice
+    grid_size = outputs_.corners_grid.values.shape[0]
 
     mask_matrix = BackendTensor.t.zeros((n_scalar_fields, grid_size // 8), dtype=bool)
     onlap_chain_counter = 0
@@ -305,6 +306,10 @@ def mask_generation(
 
             case _, StackRelationType.FAULT:
                 mask_matrix[i] = BackendTensor.t.ones(grid_size // 8, dtype=bool)
+
+            case _, StackRelationType.NULL_SPACE:
+                mask_matrix[i] = BackendTensor.t.zeros(grid_size // 8, dtype=bool)
+                onlap_chain_counter = 0
 
             case _:
                 raise ValueError("Invalid combination of options")

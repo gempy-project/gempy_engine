@@ -151,9 +151,9 @@ def _scalar_field_segmentation(exported_fields: ExportedFields, external_segment
 def _interpolate_external_function(interp_funct, xyz):
     exported_fields = ExportedFields(
         _scalar_field=interp_funct.implicit_function(xyz),
-        _gx_field=interp_funct.gx_function(xyz),
-        _gy_field=interp_funct.gy_function(xyz),
-        _gz_field=interp_funct.gz_function(xyz),
+        _gx_field=interp_funct.gx_function(xyz) if interp_funct.gx_function is not None else None,
+        _gy_field=interp_funct.gy_function(xyz) if interp_funct.gy_function is not None else None,
+        _gz_field=interp_funct.gz_function(xyz) if interp_funct.gz_function is not None else None,
         _scalar_field_at_surface_points=interp_funct.scalar_field_at_surface_points
     )
     return exported_fields

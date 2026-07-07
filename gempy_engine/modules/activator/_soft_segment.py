@@ -54,6 +54,8 @@ def _final_faults_segmentation(Z, edges, sigmoid_slope):
 
 
 def _lith_segmentation(Z, edges, ids, sigmoid_slope):
+    if len(ids) <= 1:
+        return bt.t.ones_like(Z, dtype=bt.dtype_obj)[..., None]
     # 1) per-edge temperatures τ_k = |Δ_k|/(4·m)
     jumps = bt.t.abs(ids[1:] - ids[:-1], dtype=bt.dtype_obj)  # shape (K-1,)
     tau_k = jumps / float(sigmoid_slope)  # shape (K-1,)

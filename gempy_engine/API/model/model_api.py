@@ -155,21 +155,25 @@ def _check_input_validity(interpolation_input: InterpolationInput, options: Inte
                 f"does not match the number of surfaces in TensorsStructure ({actual_surfaces_count})."
             )
 
-        # 3.4 Each stack must have at least one surface point
-        if (data_descriptor.stack_structure.number_of_points_per_stack == 0).any():
-            stack_index = np.where(data_descriptor.stack_structure.number_of_points_per_stack == 0)[0][0]
-            raise GemPyEngineInputError(
-                f"Validation Error: Stack {stack_index} has no surface points. "
-                f"Each stack must have at least one surface point."
-            )
+        # 3.4 Each stack must have at least one surface point (unless backed by an external function)
+        zero_point_stacks = np.where(data_descriptor.stack_structure.number_of_points_per_stack == 0)[0]
+        for stack_index in zero_point_stacks:
+            if (data_descriptor.stack_structure.interp_functions_per_stack is None or
+                    data_descriptor.stack_structure.interp_functions_per_stack[stack_index] is None):
+                raise GemPyEngineInputError(
+                    f"Validation Error: Stack {stack_index} has no surface points. "
+                    f"Each stack must have at least one surface point, unless it uses an external interpolation function."
+                )
 
-        # 3.5 Each stack must have at least one orientation
-        if (data_descriptor.stack_structure.number_of_orientations_per_stack == 0).any():
-            stack_index = np.where(data_descriptor.stack_structure.number_of_orientations_per_stack == 0)[0][0]
-            raise GemPyEngineInputError(
-                f"Validation Error: Stack {stack_index} has no orientations. "
-                f"Each stack must have at least one orientation."
-            )
+        # 3.5 Each stack must have at least one orientation (unless backed by an external function)
+        zero_ori_stacks = np.where(data_descriptor.stack_structure.number_of_orientations_per_stack == 0)[0]
+        for stack_index in zero_ori_stacks:
+            if (data_descriptor.stack_structure.interp_functions_per_stack is None or
+                    data_descriptor.stack_structure.interp_functions_per_stack[stack_index] is None):
+                raise GemPyEngineInputError(
+                    f"Validation Error: Stack {stack_index} has no orientations. "
+                    f"Each stack must have at least one orientation, unless it uses an external interpolation function."
+                )
 
     # 4. Check surfaces consistency
     # 4.1 Each surface must have at least one surface point
