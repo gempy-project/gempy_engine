@@ -1,6 +1,8 @@
 from typing import List, Dict, TYPE_CHECKING
 import numpy as np
 
+from ...core.backend_tensor import BackendTensor
+
 if TYPE_CHECKING:
     from ...core.data.dual_contouring_mesh import DualContouringMesh
 
@@ -88,7 +90,7 @@ def remove_triangles_in_voxels(
         return
 
     # Build a boolean mask for vertex indices that are in the overlap
-    is_overlap_vertex = np.zeros(mesh.vertices.shape[0], dtype=bool)
+    is_overlap_vertex = BackendTensor.t.zeros(mesh.vertices.shape[0], dtype=bool)
     is_overlap_vertex[voxel_indices] = True
 
     faces = mesh.edges
