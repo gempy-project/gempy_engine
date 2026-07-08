@@ -61,18 +61,23 @@ class InputDataDescriptor:
 
     @classmethod
     def from_structural_frame(cls, structural_frame: "gempy.StructuralFrame",
-                              making_descriptor: list[StackRelationType | False],
-                              faults_relations: Optional[np.ndarray] = None,
-                              faults_input_data: Optional[List[FaultsData]] = None
-                              ):
+                               making_descriptor: list[StackRelationType | False],
+                               faults_relations: Optional[np.ndarray] = None,
+                               faults_input_data: Optional[List[FaultsData]] = None
+                               ):
         tensor_struct = TensorsStructure(
             number_of_points_per_surface=structural_frame.number_of_points_per_element
         )
 
+        n_surfaces_per_stack = structural_frame.number_of_elements_per_group.copy()
+        for i, group in enumerate(structural_frame.structural_groups):
+            if group.custom_interpolation is not None and structural_frame.number_of_points_per_group[i] == 0:
+                n_surfaces_per_stack[i] = 0
+
         stack_structure = StacksStructure(
             number_of_points_per_stack=structural_frame.number_of_points_per_group,
             number_of_orientations_per_stack=structural_frame.number_of_orientations_per_group,
-            number_of_surfaces_per_stack=structural_frame.number_of_elements_per_group,
+            number_of_surfaces_per_stack=n_surfaces_per_stack,
             masking_descriptor=making_descriptor,
             faults_relations=faults_relations,
             faults_input_data=faults_input_data,

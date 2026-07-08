@@ -873,3 +873,166 @@ def test_null_space_external_function_no_gradients(n_oct_levels=2):
 
     has_non_negative = (final_block_np >= 0).any()
     assert has_non_negative, "Expected some cells to have non-negative IDs"
+
+
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
+def test_external_function_stack_with_dummy_element():
+    """External function stack with one empty structural element (no SPs, no orientations).
+
+    Simulates the server mesh-field wiring where a NULL_SPACE group is added with
+    a single dummy StructuralElement that has zero surface points and zero orientations.
+    Validates that:
+    - compute_model succeeds without requiring fake SP/orientation rows
+    - the surface-count disparity between StacksStructure and TensorsStructure
+      (due to TensorsStructure filtering zero-point surfaces) is handled correctly
+    """
+    from gempy_engine.core.data.engine_grid import EngineGrid
+    from gempy_engine.core.data.regular_grid import RegularGrid
+    from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+    from gempy_engine.core.data.stacks_structure import StacksStructure
+    from gempy_engine.core.data import TensorsStructure
+    from gempy_engine.core.data.stack_relation_type import StackRelationType
+    from gempy_engine.core.data.interpolation_functions import CustomInterpolationFunctions
+    from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
+    from gempy_engine.core.data.kernel_classes.orientations import Orientations
+    from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
+    from gempy_engine.core.data.interpolation_input import InterpolationInput
+    from gempy_engine.core.data.options import InterpolationOptions
+    from gempy_engine.API.model.model_api import _check_input_validity
+
+    extent = [0, 10.0, 0, 2.0, 0, 5.0]
+    resolution = [15, 2, 15]
+    regular_grid = RegularGrid(extent, resolution)
+    grid = EngineGrid(octree_grid=regular_grid)
+
+    def sphere_sdf(xyz: np.ndarray) -> np.ndarray:
+        center = (extent[1] - extent[0]) / 2
+        radius = center / 2
+        return -((xyz[:, 0] - center) ** 2 + (xyz[:, 1] - 1.0) ** 2 + (xyz[:, 2] - 2.5) ** 2 - radius ** 2)
+
+    null_space_func = CustomInterpolationFunctions(
+        scalar_field_at_surface_points=np.array([0.0]),
+        implicit_function=sphere_sdf,
+    )
+
+    n_sp_geo = 4
+    n_ori_geo = 2
+
+    sp_coords = np.array([[2.0, 0.5, 2.5], [8.0, 0.5, 2.5], [2.0, 0.5, 1.0], [8.0, 0.5, 1.0]])
+    dip_positions = np.array([[5.0, 1.0, 2.5], [5.0, 1.0, 1.0]])
+    dip_gradients = np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]])
+
+    stack_structure = StacksStructure(
+        number_of_points_per_stack=np.array([0, n_sp_geo]),
+        number_of_orientations_per_stack=np.array([0, n_ori_geo]),
+        number_of_surfaces_per_stack=np.array([0, 2]),
+        masking_descriptor=[
+            StackRelationType.NULL_SPACE,
+            StackRelationType.BASEMENT,
+        ],
+        interp_functions_per_stack=[null_space_func, None],
+        null_space_id=-1,
+    )
+
+    tensor_struct = TensorsStructure(
+        number_of_points_per_surface=np.array([2, 2]))
+    input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
+
+    range_ = 0.8660254 * 100
+    c_o = 35.71428571 * 100
+    options = InterpolationOptions.from_args(
+        range_, c_o, uni_degree=0, i_res=4, gi_res=2,
+        number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+    options.number_octree_levels = 2
+    options.debug = True
+
+    spi = SurfacePoints(sp_coords)
+    ori = Orientations(dip_positions, dip_gradients)
+    ids = np.array([0, 1, 2])
+
+    interpolation_input = InterpolationInput(spi, ori, grid, ids)
+
+    solutions: Solutions = compute_model(
+        interpolation_input, options, input_data_descriptor)
+
+    assert solutions is not None
+    assert solutions.dc_meshes is not None
+
+    final_block = solutions.octrees_output[-1].last_output_center.final_block
+    final_block_np = np.array(final_block).reshape(-1)
+    has_minus_one = (final_block_np == -1).any()
+    assert has_minus_one, "Expected some cells to be -1 (null-space masked)"
+
+
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
+def test_external_function_stack_with_dummy_element_validation_only():
+    """Validation-only: external stack with an empty dummy element passes input checks.
+
+    Simulates what InputDataDescriptor.from_structural_frame produces after
+    zeroing out the surface count for an external-function stack with no points:
+    number_of_surfaces_per_stack becomes [0, 2] instead of [1, 2].
+    """
+    from gempy_engine.core.data.engine_grid import EngineGrid
+    from gempy_engine.core.data.regular_grid import RegularGrid
+    from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+    from gempy_engine.core.data.stacks_structure import StacksStructure
+    from gempy_engine.core.data import TensorsStructure
+    from gempy_engine.core.data.stack_relation_type import StackRelationType
+    from gempy_engine.core.data.interpolation_functions import CustomInterpolationFunctions
+    from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
+    from gempy_engine.core.data.kernel_classes.orientations import Orientations
+    from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
+    from gempy_engine.core.data.interpolation_input import InterpolationInput
+    from gempy_engine.core.data.options import InterpolationOptions
+    from gempy_engine.API.model.model_api import _check_input_validity, _stack_uses_external_function
+
+    extent = [0, 10.0, 0, 2.0, 0, 5.0]
+    resolution = [15, 2, 15]
+    regular_grid = RegularGrid(extent, resolution)
+    grid = EngineGrid(octree_grid=regular_grid)
+
+    null_space_func = CustomInterpolationFunctions(
+        scalar_field_at_surface_points=np.array([0.0]),
+        implicit_function=lambda xyz: np.zeros(len(xyz)),
+    )
+
+    n_sp_geo = 4
+    n_ori_geo = 2
+    sp_coords = np.array([[2.0, 0.5, 2.5], [8.0, 0.5, 2.5], [2.0, 0.5, 1.0], [8.0, 0.5, 1.0]])
+    dip_positions = np.array([[5.0, 1.0, 2.5], [5.0, 1.0, 1.0]])
+    dip_gradients = np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]])
+
+    # External stack has 1 dummy surface, but from_structural_frame zeroes it to 0
+    # because it's an external-function stack with zero points
+    stack_structure = StacksStructure(
+        number_of_points_per_stack=np.array([0, n_sp_geo]),
+        number_of_orientations_per_stack=np.array([0, n_ori_geo]),
+        number_of_surfaces_per_stack=np.array([0, 2]),
+        masking_descriptor=[StackRelationType.NULL_SPACE, StackRelationType.BASEMENT],
+        interp_functions_per_stack=[null_space_func, None],
+        null_space_id=-1,
+    )
+    tensor_struct = TensorsStructure(
+        number_of_points_per_surface=np.array([2, 2]))
+    input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
+
+    options = InterpolationOptions.from_args(
+        86.6, 3571.4, uni_degree=0, i_res=4, gi_res=2,
+        number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+
+    spi = SurfacePoints(sp_coords)
+    ori = Orientations(dip_positions, dip_gradients)
+    ids = np.array([0, 1, 2])
+    interpolation_input = InterpolationInput(spi, ori, grid, ids)
+
+    # This should not raise
+    _check_input_validity(interpolation_input, options, input_data_descriptor)
+
+    # Verify the helper works correctly
+    assert _stack_uses_external_function(stack_structure, 0) is True
+    assert _stack_uses_external_function(stack_structure, 1) is False
+
+    # Remove the external function → should now raise
+    stack_structure.interp_functions_per_stack[0] = None
+    with pytest.raises(Exception):
+        _check_input_validity(interpolation_input, options, input_data_descriptor)
