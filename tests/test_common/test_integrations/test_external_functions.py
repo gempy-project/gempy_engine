@@ -1036,3 +1036,203 @@ def test_external_function_stack_with_dummy_element_validation_only():
     stack_structure.interp_functions_per_stack[0] = None
     with pytest.raises(Exception):
         _check_input_validity(interpolation_input, options, input_data_descriptor)
+
+
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
+def test_null_space_with_erode_stacks_unit_ids():
+    """NULL_SPACE + ERODE + ERODE model.
+
+    Verifies that NULL_SPACE does not consume an id slot from the
+    unit_values array and subsequent stacks get correct IDs.
+    """
+    from gempy_engine.core.data.engine_grid import EngineGrid
+    from gempy_engine.core.data.regular_grid import RegularGrid
+    from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+    from gempy_engine.core.data.stacks_structure import StacksStructure
+    from gempy_engine.core.data import TensorsStructure
+    from gempy_engine.core.data.stack_relation_type import StackRelationType
+    from gempy_engine.core.data.interpolation_functions import CustomInterpolationFunctions
+    from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
+    from gempy_engine.core.data.kernel_classes.orientations import Orientations
+    from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
+    from gempy_engine.core.data.interpolation_input import InterpolationInput
+    from gempy_engine.core.data.options import InterpolationOptions
+
+    extent = [0, 10.0, 0, 2.0, 0, 5.0]
+    resolution = [15, 2, 15]
+    regular_grid = RegularGrid(extent, resolution)
+    grid = EngineGrid(octree_grid=regular_grid)
+
+    def sphere_sdf(xyz: np.ndarray) -> np.ndarray:
+        center = (extent[1] - extent[0]) / 2
+        radius = center / 2
+        return -((xyz[:, 0] - center) ** 2 + (xyz[:, 1] - 1.0) ** 2 + (xyz[:, 2] - 2.5) ** 2 - radius ** 2)
+
+    null_space_func = CustomInterpolationFunctions(
+        scalar_field_at_surface_points=np.array([0.0]),
+        implicit_function=sphere_sdf,
+    )
+
+    sp_coords = np.array([
+        [2.0, 0.5, 2.5], [8.0, 0.5, 2.5],
+        [2.0, 0.5, 1.0], [8.0, 0.5, 1.0],
+    ])
+    dip_positions = np.array([
+        [5.0, 1.0, 2.5],
+        [5.0, 1.0, 1.0],
+    ])
+    dip_gradients = np.array([
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 1.0],
+    ])
+
+    stack_structure = StacksStructure(
+        number_of_points_per_stack=np.array([0, 2, 2]),
+        number_of_orientations_per_stack=np.array([0, 1, 1]),
+        number_of_surfaces_per_stack=np.array([0, 1, 1]),
+        masking_descriptor=[
+            StackRelationType.NULL_SPACE,
+            StackRelationType.ERODE,
+            StackRelationType.BASEMENT,
+        ],
+        interp_functions_per_stack=[null_space_func, None, None],
+        null_space_id=-1,
+    )
+
+    tensor_struct = TensorsStructure(
+        number_of_points_per_surface=np.array([2, 2]))
+
+    options = InterpolationOptions.from_args(
+        86.6, 3571.4, uni_degree=0, i_res=4, gi_res=2,
+        number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+    options.number_octree_levels = 2
+
+    spi = SurfacePoints(sp_coords)
+    ori = Orientations(dip_positions, dip_gradients)
+    ids = np.arange(4) + 1
+
+    interpolation_input = InterpolationInput(spi, ori, grid, ids)
+
+    solutions: Solutions = compute_model(
+        interpolation_input, options, InputDataDescriptor(tensor_struct, stack_structure))
+
+    lith_block = solutions.raw_arrays.lith_block
+    lith_flat = lith_block.reshape(-1)
+    unique_ids = np.unique(lith_flat)
+
+    assert 1 in unique_ids, \
+        f"Without a fault, first lithology id should be 1, got: {unique_ids}"
+    assert -1 in unique_ids, \
+        f"Expected null_space_id (-1) in final block, got: {unique_ids}"
+
+
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
+def test_null_space_with_fault_lith_block_ids():
+    """NULL_SPACE + FAULT + ERODE model.
+
+    Verifies that the fault consumes id 1 internally and the
+    lith_block does not contain id 1 (same behavior as without
+    NULL_SPACE).
+    """
+    from gempy_engine.core.data.engine_grid import EngineGrid
+    from gempy_engine.core.data.regular_grid import RegularGrid
+    from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+    from gempy_engine.core.data.stacks_structure import StacksStructure
+    from gempy_engine.core.data import TensorsStructure
+    from gempy_engine.core.data.stack_relation_type import StackRelationType
+    from gempy_engine.core.data.interpolation_functions import CustomInterpolationFunctions
+    from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
+    from gempy_engine.core.data.kernel_classes.orientations import Orientations
+    from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
+    from gempy_engine.core.data.interpolation_input import InterpolationInput
+    from gempy_engine.core.data.options import InterpolationOptions
+    from gempy_engine.core.data.kernel_classes.faults import FaultsData
+
+    extent = [0, 10.0, 0, 2.0, 0, 5.0]
+    resolution = [15, 2, 15]
+    regular_grid = RegularGrid(extent, resolution)
+    grid = EngineGrid(octree_grid=regular_grid)
+
+    def sphere_sdf(xyz: np.ndarray) -> np.ndarray:
+        center = (extent[1] - extent[0]) / 2
+        radius = center / 2
+        return -((xyz[:, 0] - center) ** 2 + (xyz[:, 1] - 1.0) ** 2 + (xyz[:, 2] - 2.5) ** 2 - radius ** 2)
+
+    null_space_func = CustomInterpolationFunctions(
+        scalar_field_at_surface_points=np.array([0.0]),
+        implicit_function=sphere_sdf,
+    )
+
+    fault_sp = np.array([
+        [5.0, 0.0, 2.5],
+        [5.0, 2.0, 2.5],
+    ])
+    fault_ori_pos = np.array([[5.0, 1.0, 2.5]])
+    fault_ori_grad = np.array([[1.0, 0.0, 0.0]])
+
+    lith_sp = np.array([
+        [2.0, 0.5, 2.5], [8.0, 0.5, 2.5],
+        [2.0, 0.5, 1.0], [8.0, 0.5, 1.0],
+    ])
+    lith_ori_pos = np.array([
+        [5.0, 1.0, 2.5],
+        [5.0, 1.0, 1.0],
+    ])
+    lith_ori_grad = np.array([
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 1.0],
+    ])
+
+    all_sp = np.vstack([fault_sp, lith_sp])
+    all_ori_pos = np.vstack([fault_ori_pos, lith_ori_pos])
+    all_ori_grad = np.vstack([fault_ori_grad, lith_ori_grad])
+
+    fault_input = FaultsData(
+        fault_values_everywhere=np.zeros((0, grid.len_all_grids)),
+        fault_values_on_sp=np.zeros((0, len(all_sp))),
+    )
+
+    stack_structure = StacksStructure(
+        number_of_points_per_stack=np.array([0, len(fault_sp), len(lith_sp)]),
+        number_of_orientations_per_stack=np.array([0, len(fault_ori_pos), len(lith_ori_pos)]),
+        number_of_surfaces_per_stack=np.array([0, 1, 2]),
+        masking_descriptor=[
+            StackRelationType.NULL_SPACE,
+            StackRelationType.FAULT,
+            StackRelationType.ERODE,
+        ],
+        interp_functions_per_stack=[null_space_func, None, None],
+        faults_relations=np.array([
+            [False, False, False],
+            [False, False, False],
+            [True, False, False],
+        ]),
+        faults_input_data=[None, fault_input, None],
+        null_space_id=-1,
+    )
+
+    tensor_struct = TensorsStructure(
+        number_of_points_per_surface=np.array([2, 2, 2]))
+
+    options = InterpolationOptions.from_args(
+        86.6, 3571.4, uni_degree=0, i_res=4, gi_res=2,
+        number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+    options.number_octree_levels = 2
+
+    spi = SurfacePoints(all_sp)
+    ori = Orientations(all_ori_pos, all_ori_grad)
+    ids = np.arange(6) + 1
+
+    interpolation_input = InterpolationInput(spi, ori, grid, ids)
+
+    solutions: Solutions = compute_model(
+        interpolation_input, options, InputDataDescriptor(tensor_struct, stack_structure))
+
+    lith_block = solutions.raw_arrays.lith_block
+    lith_flat = lith_block.reshape(-1)
+    unique_ids = np.unique(lith_flat)
+
+    assert 1 not in unique_ids, \
+        f"Fault id 1 should not appear in lith_block, got unique: {unique_ids}"
+    assert 2 in unique_ids, \
+        f"Expected first lithology id 2 in final block, got: {unique_ids}"

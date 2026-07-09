@@ -74,19 +74,26 @@ class InputDataDescriptor:
             if group.custom_interpolation is not None and structural_frame.number_of_points_per_group[i] == 0:
                 n_surfaces_per_stack[i] = 0
 
+        # 1. Extract interpolation functions logic
+        interp_functions = None
+        if any(group.custom_interpolation is not None for group in structural_frame.structural_groups):
+            interp_functions = [group.custom_interpolation for group in structural_frame.structural_groups]
+
+        # 2. Extract ignored grid types logic
+        ignored_grid_types = None
+        if any(group.ignored_grid_types for group in structural_frame.structural_groups):
+            ignored_grid_types = [group.ignored_grid_types for group in structural_frame.structural_groups]
+
+        # 3. Clean constructor call
         stack_structure = StacksStructure(
             number_of_points_per_stack=structural_frame.number_of_points_per_group,
             number_of_orientations_per_stack=structural_frame.number_of_orientations_per_group,
             number_of_surfaces_per_stack=n_surfaces_per_stack,
-            masking_descriptor=making_descriptor,
+            masking_descriptor=making_descriptor,  # Note: double-check if this typo 'making' vs 'masking' is intentional!
             faults_relations=faults_relations,
             faults_input_data=faults_input_data,
-            interp_functions_per_stack=[
-                group.custom_interpolation
-                for group in structural_frame.structural_groups
-            ] if any(group.custom_interpolation is not None
-                     for group in structural_frame.structural_groups)
-            else None
+            interp_functions_per_stack=interp_functions,
+            ignored_grid_types_per_stack=ignored_grid_types,
         )
 
         input_data_descriptor = cls(
