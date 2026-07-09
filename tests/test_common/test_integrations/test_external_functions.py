@@ -1236,3 +1236,10 @@ def test_null_space_with_fault_lith_block_ids():
         f"Fault id 1 should not appear in lith_block, got unique: {unique_ids}"
     assert 2 in unique_ids, \
         f"Expected first lithology id 2 in final block, got: {unique_ids}"
+    assert -1 in unique_ids, \
+        f"Expected null_space_id (-1) in final block, got: {unique_ids}"
+
+    null_cells = lith_flat == -1
+    fault_block = solutions.raw_arrays.fault_block.ravel()
+    assert np.all(fault_block[null_cells] == 0), \
+        f"NULL_SPACE cells should have fault id 0, got: {np.unique(fault_block[null_cells])}"

@@ -189,5 +189,6 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
     if has_null_space:
         null_mask = squeezed_value_block == init_value
         squeezed_value_block[null_mask] = stack_structure.null_space_id
+        squeezed_fault_block[null_mask] = 0
 
     return all_combined_scalar_fields
