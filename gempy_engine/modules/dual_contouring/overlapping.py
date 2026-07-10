@@ -4,6 +4,7 @@ from typing import List
 
 import numpy as np
 
+from gempy_engine.config import DUAL_CONTOURING_FAULT_OVERLAP_THREADING, AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
 from gempy_engine.modules.dual_contouring.apply_mesh_modifications import remove_triangles_in_voxels
@@ -172,19 +173,21 @@ def remove_fault_overlap_triangles(
     # 3. Process each destination mesh entirely in its own thread
     def _process_destination_mesh(di: int, fault_indices: List[int]):
         # Combine all fault codes targeting this mesh into one array
-        combined_fault_codes = np.concatenate([codes[fi] for fi in fault_indices])
+        combined_fault_codes = BackendTensor.t.concatenate([codes[fi] for fi in fault_indices])
 
         # Fast unique to reduce intersection workload
-        unique_fault_codes = np.unique(combined_fault_codes)
+        unique_fault_codes = BackendTensor.t.unique(combined_fault_codes)
 
         # assume_unique=True is safe here if codes[di] has no internal duplicates
-        common = np.intersect1d(codes[di], unique_fault_codes, assume_unique=True)
+        common = BackendTensor.t.intersect1d(codes[di], unique_fault_codes, assume_unique=True)
+        if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+            common = common[0]
 
         if common.size == 0:
             return
 
-        mask_d = np.isin(codes[di], common)
-        dest_voxel_indices = np.where(mask_d)[0]
+        mask_d = BackendTensor.t.isin(codes[di], common)
+        dest_voxel_indices =  BackendTensor.t.where(mask_d)[0]
 
         # Execute the heavy mesh mutation INSIDE the thread. 
         # Since each thread works on a different 'di', this is entirely thread-safe!
@@ -194,11 +197,17 @@ def remove_fault_overlap_triangles(
             mode='all'
         )
 
+    if not DUAL_CONTOURING_FAULT_OVERLAP_THREADING or False:
+        for di, faults in dest_to_faults.items():
+            _process_destination_mesh(di, faults)
+        return
+
     # 4. Launch the threads
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [
                 executor.submit(_process_destination_mesh, di, faults)
                 for di, faults in dest_to_faults.items()
         ]
-        # Wait for all mesh mutations to finish
-        concurrent.futures.wait(futures)
+        # Calling result() propagates worker exceptions to the caller/debugger.
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
