@@ -1243,3 +1243,116 @@ def test_null_space_with_fault_lith_block_ids():
     fault_block = solutions.raw_arrays.fault_block.ravel()
     assert np.all(fault_block[null_cells] == 0), \
         f"NULL_SPACE cells should have fault id 0, got: {np.unique(fault_block[null_cells])}"
+
+
+class TestComputeIndependentChunks:
+    """Unit tests for _compute_independent_chunks external-stack isolation."""
+
+    @staticmethod
+    def _make_stack_structure(n_stacks, external_indices=None, faults_relations=None,
+                               masking_descriptor=None, n_points=None, n_orientations=None,
+                               n_surfaces=None):
+        from gempy_engine.core.data.stacks_structure import StacksStructure
+        from gempy_engine.core.data.stack_relation_type import StackRelationType
+        from gempy_engine.core.data.interpolation_functions import CustomInterpolationFunctions
+
+        if n_points is None:
+            n_points = np.ones(n_stacks, dtype=int)
+        if n_orientations is None:
+            n_orientations = np.ones(n_stacks, dtype=int)
+        if n_surfaces is None:
+            n_surfaces = np.ones(n_stacks, dtype=int)
+        if masking_descriptor is None:
+            masking_descriptor = [StackRelationType.BASEMENT] * n_stacks
+
+        interp_functions = None
+        if external_indices is not None:
+            dummy_func = CustomInterpolationFunctions(
+                scalar_field_at_surface_points=np.array([0.0]),
+                implicit_function=lambda xyz: np.zeros(len(xyz)),
+            )
+            interp_functions = [
+                dummy_func if i in external_indices else None
+                for i in range(n_stacks)
+            ]
+
+        return StacksStructure(
+            number_of_points_per_stack=n_points,
+            number_of_orientations_per_stack=n_orientations,
+            number_of_surfaces_per_stack=n_surfaces,
+            masking_descriptor=masking_descriptor,
+            faults_relations=faults_relations,
+            interp_functions_per_stack=interp_functions,
+            null_space_id=-1,
+        )
+
+    def test_no_faults_no_external(self):
+        from gempy_engine.API.interp_single._multi_scalar_field_manager import _compute_independent_chunks
+
+        ss = self._make_stack_structure(n_stacks=4)
+        chunks = _compute_independent_chunks(ss, len_grid=100)
+        assert chunks == [[0, 1, 2, 3]]
+
+    def test_single_external_gets_its_own_chunk(self):
+        from gempy_engine.API.interp_single._multi_scalar_field_manager import _compute_independent_chunks
+
+        ss = self._make_stack_structure(n_stacks=3, external_indices={0})
+        chunks = _compute_independent_chunks(ss, len_grid=100)
+        assert chunks == [[1, 2], [0]], \
+            f"Expected external stack 0 as singleton, got {chunks}"
+
+    def test_multiple_externals_each_own_chunk(self):
+        from gempy_engine.API.interp_single._multi_scalar_field_manager import _compute_independent_chunks
+
+        ss = self._make_stack_structure(n_stacks=4, external_indices={0, 2})
+        chunks = _compute_independent_chunks(ss, len_grid=100)
+        assert [0] in chunks, f"External stack 0 should be singleton, got {chunks}"
+        assert [2] in chunks, f"External stack 2 should be singleton, got {chunks}"
+        assert [1, 3] in chunks, f"Normal stacks should be grouped, got {chunks}"
+
+    def test_external_with_fault_dependency_waits_for_fault(self):
+        from gempy_engine.API.interp_single._multi_scalar_field_manager import _compute_independent_chunks
+
+        ss = self._make_stack_structure(
+            n_stacks=3, external_indices={0},
+            masking_descriptor=[
+                StackRelationType.BASEMENT,
+                StackRelationType.FAULT,
+                StackRelationType.BASEMENT,
+            ],
+            faults_relations=np.array([
+                [False, False, False],
+                [False, False, False],
+                [True, False, False],
+            ]),
+        )
+        chunks = _compute_independent_chunks(ss, len_grid=100)
+        # Stack 1 (fault) can run independently of others
+        # Stack 2 depends on fault 1
+        # Stack 0 (external) also depends on fault 1
+        # Expected: [[1], [0, 2]] or [[1], [2, 0]]
+        assert len(chunks) == 2, f"Expected 2 chunks, got {chunks}"
+        assert 1 in chunks[0], f"Fault stack 1 should be first, got {chunks}"
+        assert 0 in chunks[1], f"External stack 0 should be in second chunk, got {chunks}"
+        assert [0] in [chunks[1]] or chunks[1] == [2, 0] or chunks[1] == [0, 2], \
+            f"External 0 should be a singleton in chunk 2, got {chunks}"
+
+    def test_no_external_behavior_unchanged(self):
+        from gempy_engine.API.interp_single._multi_scalar_field_manager import _compute_independent_chunks
+
+        ss = self._make_stack_structure(
+            n_stacks=3,
+            masking_descriptor=[
+                StackRelationType.ERODE,
+                StackRelationType.ERODE,
+                StackRelationType.BASEMENT,
+            ],
+            faults_relations=np.array([
+                [False, False, False],
+                [False, False, False],
+                [False, False, False],
+            ]),
+        )
+        chunks = _compute_independent_chunks(ss, len_grid=100)
+        assert chunks == [[0, 1, 2]], \
+            f"Without externals, all stacks should be in one chunk, got {chunks}"

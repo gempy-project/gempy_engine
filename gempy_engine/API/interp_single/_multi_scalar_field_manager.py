@@ -33,7 +33,9 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
     )
 
     if (os.getenv("GEMPY_FLAT_STACKS", "False").lower() in ("true", "1", "t", "y", "yes") and
-            BackendTensor.use_pykeops and not has_external_functions):
+            BackendTensor.use_pykeops 
+            # and not has_external_functions
+    ):
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack_flat(data_descriptor, interpolation_input, options)
     else:
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
@@ -164,13 +166,18 @@ def _compute_independent_chunks(stack_structure: StacksStructure, len_grid: int)
     faults_relations[j, i] == True means stack i depends on fault stack j.
     Stacks are processed in chunks where all stacks in a chunk have their
     fault dependencies already resolved by previous chunks.
+    
+    External-function stacks are always emitted as singleton chunks so they
+    are never batched into PyKeOps stacked solver/evaluator calls.
     """
 
     faults_relations = stack_structure.faults_relations
     masking_descriptor = stack_structure.masking_descriptor
     n_stacks = stack_structure.n_stacks
 
-    if faults_relations is None:
+    external_stacks = _get_external_stack_indices(stack_structure)
+
+    if faults_relations is None and not external_stacks:
         return [list(range(n_stacks))]
 
     fault_stacks = {i for i in range(n_stacks) if masking_descriptor[i] is StackRelationType.FAULT}
@@ -182,14 +189,22 @@ def _compute_independent_chunks(stack_structure: StacksStructure, len_grid: int)
     while remaining:
         chunk = []
         for i in sorted(remaining):
-            deps = {j for j in range(n_stacks) if faults_relations[j, i] and j in fault_stacks}
+            deps = set()
+            if faults_relations is not None:
+                deps = {j for j in range(n_stacks) if faults_relations[j, i] and j in fault_stacks}
             if deps.issubset(resolved):
                 chunk.append(i)
 
         if not chunk:
             raise RuntimeError("Circular fault dependency detected")
 
-        chunks.append(chunk)
+        normal = [i for i in chunk if i not in external_stacks]
+        external_subchunks = [[i] for i in chunk if i in external_stacks]
+
+        if normal:
+            chunks.append(normal)
+        chunks.extend(external_subchunks)
+
         remaining -= set(chunk)
         resolved.update(i for i in chunk if i in fault_stacks)
 
@@ -202,6 +217,10 @@ def _compute_independent_chunks(stack_structure: StacksStructure, len_grid: int)
 
     new_chunks = []
     for chunk in chunks:
+        if len(chunk) <= 1:
+            new_chunks.append(chunk)
+            continue
+
         current_sub_chunk = []
         current_chunk_cost = 0
         for stack_idx in chunk:
@@ -218,3 +237,9 @@ def _compute_independent_chunks(stack_structure: StacksStructure, len_grid: int)
     chunks = new_chunks
 
     return chunks
+
+
+def _get_external_stack_indices(stack_structure: StacksStructure) -> set[int]:
+    if stack_structure.interp_functions_per_stack is None:
+        return set()
+    return {i for i, f in enumerate(stack_structure.interp_functions_per_stack) if f is not None}
