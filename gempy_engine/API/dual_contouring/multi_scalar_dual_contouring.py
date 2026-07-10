@@ -254,17 +254,29 @@ def _interp_on_edges(
 
     gradients = []
     slicer_idx_start = 0
+    stack_relations = data_descriptor.stack_structure.masking_descriptor
     for e, o in enumerate(output_on_edges):
         slicer_idx_end = slicer_idx_start + all_stack_intersection[e].shape[0]
         slicer = slice(slicer_idx_start, slicer_idx_end)
         ef = o.exported_fields
+        has_intersections = all_stack_intersection[e].shape[0] > 0
+        is_null_space = stack_relations[e] is StackRelationType.NULL_SPACE
         if ef.gx_field is not None:
             gradients.append(BackendTensor.t.stack((
                     ef.gx_field[slicer],
                     ef.gy_field[slicer],
                     ef.gz_field[slicer]
             ), axis=0).T)  # ! When we are computing the edges for dual contouring there is no surface points
+        elif is_null_space:
+            gradients.append(BackendTensor.t.zeros((0, 3), dtype=BackendTensor.dtype_obj))
         else:
+            if has_intersections:
+                raise ValueError(
+                    f"Dual contouring requires gradients for stack {e} "
+                    f"(stack_relation={stack_relations[e].name}), "
+                    "but the external interpolation function does not provide "
+                    "gx/gy/gz_function callbacks."
+                )
             gradients.append(BackendTensor.t.zeros((0, 3), dtype=BackendTensor.dtype_obj))
         slicer_idx_start = slicer_idx_end
 

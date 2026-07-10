@@ -126,6 +126,7 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
     squeezed_value_block: ndarray = BackendTensor.t.full((1, lithology_mask.shape[1]), init_value)
     squeezed_fault_block: ndarray = BackendTensor.t.zeros((1, lithology_mask.shape[1]))
     squeezed_scalar_field_block: ndarray = BackendTensor.t.zeros((1, lithology_mask.shape[1]))
+    assigned_mask: ndarray = BackendTensor.t.zeros((1, lithology_mask.shape[1]), dtype=bool)
 
     def _apply_mask(block_to_squeeze: np.ndarray, squeezed_mask_array: np.ndarray, previous_block: np.ndarray) -> np.ndarray:
         return (previous_block + block_to_squeeze * squeezed_mask_array).reshape(-1)
@@ -142,6 +143,7 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
                 squeezed_mask_array=(lithology_mask[i]),
                 previous_block=squeezed_value_block
             )
+            assigned_mask = assigned_mask | lithology_mask[i]
 
         squeezed_scalar_field_block = _apply_mask(
             block_to_squeeze=interp_output.exported_fields.scalar_field,
@@ -187,7 +189,7 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
         all_combined_scalar_fields.append(combined_scalar_fields)
 
     if has_null_space:
-        null_mask = squeezed_value_block == init_value
+        null_mask = ~assigned_mask.reshape(-1)
         squeezed_value_block[null_mask] = stack_structure.null_space_id
         squeezed_fault_block[null_mask] = 0
 
