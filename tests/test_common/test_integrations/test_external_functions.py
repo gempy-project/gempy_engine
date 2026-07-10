@@ -323,7 +323,7 @@ def test_tent_topography_external_function(n_oct_levels=2):
     # region: Plot (guarded)
     # ------------------------------------------------------------------
 
-    if PLOT or True:
+    if PLOT:
         dc_data = solutions.dc_meshes[0].dc_data
         helper_functions_pyvista.plot_pyvista(
             solutions.octrees_output,
@@ -562,7 +562,7 @@ def test_tent_topography_compute_solutions(n_oct_levels=2):
     # region: Plot (same pattern as test_dual_contouring_multiple_independent_fields)
     # ------------------------------------------------------------------
 
-    if PLOT or True:
+    if PLOT:
         tent_verts = np.array([[2.0, 0.0, 1.0], [8.0, 0.0, 1.0], [8.0, 2.0, 1.0], [2.0, 2.0, 1.0], [5.0, 1.0, 4.5]])
         tent_faces = np.array([[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]], dtype=np.int32)
         helper_functions_pyvista.plot_pyvista(
@@ -873,6 +873,69 @@ def test_null_space_external_function_no_gradients(n_oct_levels=2):
 
     has_non_negative = (final_block_np >= 0).any()
     assert has_non_negative, "Expected some cells to have non-negative IDs"
+
+
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
+def test_external_function_no_gradients_raises_on_mesh_extraction(n_oct_levels=2):
+    """Non-NULL_SPACE external function without gradient callbacks raises
+    a clear ValueError during mesh extraction when intersections exist."""
+    from gempy_engine.core.data.engine_grid import EngineGrid
+    from gempy_engine.core.data.regular_grid import RegularGrid
+    from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+    from gempy_engine.core.data.stacks_structure import StacksStructure
+    from gempy_engine.core.data import TensorsStructure
+    from gempy_engine.core.data.stack_relation_type import StackRelationType
+    from gempy_engine.core.data.interpolation_functions import CustomInterpolationFunctions
+    from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
+    from gempy_engine.core.data.kernel_classes.orientations import Orientations
+    from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
+    from gempy_engine.core.data.interpolation_input import InterpolationInput
+    from gempy_engine.core.data.options import InterpolationOptions
+
+    extent = [0, 10.0, 0, 2.0, 0, 5.0]
+    resolution = [15, 2, 15]
+    regular_grid = RegularGrid(extent, resolution)
+    grid = EngineGrid(octree_grid=regular_grid)
+
+    def sphere_sdf(xyz: np.ndarray) -> np.ndarray:
+        center = (extent[1] - extent[0]) / 2
+        radius = center / 2
+        return -((xyz[:, 0] - center) ** 2 + (xyz[:, 1] - 1.0) ** 2 + (xyz[:, 2] - 2.5) ** 2 - radius ** 2)
+
+    no_grad_func = CustomInterpolationFunctions(
+        scalar_field_at_surface_points=np.array([0.0]),
+        implicit_function=sphere_sdf,
+    )
+
+    stack_structure = StacksStructure(
+        number_of_points_per_stack=np.array([0]),
+        number_of_orientations_per_stack=np.array([0]),
+        number_of_surfaces_per_stack=np.array([1]),
+        masking_descriptor=[StackRelationType.BASEMENT],
+        interp_functions_per_stack=[no_grad_func],
+    )
+
+    tensor_struct = TensorsStructure(
+        number_of_points_per_surface=np.array([0]))
+    input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
+
+    range_ = 0.8660254 * 100
+    c_o = 35.71428571 * 100
+    options = InterpolationOptions.from_args(
+        range_, c_o, uni_degree=0, i_res=4, gi_res=2,
+        number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+    options.number_octree_levels = n_oct_levels
+    options.evaluation_options.mesh_extraction_masking_options = \
+        MeshExtractionMaskingOptions.INTERSECT
+
+    spi = SurfacePoints(np.empty((0, 3)))
+    ori = Orientations(np.empty((0, 3)), np.empty((0, 3)))
+    ids = np.array([0])
+
+    interpolation_input = InterpolationInput(spi, ori, grid, ids)
+
+    with pytest.raises(ValueError, match="Dual contouring requires gradients"):
+        compute_model(interpolation_input, options, input_data_descriptor)
 
 
 @pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
