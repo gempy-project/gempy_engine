@@ -2,6 +2,7 @@ import concurrent.futures
 
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
 from ._interp_scalar_field import _evaluate_sys_eq, compute_weights
+from ._interp_single_feature import interpolate_feature_with_external_function
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.data import TensorsStructure, SurfacePoints, Orientations, SurfacePointsInternals, OrientationsInternals
@@ -38,6 +39,10 @@ class InterpolationState:
 
 
 def process_chunk(state: InterpolationState, chunk: list[int]):
+    if _is_external_chunk(state.stack_structure, chunk):
+        _process_external_chunk(state, chunk)
+        return
+
     # region preparation - build inputs for this chunk
     chunk_interpolation_inputs: list[InterpolationInput] = []
     chunk_tensor_structs: list[TensorsStructure] = []
@@ -327,3 +332,34 @@ def input_preprocess_v2(data_shape: TensorsStructure, interpolation_input: Inter
     solver_input.weights_x0 = BackendTensor.t.array(interpolation_input.weights)
 
     return solver_input
+
+
+def _is_external_chunk(stack_structure: StacksStructure, chunk: list[int]) -> bool:
+    if stack_structure.interp_functions_per_stack is None:
+        return False
+    if len(chunk) != 1:
+        return False
+    return stack_structure.interp_functions_per_stack[chunk[0]] is not None
+
+
+def _process_external_chunk(state: InterpolationState, chunk: list[int]):
+    i = chunk[0]
+    state.stack_structure.stack_number = i
+
+    options_i = (state.stack_structure.interpolation_options
+                 if state.stack_structure.interpolation_options is not None
+                 else state.options)
+
+    interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
+        all_interpolation_input=state.root_interpolation_input,
+        stack_structure=state.stack_structure
+    )
+
+    output: ScalarFieldOutput = interpolate_feature_with_external_function(
+        interpolation_input=interpolation_input_i,
+        options=options_i,
+        external_interp_funct=state.stack_structure.interp_function,
+        external_segment_funct=state.stack_structure.segmentation_function,
+    )
+
+    state.all_scalar_fields_outputs[i] = output
