@@ -82,7 +82,7 @@ class ScalarFieldOutput:
     def _compute_mask_components(exported_fields: ExportedFields, stack_relation: StackRelationType,
                                  fault_thickness: Optional[float] = None) -> np.ndarray:
         match stack_relation:
-            case StackRelationType.ERODE:
+            case StackRelationType.ERODE | StackRelationType.NULL_SPACE:
                 erode_limit_value = exported_fields.scalar_field_at_surface_points.min()
                 mask_array = exported_fields.scalar_field > erode_limit_value
             case StackRelationType.ONLAP:

@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Callable, Iterable
+from typing import List, Optional, Callable, Iterable, Tuple
 
 import numpy as np
 
@@ -25,6 +25,10 @@ class StacksStructure:
     segmentation_functions_per_stack: Optional[List[Callable[[np.ndarray], float]]] = None
     interpolation_options_per_stack : Optional[List[InterpolationOptions]] = None
 
+    # * Null-space stack configuration
+    ignored_grid_types_per_stack    : Optional[List[Tuple[str, ...]]] = None
+    null_space_id: int = -1
+
     _number_of_points_per_stack_vector      : np.ndarray = field(default_factory=lambda: np.ones(1))
     _number_of_orientations_per_stack_vector: np.ndarray = field(default_factory=lambda: np.ones(1))
     _number_of_surfaces_per_stack_vector    : np.ndarray = field(default_factory=lambda: np.ones(1))
@@ -32,10 +36,16 @@ class StacksStructure:
     stack_number: int = -1
 
     def __post_init__(self):
-                
-        self.number_of_points_per_stack       = self.number_of_points_per_stack[self.number_of_points_per_stack != 0]
-        self.number_of_orientations_per_stack = self.number_of_orientations_per_stack[self.number_of_orientations_per_stack != 0]
-        self.number_of_surfaces_per_stack     = self.number_of_surfaces_per_stack[self.number_of_surfaces_per_stack != 0]
+        # Zero-count entries are allowed (e.g. null-space stacks with external functions)
+        # They create degenerate cumsum entries [x, x] in the vectors but that's harmless
+        
+        consistent_shapes: bool =  len(self.number_of_points_per_stack) == \
+                                   len(self.number_of_orientations_per_stack) == \
+                                   len(self.number_of_surfaces_per_stack) == \
+                                   len(self.masking_descriptor)
+
+        if not consistent_shapes:
+            raise ValueError("Inconsistent shapes in StacksStructure")
         
         consistent_shapes: bool =  len(self.number_of_points_per_stack) == \
                                    len(self.number_of_orientations_per_stack) == \
@@ -68,6 +78,12 @@ class StacksStructure:
     @property
     def active_masking_descriptor(self) -> StackRelationType:
         return self.masking_descriptor[self.stack_number]
+
+    @property
+    def active_ignored_grid_types(self) -> Tuple[str, ...]:
+        if self.ignored_grid_types_per_stack is None:
+            return ()
+        return self.ignored_grid_types_per_stack[self.stack_number]
 
     @property
     def active_faults_input_data(self) -> FaultsData:

@@ -8,3 +8,4 @@ class StackRelationType(enum.Enum):
     ONLAP = enum.auto()
     FAULT = enum.auto()
     BASEMENT = enum.auto()
+    NULL_SPACE = enum.auto()

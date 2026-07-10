@@ -9,26 +9,30 @@ from gempy_engine.core.data.exported_structs import CombinedScalarFieldsOutput
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data.stack_relation_type import StackRelationType
+from gempy_engine.core.data.stacks_structure import StacksStructure
 
 
 def combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
                           data_descriptor: InputDataDescriptor,
                           compute_scalar_grad: bool = False) -> List[CombinedScalarFieldsOutput]:
+    stack_structure = data_descriptor.stack_structure
     return _combine_scalar_fields(
         all_scalar_fields_outputs=all_scalar_fields_outputs,
-        lithology_mask=_lithology_mask(all_scalar_fields_outputs, data_descriptor.stack_relation),
+        lithology_mask=_lithology_mask(all_scalar_fields_outputs, stack_structure),
         faults_mask=_faults_mask(all_scalar_fields_outputs, data_descriptor.stack_relation),
+        stack_relation=data_descriptor.stack_relation,
+        stack_structure=stack_structure,
         compute_scalar_grad=compute_scalar_grad
     )
 
 
-def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relation: List[StackRelationType]) -> np.ndarray:
+def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_structure: StacksStructure) -> np.ndarray:
     n_scalar_fields = len(all_scalar_fields_outputs)
     grid_size = all_scalar_fields_outputs[0].grid_size
     mask_matrix = BackendTensor.t.zeros((n_scalar_fields, grid_size), dtype=bool)
+    stack_relation = stack_structure.masking_descriptor
 
     onlap_chain_counter = 0
-    # Setting the mask matrix
     for i in range(n_scalar_fields):
         onlap_chain_cont: bool = stack_relation[i - 1] in [StackRelationType.ONLAP, StackRelationType.FAULT]
         onlap_chain_began: bool = stack_relation[i - 1 - onlap_chain_counter] is StackRelationType.ONLAP
@@ -43,12 +47,22 @@ def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_re
             reversed_cumprod_mask = BackendTensor.t.flip(cumprod_mask, axis=0)
             mask_matrix[i - onlap_chain_counter: i] = reversed_cumprod_mask
 
-        # convert to match
         match stack_relation[i]:
             case StackRelationType.ONLAP:
                 pass
             case StackRelationType.ERODE:
                 mask_lith = all_scalar_fields_outputs[i].mask_components_erode
+                mask_matrix[i, :] = mask_lith
+            case StackRelationType.NULL_SPACE:
+                mask_lith = all_scalar_fields_outputs[i].mask_components_erode
+                # Zero out ignored grid slices for this null-space stack
+                stack_structure.stack_number = i
+                ignored_types = stack_structure.active_ignored_grid_types
+                if ignored_types:
+                    output_grid = all_scalar_fields_outputs[i].grid
+                    for grid_name in ignored_types:
+                        slc = _grid_slice_for_name(output_grid, grid_name)
+                        mask_lith[slc] = False
                 mask_matrix[i, :] = mask_lith
             case StackRelationType.FAULT:
                 mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_fault
@@ -57,13 +71,32 @@ def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_re
             case _:
                 raise ValueError(f"Stack relation {stack_relation[i]} not recognized")
 
-    # Doing the black magic
     final_mask_array = BackendTensor.t.zeros((n_scalar_fields, grid_size), dtype=bool)
     final_mask_array[0] = mask_matrix[-1]
     final_mask_array[1:] = BackendTensor.t.cumprod(BackendTensor.t.invert(mask_matrix[:-1]), axis=0)
     final_mask_array *= mask_matrix
 
     return final_mask_array
+
+
+def _grid_slice_for_name(grid: "EngineGrid", name: str) -> slice:
+    match name:
+        case "custom_grid":
+            return grid.custom_grid_slice
+        case "dense_grid":
+            return grid.dense_grid_slice
+        case "topography":
+            return grid.topography_slice
+        case "sections":
+            return grid.sections_slice
+        case "geophysics_grid":
+            return grid.geophysics_grid_slice
+        case "octree_grid":
+            return grid.octree_grid_slice
+        case "corners_grid":
+            return grid.corners_grid_slice
+        case _:
+            raise ValueError(f"Unknown grid type: {name}")
 
 
 def _faults_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relation: List[StackRelationType]) -> np.ndarray:
@@ -84,9 +117,13 @@ def _faults_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_relat
 def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
                            lithology_mask: np.ndarray,
                            faults_mask: np.ndarray,
+                           stack_relation: List[StackRelationType],
+                           stack_structure: StacksStructure,
                            compute_scalar_grad: bool = False) -> List[CombinedScalarFieldsOutput]:
     n_scalar_fields: int = len(all_scalar_fields_outputs)
-    squeezed_value_block: ndarray = BackendTensor.t.zeros((1, lithology_mask.shape[1]))
+    has_null_space = any(r == StackRelationType.NULL_SPACE for r in stack_relation)
+    init_value = stack_structure.null_space_id if has_null_space else 0
+    squeezed_value_block: ndarray = BackendTensor.t.full((1, lithology_mask.shape[1]), init_value)
     squeezed_fault_block: ndarray = BackendTensor.t.zeros((1, lithology_mask.shape[1]))
     squeezed_scalar_field_block: ndarray = BackendTensor.t.zeros((1, lithology_mask.shape[1]))
 
@@ -97,11 +134,14 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
     for i in range(n_scalar_fields):
         interp_output: ScalarFieldOutput = all_scalar_fields_outputs[i]
 
-        squeezed_value_block = _apply_mask(
-            block_to_squeeze=interp_output.values_block,
-            squeezed_mask_array=(lithology_mask[i]),
-            previous_block=squeezed_value_block
-        )
+        if stack_relation[i] is StackRelationType.NULL_SPACE:
+            squeezed_value_block = squeezed_value_block + BackendTensor.t.zeros_like(squeezed_value_block)
+        else:
+            squeezed_value_block = _apply_mask(
+                block_to_squeeze=interp_output.values_block,
+                squeezed_mask_array=(lithology_mask[i]),
+                previous_block=squeezed_value_block
+            )
 
         squeezed_scalar_field_block = _apply_mask(
             block_to_squeeze=interp_output.exported_fields.scalar_field,
@@ -115,7 +155,7 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
             previous_block=squeezed_fault_block
         )
 
-        if compute_scalar_grad is True:
+        if compute_scalar_grad is True and interp_output.exported_fields.gx_field is not None:
             squeezed_gx_block: Optional[ndarray] = BackendTensor.t.zeros((1, lithology_mask.shape[1]))
             squeezed_gy_block: Optional[ndarray] = BackendTensor.t.zeros((1, lithology_mask.shape[1]))
             squeezed_gz_block: Optional[ndarray] = BackendTensor.t.zeros((1, lithology_mask.shape[1]))

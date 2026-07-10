@@ -11,6 +11,7 @@ from gempy_engine.core.data.interp_output import InterpOutput
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data.exported_fields import ExportedFields
 from gempy_engine.core.data.options import MeshExtractionMaskingOptions
+from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.modules.activator.activator_interface import activate_formation_block
 from gempy_engine.plugins.plotting import helper_functions_pyvista
 from tests.conftest import TEST_SPEED
@@ -775,6 +776,100 @@ def test_tent_topography_scalar_field_3d():
 
     out_path = "tent_topography_below_surface_3d.png"
     plotter.show(title="Tent topography — below-surface region",
-                 screenshot=out_path)
+                  screenshot=out_path)
 
     # endregion
+
+
+@pytest.mark.skipif(TEST_SPEED.value <= 1, reason="Global test speed below this test value.")
+def test_null_space_external_function_no_gradients(n_oct_levels=2):
+    """Null-space external function (sphere SDF, no gradients) with
+    zero surface points and zero orientations. Validates that:
+    - compute_model succeeds without gradients
+    - null-space stack is excluded from dual contouring meshes
+    - final block has -1 (null_space_id) in masked regions
+    """
+
+    from gempy_engine.core.data.engine_grid import EngineGrid
+    from gempy_engine.core.data.regular_grid import RegularGrid
+    from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+    from gempy_engine.core.data.stacks_structure import StacksStructure
+    from gempy_engine.core.data import TensorsStructure
+    from gempy_engine.core.data.stack_relation_type import StackRelationType
+    from gempy_engine.core.data.interpolation_functions import CustomInterpolationFunctions
+    from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
+    from gempy_engine.core.data.kernel_classes.orientations import Orientations
+    from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
+    from gempy_engine.core.data.interpolation_input import InterpolationInput
+    from gempy_engine.core.data.options import InterpolationOptions
+
+    extent = [0, 10.0, 0, 2.0, 0, 5.0]
+    resolution = [15, 2, 15]
+    regular_grid = RegularGrid(extent, resolution)
+    grid = EngineGrid(octree_grid=regular_grid)
+
+    def sphere_sdf(xyz: np.ndarray) -> np.ndarray:
+        center = (extent[1] - extent[0]) / 2
+        radius = center / 2
+        return -((xyz[:, 0] - center) ** 2 + (xyz[:, 1] - 1.0) ** 2 + (xyz[:, 2] - 2.5) ** 2 - radius ** 2)
+
+    null_space_func = CustomInterpolationFunctions(
+        scalar_field_at_surface_points=np.array([0.0]),
+        implicit_function=sphere_sdf,
+    )
+
+    n_sp_geo = 4
+    n_ori_geo = 2
+
+    sp_coords = np.array([[2.0, 0.5, 2.5], [8.0, 0.5, 2.5], [2.0, 0.5, 1.0], [8.0, 0.5, 1.0]])
+    dip_positions = np.array([[5.0, 1.0, 2.5], [5.0, 1.0, 1.0]])
+    dip_gradients = np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]])
+
+    stack_structure = StacksStructure(
+        number_of_points_per_stack=np.array([0, n_sp_geo]),
+        number_of_orientations_per_stack=np.array([0, n_ori_geo]),
+        number_of_surfaces_per_stack=np.array([0, 2]),
+        masking_descriptor=[
+            StackRelationType.NULL_SPACE,
+            StackRelationType.BASEMENT,
+        ],
+        interp_functions_per_stack=[null_space_func, None],
+        null_space_id=-1,
+    )
+
+    tensor_struct = TensorsStructure(
+        number_of_points_per_surface=np.array([2, 2]))
+    input_data_descriptor = InputDataDescriptor(tensor_struct, stack_structure)
+
+    range_ = 0.8660254 * 100
+    c_o = 35.71428571 * 100
+    options = InterpolationOptions.from_args(
+        range_, c_o, uni_degree=0, i_res=4, gi_res=2,
+        number_dimensions=3, kernel_function=AvailableKernelFunctions.cubic)
+    options.number_octree_levels = n_oct_levels
+    options.debug = True
+    options.evaluation_options.mesh_extraction_masking_options = \
+        MeshExtractionMaskingOptions.INTERSECT
+
+    spi = SurfacePoints(sp_coords)
+    ori = Orientations(dip_positions, dip_gradients)
+    ids = np.array([0, 1, 2])
+
+    interpolation_input = InterpolationInput(spi, ori, grid, ids)
+
+    solutions: Solutions = compute_model(
+        interpolation_input, options, input_data_descriptor)
+
+    assert solutions is not None
+    assert solutions.dc_meshes is not None
+
+    n_non_null_stacks = 1
+    assert len(solutions.dc_meshes) == n_non_null_stacks * 2
+
+    final_block = solutions.octrees_output[-1].last_output_center.final_block
+    final_block_np = np.array(final_block).reshape(-1)
+    has_minus_one = (final_block_np == -1).any()
+    assert has_minus_one, "Expected some cells to be -1 (null-space masked)"
+
+    has_non_negative = (final_block_np >= 0).any()
+    assert has_non_negative, "Expected some cells to have non-negative IDs"

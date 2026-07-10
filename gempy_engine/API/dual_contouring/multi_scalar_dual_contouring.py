@@ -15,6 +15,7 @@ from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.octree_level import OctreeLevel
+from ...core.data.stack_relation_type import StackRelationType
 from ...core.utils import gempy_profiler_decorator
 from ...modules.dual_contouring.dual_contouring_v2 import compute_dual_contouring_v2
 from ...modules.dual_contouring.weighted_qef_setup_multicore import find_and_inject_multi_surface_constraints_multicore
@@ -105,7 +106,10 @@ def dual_contouring_multi_scalar(
     surface_to_stack = []  # track which stack each surface belongs to
     # Generate meshes for each scalar field
     dc_data_per_surface_all = []
+    stack_relations = data_descriptor.stack_structure.masking_descriptor
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
+        if stack_relations[n_scalar_field] is StackRelationType.NULL_SPACE:
+            continue
         output: InterpOutput = octree_leaves.outputs[n_scalar_field]
         mask = all_mask_arrays[n_scalar_field]
         n_surfaces_to_export = output.scalar_field_at_sp.shape[0]
@@ -254,11 +258,14 @@ def _interp_on_edges(
         slicer_idx_end = slicer_idx_start + all_stack_intersection[e].shape[0]
         slicer = slice(slicer_idx_start, slicer_idx_end)
         ef = o.exported_fields
-        gradients.append(BackendTensor.t.stack((
-                ef.gx_field[slicer],
-                ef.gy_field[slicer],
-                ef.gz_field[slicer]
-        ), axis=0).T)  # ! When we are computing the edges for dual contouring there is no surface points
+        if ef.gx_field is not None:
+            gradients.append(BackendTensor.t.stack((
+                    ef.gx_field[slicer],
+                    ef.gy_field[slicer],
+                    ef.gz_field[slicer]
+            ), axis=0).T)  # ! When we are computing the edges for dual contouring there is no surface points
+        else:
+            gradients.append(BackendTensor.t.zeros((0, 3), dtype=BackendTensor.dtype_obj))
         slicer_idx_start = slicer_idx_end
 
     return gradients

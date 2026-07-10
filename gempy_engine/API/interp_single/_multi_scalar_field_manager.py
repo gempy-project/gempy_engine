@@ -26,8 +26,14 @@ from ...core.data.stacks_structure import StacksStructure
 def interpolate_all_fields(interpolation_input: InterpolationInput, options: InterpolationOptions,
                            data_descriptor: InputDataDescriptor) -> List[InterpOutput]:
     """Interpolate all scalar fields given a xyz array of points"""
+    
+    has_external_functions = (
+        data_descriptor.stack_structure.interp_functions_per_stack is not None and
+        any(f is not None for f in data_descriptor.stack_structure.interp_functions_per_stack)
+    )
 
-    if os.getenv("GEMPY_FLAT_STACKS", "False").lower() in ("true", "1", "t", "y", "yes") and BackendTensor.use_pykeops:
+    if (os.getenv("GEMPY_FLAT_STACKS", "False").lower() in ("true", "1", "t", "y", "yes") and
+            BackendTensor.use_pykeops and not has_external_functions):
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack_flat(data_descriptor, interpolation_input, options)
     else:
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack(data_descriptor, interpolation_input, options)
@@ -95,25 +101,39 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
     for i in range(stack_structure.n_stacks):  # TODO: This is the loop we need to split
         stack_structure.stack_number = i
 
-        tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
-        interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
-            all_interpolation_input=root_interpolation_input,
-            stack_structure=stack_structure
-        )
-
-        fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
-            _all_stack_values_block=all_stack_values_block,
-            _interpolation_input_i=interpolation_input_i,
-            _stack_structure=stack_structure,
-            grid_size=interpolation_input_i.grid.len_all_grids
-        )
-        interpolation_input_i.fault_values = fault_input
-        solver_input: SolverInput = input_preprocess(tensor_struct_i, interpolation_input_i)
-
         # Check for stack specific options override
         options_i = stack_structure.interpolation_options if stack_structure.interpolation_options is not None else options
 
-        if stack_structure.interp_function is None:
+        if stack_structure.interp_function is not None:
+            # External function path - skip tensor/solver prep (may have zero points/orientations)
+            interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
+                all_interpolation_input=root_interpolation_input,
+                stack_structure=stack_structure
+            )
+
+            output: ScalarFieldOutput = interpolate_feature_with_external_function(
+                interpolation_input=interpolation_input_i,
+                options=options_i,
+                external_interp_funct=stack_structure.interp_function,
+                external_segment_funct=stack_structure.segmentation_function,
+            )
+        else:
+            # Normal cokriging path
+            tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(root_data_descriptor, i)
+            interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
+                all_interpolation_input=root_interpolation_input,
+                stack_structure=stack_structure
+            )
+
+            fault_input: FaultsData = _grab_stack_fault_data(  # * FAULTS
+                _all_stack_values_block=all_stack_values_block,
+                _interpolation_input_i=interpolation_input_i,
+                _stack_structure=stack_structure,
+                grid_size=interpolation_input_i.grid.len_all_grids
+            )
+            interpolation_input_i.fault_values = fault_input
+            solver_input: SolverInput = input_preprocess(tensor_struct_i, interpolation_input_i)
+
             output: ScalarFieldOutput = interpolate_feature_with_cokrig(
                 interpolation_input=interpolation_input_i,
                 options=options_i,
@@ -121,13 +141,6 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
                 solver_input=solver_input,
                 external_segment_funct=stack_structure.segmentation_function,
                 stack_number=i
-            )
-        else:
-            output: ScalarFieldOutput = interpolate_feature_with_external_function(
-                interpolation_input=interpolation_input_i,
-                options=options_i,
-                external_interp_funct=stack_structure.interp_function,
-                external_segment_funct=stack_structure.segmentation_function,
             )
 
         # @on

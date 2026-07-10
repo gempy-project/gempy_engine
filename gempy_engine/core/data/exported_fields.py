@@ -77,14 +77,20 @@ class ExportedFields:
 
     @property
     def gx_field(self):
+        if self._gx_field is None:
+            return None
         return self._gx_field[:self._grid_size]
 
     @property
     def gy_field(self):
+        if self._gy_field is None:
+            return None
         return self._gy_field[:self._grid_size]
 
     @property
     def gz_field(self):
+        if self._gz_field is None:
+            return None
         return self._gz_field[:self._grid_size]
 
     @property
