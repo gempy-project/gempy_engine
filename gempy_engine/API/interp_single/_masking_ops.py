@@ -122,7 +122,7 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
                            compute_scalar_grad: bool = False) -> List[CombinedScalarFieldsOutput]:
     n_scalar_fields: int = len(all_scalar_fields_outputs)
     has_null_space = any(r == StackRelationType.NULL_SPACE for r in stack_relation)
-    init_value = stack_structure.null_space_id if has_null_space else 0
+    init_value = 0
     squeezed_value_block: ndarray = BackendTensor.t.full((1, lithology_mask.shape[1]), init_value)
     squeezed_fault_block: ndarray = BackendTensor.t.zeros((1, lithology_mask.shape[1]))
     squeezed_scalar_field_block: ndarray = BackendTensor.t.zeros((1, lithology_mask.shape[1]))
@@ -185,5 +185,10 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
         )
 
         all_combined_scalar_fields.append(combined_scalar_fields)
+
+    if has_null_space:
+        null_mask = squeezed_value_block == init_value
+        squeezed_value_block[null_mask] = stack_structure.null_space_id
+        squeezed_fault_block[null_mask] = 0
 
     return all_combined_scalar_fields
