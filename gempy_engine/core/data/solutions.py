@@ -47,10 +47,12 @@ class Solutions:
 
 
     def __repr__(self):
-        return f"Solutions({len(self.octrees_output)} Octree Levels, {len(self.dc_meshes)} DualContouringMeshes)"
+        n_meshes = len(self.dc_meshes) if self.dc_meshes is not None else 0
+        return f"Solutions({len(self.octrees_output)} Octree Levels, {n_meshes} DualContouringMeshes)"
 
     def _repr_html_(self):
-        return f"<b>Solutions:</b> {len(self.octrees_output)} Octree Levels, {len(self.dc_meshes)} DualContouringMeshes"
+        n_meshes = len(self.dc_meshes) if self.dc_meshes is not None else 0
+        return f"<b>Solutions:</b> {len(self.octrees_output)} Octree Levels, {n_meshes} DualContouringMeshes"
 
     @property
     def block_solution_resolution(self) -> np.ndarray:
