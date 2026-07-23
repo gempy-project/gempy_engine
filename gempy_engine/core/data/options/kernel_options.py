@@ -1,4 +1,5 @@
 import warnings
+import math
 
 from dataclasses import dataclass, asdict
 from typing import Optional
@@ -24,15 +25,26 @@ class KernelOptions:
     compute_condition_number: bool = False
     optimizing_condition_number: bool = False
     condition_number: Optional[float] = None
+    condition_number_before: Optional[float] = None
+    condition_number_after: Optional[float] = None
 
     fault_drift_equilibration: bool = True
     fault_drift_regularization: float = 1e-3
+    symmetric_equilibration_method: str = "none"
+    symmetric_equilibration_max_iterations: int = 10
+    symmetric_equilibration_tolerance: float = 1e-2
 
     def __post_init__(self):
         self.range = float(self.range)
         self.c_o = float(self.c_o)
-        if self.fault_drift_regularization < 0:
-            raise ValueError("fault_drift_regularization must be non-negative")
+        if not math.isfinite(self.fault_drift_regularization) or self.fault_drift_regularization < 0:
+            raise ValueError("fault_drift_regularization must be finite and non-negative")
+        if self.symmetric_equilibration_method not in ("none", "ruiz"):
+            raise ValueError("symmetric_equilibration_method must be 'none' or 'ruiz'")
+        if self.symmetric_equilibration_max_iterations < 1:
+            raise ValueError("symmetric_equilibration_max_iterations must be at least 1")
+        if not math.isfinite(self.symmetric_equilibration_tolerance) or self.symmetric_equilibration_tolerance < 0:
+            raise ValueError("symmetric_equilibration_tolerance must be finite and non-negative")
 
     @field_validator('kernel_function', mode='before', json_schema_input_type=str)
     @classmethod
@@ -107,6 +119,9 @@ class KernelOptions:
                 self.compute_condition_number,
                 self.fault_drift_equilibration,
                 self.fault_drift_regularization,
+                self.symmetric_equilibration_method,
+                self.symmetric_equilibration_max_iterations,
+                self.symmetric_equilibration_tolerance,
         ))
 
     def __repr__(self):

@@ -106,13 +106,13 @@ def one_finite_fault_model():
 
     spi = SurfacePoints(sp_coords)
     ori = Orientations(dip_postions, dip_gradients)
-    ids = np.array([1, 2, 3, 4, 5, 6])
+    ids = np.array([1, 2, 3, 4, 5, 6, 7])
 
     # resolution = [40, 2, 40]
     resolution = [4, 4, 4]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
     regular_grid = RegularGrid(extent, resolution)
-    grid = EngineGrid(regular_grid.values, regular_grid=regular_grid)
+    grid = EngineGrid(octree_grid=regular_grid)
 
     interpolation_input = InterpolationInput(spi, ori, grid, ids)
     # endregion
@@ -130,7 +130,7 @@ def one_finite_fault_model():
         number_of_points_per_stack=np.array([9, 24, 37]),
         number_of_orientations_per_stack=np.array([1, 4, 6]),
         number_of_surfaces_per_stack=np.array([1, 2, 3]),
-        masking_descriptor=[StackRelationType.FAULT, StackRelationType.ERODE, StackRelationType.ERODE, StackRelationType.BASEMENT],
+        masking_descriptor=[StackRelationType.FAULT, StackRelationType.ERODE, StackRelationType.ERODE],
         faults_relations=faults_relations
     )
 
