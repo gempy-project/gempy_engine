@@ -124,6 +124,39 @@ def _check_input_validity(interpolation_input: InterpolationInput, options: Inte
             f"Consistency Error: Orientations dip_positions ({interpolation_input.orientations.dip_positions.shape[0]}) "
             f"and dip_gradients ({interpolation_input.orientations.dip_gradients.shape[0]}) must have the same number of items."
         )
+    if (
+        interpolation_input.orientations.dip_positions.ndim != 2
+        or interpolation_input.orientations.dip_positions.shape[1] != options.kernel_options.number_dimensions
+    ):
+        raise GemPyEngineInputError(
+            "Consistency Error: Orientation coordinate dimensionality must match kernel_options.number_dimensions."
+        )
+    if (
+        interpolation_input.orientations.dip_gradients.ndim != 2
+        or interpolation_input.orientations.dip_gradients.shape[1] != options.kernel_options.number_dimensions
+    ):
+        raise GemPyEngineInputError(
+            "Consistency Error: Orientation gradient dimensionality must match kernel_options.number_dimensions."
+        )
+    if (
+        interpolation_input.surface_points.sp_coords.ndim != 2
+        or interpolation_input.surface_points.sp_coords.shape[1] != options.kernel_options.number_dimensions
+    ):
+        raise GemPyEngineInputError(
+            "Consistency Error: Surface-point coordinate dimensionality must match kernel_options.number_dimensions."
+        )
+    _validate_nugget(
+        interpolation_input.orientations.nugget_effect_grad,
+        interpolation_input.orientations.n_items,
+        "orientation",
+        allow_negative=options.kernel_options.optimizing_condition_number,
+    )
+    _validate_nugget(
+        interpolation_input.surface_points.nugget_effect_scalar,
+        interpolation_input.surface_points.n_points,
+        "surface-point",
+        allow_negative=options.kernel_options.optimizing_condition_number,
+    )
 
     # 2. Check consistency with TensorsStructure
     # 2.1 Total surface points consistency
@@ -195,3 +228,15 @@ def _check_input_validity(interpolation_input: InterpolationInput, options: Inte
             f"Validation Error: Surface {surface_index} has no surface points. "
             f"Each surface must have at least one surface point."
         )
+
+
+def _validate_nugget(nugget, expected_size: int, name: str, allow_negative: bool):
+    values = np.asarray(BackendTensor.t.to_numpy(nugget))
+    if values.ndim != 1 or values.shape[0] != expected_size:
+        raise GemPyEngineInputError(
+            f"Validation Error: {name} nugget must have shape ({expected_size},), got {values.shape}."
+        )
+    if not np.isfinite(values).all():
+        raise GemPyEngineInputError(f"Validation Error: {name} nugget values must be finite.")
+    if not allow_negative and (values < 0).any():
+        raise GemPyEngineInputError(f"Validation Error: {name} nugget values must be non-negative.")

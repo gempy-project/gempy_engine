@@ -13,13 +13,14 @@ from gempy_engine.modules.kernel_constructor._structs import tensor_types
 @dataclass(frozen=False)
 class SurfacePoints:
     sp_coords: np.ndarray
+    # Relative observation variance; covariance assembly scales it by KernelOptions.c_o.
     nugget_effect_scalar: Union[np.ndarray, float] = 0.000001
 
     # TODO (Sep 2022): Pretty sure this has to be private
     slice_feature: Optional[slice] = field(default_factory=lambda: slice(None, None))  # * Used to slice the surface points values of the interpolation (grid.values)
 
     def __post_init__(self):
-        if type(self.nugget_effect_scalar) is float or type(self.nugget_effect_scalar) is int:
+        if np.isscalar(self.nugget_effect_scalar):
             self.nugget_effect_scalar = np.ones(self.n_points) * self.nugget_effect_scalar
         cast_type_inplace(self, requires_grad=BackendTensor.COMPUTE_GRADS)  # TODO: This has to be grabbed from options
 

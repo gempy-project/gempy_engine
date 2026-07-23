@@ -322,7 +322,6 @@ class TestPykeopsNumPyEqual():
     def test_compare_cg(self, preprocess_data):
         self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_grad", cov_func=_test_covariance_items)
         
-    @pytest.mark.skip(reason="Deprecated")
     def test_compare_ci(self, preprocess_data):
         self._compare_covariance_item_numpy_pykeops(preprocess_data, item="cov_sp", cov_func=_test_covariance_items)
 
@@ -365,7 +364,7 @@ class TestPykeopsNumPyEqual():
             item=item,
             execution_mode=KernelExecutionMode.SYMBOLIC,
         )
-        c_k_sum = c_n.sum(0).reshape(-1, 1)
+        c_k_sum = c_k.sum(0).reshape(-1, 1)
 
         print('l: ', l)
         print("just numpy: ", c_n, c_n_sum)
