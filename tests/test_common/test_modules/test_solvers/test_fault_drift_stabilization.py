@@ -161,11 +161,14 @@ def test_whole_system_equilibration_on_fault_models(request, fixture_name):
     options.evaluation_options.dual_contouring = False
     options.kernel_options.compute_condition_number = True
     options.kernel_options.symmetric_equilibration_method = "ruiz"
+    options.kernel_options.drift_diagnostics = True
+    options.kernel_options.drift_rank_policy = "ignore"
 
     solutions = compute_model(interpolation_input, options, structure)
 
     for output in solutions.octrees_output[-1].outputs:
         scalar_field = output.exported_fields.scalar_field
         assert np.isfinite(BackendTensor.t.to_numpy(scalar_field)).all()
+        assert "drift_diagnostics" in output.exported_fields.debug
     assert np.isfinite(float(BackendTensor.t.to_numpy(options.kernel_options.condition_number_after)))
     assert np.isfinite(float(BackendTensor.t.to_numpy(options.kernel_options.condition_number_before)))
