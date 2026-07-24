@@ -18,7 +18,7 @@ class SolverInput(object):
     _fault_internal: Optional[FaultsData] = field(init=False, hash=False)
     weights_x0: Optional[np.ndarray] = None
 
-    debug = None
+    debug: Optional[dict] = None
 
     def __init__(self, sp_internal: SurfacePointsInternals, ori_internal: OrientationsInternals,
                  xyz_to_interpolate: np.ndarray = None, fault_internal=None):
@@ -29,6 +29,7 @@ class SolverInput(object):
         else:
             self.xyz_to_interpolate = xyz_to_interpolate
         self._fault_internal = fault_internal
+        self.debug = {}
 
     def __hash__(self):
         # xyz_to_interpolate and _faults are dependent on the octree levels
@@ -57,7 +58,7 @@ class SolverInput_v2(object):
     _fault_internal: Optional[FaultsData] = field(init=False, hash=False)
     weights_x0: Optional[np.ndarray] = None
 
-    debug = None
+    debug: Optional[dict] = None
 
     def __init__(self, sp_internal: SurfacePointsInternals, ori_internal: OrientationsInternals,
                  # xyz_to_interpolate: np.ndarray=None, 
@@ -70,6 +71,7 @@ class SolverInput_v2(object):
         # else:
         #     self.xyz_to_interpolate = xyz_to_interpolate
         self._fault_internal = fault_internal
+        self.debug = {}
 
     def __hash__(self):
         # xyz_to_interpolate and _faults are dependent on the octree levels

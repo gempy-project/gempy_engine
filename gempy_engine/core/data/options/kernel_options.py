@@ -42,6 +42,11 @@ class KernelOptions:
     symmetric_equilibration_tolerance: float = 1e-2
     nugget_implementation: NuggetImplementation = NuggetImplementation.LEGACY
 
+    drift_diagnostics: bool = False
+    drift_rank_policy: str = "warn"
+    drift_rank_rcond: Optional[float] = None
+    drift_warning_rcond: Optional[float] = None
+
     def __post_init__(self):
         self.range = float(self.range)
         self.c_o = float(self.c_o)
@@ -55,6 +60,12 @@ class KernelOptions:
             raise ValueError("symmetric_equilibration_max_iterations must be at least 1")
         if not math.isfinite(self.symmetric_equilibration_tolerance) or self.symmetric_equilibration_tolerance < 0:
             raise ValueError("symmetric_equilibration_tolerance must be finite and non-negative")
+        if self.drift_rank_policy not in ("ignore", "warn", "error"):
+            raise ValueError("drift_rank_policy must be 'ignore', 'warn', or 'error'")
+        if self.drift_rank_rcond is not None and (not math.isfinite(self.drift_rank_rcond) or self.drift_rank_rcond < 0):
+            raise ValueError("drift_rank_rcond must be finite and non-negative")
+        if self.drift_warning_rcond is not None and (not math.isfinite(self.drift_warning_rcond) or self.drift_warning_rcond < 0):
+            raise ValueError("drift_warning_rcond must be finite and non-negative")
 
     @field_validator('kernel_function', mode='before', json_schema_input_type=str)
     @classmethod
@@ -134,6 +145,10 @@ class KernelOptions:
                 self.symmetric_equilibration_max_iterations,
                 self.symmetric_equilibration_tolerance,
                 self.nugget_implementation,
+                self.drift_diagnostics,
+                self.drift_rank_policy,
+                self.drift_rank_rcond,
+                self.drift_warning_rcond,
         ))
 
     def __repr__(self):

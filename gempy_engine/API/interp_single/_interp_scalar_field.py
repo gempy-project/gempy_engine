@@ -10,6 +10,11 @@ from ...core.data.internal_structs import SolverInput, SolverInput_v2, Evaluator
 from ...core.data.options import KernelOptions, InterpolationOptions
 from ...modules.evaluator.generic_evaluator import generic_evaluator
 from ...modules.evaluator.symbolic_evaluator import symbolic_evaluator
+from ...modules.kernel_constructor.drift_design import (
+    analyze_drift_design,
+    build_drift_design,
+    enforce_rank_policy,
+)
 from ...modules.solver.interpolation_solver import (
     InterpolationSolveRoute,
     assemble_solve_debug,
@@ -29,6 +34,16 @@ from ...modules.weights_cache.weight_cache_policy import (
 
 def compute_weights(solver_input: Union[SolverInput, SolverInput_v2], stack_number: int, options: InterpolationOptions) \
         -> ndarray[tuple[Any, ...], dtype[Any]]:
+    if options.kernel_options.drift_diagnostics:
+        drift_design = build_drift_design(solver_input, options.kernel_options)
+        drift_report = analyze_drift_design(drift_design, options.kernel_options.drift_rank_rcond)
+        solver_input.debug["drift_diagnostics"] = drift_report
+        enforce_rank_policy(
+            drift_report,
+            options.kernel_options.drift_rank_policy,
+            stack_number,
+            options.kernel_options.drift_warning_rcond,
+        )
     pykeops_requested = pykeops_solver_requested()
     cache_decision = resolve_weight_cache(
         options=options,
