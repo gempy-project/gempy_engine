@@ -17,6 +17,7 @@ from ...modules.kernel_constructor._kernels_assembler import create_cov_kernel
 from ...modules.kernel_constructor._structs import KernelInput
 from ...modules.kernel_constructor._vectors_preparation import cov_vectors_preparation
 from ...modules.solver import solver_interface
+from ...modules.solver.fault_drift_stabilization import stabilize_fault_drift_system
 from ...modules.weights_cache.weights_cache_interface import WeightCache, generate_cache_key
 
 
@@ -81,6 +82,11 @@ def _solve_and_store_weights(solver_input, kernel_options, weights_key, weights_
 
 
 def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOptions) -> np.ndarray:
+    n_faults = interp_input.fault_internal.n_faults
+    if n_faults > 0:
+        # Stabilization requires direct access to the final fault rows and columns.
+        BackendTensor.pykeops_enabled = False
+
     kernel_data_tensor: KernelInput = cov_vectors_preparation(interp_input, kernel_options)
     if BackendTensor.pykeops_enabled:
         kernel_data: KernelInput = kernel_data_tensor.upgrade_tensors()
@@ -89,6 +95,13 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
 
     A_matrix = create_cov_kernel(kernel_data, kernel_options)
     b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
+    fault_drift_scaling = stabilize_fault_drift_system(
+        covariance=A_matrix,
+        b_vector=b_vector,
+        n_faults=n_faults,
+        relative_regularization=kernel_options.fault_drift_regularization,
+        equilibrate=kernel_options.fault_drift_equilibration,
+    )
 
     if kernel_options.optimizing_condition_number:
         _optimize_nuggets_against_condition_number(A_matrix, interp_input, kernel_options)
@@ -104,14 +117,24 @@ def _solve_interpolation(interp_input: SolverInput, kernel_options: KernelOption
     if weights is None:  # * This can happen if we are using the pykeops solver and does not converge
         BackendTensor.pykeops_enabled = False
         A_matrix = create_cov_kernel(kernel_data_tensor, kernel_options)
+        b_vector = kernel_constructor.yield_b_vector(interp_input.ori_internal, A_matrix.shape[0])
+        fault_drift_scaling = stabilize_fault_drift_system(
+            covariance=A_matrix,
+            b_vector=b_vector,
+            n_faults=n_faults,
+            relative_regularization=kernel_options.fault_drift_regularization,
+            equilibrate=kernel_options.fault_drift_equilibration,
+        )
         weights = solver_interface.kernel_reduction(
             cov=A_matrix,
             b=b_vector,
             kernel_options=kernel_options,
             x0=interp_input.weights_x0
         )
-
         BackendTensor.pykeops_enabled = True
+
+    if fault_drift_scaling is not None:
+        weights = fault_drift_scaling.restore_weights(weights)
 
     if gempy_engine.config.DEBUG_MODE:
         # Save debug data for later

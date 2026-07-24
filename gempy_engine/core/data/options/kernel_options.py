@@ -25,9 +25,14 @@ class KernelOptions:
     optimizing_condition_number: bool = False
     condition_number: Optional[float] = None
 
+    fault_drift_equilibration: bool = True
+    fault_drift_regularization: float = 1e-3
+
     def __post_init__(self):
         self.range = float(self.range)
         self.c_o = float(self.c_o)
+        if self.fault_drift_regularization < 0:
+            raise ValueError("fault_drift_regularization must be non-negative")
 
     @field_validator('kernel_function', mode='before', json_schema_input_type=str)
     @classmethod
@@ -74,6 +79,8 @@ class KernelOptions:
             kernel_function (AvailableKernelFunctions, optional): The function used for the kernel. Defaults to AvailableKernelFunctions.exponential.
             compute_condition_number (bool, optional): Whether to compute the condition number. Defaults to False.
             kernel_solver (Solvers, optional): Solver for the kernel. Defaults to Solvers.DEFAULT.
+            fault_drift_equilibration (bool, optional): Scale fault rows and columns before solving. Defaults to True.
+            fault_drift_regularization (float, optional): Relative diagonal loading for fault coefficients. Defaults to 1e-3.
 
         Returns:
             None
@@ -98,6 +105,8 @@ class KernelOptions:
                 self.number_dimensions,
                 self.kernel_function,
                 self.compute_condition_number,
+                self.fault_drift_equilibration,
+                self.fault_drift_regularization,
         ))
 
     def __repr__(self):
