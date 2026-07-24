@@ -7,6 +7,10 @@ from enum import Enum
 from typing import Callable, Optional
 import numpy as np
 
+
+def _exp(values):
+    return values.exp() if hasattr(values, "exp") else np.exp(values)
+
 # ============================================================================
 # NumPy implementations (always available)
 # ============================================================================
@@ -69,17 +73,17 @@ def cubic_function_a_numpy(r: np.ndarray, a: float) -> np.ndarray:
 
 
 def exp_function_numpy(sq_r: np.ndarray, a: float) -> np.ndarray:
-    return np.exp(-(sq_r / (2.0 * a * a)))
+    return _exp(-(sq_r / (2.0 * a * a)))
 
 
 def exp_function_p_div_r_numpy(sq_r: np.ndarray, a: float) -> np.ndarray:
-    return -(1.0 / (a * a)) * np.exp(-(sq_r / (2.0 * a * a)))
+    return -(1.0 / (a * a)) * _exp(-(sq_r / (2.0 * a * a)))
 
 
 def exp_function_a_numpy(sq_r: np.ndarray, a: float) -> np.ndarray:
     a2 = a * a
     a4 = a2 * a2
-    return (sq_r / a4 - 1.0 / a2) * np.exp(-(sq_r / (2.0 * a2)))
+    return (sq_r / a4 - 1.0 / a2) * _exp(-(sq_r / (2.0 * a2)))
 
 
 def matern_function_5_2_numpy(r: np.ndarray, a: float) -> np.ndarray:
@@ -87,20 +91,20 @@ def matern_function_5_2_numpy(r: np.ndarray, a: float) -> np.ndarray:
     x = r / a
     s5_x = s5 * x
     poly = 1.0 + s5_x + (1.6666666667 * x * x)
-    return poly * np.exp(-s5_x)
+    return poly * _exp(-s5_x)
 
 
 def matern_function_5_2_p_div_r_numpy(r: np.ndarray, a: float) -> np.ndarray:
     s5 = 2.2360679775
     x = r / a
-    term_exp = np.exp(-s5 * x)
+    term_exp = _exp(-s5 * x)
     return -5.0 * term_exp * (a + s5 * r) / (3.0 * (a * a * a))
 
 
 def matern_function_5_2_a_numpy(r: np.ndarray, a: float) -> np.ndarray:
     s5 = 2.2360679775
     x = r / a
-    term_exp = np.exp(-s5 * x)
+    term_exp = _exp(-s5 * x)
     poly = (a * a) + (s5 * a * r) - (5.0 * r * r)
     return -5.0 * term_exp * poly / (3.0 * (a * a * a * a))
 

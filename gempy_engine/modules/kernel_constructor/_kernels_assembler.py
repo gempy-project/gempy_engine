@@ -2,6 +2,7 @@ from . import _structs
 from ._covariance_assembler import get_covariance
 from ._internalDistancesMatrices import InternalDistancesMatrices
 from ._structs import KernelInput, CartesianSelector, OrientationSurfacePointsCoords
+from .execution_mode import KernelExecutionMode
 from ...core.backend_tensor import BackendTensor as bt, BackendTensor
 from ...core.data.kernel_classes.kernel_functions import KernelFunction
 from ...core.data.options import KernelOptions
@@ -9,14 +10,19 @@ from ...core.data.options import KernelOptions
 tensor_types = bt.tensor_types
 
 
-def create_cov_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
+def create_cov_kernel(
+        ki: KernelInput,
+        options: KernelOptions,
+        execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+) -> tensor_types:
     kernel_f: KernelFunction = options.kernel_function.value
 
     distances_matrices = _compute_all_distance_matrices(
         cs=ki.cartesian_selector,
         ori_sp_matrices=ki.ori_sp_matrices,
         square_distance=kernel_f.consume_sq_distance,
-        is_gradient=False
+        is_gradient=False,
+        execution_mode=execution_mode,
     )
 
     kernels: tuple = _compute_all_kernel_terms(
@@ -28,13 +34,17 @@ def create_cov_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
         r_rest_rest=distances_matrices.r_rest_rest
     )
 
-    cov = get_covariance(options.c_o, distances_matrices, *kernels, ki, options)
+    cov = get_covariance(options.c_o, distances_matrices, *kernels, ki, options, execution_mode)
 
     return cov
 
 
 # noinspection DuplicatedCode
-def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
+def create_scalar_kernel(
+        ki: KernelInput,
+        options: KernelOptions,
+        execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+) -> tensor_types:
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
@@ -44,7 +54,8 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
         cs=ki.cartesian_selector,
         ori_sp_matrices=ki.ori_sp_matrices,
         square_distance=kernel_f.consume_sq_distance,
-        is_gradient=False
+        is_gradient=False,
+        execution_mode=execution_mode,
     )
 
     k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = _compute_all_kernel_terms(
@@ -89,7 +100,7 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
             drift_start_post_y=j_size
         )
 
-        if BackendTensor.pykeops_enabled:
+        if execution_mode is KernelExecutionMode.PYKEOPS:
             selector_components = selector_components.upgrade_tensors()
 
         selector = bt.t.sum(selector_components.sel_ui * (selector_components.sel_vj + 1), axis=-1)
@@ -102,13 +113,22 @@ def create_scalar_kernel(ki: KernelInput, options: KernelOptions) -> tensor_type
 
 
 # noinspection DuplicatedCode
-def create_grad_kernel(ki: KernelInput, options: KernelOptions) -> tensor_types:
+def create_grad_kernel(
+        ki: KernelInput,
+        options: KernelOptions,
+        execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+) -> tensor_types:
     kernel_f = options.kernel_function.value
     a = options.range
     c_o = options.c_o
 
-    dm = _compute_all_distance_matrices(ki.cartesian_selector, ki.ori_sp_matrices,
-                                        square_distance=kernel_f.consume_sq_distance, is_gradient=True)
+    dm = _compute_all_distance_matrices(
+        ki.cartesian_selector,
+        ki.ori_sp_matrices,
+        square_distance=kernel_f.consume_sq_distance,
+        is_gradient=True,
+        execution_mode=execution_mode,
+    )
 
     k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
         _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
@@ -147,87 +167,19 @@ def _compute_all_kernel_terms(range_: int, kernel_functions: KernelFunction, r_r
     return k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest
 
 
-class DistancesBuffer:
-    last_internal_distances_matrices: InternalDistancesMatrices = None
-
-
 # noinspection DuplicatedCode
 def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: OrientationSurfacePointsCoords,
-                                   square_distance: bool, is_gradient: bool, is_testing: bool = False) -> InternalDistancesMatrices:
-    # ! For the DistanceBuffer optimization we are assuming that we are always computing the scalar kernel first
-    # ! and then the gradient kernel. This is because the gradient kernel needs the scalar kernel distances
-
-    is_cached_matrices = DistancesBuffer.last_internal_distances_matrices is not None
-    if is_gradient and is_cached_matrices and is_testing is False:
-        # Check if the cached matrices have the same ni as the current cartesian selector
-        # If we are stacking scalar and gradients, the ni of the stacked cartesian selector will be larger
-        if DistancesBuffer.last_internal_distances_matrices.dif_ref_ref.shape[0] == cs.hu_sel_i.shape[0]:
-            distance_matrices: InternalDistancesMatrices = _compute_distances_using_cache(
-                cs=cs,
-                last_internal_distances_matrices=DistancesBuffer.last_internal_distances_matrices
-            )
-        else:
-            distance_matrices: InternalDistancesMatrices = _compute_distances_generic(cs, ori_sp_matrices, square_distance)
-    else:
-        distance_matrices: InternalDistancesMatrices = _compute_distances_generic(cs, ori_sp_matrices, square_distance)
-
-    if develeping_distances_buffer := False and is_gradient:  # This is for developing
-        _check_which_items_are_the_same_between_calls(distance_matrices)
-
-    DistancesBuffer.last_internal_distances_matrices = distance_matrices  # * Save common values for next call
-    return distance_matrices
+                                   square_distance: bool, is_gradient: bool, is_testing: bool = False,
+                                   execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE) -> InternalDistancesMatrices:
+    return _compute_distances_generic(cs, ori_sp_matrices, square_distance, execution_mode)
 
 
-def _compute_distances_using_cache(cs, last_internal_distances_matrices: InternalDistancesMatrices) -> InternalDistancesMatrices:
-    dif_ref_ref = last_internal_distances_matrices.dif_ref_ref  # Can be cached
-    dif_rest_rest = last_internal_distances_matrices.dif_rest_rest  # Can be cached
-
-    hu = last_internal_distances_matrices.hu  # Can be cached
-    hv = -bt.t.sum(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j), axis=-1)  # Axis dependent
-
-    hu_ref = last_internal_distances_matrices.hu_ref  # Can be cached
-    hv_ref = bt.t.sum(dif_ref_ref * (cs.h_sel_ref_i * cs.hv_sel_j), axis=-1)  # Axis dependent
-    huv_ref = hu_ref - hv_ref  # Axis dependent
-
-    hu_rest = last_internal_distances_matrices.hu_rest  # Can be cached
-    hv_rest = bt.t.sum(dif_rest_rest * (cs.h_sel_rest_i * cs.hv_sel_j), axis=-1)  # Axis dependent
-    huv_rest = hu_rest - hv_rest  # Axis dependent
-
-    perp_matrix = bt.t.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1, dtype="int8")  # Axis dependent
-
-    # region: distance r
-    r_ref_ref = last_internal_distances_matrices.r_ref_ref  # Can be cached
-    r_rest_rest = last_internal_distances_matrices.r_rest_rest  # Can be cached
-    r_ref_rest = last_internal_distances_matrices.r_ref_rest  # Can be cached
-    r_rest_ref = last_internal_distances_matrices.r_rest_ref  # Can be cached
-
-    # region: For gradients
-    hu_ref_grad = bt.t.sum(dif_ref_ref * (cs.h_sel_ref_i * cs.hu_sel_j), axis=-1)  # Axis dependent
-    hu_rest_grad = bt.t.sum(dif_rest_rest * (cs.h_sel_ref_i * cs.hu_sel_j), axis=-1)  # Axis dependent
-    # endregion
-
-    new_distance_matrices = InternalDistancesMatrices(
-        dif_ref_ref=dif_ref_ref,
-        dif_rest_rest=dif_rest_rest,
-        hu=hu,
-        hv=hv,
-        huv_ref=huv_ref,
-        huv_rest=huv_rest,
-        perp_matrix=perp_matrix,
-        r_ref_ref=r_ref_ref,
-        r_ref_rest=r_ref_rest,
-        r_rest_ref=r_rest_ref,
-        r_rest_rest=r_rest_rest,
-        hu_ref=hu_ref,
-        hu_rest=hu_rest,
-        hu_ref_grad=hu_ref_grad,
-        hu_rest_grad=hu_rest_grad,
-    )
-
-    return new_distance_matrices
-
-
-def _compute_distances_generic(cs: CartesianSelector, ori_sp_matrices, square_distance) -> InternalDistancesMatrices:
+def _compute_distances_generic(
+        cs: CartesianSelector,
+        ori_sp_matrices,
+        square_distance,
+        execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+) -> InternalDistancesMatrices:
     dif_ref_ref = ori_sp_matrices.dip_ref_i - ori_sp_matrices.dip_ref_j  # Can be cached
     dif_rest_rest = ori_sp_matrices.diprest_i - ori_sp_matrices.diprest_j  # Can be cached
 
@@ -253,10 +205,16 @@ def _compute_distances_generic(cs: CartesianSelector, ori_sp_matrices, square_di
     if square_distance is False:
         # @off
         epsilon = 1e-10  # Add small regularization term to avoid numerical errors
-        r_ref_ref = bt.t.sqrt(r_ref_ref + epsilon)
-        r_rest_rest = bt.t.sqrt(r_rest_rest + epsilon)
-        r_ref_rest = bt.t.sqrt(r_ref_rest + epsilon)
-        r_rest_ref = bt.t.sqrt(r_rest_ref + epsilon)
+        if execution_mode is KernelExecutionMode.PYKEOPS:
+            r_ref_ref = (r_ref_ref + epsilon).sqrt()
+            r_rest_rest = (r_rest_rest + epsilon).sqrt()
+            r_ref_rest = (r_ref_rest + epsilon).sqrt()
+            r_rest_ref = (r_rest_ref + epsilon).sqrt()
+        else:
+            r_ref_ref = bt.t.sqrt(r_ref_ref + epsilon)
+            r_rest_rest = bt.t.sqrt(r_rest_rest + epsilon)
+            r_ref_rest = bt.t.sqrt(r_ref_rest + epsilon)
+            r_rest_ref = bt.t.sqrt(r_rest_ref + epsilon)
     # endregion
 
     hu_ref_grad = bt.t.sum(dif_ref_ref * (cs.h_sel_ref_i * cs.hu_sel_j), axis=-1)  # Axis dependent
@@ -280,11 +238,3 @@ def _compute_distances_generic(cs: CartesianSelector, ori_sp_matrices, square_di
         hu_rest_grad=hu_rest_grad,
     )
     return new_distance_matrices
-
-
-def _check_which_items_are_the_same_between_calls(distance_matrices):
-    import numpy as np
-    print(f"Checking distances matrices. Shape: {distance_matrices.dif_ref_ref.shape}")
-    for k, v in DistancesBuffer.last_internal_distances_matrices.__dict__.items():
-        if not np.allclose(v, distance_matrices.__dict__[k]):
-            print("Not allclose", k)

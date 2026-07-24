@@ -20,6 +20,7 @@ from gempy_engine.modules.kernel_constructor._structs import CartesianSelector
 from gempy_engine.modules.kernel_constructor._vectors_preparation import cov_vectors_preparation, \
     evaluation_vectors_preparations
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_covariance, yield_b_vector
+from gempy_engine.modules.kernel_constructor.execution_mode import KernelExecutionMode
 
 import pickle
 import os
@@ -187,7 +188,12 @@ class TestPykeopsNumPyEqual():
         BackendTensor._change_backend(AvailableBackends.numpy, use_pykeops=False)
         solver_input = SolverInput(sp_internals, ori_internals)
         kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
-        c_n = cov_func(kernel_data, options, item=item)
+        c_n = cov_func(
+            kernel_data,
+            options,
+            item=item,
+            execution_mode=KernelExecutionMode.DENSE,
+        )
 
         path = dir_name + f"/../solutions/{item}.npy"
         if False:
@@ -199,7 +205,12 @@ class TestPykeopsNumPyEqual():
         # pykeops
         BackendTensor._change_backend(AvailableBackends.numpy, use_pykeops=True)
         kernel_data = cov_vectors_preparation(solver_input, options.kernel_options)
-        c_k = cov_func(kernel_data, options, item=item)
+        c_k = cov_func(
+            kernel_data,
+            options,
+            item=item,
+            execution_mode=KernelExecutionMode.PYKEOPS,
+        )
         c_k_sum = c_n.sum(0).reshape(-1, 1)
 
         print('l: ', l)

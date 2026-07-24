@@ -7,57 +7,37 @@ from gempy_engine.core.data.kernel_classes.solvers import Solvers
 from ._numpy_solvers import numpy_solve, numpy_cg, numpy_gmres
 from ._torch_solvers import torch_solve, pykeops_torch_cg
 from ...core.data.options import KernelOptions
+from ..kernel_constructor.execution_mode import KernelExecutionMode
 
 bt = BackendTensor
 
 
-def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndarray] = None) -> np.ndarray:
+def kernel_reduction(
+        cov,
+        b,
+        kernel_options: KernelOptions,
+        x0: Optional[np.ndarray] = None,
+        execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+) -> np.ndarray:
 
     solver: Solvers = kernel_options.kernel_solver
     # ? Maybe we should always compute the conditional_number no matter the branch
     dtype = BackendTensor.dtype
-    match (BackendTensor.engine_backend, BackendTensor.pykeops_enabled, solver):
-        case (AvailableBackends.PYTORCH, False, _):
-            if kernel_options.compute_condition_number:
-                cond_number = BackendTensor.t.linalg.cond(cov)
-                kernel_options.condition_number = cond_number
-                print(f'Condition number: {cond_number}.')
+    match (BackendTensor.engine_backend, execution_mode, solver):
+        case (AvailableBackends.PYTORCH, KernelExecutionMode.DENSE, _):
             w = torch_solve(b, cov)
-        case (AvailableBackends.PYTORCH, True, _):
+        case (AvailableBackends.PYTORCH, KernelExecutionMode.PYKEOPS, _):
             if x0 is not None and len(x0) == 0:
                 x0 = None
             w = pykeops_torch_cg(b, cov, x0, bt.use_gpu)
-        case (AvailableBackends.numpy, False, Solvers.DEFAULT):
+        case (AvailableBackends.numpy, KernelExecutionMode.DENSE, Solvers.DEFAULT):
             w = numpy_solve(b, cov, dtype)
-            if kernel_options.compute_condition_number:
-                kernel_options.condition_number = _compute_conditional_number(cov)
-        case (AvailableBackends.numpy, False, Solvers.DEFAULT |Solvers.SCIPY_CG):
+        case (AvailableBackends.numpy, KernelExecutionMode.DENSE, Solvers.DEFAULT |Solvers.SCIPY_CG):
             w = numpy_cg(b, cov)
-        case (AvailableBackends.numpy, False, Solvers.GMRES):
+        case (AvailableBackends.numpy, KernelExecutionMode.DENSE, Solvers.GMRES):
             w = numpy_gmres(b, cov)
         case _:
             raise AttributeError(f'There is a weird combination of libraries? '
-                                 f'{BackendTensor.engine_backend}, {BackendTensor.pykeops_enabled}, {solver}')
+                                 f'{BackendTensor.engine_backend}, {execution_mode}, {solver}')
 
     return w
-
-
-
-
-def _compute_conditional_number(cov, plot=False):
-    cond_number = np.linalg.cond(cov)
-    print(f'Condition number: {cond_number}.')
-    if plot:
-        import matplotlib.pyplot as plt
-        eigvals = np.linalg.eigvals(cov)
-        # Plotting the histogram
-        plt.hist(eigvals, bins=50, color='blue', alpha=0.7, log=True)
-        plt.xlabel('Eigenvalue')
-        plt.ylabel('Frequency')
-        plt.title('Histogram of Eigenvalues')
-        plt.show()
-        
-    return cond_number
-
-
-

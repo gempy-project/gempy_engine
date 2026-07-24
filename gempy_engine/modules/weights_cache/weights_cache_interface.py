@@ -2,6 +2,7 @@
 import os
 import pickle
 import tempfile
+import threading
 from typing import Optional
 
 
@@ -17,23 +18,26 @@ class WeightCache:
 
     max_size_mb = 50
     reduce_to_mb = 25
+    _lock = threading.RLock()
 
     @staticmethod
     def initialize_cache_dir(disk_cache_dir=None):
-        if disk_cache_dir is None:
-            # Use a subdirectory in the system's temp directory
-            temp_dir = tempfile.gettempdir()
-            WeightCache.disk_cache_dir = os.path.join(temp_dir, "gempy_cache")
-        else:
-            WeightCache.disk_cache_dir = disk_cache_dir
+        with WeightCache._lock:
+            if disk_cache_dir is None:
+                # Use a subdirectory in the system's temp directory
+                temp_dir = tempfile.gettempdir()
+                WeightCache.disk_cache_dir = os.path.join(temp_dir, "gempy_cache")
+            else:
+                WeightCache.disk_cache_dir = disk_cache_dir
 
-        os.makedirs(WeightCache.disk_cache_dir, exist_ok=True)
-        WeightCache._check_and_cleanup_cache()
+            os.makedirs(WeightCache.disk_cache_dir, exist_ok=True)
+            WeightCache._check_and_cleanup_cache()
     
     @staticmethod
     def clear_cache():
-        WeightCache.memory_cache = {}
-        WeightCache._check_and_cleanup_cache()
+        with WeightCache._lock:
+            WeightCache.memory_cache = {}
+            WeightCache._check_and_cleanup_cache()
     
     @staticmethod
     def _check_and_cleanup_cache():
@@ -64,42 +68,45 @@ class WeightCache:
         return os.path.join(WeightCache.disk_cache_dir, f"{key}.pkl")
 
     @staticmethod
-    def store_weights(file_name, hash, weights):
-        
-        # Store in memory
-        WeightCache.memory_cache[file_name] = {
+    def store_weights(file_name, hash, weights, write_to_disk: bool = True):
+        cache_entry = {
             "hash": hash,
-            "weights": weights
+            "weights": weights,
         }
+        with WeightCache._lock:
+            WeightCache.memory_cache[file_name] = cache_entry
+            if not write_to_disk:
+                return
 
-        # Optionally store on disk as well
-        with open(WeightCache._disk_cache_path(file_name), 'wb') as f:
-            pickle.dump(
-                {
-                    "hash": hash,
-                    "weights": weights
-                },
-                f)
+            final_path = WeightCache._disk_cache_path(file_name)
+            file_descriptor, temporary_path = tempfile.mkstemp(
+                prefix=f"{file_name}.",
+                suffix=".tmp",
+                dir=WeightCache.disk_cache_dir,
+            )
+            try:
+                with os.fdopen(file_descriptor, "wb") as cache_file:
+                    pickle.dump(cache_entry, cache_file)
+                os.replace(temporary_path, final_path)
+            finally:
+                if os.path.exists(temporary_path):
+                    os.remove(temporary_path)
 
     @staticmethod
     def load_weights(key, look_in_disk: bool) -> Optional[dict]:
-        # Try to load from memory
-        if key in WeightCache.memory_cache:
-            return WeightCache.memory_cache[key]
+        with WeightCache._lock:
+            if key in WeightCache.memory_cache:
+                return WeightCache.memory_cache[key]
 
-        # Load from disk if not in memory
-        if not look_in_disk:
-            return None
-        disk_path = WeightCache._disk_cache_path(key)
-        if os.path.exists(disk_path):
-            with open(disk_path, 'rb') as f:
-                try:
-                    weights = pickle.load(f)
-                except ModuleNotFoundError:
-                    # Handle case where the module has been renamed
-                    # and the pickled object cannot be loaded
-                    return None
-                # Optionally cache in memory again
+            if not look_in_disk:
+                return None
+            disk_path = WeightCache._disk_cache_path(key)
+            if os.path.exists(disk_path):
+                with open(disk_path, "rb") as cache_file:
+                    try:
+                        weights = pickle.load(cache_file)
+                    except (ModuleNotFoundError, EOFError, pickle.UnpicklingError):
+                        return None
                 WeightCache.memory_cache[key] = weights
                 return weights
 

@@ -23,9 +23,6 @@ def stabilize_fault_drift_system(
         raise ValueError("n_faults must be between zero and the matrix size")
     if not math.isfinite(relative_regularization) or relative_regularization < 0:
         raise ValueError("relative_regularization must be finite and non-negative")
-    if BackendTensor.pykeops_enabled:
-        raise ValueError("Fault drift stabilization requires a dense covariance matrix")
-
     matrix_size = covariance.shape[0]
     fault_start = matrix_size - n_faults
     factors = BackendTensor.t.ones(matrix_size, dtype=covariance.dtype)

@@ -11,6 +11,7 @@ from ...core.data import InterpolationOptions
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import SolverInput, EvaluatorInput
 from ..kernel_constructor.kernel_constructor_interface import yield_evaluation_grad_kernel, yield_evaluation_kernel
+from ..kernel_constructor.execution_mode import KernelExecutionMode
 
 
 def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions):
@@ -18,7 +19,7 @@ def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: 
         print("xyz is not C_CONTIGUOUS")
     # ! Seems not to make any difference but we need this if we want to change the backend
     # ! We need to benchmark GPU vs CPU with more input
-    backend_string = BackendTensor.get_backend_string()
+    backend_string = "GPU" if BackendTensor.use_gpu else "CPU"
 
     eval_kernel = yield_evaluation_kernel(solver_input, options.kernel_options, pykeops=True)
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
@@ -97,7 +98,6 @@ def symbolic_evaluator_optimized_stacked(
 
     kernel_data_list = []
 
-    BackendTensor.pykeops_enabled = False
     # 2. Define a small wrapper function for the executor to map over
     def _run_prep(args):
         ei, axis, opt = args
@@ -120,12 +120,11 @@ def symbolic_evaluator_optimized_stacked(
 
         concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
         
-        original_pykeops_enabled = BackendTensor.pykeops_enabled
-        BackendTensor.pykeops_enabled = True
-        try:
-            eval_kernel_scalar = create_scalar_kernel(concat_kernel_data, base_options.kernel_options)
-        finally:
-            BackendTensor.pykeops_enabled = original_pykeops_enabled
+        eval_kernel_scalar = create_scalar_kernel(
+            concat_kernel_data,
+            base_options.kernel_options,
+            execution_mode=KernelExecutionMode.PYKEOPS,
+        )
 
     if base_options.compute_scalar_gradient is True:
         prep_tasks = []
@@ -141,12 +140,11 @@ def symbolic_evaluator_optimized_stacked(
 
         concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
         
-        original_pykeops_enabled = BackendTensor.pykeops_enabled
-        BackendTensor.pykeops_enabled = True
-        try:
-            eval_kernel_grad = create_grad_kernel(concat_kernel_data, base_options.kernel_options)
-        finally:
-            BackendTensor.pykeops_enabled = original_pykeops_enabled
+        eval_kernel_grad = create_grad_kernel(
+            concat_kernel_data,
+            base_options.kernel_options,
+            execution_mode=KernelExecutionMode.PYKEOPS,
+        )
 
     # region kernels
     match (base_options.compute_scalar, base_options.compute_scalar_gradient):
@@ -184,9 +182,10 @@ def symbolic_evaluator_optimized_stacked(
              if isinstance(eval_kernel, np.ndarray):
                  eval_kernel = LazyTensor(eval_kernel)
 
+        backend_string = "GPU" if BackendTensor.use_gpu else "CPU"
         all_results_concat: np.ndarray = (eval_kernel * lazy_weights).sum(
             axis=0,
-            backend=BackendTensor.get_backend_string(),
+            backend=backend_string,
             ranges=ranges
         ).reshape(-1)
     else:
@@ -196,9 +195,10 @@ def symbolic_evaluator_optimized_stacked(
                 all_weights = all_weights.to("cuda", non_blocking=True)
             lazy_weights = LazyTensor(all_weights.view((-1, 1)), axis=0)
 
+            backend_string = "GPU" if BackendTensor.use_gpu else "CPU"
             all_results_concat = (eval_kernel * lazy_weights).sum(
                 axis=0,
-                backend=BackendTensor.get_backend_string(),
+                backend=backend_string,
                 ranges=ranges
             ).reshape(-1)
 
@@ -267,8 +267,6 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInp
         OrientationSurfacePointsCoords, CartesianSelector, OrientationsDrift,
         PointsDrift, FaultDrift, DriftMatrixSelector, _cast_tensors
     )
-    BackendTensor.pykeops_enabled = True
-
     def _stack_sub_struct_split(items, cls):
         """Concatenate fields with explicitly split steps for easier profiling."""
         if items[0] is None:
@@ -395,5 +393,3 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInp
     stacked.nugget_grad = kernel_data_list[0].nugget_grad
 
     return stacked
-
-
