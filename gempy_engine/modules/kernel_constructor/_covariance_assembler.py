@@ -3,10 +3,10 @@ from gempy_engine.config import AvailableBackends
 
 import gempy_engine.config
 from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.core.data.options import KernelOptions
+from gempy_engine.core.data.options import KernelOptions, NuggetImplementation
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.kernel_constructor import _structs
-from gempy_engine.modules.kernel_constructor._structs import KernelInput
+from gempy_engine.modules.kernel_constructor._structs import KernelInput, SurfacePointNuggets
 from gempy_engine.modules.kernel_constructor.execution_mode import KernelExecutionMode
 
 # ! Important for loading the pickle in test_distance_matrix
@@ -29,9 +29,16 @@ def get_covariance(
         options,
         execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
 ):
-    cov_grad = _get_cov_grad(dm, k_a, k_p_ref, ki.nugget_grad, execution_mode)
+    cov_grad = _get_cov_grad(
+        dm,
+        k_a,
+        k_p_ref,
+        ki.nugget_grad,
+        options.nugget_implementation,
+        execution_mode,
+    )
     cov_sp = _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest,
-                                     options, ki.nugget_scalar, ki.nugget_grad.shape[1], execution_mode)  # TODO: Add nugget effect properly (individual) # cov_sp += np.eye(cov_sp.shape[0]) * .00000001
+                                     options, ki.nugget_scalar, ki.nugget_grad.shape[0], execution_mode)
     cov_grad_sp = _get_cross_cov_grad_sp(dm, k_p_ref, k_p_rest, options)  # C
     
     # Universal drift
@@ -64,33 +71,42 @@ def _get_cov_grad(
         k_a,
         k_p_ref,
         nugget,
+        nugget_implementation: NuggetImplementation,
         execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
 ):
     cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
-    grad_nugget = nugget[0, 0]
+    if nugget_implementation is NuggetImplementation.LEGACY:
+        return _get_cov_grad_legacy(cov_grad, dm, nugget, execution_mode)
+
+    nugget_matrix = _nugget_diagonal(
+        matrix_size=cov_grad.shape[0],
+        nugget=nugget,
+        start=0,
+        execution_mode=execution_mode,
+    )
+    return cov_grad + nugget_matrix * dm.perp_matrix
+
+
+def _get_cov_grad_legacy(cov_grad, dm, nugget, execution_mode: KernelExecutionMode):
+    grad_nugget = nugget[0]
     if execution_mode is KernelExecutionMode.DENSE:
-        # eye = BackendTensor.t.array(np.eye(cov_grad.shape[0], dtype=BackendTensor.dtype))
         eye = BackendTensor.t.eye(cov_grad.shape[0])
         nugget_selector = eye * dm.perp_matrix
         nugget_matrix = nugget_selector * grad_nugget
         cov_grad += nugget_matrix
+        return cov_grad
+
+    matrix_shape = dm.hu.shape[0]
+    LazyTensor = _lazy_tensor_class()
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        diag_ = BackendTensor.t.arange(matrix_shape).reshape(-1, 1).type(BackendTensor.dtype_obj)
     else:
-        matrix_shape = dm.hu.shape[0]
-        if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
-            from pykeops.torch import LazyTensor
-            diag_ = BackendTensor.t.arange(matrix_shape).reshape(-1, 1).type(BackendTensor.dtype_obj)
-        elif BackendTensor.engine_backend == AvailableBackends.numpy:
-            from pykeops.numpy import LazyTensor
-            diag_ = np.arange(matrix_shape).reshape(-1, 1).astype(BackendTensor.dtype)
-        else:
-            raise NotImplementedError("Pykeops is not implemented for this backend")
-        
-        diag_i = LazyTensor(diag_[:, None])
-        diag_j = LazyTensor(diag_[None, :])
-        
-        nugget_matrix = (((0.5 - (diag_i - diag_j)**2).step()) * grad_nugget) * dm.perp_matrix
-        cov_grad += nugget_matrix
-        
+        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype(BackendTensor.dtype)
+
+    diag_i = LazyTensor(diag_[:, None])
+    diag_j = LazyTensor(diag_[None, :])
+    nugget_matrix = ((0.5 - (diag_i - diag_j) ** 2).step() * grad_nugget) * dm.perp_matrix
+    cov_grad += nugget_matrix
     return cov_grad
 
 
@@ -106,44 +122,167 @@ def _get_cov_surface_points(
         execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
 ):
     cov_surface_points = options.i_res * (k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref)
-    
-    if execution_mode is KernelExecutionMode.DENSE: # Add nugget effect for ref and rest point
+
+    if options.nugget_implementation is NuggetImplementation.LEGACY:
+        return _get_cov_surface_points_legacy(
+            cov_surface_points,
+            dm,
+            k_rest_ref,
+            nugget_effect.rest,
+            grad_matrix_size,
+            execution_mode,
+        )
+
+    nugget_matrix = _surface_point_nugget_matrix(
+        matrix_size=cov_surface_points.shape[0],
+        nuggets=nugget_effect,
+        start=grad_matrix_size,
+        mode=options.nugget_implementation,
+        execution_mode=execution_mode,
+    )
+    flipped_perp_matrix = (dm.perp_matrix - 1) * -1
+    return cov_surface_points + nugget_matrix * flipped_perp_matrix
+
+
+def _get_cov_surface_points_legacy(
+        cov_surface_points,
+        dm,
+        k_rest_ref,
+        nugget,
+        grad_matrix_size: int,
+        execution_mode: KernelExecutionMode,
+):
+    if execution_mode is KernelExecutionMode.DENSE:
         cov_shape = cov_surface_points.shape[0]
-        shape_sp_size = nugget_effect.shape[0]
-        
-        # diag = BackendTensor.t.array(np.eye(cov_shape, dtype=BackendTensor.dtype))
+        shape_sp_size = nugget.shape[0]
         diag = BackendTensor.t.eye(cov_shape)
-        # Nullify all the diagonal values that are not in the surface points block
         modified_diag = BackendTensor.t.zeros((cov_shape, cov_shape), dtype=BackendTensor.dtype_obj)
         modified_diag[
-            grad_matrix_size:grad_matrix_size+shape_sp_size,
-            grad_matrix_size:grad_matrix_size+shape_sp_size
-            ] = nugget_effect
+            grad_matrix_size:grad_matrix_size + shape_sp_size,
+            grad_matrix_size:grad_matrix_size + shape_sp_size,
+        ] = nugget
+        cov_surface_points += modified_diag * diag
+        return cov_surface_points
 
-        cov_surface_points += modified_diag * diag  
+    matrix_shape = k_rest_ref.shape[0]
+    LazyTensor = _lazy_tensor_class()
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        diag_ = BackendTensor.t.arange(matrix_shape).reshape(-1, 1).type(BackendTensor.dtype_obj)
     else:
-        matrix_shape = k_rest_ref.shape[0]
-        if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
-            from pykeops.torch import LazyTensor
-            diag_ = BackendTensor.t.arange(matrix_shape).reshape(-1, 1).type(BackendTensor.dtype_obj)
-        elif BackendTensor.engine_backend == AvailableBackends.numpy:
-            from pykeops.numpy import LazyTensor
-            diag_ = np.arange(matrix_shape).reshape(-1, 1).astype(BackendTensor.dtype)
-        else:
-            raise NotImplementedError("Pykeops is not implemented for this backend")
-        
-        nuggets = BackendTensor.t.zeros(matrix_shape, dtype=BackendTensor.dtype_obj)
-        nuggets[grad_matrix_size:grad_matrix_size+nugget_effect.shape[0]] += nugget_effect
+        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype(BackendTensor.dtype)
 
-        nuggets_lazy = LazyTensor(nuggets[None, :, None])  # Reshaping for proper broadcasting
-        diag_i = LazyTensor(diag_[:, None])
-        diag_j = LazyTensor(diag_[None, :])
-        nugget_matrix = (((0.5 - (diag_i - diag_j) ** 2).step()) * nuggets_lazy)
-
-        flipped_perp_matrix = (dm.perp_matrix - 1) * -1
-        cov_surface_points += nugget_matrix * flipped_perp_matrix
-
+    nuggets = BackendTensor.t.zeros(matrix_shape, dtype=BackendTensor.dtype_obj)
+    nuggets[grad_matrix_size:grad_matrix_size + nugget.shape[0]] += nugget
+    nuggets_lazy = LazyTensor(nuggets[None, :, None])
+    diag_i = LazyTensor(diag_[:, None])
+    diag_j = LazyTensor(diag_[None, :])
+    nugget_matrix = (0.5 - (diag_i - diag_j) ** 2).step() * nuggets_lazy
+    flipped_perp_matrix = (dm.perp_matrix - 1) * -1
+    cov_surface_points += nugget_matrix * flipped_perp_matrix
     return cov_surface_points
+
+
+def _surface_point_nugget_matrix(
+        matrix_size: int,
+        nuggets: SurfacePointNuggets,
+        start: int,
+        mode: NuggetImplementation,
+        execution_mode: KernelExecutionMode,
+):
+    match mode:
+        case NuggetImplementation.DIAGONAL_REF_REST:
+            return _nugget_diagonal(
+                matrix_size,
+                nuggets.rest + nuggets.reference,
+                start,
+                execution_mode,
+            )
+        case NuggetImplementation.FULL_POINT_COVARIANCE:
+            return _full_point_nugget_covariance(matrix_size, nuggets, start, execution_mode)
+        case _:
+            raise ValueError(f"Unknown nugget implementation: {mode}")
+
+
+def _full_point_nugget_covariance(
+        matrix_size: int,
+        nuggets: SurfacePointNuggets,
+        start: int,
+        execution_mode: KernelExecutionMode,
+):
+    rest_diagonal = _nugget_diagonal(
+        matrix_size,
+        nuggets.rest,
+        start,
+        execution_mode,
+    )
+    reference = _pad_surface_values(matrix_size, nuggets.reference, start)
+    surface_ids = _pad_surface_values(matrix_size, nuggets.surface_ids, start)
+    surface_mask = _pad_surface_values(
+        matrix_size,
+        BackendTensor.t.ones(nuggets.rest.shape[0], dtype=nuggets.rest.dtype),
+        start,
+    )
+
+    if execution_mode is KernelExecutionMode.DENSE:
+        same_surface = surface_ids[:, None] == surface_ids[None, :]
+        shared_reference = (
+            same_surface
+            * surface_mask[:, None]
+            * surface_mask[None, :]
+            * reference[:, None]
+        )
+        return rest_diagonal + shared_reference
+
+    LazyTensor = _lazy_tensor_class()
+    surface_i = LazyTensor(surface_ids[:, None, None])
+    surface_j = LazyTensor(surface_ids[None, :, None])
+    mask_i = LazyTensor(surface_mask[:, None, None])
+    mask_j = LazyTensor(surface_mask[None, :, None])
+    reference_i = LazyTensor(reference[:, None, None])
+    same_surface = (0.5 - (surface_i - surface_j) ** 2).step()
+    return rest_diagonal + same_surface * mask_i * mask_j * reference_i
+
+
+def _pad_surface_values(matrix_size: int, values, start: int):
+    return BackendTensor.tfnp.concatenate((
+        BackendTensor.t.zeros(start, dtype=values.dtype),
+        values,
+        BackendTensor.t.zeros(matrix_size - start - values.shape[0], dtype=values.dtype),
+    ))
+
+
+def _nugget_diagonal(
+        matrix_size: int,
+        nugget,
+        start: int,
+        execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+):
+    """Build a dense or lazy diagonal while preserving nugget gradients."""
+    values = BackendTensor.tfnp.concatenate((
+            BackendTensor.t.zeros(start, dtype=nugget.dtype),
+            nugget,
+            BackendTensor.t.zeros(matrix_size - start - nugget.shape[0], dtype=nugget.dtype),
+    ))
+    if execution_mode is KernelExecutionMode.DENSE:
+        return BackendTensor.t.eye(matrix_size, dtype=nugget.dtype) * values
+
+    LazyTensor = _lazy_tensor_class()
+
+    diag_ = BackendTensor.t.arange(matrix_size, dtype=nugget.dtype).reshape(-1, 1)
+    diag_i = LazyTensor(diag_[:, None])
+    diag_j = LazyTensor(diag_[None, :])
+    values_j = LazyTensor(values[None, :, None])
+    return (0.5 - (diag_i - diag_j) ** 2).step() * values_j
+
+
+def _lazy_tensor_class():
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        from pykeops.torch import LazyTensor
+    elif BackendTensor.engine_backend == AvailableBackends.numpy:
+        from pykeops.numpy import LazyTensor
+    else:
+        raise NotImplementedError("PyKeOps is not implemented for this backend")
+    return LazyTensor
 
 
 def _get_cross_cov_grad_sp(dm, k_p_ref, k_p_rest, options):

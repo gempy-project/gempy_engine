@@ -7,7 +7,7 @@ from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints, 
 def orientations_preprocess(orientations: Orientations):
     tiled_positions = b.tfnp.tile(orientations.dip_positions, (orientations.n_dimensions, 1))
     tiled_gradients = b.tfnp.tile(orientations.dip_gradients, (orientations.n_dimensions, 1))
-    tiled_nugget = b.tfnp.tile(orientations.nugget_effect_grad, (1, orientations.n_dimensions))
+    tiled_nugget = b.tfnp.tile(orientations.nugget_effect_grad, orientations.n_dimensions)
     return OrientationsInternals(
         orientations=orientations,
         dip_positions_tiled=tiled_positions,
@@ -36,12 +36,21 @@ def surface_points_preprocess(sp_input: SurfacePoints, tensors_structure: Tensor
     number_repetitions = BackendTensor.t.array(number_repetitions)
     
     ref_points_repeated = b.t.repeat(ref_points, number_repetitions, 0)  # ref_points shape: (1, 3)
-    # ref_nugget_repeated = b.t.repeat(ref_nugget, number_repetitions, 0)  # ref_nugget shape: (1)
+    ref_nugget_repeated = b.t.repeat(ref_nugget, number_repetitions, 0)
+    surface_ids = b.t.repeat(
+        b.t.arange(tensors_structure.n_surfaces, dtype=rest_nugget.dtype),
+        number_repetitions,
+        0,
+    )
 
-    # ? (miguel April 24) I need to decide what to do with this -- nugget_effect_ref_rest = (rest_nugget + ref_nugget_repeated)/2
-    nugget_effect_ref_rest = rest_nugget
-
-    return SurfacePointsInternals(ref_points_repeated, rest_points, nugget_effect_ref_rest)
+    return SurfacePointsInternals(
+        ref_points_repeated,
+        rest_points,
+        rest_nugget,
+        ref_nugget_repeated,
+        ref_nugget,
+        surface_ids,
+    )
 
 
 
@@ -59,7 +68,7 @@ def surface_points_preprocess_(sp_input: SurfacePoints, tensors_structure: Tenso
     ref_points = sp_coords[partitions_bool]
     rest_points = sp_coords[~partitions_bool]
 
-    # ref_nugget = nugget_effect[partitions_bool] # Only uncomment if you need it later
+    ref_nugget = nugget_effect[partitions_bool]
     rest_nugget = nugget_effect[~partitions_bool]
 
     # 3. Get the repetitions tensor
@@ -71,10 +80,17 @@ def surface_points_preprocess_(sp_input: SurfacePoints, tensors_structure: Tenso
 
     # 4. Use repeat_interleave instead of repeat
     ref_points_repeated = torch.repeat_interleave(ref_points, number_repetitions, dim=0)
+    ref_nugget_repeated = torch.repeat_interleave(ref_nugget, number_repetitions, dim=0)
+    surface_ids = torch.repeat_interleave(
+        torch.arange(tensors_structure.n_surfaces, device=ref_points.device, dtype=ref_points.dtype),
+        number_repetitions,
+    )
 
-    # nugget_effect_ref_rest = (rest_nugget + ref_nugget_repeated)/2
-    nugget_effect_ref_rest = rest_nugget
-
-    return SurfacePointsInternals(ref_points_repeated, rest_points, nugget_effect_ref_rest)
-
-
+    return SurfacePointsInternals(
+        ref_points_repeated,
+        rest_points,
+        rest_nugget,
+        ref_nugget_repeated,
+        ref_nugget,
+        surface_ids,
+    )

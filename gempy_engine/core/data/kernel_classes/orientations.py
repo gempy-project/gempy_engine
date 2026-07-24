@@ -16,10 +16,11 @@ class Orientations:
     dip_positions: np.ndarray
     dip_gradients: np.ndarray  #: Initialize this re-normalizes implicitly
 
+    # Relative observation variance; covariance assembly scales it by KernelOptions.c_o.
     nugget_effect_grad: Union[np.ndarray, float] = 0.01
 
     def __post_init__(self):
-        if type(self.nugget_effect_grad) is float or type(self.nugget_effect_grad) is int:
+        if np.isscalar(self.nugget_effect_grad):
             self.nugget_effect_grad = np.ones(self.n_items) * self.nugget_effect_grad
         cast_type_inplace(self, requires_grad=BackendTensor.COMPUTE_GRADS) # TODO: This has to be grabbed from options
         

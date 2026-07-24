@@ -2,7 +2,7 @@
 from types import SimpleNamespace
 
 from gempy_engine.core.data import InterpolationOptions
-from gempy_engine.core.data.options import KernelOptions
+from gempy_engine.core.data.options import KernelOptions, NuggetImplementation
 from gempy_engine.modules.weights_cache.weight_cache_policy import (
     WeightCacheRoute,
     cacheable_kernel_options,
@@ -20,7 +20,10 @@ class _CacheSolverInput:
         self.sp_internal = SimpleNamespace(
             ref_surface_points=np.array([[identity, 0.0]]),
             rest_surface_points=np.array([[0.0, identity]]),
-            nugget_effect_ref_rest=np.array([identity]),
+            nugget_effect_rest=np.array([identity]),
+            nugget_effect_ref=np.array([identity]),
+            nugget_effect_ref_unique=np.array([identity]),
+            surface_ids=np.array([0.0]),
         )
         self.ori_internal = SimpleNamespace(
             dip_positions_tiled=np.array([[identity, 0.0]]),
@@ -76,6 +79,18 @@ def test_kernel_stabilization_options_change_cache_fingerprint():
     equilibrated = generate_cache_key("", cacheable_kernel_options(options))
 
     assert len({initial, regularized, equilibrated}) == 3
+
+
+def test_nugget_implementation_changes_cache_fingerprint():
+    options = KernelOptions(range=1, c_o=1)
+    legacy = generate_cache_key("", cacheable_kernel_options(options))
+
+    options.nugget_implementation = NuggetImplementation.DIAGONAL_REF_REST
+    diagonal = generate_cache_key("", cacheable_kernel_options(options))
+    options.nugget_implementation = NuggetImplementation.FULL_POINT_COVARIANCE
+    full = generate_cache_key("", cacheable_kernel_options(options))
+
+    assert len({legacy, diagonal, full}) == 3
 
 
 def test_no_cache_mode_routes_directly_to_solve():

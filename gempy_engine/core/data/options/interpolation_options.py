@@ -7,7 +7,7 @@ import gempy_engine.config
 from .evaluation_options import MeshExtractionMaskingOptions, EvaluationOptions
 from .temp_interpolation_values import TempInterpolationValues
 from ..kernel_classes.kernel_functions import AvailableKernelFunctions
-from .kernel_options import KernelOptions
+from .kernel_options import KernelOptions, NuggetImplementation
 from ..raw_arrays_solution import RawArraysSolution
 
 
@@ -61,6 +61,7 @@ class InterpolationOptions(BaseModel):
             mesh_extraction: bool = True,
             compute_scalar_gradient: bool = False,
             compute_condition_number: bool = False,
+            nugget_implementation: NuggetImplementation = NuggetImplementation.LEGACY,
     ):
 
         kernel_options = KernelOptions(
@@ -71,7 +72,8 @@ class InterpolationOptions(BaseModel):
             gi_res=gi_res,
             number_dimensions=number_dimensions,
             kernel_function=kernel_function,
-            compute_condition_number=compute_condition_number
+            compute_condition_number=compute_condition_number,
+            nugget_implementation=nugget_implementation,
         )
 
         evaluation_options = EvaluationOptions(

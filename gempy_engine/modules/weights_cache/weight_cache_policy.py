@@ -75,7 +75,9 @@ def solver_input_fingerprint(solver_input) -> str:
     fields = (
         ("surface_points_ref", solver_input.sp_internal.ref_surface_points),
         ("surface_points_rest", solver_input.sp_internal.rest_surface_points),
-        ("surface_points_nugget", solver_input.sp_internal.nugget_effect_ref_rest),
+        ("surface_points_nugget_rest", solver_input.sp_internal.nugget_effect_rest),
+        ("surface_points_nugget_ref", solver_input.sp_internal.nugget_effect_ref_unique),
+        ("surface_points_surface_ids", solver_input.sp_internal.surface_ids),
         ("orientation_positions", solver_input.ori_internal.dip_positions_tiled),
         ("orientation_gradients", solver_input.ori_internal.gradients_tiled),
         ("orientation_nugget", solver_input.ori_internal.nugget_effect_grad),
@@ -108,7 +110,7 @@ def _resolve_enabled_cache(
     fingerprint = generate_cache_key(
         name="",
         parameters={
-            "schema": 2,
+            "schema": 3,
             "ts": timestamp,
             "kernel_options": cacheable_kernel_options(options.kernel_options),
             "solver": repr(options.kernel_options.kernel_solver),

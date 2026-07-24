@@ -35,7 +35,14 @@ def _test_covariance_items(
         _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
 
     if item == "cov_grad":
-        cov_grad = _get_cov_grad(dm, k_a, k_p_ref, ki.nugget_grad, execution_mode)
+        cov_grad = _get_cov_grad(
+            dm,
+            k_a,
+            k_p_ref,
+            ki.nugget_grad,
+            options.nugget_implementation,
+            execution_mode,
+        )
         return cov_grad
 
     elif item == "cov_sp":
@@ -47,7 +54,7 @@ def _test_covariance_items(
             k_rest_rest,
             options,
             ki.nugget_scalar,
-            ki.nugget_grad.shape[1],
+            ki.nugget_grad.shape[0],
             execution_mode,
         )
 

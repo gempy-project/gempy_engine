@@ -6,7 +6,7 @@ from enum import Enum, auto
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.continue_epoch import ContinueEpoch
-from gempy_engine.core.data.options import KernelOptions
+from gempy_engine.core.data.options import KernelOptions, NuggetImplementation
 from gempy_engine.modules.kernel_constructor import kernel_constructor_interface as kernel_constructor
 from gempy_engine.modules.kernel_constructor._kernels_assembler import create_cov_kernel
 from gempy_engine.modules.kernel_constructor._structs import KernelInput
@@ -299,7 +299,19 @@ def _optimize_nuggets_against_condition_number(matrix, interp_input, kernel_opti
     import torch
 
     cond_number = BackendTensor.t.linalg.cond(matrix)
-    nuggets = interp_input.sp_internal.nugget_effect_ref_rest
+    sp_internal = interp_input.sp_internal
+    match kernel_options.nugget_implementation:
+        case NuggetImplementation.LEGACY:
+            nuggets = sp_internal.nugget_effect_rest
+        case NuggetImplementation.DIAGONAL_REF_REST:
+            nuggets = sp_internal.nugget_effect_ref_rest
+        case NuggetImplementation.FULL_POINT_COVARIANCE:
+            nuggets = BackendTensor.tfnp.concatenate((
+                sp_internal.nugget_effect_rest,
+                sp_internal.nugget_effect_ref_unique,
+            ))
+        case _:
+            raise ValueError(f"Unknown nugget implementation: {kernel_options.nugget_implementation}")
     l1_reg = torch.norm(nuggets, 2) ** 2
     loss = cond_number - 100_000_000 * l1_reg
     loss.backward()

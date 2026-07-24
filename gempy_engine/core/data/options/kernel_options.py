@@ -2,12 +2,19 @@ import warnings
 import math
 
 from dataclasses import dataclass, asdict
+from enum import Enum
 from typing import Optional
 
 from pydantic import field_validator
 
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.core.data.kernel_classes.solvers import Solvers
+
+
+class NuggetImplementation(str, Enum):
+    LEGACY = "legacy"
+    DIAGONAL_REF_REST = "diagonal_ref_rest"
+    FULL_POINT_COVARIANCE = "full_point_covariance"
 
 
 @dataclass(frozen=False)
@@ -33,10 +40,13 @@ class KernelOptions:
     symmetric_equilibration_method: str = "none"
     symmetric_equilibration_max_iterations: int = 10
     symmetric_equilibration_tolerance: float = 1e-2
+    nugget_implementation: NuggetImplementation = NuggetImplementation.LEGACY
 
     def __post_init__(self):
         self.range = float(self.range)
         self.c_o = float(self.c_o)
+        if isinstance(self.nugget_implementation, str):
+            self.nugget_implementation = NuggetImplementation(self.nugget_implementation)
         if not math.isfinite(self.fault_drift_regularization) or self.fault_drift_regularization < 0:
             raise ValueError("fault_drift_regularization must be finite and non-negative")
         if self.symmetric_equilibration_method not in ("none", "ruiz"):
@@ -93,6 +103,7 @@ class KernelOptions:
             kernel_solver (Solvers, optional): Solver for the kernel. Defaults to Solvers.DEFAULT.
             fault_drift_equilibration (bool, optional): Scale fault rows and columns before solving. Defaults to True.
             fault_drift_regularization (float, optional): Relative diagonal loading for fault coefficients. Defaults to 1e-3.
+            nugget_implementation (NuggetImplementation, optional): Nugget covariance implementation.
 
         Returns:
             None
@@ -122,6 +133,7 @@ class KernelOptions:
                 self.symmetric_equilibration_method,
                 self.symmetric_equilibration_max_iterations,
                 self.symmetric_equilibration_tolerance,
+                self.nugget_implementation,
         ))
 
     def __repr__(self):
