@@ -12,6 +12,7 @@ from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import SolverInput, EvaluatorInput
 from ..kernel_constructor.kernel_constructor_interface import yield_evaluation_grad_kernel, yield_evaluation_kernel
 from ..kernel_constructor.execution_mode import KernelExecutionMode
+from ..kernel_constructor._internalDistancesMatrices import DistancesBuffer
 
 
 def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions):
@@ -21,7 +22,13 @@ def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: 
     # ! We need to benchmark GPU vs CPU with more input
     backend_string = "GPU" if BackendTensor.use_gpu else "CPU"
 
-    eval_kernel = yield_evaluation_kernel(solver_input, options.kernel_options, pykeops=True)
+    distance_buffer = DistancesBuffer() if options.compute_scalar_gradient else None
+    eval_kernel = yield_evaluation_kernel(
+        solver_input,
+        options.kernel_options,
+        pykeops=True,
+        distance_buffer=distance_buffer,
+    )
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
         from pykeops.numpy import LazyTensor
         # Create lazy_weights with correct dimensions: we want (16, 1) to match eval_kernel's nj dimension
@@ -38,14 +45,32 @@ def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: 
     gz_field: Optional[np.ndarray] = None
 
     if options.compute_scalar_gradient is True:
-        eval_gx_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=0, pykeops=True)
-        eval_gy_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=1, pykeops=True)
+        eval_gx_kernel = yield_evaluation_grad_kernel(
+            solver_input,
+            options.kernel_options,
+            axis=0,
+            pykeops=True,
+            distance_buffer=distance_buffer,
+        )
+        eval_gy_kernel = yield_evaluation_grad_kernel(
+            solver_input,
+            options.kernel_options,
+            axis=1,
+            pykeops=True,
+            distance_buffer=distance_buffer,
+        )
 
         gx_field = (eval_gx_kernel * lazy_weights).sum(axis=0, backend=backend_string).reshape(-1)
         gy_field = (eval_gy_kernel * lazy_weights).sum(axis=0, backend=backend_string).reshape(-1)
 
         if options.number_dimensions == 3:
-            eval_gz_kernel = yield_evaluation_grad_kernel(solver_input, options.kernel_options, axis=2, pykeops=True)
+            eval_gz_kernel = yield_evaluation_grad_kernel(
+                solver_input,
+                options.kernel_options,
+                axis=2,
+                pykeops=True,
+                distance_buffer=distance_buffer,
+            )
             gz_field = (eval_gz_kernel * lazy_weights).sum(axis=0, backend=backend_string).reshape(-1)
         elif options.number_dimensions == 2:
             gz_field = None

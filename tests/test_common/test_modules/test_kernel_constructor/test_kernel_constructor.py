@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
 import pytest
 from approvaltests import Options
@@ -12,6 +14,8 @@ from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
 from gempy_engine.core.data.matrices_sizes import MatricesSizes
 
+from gempy_engine.modules.kernel_constructor import _kernels_assembler
+from gempy_engine.modules.kernel_constructor._internalDistancesMatrices import DistancesBuffer
 from gempy_engine.modules.kernel_constructor._kernels_assembler import _compute_all_distance_matrices, create_scalar_kernel, create_grad_kernel
 from gempy_engine.modules.kernel_constructor._test_assembler import _test_covariance_items
 from gempy_engine.modules.data_preprocess._input_preparation import surface_points_preprocess, \
@@ -80,6 +84,156 @@ def test_eval_kernel(simple_model_2, simple_grid_2d):
 
     export_gradient_ = create_grad_kernel(kernel_data, options.kernel_options)
     print(export_gradient_)
+
+
+def test_distance_buffer_reuses_scalar_distances_for_all_gradient_axes(simple_model_2, simple_grid_2d, monkeypatch):
+    surface_points, orientations, options, input_data_descriptor = simple_model_2
+    grid = BackendTensor.t.array(simple_grid_2d)
+    solver_input = SolverInput(
+        surface_points_preprocess(surface_points, input_data_descriptor.tensors_structure),
+        orientations_preprocess(orientations),
+    )
+    solver_input.xyz_to_interpolate = grid
+    square_distance = options.kernel_options.kernel_function.value.consume_sq_distance
+    distance_buffer = DistancesBuffer()
+    distance_cache_key = object()
+    generic_calls = 0
+    original_compute = _kernels_assembler._compute_distances_generic
+
+    def count_generic_calls(*args, **kwargs):
+        nonlocal generic_calls
+        generic_calls += 1
+        return original_compute(*args, **kwargs)
+
+    monkeypatch.setattr(_kernels_assembler, "_compute_distances_generic", count_generic_calls)
+    scalar_data = evaluation_vectors_preparations(solver_input, options.kernel_options)
+    scalar_distances = _compute_all_distance_matrices(
+        scalar_data.cartesian_selector,
+        scalar_data.ori_sp_matrices,
+        square_distance,
+        is_gradient=False,
+        distance_buffer=distance_buffer,
+        distance_cache_key=distance_cache_key,
+    )
+
+    cached_gradient_distances = []
+    for axis in range(options.kernel_options.number_dimensions):
+        gradient_data = evaluation_vectors_preparations(solver_input, options.kernel_options, axis=axis)
+        cached_gradient_distances.append(_compute_all_distance_matrices(
+            gradient_data.cartesian_selector,
+            gradient_data.ori_sp_matrices,
+            square_distance,
+            is_gradient=True,
+            distance_buffer=distance_buffer,
+            distance_cache_key=distance_cache_key,
+        ))
+
+    assert generic_calls == 1
+    assert all(distances.dif_ref_ref is scalar_distances.dif_ref_ref for distances in cached_gradient_distances)
+
+    for axis, cached_distances in enumerate(cached_gradient_distances):
+        gradient_data = evaluation_vectors_preparations(solver_input, options.kernel_options, axis=axis)
+        uncached_distances = original_compute(
+            gradient_data.cartesian_selector,
+            gradient_data.ori_sp_matrices,
+            square_distance,
+        )
+        for field_name in cached_distances.__dataclass_fields__:
+            np.testing.assert_allclose(
+                BackendTensor.t.to_numpy(getattr(cached_distances, field_name)),
+                BackendTensor.t.to_numpy(getattr(uncached_distances, field_name)),
+            )
+
+
+def test_distance_buffers_are_isolated_between_concurrent_equal_shaped_inputs(simple_model_2, simple_grid_2d):
+    surface_points, orientations, options, input_data_descriptor = simple_model_2
+    sp_internal = surface_points_preprocess(surface_points, input_data_descriptor.tensors_structure)
+    ori_internal = orientations_preprocess(orientations)
+    square_distance = options.kernel_options.kernel_function.value.consume_sq_distance
+
+    def compute_distances(grid_offset):
+        grid = BackendTensor.t.array(simple_grid_2d) + grid_offset
+        solver_input = SolverInput(sp_internal, ori_internal)
+        solver_input.xyz_to_interpolate = grid
+        distance_buffer = DistancesBuffer()
+        distance_cache_key = object()
+        scalar_data = evaluation_vectors_preparations(solver_input, options.kernel_options)
+        _compute_all_distance_matrices(
+            scalar_data.cartesian_selector,
+            scalar_data.ori_sp_matrices,
+            square_distance,
+            is_gradient=False,
+            distance_buffer=distance_buffer,
+            distance_cache_key=distance_cache_key,
+        )
+        gradient_data = evaluation_vectors_preparations(solver_input, options.kernel_options, axis=0)
+        cached = _compute_all_distance_matrices(
+            gradient_data.cartesian_selector,
+            gradient_data.ori_sp_matrices,
+            square_distance,
+            is_gradient=True,
+            distance_buffer=distance_buffer,
+            distance_cache_key=distance_cache_key,
+        )
+        uncached = _kernels_assembler._compute_distances_generic(
+            gradient_data.cartesian_selector,
+            gradient_data.ori_sp_matrices,
+            square_distance,
+        )
+        return (
+            BackendTensor.t.to_numpy(cached.r_ref_ref),
+            BackendTensor.t.to_numpy(uncached.r_ref_ref),
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(compute_distances, (0.0, 0.125)))
+
+    for cached, uncached in results:
+        np.testing.assert_allclose(cached, uncached)
+    assert not np.allclose(results[0][0], results[1][0])
+
+
+def test_distance_buffer_rejects_an_equal_shaped_input_with_a_different_cache_key(simple_model_2, simple_grid_2d):
+    surface_points, orientations, options, input_data_descriptor = simple_model_2
+    sp_internal = surface_points_preprocess(surface_points, input_data_descriptor.tensors_structure)
+    ori_internal = orientations_preprocess(orientations)
+    square_distance = options.kernel_options.kernel_function.value.consume_sq_distance
+    distance_buffer = DistancesBuffer()
+
+    first_input = SolverInput(sp_internal, ori_internal)
+    first_input.xyz_to_interpolate = BackendTensor.t.array(simple_grid_2d)
+    first_scalar_data = evaluation_vectors_preparations(first_input, options.kernel_options)
+    _compute_all_distance_matrices(
+        first_scalar_data.cartesian_selector,
+        first_scalar_data.ori_sp_matrices,
+        square_distance,
+        is_gradient=False,
+        distance_buffer=distance_buffer,
+        distance_cache_key="first-input",
+    )
+
+    second_input = SolverInput(sp_internal, ori_internal)
+    second_input.xyz_to_interpolate = BackendTensor.t.array(simple_grid_2d) + 0.125
+    second_gradient_data = evaluation_vectors_preparations(second_input, options.kernel_options, axis=0)
+    result = _compute_all_distance_matrices(
+        second_gradient_data.cartesian_selector,
+        second_gradient_data.ori_sp_matrices,
+        square_distance,
+        is_gradient=True,
+        distance_buffer=distance_buffer,
+        distance_cache_key="second-input",
+    )
+    expected = _kernels_assembler._compute_distances_generic(
+        second_gradient_data.cartesian_selector,
+        second_gradient_data.ori_sp_matrices,
+        square_distance,
+    )
+
+    np.testing.assert_allclose(
+        BackendTensor.t.to_numpy(result.r_ref_ref),
+        BackendTensor.t.to_numpy(expected.r_ref_ref),
+    )
+    assert result.dif_ref_ref is not distance_buffer.shared.dif_ref_ref
 
 
 backendNOTNumpyOrNotEnoughRequirementsInstalled = (BackendTensor.engine_backend != AvailableBackends.numpy or

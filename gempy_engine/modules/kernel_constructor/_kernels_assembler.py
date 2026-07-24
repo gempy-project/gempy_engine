@@ -1,6 +1,6 @@
 from . import _structs
 from ._covariance_assembler import get_covariance
-from ._internalDistancesMatrices import InternalDistancesMatrices
+from ._internalDistancesMatrices import DistancesBuffer, InternalDistancesMatrices, SharedDistanceMatrices
 from ._structs import KernelInput, CartesianSelector, OrientationSurfacePointsCoords
 from .execution_mode import KernelExecutionMode
 from ...core.backend_tensor import BackendTensor as bt, BackendTensor
@@ -44,6 +44,8 @@ def create_scalar_kernel(
         ki: KernelInput,
         options: KernelOptions,
         execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+        distance_buffer: DistancesBuffer | None = None,
+        distance_cache_key: object = None,
 ) -> tensor_types:
     kernel_f = options.kernel_function.value
     a = options.range
@@ -56,6 +58,8 @@ def create_scalar_kernel(
         square_distance=kernel_f.consume_sq_distance,
         is_gradient=False,
         execution_mode=execution_mode,
+        distance_buffer=distance_buffer,
+        distance_cache_key=distance_cache_key,
     )
 
     k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = _compute_all_kernel_terms(
@@ -117,6 +121,8 @@ def create_grad_kernel(
         ki: KernelInput,
         options: KernelOptions,
         execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+        distance_buffer: DistancesBuffer | None = None,
+        distance_cache_key: object = None,
 ) -> tensor_types:
     kernel_f = options.kernel_function.value
     a = options.range
@@ -128,6 +134,8 @@ def create_grad_kernel(
         square_distance=kernel_f.consume_sq_distance,
         is_gradient=True,
         execution_mode=execution_mode,
+        distance_buffer=distance_buffer,
+        distance_cache_key=distance_cache_key,
     )
 
     k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
@@ -170,8 +178,59 @@ def _compute_all_kernel_terms(range_: int, kernel_functions: KernelFunction, r_r
 # noinspection DuplicatedCode
 def _compute_all_distance_matrices(cs: CartesianSelector, ori_sp_matrices: OrientationSurfacePointsCoords,
                                    square_distance: bool, is_gradient: bool, is_testing: bool = False,
-                                   execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE) -> InternalDistancesMatrices:
-    return _compute_distances_generic(cs, ori_sp_matrices, square_distance, execution_mode)
+                                   execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+                                   distance_buffer: DistancesBuffer | None = None,
+                                   distance_cache_key: object = None) -> InternalDistancesMatrices:
+    matrix_shape = (
+        ori_sp_matrices.dip_ref_i.shape[0],
+        ori_sp_matrices.dip_ref_j.shape[1],
+        ori_sp_matrices.dip_ref_i.shape[-1],
+    )
+    if (
+            is_gradient
+            and distance_buffer is not None
+            and distance_cache_key is not None
+            and distance_buffer.matches(distance_cache_key, matrix_shape, square_distance, execution_mode)
+    ):
+        return _compute_distances_using_cache(cs, distance_buffer.shared)
+
+    distance_matrices = _compute_distances_generic(cs, ori_sp_matrices, square_distance, execution_mode)
+    if not is_gradient and distance_buffer is not None and distance_cache_key is not None:
+        distance_buffer.store(distance_matrices, distance_cache_key, matrix_shape, square_distance, execution_mode)
+    return distance_matrices
+
+
+def _compute_distances_using_cache(
+        cs: CartesianSelector,
+        shared: SharedDistanceMatrices,
+) -> InternalDistancesMatrices:
+    dif_ref_ref = shared.dif_ref_ref
+    dif_rest_rest = shared.dif_rest_rest
+
+    hv = -bt.t.sum(dif_ref_ref * (cs.hv_sel_i * cs.hv_sel_j), axis=-1)
+    hv_ref = bt.t.sum(dif_ref_ref * (cs.h_sel_ref_i * cs.hv_sel_j), axis=-1)
+    hv_rest = bt.t.sum(dif_rest_rest * (cs.h_sel_rest_i * cs.hv_sel_j), axis=-1)
+    perp_matrix = bt.t.sum(cs.hu_sel_i * cs.hv_sel_j, axis=-1, dtype="int8")
+    hu_ref_grad = bt.t.sum(dif_ref_ref * (cs.h_sel_ref_i * cs.hu_sel_j), axis=-1)
+    hu_rest_grad = bt.t.sum(dif_rest_rest * (cs.h_sel_ref_i * cs.hu_sel_j), axis=-1)
+
+    return InternalDistancesMatrices(
+        dif_ref_ref=dif_ref_ref,
+        dif_rest_rest=dif_rest_rest,
+        hu=shared.hu,
+        hv=hv,
+        huv_ref=shared.hu_ref - hv_ref,
+        huv_rest=shared.hu_rest - hv_rest,
+        perp_matrix=perp_matrix,
+        r_ref_ref=shared.r_ref_ref,
+        r_ref_rest=shared.r_ref_rest,
+        r_rest_ref=shared.r_rest_ref,
+        r_rest_rest=shared.r_rest_rest,
+        hu_ref=shared.hu_ref,
+        hu_rest=shared.hu_rest,
+        hu_ref_grad=hu_ref_grad,
+        hu_rest_grad=hu_rest_grad,
+    )
 
 
 def _compute_distances_generic(

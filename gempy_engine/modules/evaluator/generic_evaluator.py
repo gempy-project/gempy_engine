@@ -7,6 +7,7 @@ from gempy_engine.core.data import InterpolationOptions
 from gempy_engine.core.data.exported_fields import ExportedFields
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.modules.kernel_constructor.kernel_constructor_interface import yield_evaluation_grad_kernel, yield_evaluation_kernel
+from gempy_engine.modules.kernel_constructor._internalDistancesMatrices import DistancesBuffer
 
 
 def generic_evaluator(
@@ -74,8 +75,12 @@ def _eval_on(
     options: InterpolationOptions,
     slice_array: slice
 ):
+    distance_buffer = DistancesBuffer() if options.compute_scalar_gradient else None
     eval_kernel = yield_evaluation_kernel(
-        solver_input, options.kernel_options, slice_array=slice_array
+        solver_input,
+        options.kernel_options,
+        slice_array=slice_array,
+        distance_buffer=distance_buffer,
     )
     try:
         scalar_field = (eval_kernel.T @ weights).reshape(-1)
@@ -90,20 +95,32 @@ def _eval_on(
 
     if options.compute_scalar_gradient:
         eval_gx = yield_evaluation_grad_kernel(
-            solver_input, options.kernel_options, axis=0, slice_array=slice_array
+            solver_input,
+            options.kernel_options,
+            axis=0,
+            slice_array=slice_array,
+            distance_buffer=distance_buffer,
         )
         gx_field = (eval_gx.T @ weights).reshape(-1)  # Use BEFORE deleting
         del eval_gx  # Clean up immediately after use
         
         eval_gy = yield_evaluation_grad_kernel(
-            solver_input, options.kernel_options, axis=1, slice_array=slice_array
+            solver_input,
+            options.kernel_options,
+            axis=1,
+            slice_array=slice_array,
+            distance_buffer=distance_buffer,
         )
         gy_field = (eval_gy.T @ weights).reshape(-1)  # Use BEFORE deleting
         del eval_gy  # Clean up immediately after use
 
         if options.number_dimensions == 3:
             eval_gz = yield_evaluation_grad_kernel(
-                solver_input, options.kernel_options, axis=2, slice_array=slice_array
+                solver_input,
+                options.kernel_options,
+                axis=2,
+                slice_array=slice_array,
+                distance_buffer=distance_buffer,
             )
             gz_field = (eval_gz.T @ weights).reshape(-1)  # Use BEFORE deleting
             del eval_gz  # Clean up immediately after use
