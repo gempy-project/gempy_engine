@@ -123,7 +123,7 @@ def symbolic_evaluator_optimized_stacked(
         eval_kernel_scalar = create_scalar_kernel(
             concat_kernel_data,
             base_options.kernel_options,
-            execution_mode=KernelExecutionMode.PYKEOPS,
+            execution_mode=KernelExecutionMode.SYMBOLIC,
         )
 
     if base_options.compute_scalar_gradient is True:
@@ -143,7 +143,7 @@ def symbolic_evaluator_optimized_stacked(
         eval_kernel_grad = create_grad_kernel(
             concat_kernel_data,
             base_options.kernel_options,
-            execution_mode=KernelExecutionMode.PYKEOPS,
+            execution_mode=KernelExecutionMode.SYMBOLIC,
         )
 
     # region kernels

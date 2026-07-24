@@ -26,7 +26,7 @@ def kernel_reduction(
     match (BackendTensor.engine_backend, execution_mode, solver):
         case (AvailableBackends.PYTORCH, KernelExecutionMode.DENSE, _):
             w = torch_solve(b, cov)
-        case (AvailableBackends.PYTORCH, KernelExecutionMode.PYKEOPS, _):
+        case (AvailableBackends.PYTORCH, KernelExecutionMode.SYMBOLIC, _):
             if x0 is not None and len(x0) == 0:
                 x0 = None
             w = pykeops_torch_cg(b, cov, x0, bt.use_gpu)

@@ -168,14 +168,14 @@ def solve_pykeops_with_dense_fallback(interp_input, kernel_options: KernelOption
             lazy_kernel_data,
             interp_input,
             kernel_options,
-            KernelExecutionMode.PYKEOPS,
+            KernelExecutionMode.SYMBOLIC,
         )
         result = _solve_system(
             lazy_system,
             interp_input,
             kernel_options,
             InterpolationSolveRoute.PYKEOPS_WITH_DENSE_FALLBACK,
-            KernelExecutionMode.PYKEOPS,
+            KernelExecutionMode.SYMBOLIC,
         )
     except Exception as error:
         warnings.warn(
@@ -286,7 +286,7 @@ def _record_condition_numbers(
         system: InterpolationSystem,
         execution_mode: KernelExecutionMode,
 ) -> None:
-    if not kernel_options.compute_condition_number or execution_mode is KernelExecutionMode.PYKEOPS:
+    if not kernel_options.compute_condition_number or execution_mode is KernelExecutionMode.SYMBOLIC:
         return
     before = BackendTensor.t.linalg.cond(system.physical_matrix)
     after = BackendTensor.t.linalg.cond(system.solve_matrix)

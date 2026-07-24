@@ -183,7 +183,7 @@ def _get_faults_terms(
         drift_start_post_y=cov_size - fault_n
     )
     
-    if execution_mode is KernelExecutionMode.PYKEOPS:
+    if execution_mode is KernelExecutionMode.SYMBOLIC:
         selector_components = selector_components.upgrade_tensors()
     
     selector = (selector_components.sel_ui * (selector_components.sel_vj + 1)).sum(axis=-1)

@@ -100,7 +100,7 @@ def create_scalar_kernel(
             drift_start_post_y=j_size
         )
 
-        if execution_mode is KernelExecutionMode.PYKEOPS:
+        if execution_mode is KernelExecutionMode.SYMBOLIC:
             selector_components = selector_components.upgrade_tensors()
 
         selector = bt.t.sum(selector_components.sel_ui * (selector_components.sel_vj + 1), axis=-1)
@@ -205,7 +205,7 @@ def _compute_distances_generic(
     if square_distance is False:
         # @off
         epsilon = 1e-10  # Add small regularization term to avoid numerical errors
-        if execution_mode is KernelExecutionMode.PYKEOPS:
+        if execution_mode is KernelExecutionMode.SYMBOLIC:
             r_ref_ref = (r_ref_ref + epsilon).sqrt()
             r_rest_rest = (r_rest_rest + epsilon).sqrt()
             r_ref_rest = (r_ref_rest + epsilon).sqrt()

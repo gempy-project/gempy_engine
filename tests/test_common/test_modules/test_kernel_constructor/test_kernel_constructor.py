@@ -209,7 +209,7 @@ class TestPykeopsNumPyEqual():
             kernel_data,
             options,
             item=item,
-            execution_mode=KernelExecutionMode.PYKEOPS,
+            execution_mode=KernelExecutionMode.SYMBOLIC,
         )
         c_k_sum = c_n.sum(0).reshape(-1, 1)
 

@@ -18,7 +18,7 @@ from ...modules.solver.interpolation_solver import (
     solve_dense_fault_stabilized,
     solve_dense_ruiz,
     solve_dense_untransformed,
-    solve_pykeops_with_dense_fallback,
+    solve_pykeops_with_dense_fallback, InterpolationSolveResult,
 )
 from ...modules.weights_cache.weight_cache_policy import (
     WeightCacheRoute,
@@ -27,7 +27,8 @@ from ...modules.weights_cache.weight_cache_policy import (
 )
 
 
-def compute_weights(solver_input: Union[SolverInput, SolverInput_v2], stack_number: int, options: InterpolationOptions) -> ndarray[tuple[Any, ...], dtype[Any]]:
+def compute_weights(solver_input: Union[SolverInput, SolverInput_v2], stack_number: int, options: InterpolationOptions) \
+        -> ndarray[tuple[Any, ...], dtype[Any]]:
     pykeops_requested = pykeops_solver_requested()
     cache_decision = resolve_weight_cache(
         options=options,
@@ -41,7 +42,7 @@ def compute_weights(solver_input: Union[SolverInput, SolverInput_v2], stack_numb
         case WeightCacheRoute.SOLVE:
             return _solve_interpolation(solver_input, options.kernel_options, pykeops_requested)
         case WeightCacheRoute.SOLVE_AND_STORE:
-            result = _solve_interpolation_result(solver_input, options.kernel_options, pykeops_requested)
+            result: InterpolationSolveResult = _solve_interpolation_result(solver_input, options.kernel_options, pykeops_requested)
             if not result.used_fallback:
                 store_weight_result(cache_decision, result.weights)
             return result.weights
@@ -52,14 +53,15 @@ def _solve_interpolation(
         kernel_options: KernelOptions,
         pykeops_requested: bool | None = None,
 ) -> np.ndarray:
-    return _solve_interpolation_result(interp_input, kernel_options, pykeops_requested).weights
+    result: InterpolationSolveResult = _solve_interpolation_result(interp_input, kernel_options, pykeops_requested)
+    return result.weights
 
 
 def _solve_interpolation_result(
         interp_input: Union[SolverInput, SolverInput_v2],
         kernel_options: KernelOptions,
         pykeops_requested: bool | None = None,
-):
+) -> InterpolationSolveResult:
     pykeops_requested = pykeops_solver_requested() if pykeops_requested is None else pykeops_requested
     route = select_interpolation_solve_route(
         kernel_options=kernel_options,
