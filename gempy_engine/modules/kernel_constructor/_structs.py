@@ -219,11 +219,18 @@ class DriftMatrixSelector:
 
 
 @dataclass
+class SurfacePointNuggets:
+    rest: tensor_types
+    reference: tensor_types
+    surface_ids: tensor_types
+
+
+@dataclass
 class KernelInput:
     # Used for CG, CI and CGI
     ori_sp_matrices: OrientationSurfacePointsCoords
     cartesian_selector: CartesianSelector
-    nugget_scalar: Optional[tensor_types]
+    nugget_scalar: Optional[SurfacePointNuggets]
     nugget_grad: Optional[tensor_types]  # * They are optional because they are not used in evaluation
 
     # Used for Drift

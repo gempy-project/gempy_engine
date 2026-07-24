@@ -37,9 +37,20 @@ def surface_points_preprocess(sp_input: SurfacePoints, tensors_structure: Tensor
     
     ref_points_repeated = b.t.repeat(ref_points, number_repetitions, 0)  # ref_points shape: (1, 3)
     ref_nugget_repeated = b.t.repeat(ref_nugget, number_repetitions, 0)
-    nugget_effect_ref_rest = rest_nugget + ref_nugget_repeated
+    surface_ids = b.t.repeat(
+        b.t.arange(tensors_structure.n_surfaces, dtype=rest_nugget.dtype),
+        number_repetitions,
+        0,
+    )
 
-    return SurfacePointsInternals(ref_points_repeated, rest_points, nugget_effect_ref_rest)
+    return SurfacePointsInternals(
+        ref_points_repeated,
+        rest_points,
+        rest_nugget,
+        ref_nugget_repeated,
+        ref_nugget,
+        surface_ids,
+    )
 
 
 
@@ -70,8 +81,16 @@ def surface_points_preprocess_(sp_input: SurfacePoints, tensors_structure: Tenso
     # 4. Use repeat_interleave instead of repeat
     ref_points_repeated = torch.repeat_interleave(ref_points, number_repetitions, dim=0)
     ref_nugget_repeated = torch.repeat_interleave(ref_nugget, number_repetitions, dim=0)
+    surface_ids = torch.repeat_interleave(
+        torch.arange(tensors_structure.n_surfaces, device=ref_points.device, dtype=ref_points.dtype),
+        number_repetitions,
+    )
 
-    nugget_effect_ref_rest = rest_nugget + ref_nugget_repeated
-
-    return SurfacePointsInternals(ref_points_repeated, rest_points, nugget_effect_ref_rest)
-
+    return SurfacePointsInternals(
+        ref_points_repeated,
+        rest_points,
+        rest_nugget,
+        ref_nugget_repeated,
+        ref_nugget,
+        surface_ids,
+    )

@@ -5,7 +5,7 @@ import numpy as np
 from ...core.backend_tensor import BackendTensor
 from ._kernel_constructors import assembly_dips_points_tensor, assembly_dips_ug_coords, assembly_dips_points_coords
 from ._kernel_selectors import dips_sp_cartesian_selector, grid_cartesian_selector
-from ._structs import OrientationSurfacePointsCoords, FaultDrift, PointsDrift, DriftMatrixSelector, KernelInput, CartesianSelector, OrientationsDrift
+from ._structs import OrientationSurfacePointsCoords, FaultDrift, PointsDrift, DriftMatrixSelector, KernelInput, CartesianSelector, OrientationsDrift, SurfacePointNuggets
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.internal_structs import SolverInput
 from ...core.data.kernel_classes.orientations import OrientationsInternals
@@ -48,7 +48,11 @@ def cov_vectors_preparation(interp_input: SolverInput, kernel_options: KernelOpt
     return KernelInput(
         ori_sp_matrices=orientations_sp_matrices,
         cartesian_selector=cartesian_selector,
-        nugget_scalar=interp_input.sp_internal.nugget_effect_ref_rest,
+        nugget_scalar=SurfacePointNuggets(
+            rest=interp_input.sp_internal.nugget_effect_rest,
+            reference=interp_input.sp_internal.nugget_effect_ref,
+            surface_ids=interp_input.sp_internal.surface_ids,
+        ),
         nugget_grad=interp_input.ori_internal.nugget_effect_grad,
         # Drift
         ori_drift=dips_ug,

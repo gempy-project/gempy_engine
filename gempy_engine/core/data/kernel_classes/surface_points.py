@@ -52,7 +52,10 @@ class SurfacePoints:
 class SurfacePointsInternals:
     ref_surface_points: tensor_types
     rest_surface_points: tensor_types
-    nugget_effect_ref_rest: tensor_types
+    nugget_effect_rest: tensor_types
+    nugget_effect_ref: tensor_types
+    nugget_effect_ref_unique: tensor_types
+    surface_ids: tensor_types
 
     def __hash__(self):
         i = hash(self.__repr__())
@@ -61,3 +64,7 @@ class SurfacePointsInternals:
     @property
     def n_points(self) -> int:
         return self.ref_surface_points.shape[0]
+
+    @property
+    def nugget_effect_ref_rest(self):
+        return self.nugget_effect_rest + self.nugget_effect_ref

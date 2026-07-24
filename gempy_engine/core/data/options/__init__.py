@@ -1,3 +1,3 @@
 from .interpolation_options import InterpolationOptions
-from .kernel_options import KernelOptions
-from .evaluation_options import MeshExtractionMaskingOptions, EvaluationOptions 
+from .kernel_options import KernelOptions, NuggetImplementation
+from .evaluation_options import MeshExtractionMaskingOptions, EvaluationOptions
