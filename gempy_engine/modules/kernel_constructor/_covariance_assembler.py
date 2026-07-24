@@ -7,6 +7,7 @@ from gempy_engine.core.data.options import KernelOptions
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.kernel_constructor import _structs
 from gempy_engine.modules.kernel_constructor._structs import KernelInput
+from gempy_engine.modules.kernel_constructor.execution_mode import KernelExecutionMode
 
 # ! Important for loading the pickle in test_distance_matrix
 from gempy_engine.modules.kernel_constructor._internalDistancesMatrices import InternalDistancesMatrices
@@ -14,10 +15,23 @@ from gempy_engine.modules.kernel_constructor._internalDistancesMatrices import I
 global_nugget = 1e-5
 
 
-def get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, ki: KernelInput, options):
-    cov_grad = _get_cov_grad(dm, k_a, k_p_ref, ki.nugget_grad)
+def get_covariance(
+        c_o,
+        dm,
+        k_a,
+        k_p_ref,
+        k_p_rest,
+        k_ref_ref,
+        k_ref_rest,
+        k_rest_ref,
+        k_rest_rest,
+        ki: KernelInput,
+        options,
+        execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+):
+    cov_grad = _get_cov_grad(dm, k_a, k_p_ref, ki.nugget_grad, execution_mode)
     cov_sp = _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest,
-                                     options, ki.nugget_scalar, ki.nugget_grad.shape[1])  # TODO: Add nugget effect properly (individual) # cov_sp += np.eye(cov_sp.shape[0]) * .00000001
+                                     options, ki.nugget_scalar, ki.nugget_grad.shape[1], execution_mode)  # TODO: Add nugget effect properly (individual) # cov_sp += np.eye(cov_sp.shape[0]) * .00000001
     cov_grad_sp = _get_cross_cov_grad_sp(dm, k_p_ref, k_p_rest, options)  # C
     
     # Universal drift
@@ -27,7 +41,7 @@ def get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_res
 
     # Fault component
     if ki.ref_fault is not None:
-        faults_drift = _get_faults_terms(ki)
+        faults_drift = _get_faults_terms(ki, execution_mode)
         cov = c_o * (cov_grad + cov_sp + cov_grad_sp) + uni_drift + faults_drift  # *  NOTE: (miguel) The magic terms are real and now they are already included
     else:
         faults_drift = np.zeros(cov_grad.shape)
@@ -45,10 +59,16 @@ def get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_res
     return cov
 
 
-def _get_cov_grad(dm, k_a, k_p_ref, nugget):
+def _get_cov_grad(
+        dm,
+        k_a,
+        k_p_ref,
+        nugget,
+        execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+):
     cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
     grad_nugget = nugget[0, 0]
-    if BackendTensor.pykeops_enabled is False:
+    if execution_mode is KernelExecutionMode.DENSE:
         # eye = BackendTensor.t.array(np.eye(cov_grad.shape[0], dtype=BackendTensor.dtype))
         eye = BackendTensor.t.eye(cov_grad.shape[0])
         nugget_selector = eye * dm.perp_matrix
@@ -74,10 +94,20 @@ def _get_cov_grad(dm, k_a, k_p_ref, nugget):
     return cov_grad
 
 
-def _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options: KernelOptions, nugget_effect, grad_matrix_size):
+def _get_cov_surface_points(
+        dm,
+        k_ref_ref,
+        k_ref_rest,
+        k_rest_ref,
+        k_rest_rest,
+        options: KernelOptions,
+        nugget_effect,
+        grad_matrix_size,
+        execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+):
     cov_surface_points = options.i_res * (k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref)
     
-    if BackendTensor.pykeops_enabled is False: # Add nugget effect for ref and rest point
+    if execution_mode is KernelExecutionMode.DENSE: # Add nugget effect for ref and rest point
         cov_shape = cov_surface_points.shape[0]
         shape_sp_size = nugget_effect.shape[0]
         
@@ -135,7 +165,10 @@ def _get_universal_gradient_terms(ki, options):
     return total_ug
 
 
-def _get_faults_terms(ki: KernelInput) -> np.ndarray:
+def _get_faults_terms(
+        ki: KernelInput,
+        execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+) -> np.ndarray:
     fault_ref = (ki.ref_fault.faults_i * ki.ref_fault.faults_j).sum(axis=-1)
     fault_rest = (ki.rest_fault.faults_i * ki.rest_fault.faults_j).sum(axis=-1)
 
@@ -150,7 +183,7 @@ def _get_faults_terms(ki: KernelInput) -> np.ndarray:
         drift_start_post_y=cov_size - fault_n
     )
     
-    if BackendTensor.pykeops_enabled:
+    if execution_mode is KernelExecutionMode.SYMBOLIC:
         selector_components = selector_components.upgrade_tensors()
     
     selector = (selector_components.sel_ui * (selector_components.sel_vj + 1)).sum(axis=-1)

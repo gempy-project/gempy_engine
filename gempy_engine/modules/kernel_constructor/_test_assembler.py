@@ -4,9 +4,15 @@ from gempy_engine.core.data.options import KernelOptions
 from gempy_engine.modules.kernel_constructor._covariance_assembler import _get_cov_grad, _get_cov_surface_points, _get_cross_cov_grad_sp, _get_universal_gradient_terms, _get_universal_sp_terms, get_covariance
 from gempy_engine.modules.kernel_constructor._kernels_assembler import _compute_all_distance_matrices, _compute_all_kernel_terms
 from gempy_engine.modules.kernel_constructor._structs import KernelInput
+from gempy_engine.modules.kernel_constructor.execution_mode import KernelExecutionMode
 
 
-def _test_covariance_items(ki: KernelInput, options: KernelOptions, item):
+def _test_covariance_items(
+        ki: KernelInput,
+        options: KernelOptions,
+        item,
+        execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+):
     """This method is not to be executed in production. Just for sanity check
     """
     # Deprecation warning
@@ -21,18 +27,29 @@ def _test_covariance_items(ki: KernelInput, options: KernelOptions, item):
         ori_sp_matrices=ki.ori_sp_matrices,
         square_distance=True,
         is_gradient=True,
-        is_testing=True
+        is_testing=True,
+        execution_mode=execution_mode,
     )
 
     k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest = \
         _compute_all_kernel_terms(a, kernel_f, dm.r_ref_ref, dm.r_ref_rest, dm.r_rest_ref, dm.r_rest_rest)
 
     if item == "cov_grad":
-        cov_grad = _get_cov_grad(dm, k_a, k_p_ref, ki.nugget_grad)
+        cov_grad = _get_cov_grad(dm, k_a, k_p_ref, ki.nugget_grad, execution_mode)
         return cov_grad
 
     elif item == "cov_sp":
-        return _get_cov_surface_points(k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, options)
+        return _get_cov_surface_points(
+            dm,
+            k_ref_ref,
+            k_ref_rest,
+            k_rest_ref,
+            k_rest_rest,
+            options,
+            ki.nugget_scalar,
+            ki.nugget_grad.shape[1],
+            execution_mode,
+        )
 
     elif item == "cov_grad_sp":
         cov_grad_sp = _get_cross_cov_grad_sp(dm, k_p_ref, k_p_rest, options)
@@ -63,7 +80,20 @@ def _test_covariance_items(ki: KernelInput, options: KernelOptions, item):
 
     elif item == "cov":
 
-        cov = get_covariance(c_o, dm, k_a, k_p_ref, k_p_rest, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest, ki, options)
+        cov = get_covariance(
+            c_o,
+            dm,
+            k_a,
+            k_p_ref,
+            k_p_rest,
+            k_ref_ref,
+            k_ref_rest,
+            k_rest_ref,
+            k_rest_rest,
+            ki,
+            options,
+            execution_mode,
+        )
         return cov
 
     elif item == "sigma_0_sp":
