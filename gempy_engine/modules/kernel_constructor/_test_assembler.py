@@ -47,7 +47,7 @@ def _test_covariance_items(
             k_rest_rest,
             options,
             ki.nugget_scalar,
-            ki.nugget_grad.shape[1],
+            ki.nugget_grad.shape[0],
             execution_mode,
         )
 
