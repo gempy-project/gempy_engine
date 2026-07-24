@@ -1,4 +1,3 @@
-import warnings
 from typing import Optional
 
 import numpy as np
@@ -25,7 +24,7 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndar
                 print(f'Condition number: {cond_number}.')
             w = torch_solve(b, cov)
         case (AvailableBackends.PYTORCH, True, _):
-            if len(x0) == 0:
+            if x0 is not None and len(x0) == 0:
                 x0 = None
             w = pykeops_torch_cg(b, cov, x0, bt.use_gpu)
         case (AvailableBackends.numpy, False, Solvers.DEFAULT):
@@ -47,17 +46,10 @@ def kernel_reduction(cov, b, kernel_options: KernelOptions, x0: Optional[np.ndar
 
 def _compute_conditional_number(cov, plot=False):
     cond_number = np.linalg.cond(cov)
-    svd = np.linalg.svd(cov)
-    eigvals = np.linalg.eigvals(cov)
-    is_positive_definite = np.all(eigvals > 0)
-    print(f'Condition number: {cond_number}. Is positive definite: {is_positive_definite}')
-    
-    idx = np.where(eigvals > 800)
-    print(idx)
-    if not is_positive_definite:  # ! Careful numpy False
-        warnings.warn('The covariance matrix is not positive definite')
+    print(f'Condition number: {cond_number}.')
     if plot:
         import matplotlib.pyplot as plt
+        eigvals = np.linalg.eigvals(cov)
         # Plotting the histogram
         plt.hist(eigvals, bins=50, color='blue', alpha=0.7, log=True)
         plt.xlabel('Eigenvalue')
@@ -66,7 +58,6 @@ def _compute_conditional_number(cov, plot=False):
         plt.show()
         
     return cond_number
-
 
 
 
