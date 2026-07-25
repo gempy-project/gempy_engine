@@ -58,10 +58,15 @@ def compute_gempy_model(gempy_input: GemPyInput) -> Response:
         logger=logger
     )
 
+    # Options contain mutable nested configuration, so each request needs its
+    # own copy. The request schema exposes the desired octree depth on the grid.
+    options = default_interpolation_options.model_copy(deep=True)
+    options.evaluation_options.number_octree_levels = gempy_input.interpolation_input.grid.octree_levels
+
     # Compute model
     solutions = _compute_model(
         interpolation_input=interpolation_input,
-        options=default_interpolation_options,
+        options=options,
         structure=input_data_descriptor
     )
     logger.info("Finished computing model")
