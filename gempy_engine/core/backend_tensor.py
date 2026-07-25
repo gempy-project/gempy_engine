@@ -205,8 +205,12 @@ class BackendTensor:
         def _repeat(tensor, n_repeats, axis=None):
             if not isinstance(tensor, torch.Tensor):
                 tensor = torch.as_tensor(tensor, device=cls.device)
+            elif tensor.device != cls.device:
+                tensor = tensor.to(cls.device)
             if not isinstance(n_repeats, torch.Tensor):
                 n_repeats = torch.as_tensor(n_repeats, device=cls.device)
+            elif n_repeats.device != cls.device:
+                n_repeats = n_repeats.to(cls.device)
             return _true_torch_repeat_interleave(tensor, n_repeats, dim=axis)
 
         def _array(array_like, dtype=None):
