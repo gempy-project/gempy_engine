@@ -104,6 +104,21 @@ def _build_block_sparse_ranges(M_sizes: list[int], N_sizes: list[int]):
     return numpy_ranges
 
 
+def _validate_stacked_dimensions(eval_kernel, weights, M_sizes: list[int], N_sizes: list[int]) -> None:
+    """Fail before PyKeOps when block ranges do not describe the lazy kernel."""
+    expected_i = sum(N_sizes)
+    expected_j = sum(M_sizes)
+    kernel_shape = tuple(eval_kernel.shape)
+    weights_size = weights.shape[0]
+
+    if kernel_shape[0] != expected_i or kernel_shape[1] != expected_j or weights_size != expected_i:
+        raise ValueError(
+            "Inconsistent stacked PyKeOps dimensions: "
+            f"kernel={kernel_shape}, weights={weights_size}, "
+            f"range dimensions=({expected_i}, {expected_j})."
+        )
+
+
 def symbolic_evaluator_optimized_stacked(
         eval_inputs: list[EvaluatorInput],
         weights_list: list[np.ndarray],
@@ -194,6 +209,7 @@ def symbolic_evaluator_optimized_stacked(
     # Concatenate weights
     all_weights = BackendTensor.t.concatenate(weights_list, axis=0)
     all_weights = BackendTensor.t.tile(all_weights, tile_factor)
+    _validate_stacked_dimensions(eval_kernel, all_weights, M_sizes, N_sizes)
 
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
         from pykeops.numpy import LazyTensor
@@ -234,13 +250,11 @@ def symbolic_evaluator_optimized_stacked(
         except TypeError:
             raise ValueError("Failed to compute symbolic evaluation with PyKeOps. Ensure that all_weights and eval_kernel are compatible for lazy tensor operations.")
 
-    # For torch
-    # all_results_concat = all_results_concat.to("cpu")
-    all_results_split = BackendTensor.t.split(all_results_concat, M_sizes)
-
-    # For numpy
-    # split_indices = np.cumsum(M_sizes)[:-1]
-    # all_results_split = np.split(all_results_concat, split_indices)
+    if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
+        split_indices = np.cumsum(M_sizes)[:-1]
+        all_results_split = np.split(all_results_concat, split_indices)
+    else:
+        all_results_split = BackendTensor.t.split(all_results_concat, M_sizes)
 
     original_n_fields = len(eval_inputs)
     scalar_fields = all_results_split[:original_n_fields]

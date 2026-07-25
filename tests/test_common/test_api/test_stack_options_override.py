@@ -86,8 +86,10 @@ def test_stack_options_override_serial(override_setup):
 
 
 @pytest.mark.skipif(not PYKEOPS_AVAILABLE, reason="pykeops not installed")
-def test_stack_options_override_flat(override_setup):
+@pytest.mark.parametrize("number_octree_levels", [1, 2])
+def test_stack_options_override_flat(override_setup, number_octree_levels):
     ii, global_options, ts = override_setup
+    global_options.evaluation_options.number_octree_levels = number_octree_levels
     
     custom_options = InterpolationOptions.from_args(
         range=5.0,

@@ -18,6 +18,7 @@ from ...core.data.octree_level import OctreeLevel
 from ...core.data.solutions import Solutions
 from ...core.utils import gempy_profiler_decorator
 from ...core.exceptions import GemPyEngineInputError
+from ...core.data.options.temp_interpolation_values import TempInterpolationValues
 from ...modules.geophysics.fw_gravity import compute_gravity
 from ...modules.geophysics.fw_magnetic import compute_tmi
 from ...modules.weights_cache.weights_cache_interface import WeightCache
@@ -26,6 +27,10 @@ from ...modules.weights_cache.weights_cache_interface import WeightCache
 @gempy_profiler_decorator
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                   data_descriptor: InputDataDescriptor, *, geophysics_input: Optional[GeophysicsInput] = None) -> Solutions:
+    # Octree progress and cache timestamps belong to this computation. Keeping
+    # them on a shared options object lets concurrent requests change each
+    # other's active octree level.
+    options = options.model_copy(update={"temp_interpolation_values": TempInterpolationValues()})
     try:
         WeightCache.initialize_cache_dir()
         options.temp_interpolation_values.start_computation_ts = int(time.time())
