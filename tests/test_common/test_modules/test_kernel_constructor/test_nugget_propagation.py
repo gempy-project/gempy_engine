@@ -125,6 +125,36 @@ def test_surface_preprocessing_preserves_nugget_components_and_surface_ids(simpl
     )
 
 
+def test_surface_preprocessing_uses_backend_device_when_torch_default_differs(simple_model_2):
+    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH or not BackendTensor.use_gpu:
+        pytest.skip("PyTorch GPU-only device regression test")
+    import torch
+
+    previous_default_device = torch.get_default_device()
+    try:
+        torch.set_default_device("cpu")
+        surface_points, _, _, descriptor = deepcopy(simple_model_2)
+
+        internal = surface_points_preprocess(surface_points, descriptor.tensors_structure)
+
+        assert internal.surface_ids.device.type == BackendTensor.device.type
+    finally:
+        torch.set_default_device(previous_default_device)
+
+
+def test_pytorch_repeat_moves_existing_tensors_to_backend_device():
+    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH or not BackendTensor.use_gpu:
+        pytest.skip("PyTorch GPU-only device regression test")
+    import torch
+
+    values = torch.tensor([0.0], device="cpu")
+    repeats = torch.tensor([1], device=BackendTensor.device)
+
+    result = BackendTensor.t.repeat(values, repeats, 0)
+
+    assert result.device.type == BackendTensor.device.type
+
+
 def test_all_nuggets_receive_pytorch_gradients(simple_model_2):
     if BackendTensor.engine_backend is not AvailableBackends.PYTORCH:
         pytest.skip("PyTorch-only autograd test")
