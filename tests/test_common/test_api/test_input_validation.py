@@ -1,13 +1,14 @@
 import pytest
 import numpy as np
 from gempy_engine.API.model.model_api import compute_model
-from gempy_engine.core.data import InterpolationOptions, SurfacePoints, Orientations, TensorsStructure
+from gempy_engine.core.data import FiniteFault, InterpolationOptions, SurfacePoints, Orientations, TensorsStructure
 from gempy_engine.core.data.engine_grid import EngineGrid, RegularGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
+from gempy_engine.core.data.kernel_classes.faults import FaultsData
 from gempy_engine.core.exceptions import GemPyEngineInputError
 
 
@@ -127,3 +128,23 @@ def test_mismatched_surfaces_count(basic_input):
     with pytest.raises(GemPyEngineInputError, match="Total surfaces in StacksStructure"):
         compute_model(ii, options, dd)
 
+
+def test_finite_fault_requires_fault_stack(basic_input):
+    ii, options, dd = basic_input
+    dd.stack_structure.faults_input_data = [
+        FaultsData.from_user_input(
+            thickness=None,
+            finite_fault=FiniteFault(center=(0.5, 0.5, 0.5)),
+        )
+    ]
+
+    with pytest.raises(GemPyEngineInputError, match="requires a FAULT stack"):
+        compute_model(ii, options, dd)
+
+
+def test_fault_input_data_requires_one_entry_per_stack(basic_input):
+    ii, options, dd = basic_input
+    dd.stack_structure.faults_input_data = [None, None]
+
+    with pytest.raises(GemPyEngineInputError, match="one entry per stack"):
+        compute_model(ii, options, dd)

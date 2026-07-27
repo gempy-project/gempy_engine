@@ -1,6 +1,6 @@
 import concurrent.futures
 
-from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
+from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output, _options_with_finite_fault_gradients
 from ._interp_scalar_field import _evaluate_sys_eq, compute_weights
 from ._interp_single_feature import interpolate_feature_with_external_function
 from ...config import AvailableBackends
@@ -46,6 +46,7 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
     # region preparation - build inputs for this chunk
     chunk_interpolation_inputs: list[InterpolationInput] = []
     chunk_tensor_structs: list[TensorsStructure] = []
+    chunk_options: list[InterpolationOptions] = []
 
     if BackendTensor.engine_backend == AvailableBackends.PYTORCH and BackendTensor.use_gpu:
         import torch
@@ -72,6 +73,9 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
         state.tensor_structs[i] = tensor_struct_i
         chunk_interpolation_inputs.append(interpolation_input_i)
         chunk_tensor_structs.append(tensor_struct_i)
+
+        options_i = state.stack_structure.interpolation_options if state.stack_structure.interpolation_options is not None else state.options
+        chunk_options.append(_options_with_finite_fault_gradients(options_i, fault_input))
     # endregion
 
     # Compute weights for this chunk
@@ -80,20 +84,33 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
         options=state.options,
         stack_structure=state.stack_structure,
         tensor_structs=chunk_tensor_structs,
-        stack_indices=chunk
+        stack_indices=chunk,
+        options_per_stack=chunk_options,
     )
     for idx, i in enumerate(chunk):
         state.solver_inputs[i] = chunk_solver_inputs[idx]
 
     # Evaluate this chunk
-    chunk_eval_inputs, chunk_exported_fields = _evaluate_optimized(
-        interpolation_inputs=chunk_interpolation_inputs,
-        options=state.options,
-        solver_inputs=chunk_solver_inputs,
-        stack_structure=state.stack_structure,
-        tensor_structs=chunk_tensor_structs,
-        stack_indices=chunk
-    )
+    if any(fault_input.finite_fault_defined for fault_input in (item.fault_values for item in chunk_interpolation_inputs)):
+        chunk_eval_inputs, chunk_exported_fields = _evaluate(
+            interpolation_inputs=chunk_interpolation_inputs,
+            options=state.options,
+            solver_inputs=chunk_solver_inputs,
+            stack_structure=state.stack_structure,
+            tensor_structs=chunk_tensor_structs,
+            stack_indices=chunk,
+            options_per_stack=chunk_options,
+        )
+    else:
+        chunk_eval_inputs, chunk_exported_fields = _evaluate_optimized(
+            interpolation_inputs=chunk_interpolation_inputs,
+            options=state.options,
+            solver_inputs=chunk_solver_inputs,
+            stack_structure=state.stack_structure,
+            tensor_structs=chunk_tensor_structs,
+            stack_indices=chunk,
+            options_per_stack=chunk_options,
+        )
 
     for idx, i in enumerate(chunk):
         state.eval_inputs[i] = chunk_eval_inputs[idx]
@@ -106,7 +123,8 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
         options=state.options,
         solver_inputs=chunk_solver_inputs,
         stack_structure=state.stack_structure,
-        stack_indices=chunk
+        stack_indices=chunk,
+        options_per_stack=chunk_options,
     )
 
     for idx, i in enumerate(chunk):
@@ -119,7 +137,7 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
 
         values_output = _modify_faults_values_output(
             fault_input=chunk_interpolation_inputs[idx].fault_values,
-            values_on_all_xyz=state.all_scalar_fields_outputs[i].values_on_all_xyz,
+            output=state.all_scalar_fields_outputs[i],
             xyz_to_interpolate=state.eval_inputs[i].xyz_to_interpolate
         )
         state.all_stack_values_block[i, :] = values_output
@@ -132,7 +150,8 @@ def _segment(
         options: InterpolationOptions,
         solver_inputs,
         stack_structure: StacksStructure,
-        stack_indices: list[int]
+        stack_indices: list[int],
+        options_per_stack: list[InterpolationOptions],
 ) -> list[ScalarFieldOutput | None]:
     def _run_segment(idx_global_i: tuple[int, int]) -> ScalarFieldOutput:
         idx, global_i = idx_global_i
@@ -141,8 +160,7 @@ def _segment(
         local_stack_structure = copy(stack_structure)
         local_stack_structure.stack_number = global_i
 
-        # Check for stack specific options override
-        options_i = local_stack_structure.interpolation_options if local_stack_structure.interpolation_options is not None else options
+        options_i = options_per_stack[idx]
 
         import torch
         if torch.cuda.is_available():
@@ -188,7 +206,8 @@ def _segment(
 
 
 def _evaluate(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
-              tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
+              tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None,
+              options_per_stack: list[InterpolationOptions] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
     eval_inputs: list[EvaluatorInput] = []
     exported_fields_per_stack: list[ExportedFields] = []
     for idx, global_i in enumerate(stack_indices):
@@ -205,7 +224,7 @@ def _evaluate(interpolation_inputs: list[InterpolationInput], options: Interpola
         exported_fields: ExportedFields = _evaluate_sys_eq(
             eval_input=eval_input,
             weights=eval_input.solver_input.weights_x0,
-            options=options
+            options=options_per_stack[idx] if options_per_stack is not None else options,
         )
 
         exported_fields.set_structure_values_from_eval_input(eval_input)
@@ -218,7 +237,8 @@ def _evaluate(interpolation_inputs: list[InterpolationInput], options: Interpola
 
 
 def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
-                        tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
+                         tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None,
+                         options_per_stack: list[InterpolationOptions] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
     from gempy_engine.modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
 
     eval_inputs: list[EvaluatorInput] = []
@@ -236,12 +256,7 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
     # Collect weights per stack
     weights_list = [ei.solver_input.weights_x0 for ei in eval_inputs]
 
-    # Collect options per stack
-    options_list = []
-    for global_i in stack_indices:
-        stack_structure.stack_number = global_i
-        opt_i = stack_structure.interpolation_options if stack_structure.interpolation_options is not None else options
-        options_list.append(opt_i)
+    options_list = options_per_stack or [options] * len(stack_indices)
 
     # Call the stacked evaluator (single PyKeOps call with block-sparse ranges)
     exported_fields_list: list[ExportedFields] = symbolic_evaluator_optimized_stacked(
@@ -262,7 +277,8 @@ def _compute_weights_for_stacks(
         options: InterpolationOptions,
         stack_structure: StacksStructure,
         tensor_structs: list[TensorsStructure],
-        stack_indices: list[int] | None = None
+        stack_indices: list[int] | None = None,
+        options_per_stack: list[InterpolationOptions] | None = None,
 ) -> list[SolverInput_v2]:
     if stack_indices is None:
         stack_indices = list(range(stack_structure.n_stacks))
@@ -274,8 +290,7 @@ def _compute_weights_for_stacks(
         local_stack_structure = copy(stack_structure)
         local_stack_structure.stack_number = global_i
 
-        # Check for stack specific options override
-        options_i = local_stack_structure.interpolation_options if local_stack_structure.interpolation_options is not None else options
+        options_i = options_per_stack[idx] if options_per_stack is not None else options
 
         import torch
         if torch.cuda.is_available():
