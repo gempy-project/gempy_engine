@@ -49,11 +49,16 @@ class ScalarFieldOutput:
     def exported_fields_dense_grid(self):
         slicer = self.grid.dense_grid_slice
         scalar_field = self.exported_fields.scalar_field[slicer]
-        gx_field = self.exported_fields.scalar_field[slicer]
-        gy_field = self.exported_fields.scalar_field[slicer]
-        gz_field = self.exported_fields.scalar_field[slicer]
+        gx_field = self.exported_fields.gx_field
+        gy_field = self.exported_fields.gy_field
+        gz_field = self.exported_fields.gz_field
 
-        return ExportedFields(scalar_field, gx_field, gy_field, gz_field)
+        return ExportedFields(
+            scalar_field,
+            None if gx_field is None else gx_field[slicer],
+            None if gy_field is None else gy_field[slicer],
+            None if gz_field is None else gz_field[slicer],
+        )
 
     @property
     def values_block_regular_grid(self):
