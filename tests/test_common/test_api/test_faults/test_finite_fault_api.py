@@ -84,7 +84,7 @@ def test_finite_fault_rotation():
         center=center,
         strike_radius=2.0,
         dip_radius=1.0,
-        rotation=90 # Rotate 90 deg
+        rotation_deg=90 # Rotate 90 deg
     )
     
     # Normal along Z => default strike u=[1,0,0], dip v=[0,1,0]
