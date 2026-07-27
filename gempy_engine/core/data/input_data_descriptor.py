@@ -51,11 +51,24 @@ class InputDataDescriptor:
 
         # Convert list of ints into list of StackRelationType
         list_relations: list[StackRelationType] = [StackRelationType(x) for x in schema.masking_descriptor]
+        faults_relations = None if schema.faults_relations is None else np.array(schema.faults_relations, dtype=bool)
+        faults_input_data = None
+        if schema.faults_input_data is not None:
+            faults_input_data = [
+                None if fault_data is None else FaultsData.from_user_input(
+                    thickness=fault_data.thickness,
+                    finite_fault=fault_data.finite_fault,
+                )
+                for fault_data in schema.faults_input_data
+            ]
+
         stack_structure = StacksStructure(
             number_of_points_per_stack=np.array(schema.number_of_points_per_stack),
             number_of_orientations_per_stack=np.array(schema.number_of_orientations_per_stack),
             number_of_surfaces_per_stack=np.array(schema.number_of_surfaces_per_stack),
-            masking_descriptor=list_relations
+            masking_descriptor=list_relations,
+            faults_relations=faults_relations,
+            faults_input_data=faults_input_data,
         )
         return cls(tensors_structure=tensor_structure, stack_structure=stack_structure)
 

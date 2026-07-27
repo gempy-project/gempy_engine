@@ -41,11 +41,11 @@ for Phase 4.
 
 ### Phase 4: Integration and backend support
 
-- [ ] Add a numerical integration test for a dependent stratigraphic stack.
-- [ ] Verify that displacement reaches zero at the finite-fault tips.
-- [ ] Document the approximately planar local-frame limitation.
-- [ ] Define and test NumPy and PyTorch backend behavior.
-- [ ] Add the finite-fault definition to the server payload when stack data is exposed there.
+- [x] Add a numerical integration test for a dependent stratigraphic stack.
+- [x] Verify that displacement reaches zero at the finite-fault tips.
+- [x] Document the approximately planar local-frame limitation.
+- [x] Define and test NumPy and PyTorch backend behavior.
+- [x] Add the finite-fault definition to the server payload.
 
 ## Input Contract
 
@@ -172,11 +172,74 @@ use the non-stacked symbolic evaluator. Ordinary stacks continue to use the
 optimized stacked evaluator. NumPy and PyKeOps reductions can differ slightly
 because their floating-point reduction orders are different.
 
+## Server Payload
+
+The server descriptor accepts the same finite-fault definition under an entry
+aligned with the fault stack. The fault dependency matrix is required when
+other stacks consume that fault:
+
+```json
+{
+  "input_data_descriptor": {
+    "number_of_points_per_surface": [9, 12],
+    "number_of_points_per_stack": [9, 12],
+    "number_of_orientations_per_stack": [1, 2],
+    "number_of_surfaces_per_stack": [1, 1],
+    "masking_descriptor": [3, 1],
+    "faults_relations": [
+      [false, true],
+      [false, false]
+    ],
+    "faults_input_data": [
+      {
+        "thickness": null,
+        "finite_fault": {
+          "center": [0.0, 0.0, 0.0],
+          "strike_radius": [2.0, 1.0],
+          "dip_radius": 0.75,
+          "taper": "quadratic",
+          "rotation_deg": 15.0,
+          "spline_control_points": null
+        }
+      },
+      null
+    ]
+  }
+}
+```
+
+`masking_descriptor` uses the existing numeric `StackRelationType` values;
+`3` denotes `FAULT` and `1` denotes `ERODE`.
+
+## Geometry Limitation
+
+The current implementation creates one strike/dip frame for the whole finite
+fault. Its normal is taken from the valid projected evaluation point nearest the
+configured center. This is appropriate for planar and approximately planar
+faults. On a strongly curved fault, one fixed frame distorts distances and does
+not constitute a true surface UV parameterization. Supporting those faults will
+require a spatially varying frame or a mesh-based UV map.
+
+## Backend Behavior
+
+Projection and taper evaluation use NumPy and SciPy. NumPy inputs remain NumPy.
+PyTorch CPU or GPU tensors are detached and transferred to CPU for geometric
+evaluation, and the resulting multiplier is converted back to the active
+backend, device, and dtype before it is applied to the fault drift. Flat
+NumPy/PyKeOps evaluation is also supported through an isolated, non-stacked
+finite-fault evaluation path.
+
+The CPU conversion means projection and taper geometry are not differentiable
+with respect to the fault scalar field, gradients, center, radii, rotation, or
+spline points. A differentiable finite-fault workflow would require backend-
+native projection and taper functions. NumPy and PyTorch CPU behavior are covered
+by tests; GPU placement follows the same conversion path and is exercised only
+when CUDA is available.
+
 ## Known Prototype Issues
 
 - Standalone `FiniteFault.calculate_slip` expects callers to project points separately; engine stack wiring performs that projection.
 - The local strike/dip frame is constant and therefore approximates curved faults.
-- Existing integration assertions do not verify the projected surface residual or expected geometry.
 
 ## Design Decisions
 
