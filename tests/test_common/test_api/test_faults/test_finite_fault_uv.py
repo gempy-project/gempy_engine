@@ -10,6 +10,7 @@ from gempy_engine.modules.faults.finite_faults import (
 )
 from tests.conftest import plot_pyvista
 import numpy as np
+import pytest
 
 
 # --- Phase 1: Local Coordinate System & Analytical Ellipsoid UV ---
@@ -64,8 +65,6 @@ def test_ellipsoid_distance():
 def test_projection_on_plane():
     # Surface: F(x,y,z) = z - 5 = 0  => z = 5
     # grad(F) = [0, 0, 1]
-    # NOTE: Since we added a 0.5 factor to handle GemPy's quadratic scalar fields, 
-    # a single step on a linear field will only go halfway.
     points = np.array([
             [0, 0, 10.0],
             [1, 2, 0.0],
@@ -78,17 +77,48 @@ def test_projection_on_plane():
 
     projected = project_points_onto_surface(points, f_values, (gx, gy, gz), target_scalar_value=0.0)
 
-    # With 0.5 factor, it goes halfway:
-    # [0, 0, 10] -> [0, 0, 7.5]
-    # [1, 2, 0]  -> [1, 2, 2.5]
-    # [5, 5, 5]  -> [5, 5, 5.0]
     expected = np.array([
-            [0, 0, 7.5],
-            [1, 2, 2.5],
+            [0, 0, 5.0],
+            [1, 2, 5.0],
             [5, 5, 5.0]
     ])
 
     assert np.allclose(projected, expected)
+
+
+def test_projection_on_plane_is_idempotent():
+    points = np.array([[0.0, 0.0, 8.0], [1.0, 2.0, -2.0]])
+    gradients = (np.zeros(2), np.zeros(2), np.ones(2))
+
+    projected = project_points_onto_surface(points, points[:, 2] - 5.0, gradients)
+    projected_again = project_points_onto_surface(
+        projected,
+        projected[:, 2] - 5.0,
+        gradients,
+    )
+
+    assert np.allclose(projected_again, projected)
+
+
+def test_projection_rejects_near_zero_gradient_away_from_surface():
+    with pytest.raises(ValueError, match=r"Cannot project 1 point\(s\)"):
+        project_points_onto_surface(
+            points=np.array([[1.0, 2.0, 3.0]]),
+            scalar_field_values=np.array([1.0]),
+            gradient_fields=(np.zeros(1), np.zeros(1), np.zeros(1)),
+        )
+
+
+def test_projection_keeps_surface_point_with_near_zero_gradient():
+    points = np.array([[1.0, 2.0, 3.0]])
+
+    projected = project_points_onto_surface(
+        points=points,
+        scalar_field_values=np.array([0.0]),
+        gradient_fields=(np.zeros(1), np.zeros(1), np.zeros(1)),
+    )
+
+    assert np.array_equal(projected, points)
 
 
 # --- Phase 3: Slip Tapering Functions ---
