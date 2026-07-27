@@ -9,7 +9,8 @@ from gempy_engine.API.interp_single._aux_faults_ops import (
     _options_with_finite_fault_gradients,
 )
 from gempy_engine.API.interp_single._multi_scalar_field_manager import _compute_independent_chunks
-from gempy_engine.core.data import FiniteFault, InterpolationOptions
+from gempy_engine.config import AvailableBackends
+from gempy_engine.core.data import FiniteFault, InterpolationOptions, TaperType
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_fields import ExportedFields
 from gempy_engine.core.data.kernel_classes.faults import FaultsData
@@ -18,7 +19,7 @@ from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 
 
-def test_modify_fault_values_applies_projected_taper():
+def test_modify_fault_values_reaches_zero_at_fault_tip():
     finite_fault = FiniteFault(center=(0.0, 0.0, 0.0), strike_radius=1.0, dip_radius=1.0)
     fault_input = FaultsData.from_user_input(thickness=None, finite_fault=finite_fault)
     points = np.array([
@@ -45,6 +46,51 @@ def test_modify_fault_values_applies_projected_taper():
     tapered_values = _modify_faults_values_output(fault_input, output, points)
 
     assert np.allclose(tapered_values, [[0.0, 2.0, 0.0]])
+
+
+@pytest.mark.parametrize("use_gpu", [False, True])
+def test_modify_fault_values_preserves_pytorch_backend(use_gpu):
+    torch = pytest.importorskip("torch")
+    if use_gpu and not torch.cuda.is_available():
+        pytest.skip("CUDA is not available")
+    BackendTensor._change_backend(AvailableBackends.PYTORCH, use_gpu=use_gpu)
+    dtype = BackendTensor.dtype_obj
+    device = BackendTensor.device
+
+    finite_fault = FiniteFault(
+        center=(0.0, 0.0, 0.0),
+        strike_radius=1.0,
+        dip_radius=1.0,
+        taper=TaperType.SPLINE,
+    )
+    fault_input = FaultsData.from_user_input(thickness=None, finite_fault=finite_fault)
+    points = torch.tensor([
+            [2.0, 0.0, 2.0],
+            [0.0, 0.0, 2.0],
+            [1.0, 0.0, 2.0],
+    ], dtype=dtype, device=device)
+    exported_fields = ExportedFields(
+        _scalar_field=torch.full((3,), 2.0, dtype=dtype, device=device),
+        _gx_field=torch.zeros(3, dtype=dtype, device=device),
+        _gy_field=torch.zeros(3, dtype=dtype, device=device),
+        _gz_field=torch.ones(3, dtype=dtype, device=device),
+        _grid_size=3,
+        _scalar_field_at_surface_points=torch.tensor([0.0], dtype=dtype, device=device),
+    )
+    output = ScalarFieldOutput(
+        weights=None,
+        grid=None,
+        exported_fields=exported_fields,
+        stack_relation=StackRelationType.FAULT,
+        values_block=torch.tensor([[1.0, 3.0, 3.0]], dtype=dtype, device=device),
+    )
+
+    tapered_values = _modify_faults_values_output(fault_input, output, points)
+
+    assert isinstance(tapered_values, torch.Tensor)
+    assert tapered_values.dtype == dtype
+    assert tapered_values.device == points.device
+    assert torch.allclose(tapered_values, torch.tensor([[0.0, 2.0, 0.0]], dtype=dtype, device=device))
 
 
 def test_finite_fault_gradient_options_do_not_mutate_input():
