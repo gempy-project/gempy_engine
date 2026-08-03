@@ -12,6 +12,16 @@ from gempy_engine.config import (is_pykeops_installed, is_numpy_installed, is_te
 if is_pykeops_installed:
     import pykeops.numpy
 
+    # pykeops only exposes its torch submodule when torch is installed
+    _LAZY_TENSOR_TYPES: tuple = (pykeops.numpy.LazyTensor,)
+    try:
+        import pykeops.torch
+        _LAZY_TENSOR_TYPES += (pykeops.torch.LazyTensor,)
+    except ImportError:
+        pass
+else:
+    _LAZY_TENSOR_TYPES = ()
+
 if is_pytorch_installed:
     import torch
 
@@ -386,7 +396,7 @@ class BackendTensor:
             match tensor:
                 case numpy.ndarray():
                     return numpy.exp(tensor)
-                case pykeops.numpy.LazyTensor() | pykeops.torch.LazyTensor():
+                case _ if isinstance(tensor, _LAZY_TENSOR_TYPES):
                     return tensor.exp()
                 case torch.Tensor() if torch_available:
                     return tensor.exp()
@@ -398,10 +408,7 @@ class BackendTensor:
                 return numpy.sum(tensor, axis=axis, keepdims=keepdims, dtype=dtype)
 
             # Handle LazyTensors (KeOps)
-            # We check for the attribute or common base if imports are tricky, 
-            # but explicit isinstance is safest if they are already in scope.
-            import pykeops
-            if isinstance(tensor, (pykeops.numpy.LazyTensor, pykeops.torch.LazyTensor)):
+            if isinstance(tensor, _LAZY_TENSOR_TYPES):
                 return tensor.sum(axis)
 
             if torch_available and isinstance(tensor, torch.Tensor):
@@ -415,8 +422,7 @@ class BackendTensor:
             if isinstance(tensor, numpy.ndarray):
                 return numpy.divide(tensor, other, dtype=dtype)
 
-            import pykeops
-            if isinstance(tensor, (pykeops.numpy.LazyTensor, pykeops.torch.LazyTensor)):
+            if isinstance(tensor, _LAZY_TENSOR_TYPES):
                 return tensor / other
 
             if torch_available and isinstance(tensor, torch.Tensor):
@@ -428,8 +434,7 @@ class BackendTensor:
             if isinstance(tensor, numpy.ndarray):
                 return numpy.sqrt(tensor)
 
-            import pykeops
-            if isinstance(tensor, (pykeops.numpy.LazyTensor, pykeops.torch.LazyTensor)):
+            if isinstance(tensor, _LAZY_TENSOR_TYPES):
                 return tensor.sqrt()
 
             if torch_available and isinstance(tensor, torch.Tensor):
