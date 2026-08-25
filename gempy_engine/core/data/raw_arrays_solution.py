@@ -5,6 +5,8 @@ from typing import Optional, Union
 
 import numpy as np
 
+from gempy_engine.config import include_raw_scalar_fields
+
 from .transforms import Transform
 from ..backend_tensor import BackendTensor
 from .interp_output import InterpOutput
@@ -32,6 +34,8 @@ class RawArraysSolution:
     litho_faults_block: np.ndarray = field(default_factory=lambda: np.empty(0))
 
     scalar_field_matrix: np.ndarray = field(default_factory=lambda: np.empty(0))
+    finite_fault_scalar_field_matrix: np.ndarray = field(default_factory=lambda: np.empty(0))
+    finite_fault_stack_indices: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int64))
     block_matrix: np.ndarray = field(default_factory=lambda: np.empty(0))
     mask_matrix: np.ndarray = field(default_factory=lambda: np.empty(0))
     mask_matrix_squeezed: np.ndarray = field(default_factory=lambda: np.empty(0))
@@ -182,10 +186,6 @@ def _fill_block_solutions_with_octree_output(octrees_output, raw_arrays_solution
             level=None,
             value_type=ValueType.litho_faults_block
         )).astype("int32").ravel()
-        raw_arrays_solution.scalar_field_matrix = ___get_regular_grid_values_for_all_structural_groups(
-            octree_output=octrees_output,
-            scalar_type=ValueType.scalar
-        )
         raw_arrays_solution.mask_matrix = ___get_regular_grid_values_for_all_structural_groups(
             octree_output=octrees_output,
             scalar_type=ValueType.mask_component
@@ -194,6 +194,13 @@ def _fill_block_solutions_with_octree_output(octrees_output, raw_arrays_solution
             octree_output=octrees_output,
             scalar_type=ValueType.squeeze_mask
         )
+
+    if include_raw_scalar_fields():
+        raw_arrays_solution.scalar_field_matrix = ___get_regular_grid_values_for_all_structural_groups(
+            octree_output=octrees_output,
+            scalar_type=ValueType.scalar
+        )
+        _fill_finite_fault_scalar_fields_with_octree_output(octrees_output, raw_arrays_solution)
 
     lith_block_temp = BackendTensor.t.to_numpy(get_regular_grid_value_for_level(
         octree_list=octrees_output,
@@ -224,7 +231,9 @@ def _fill_block_solutions_with_dense_grid(stacks_output: list[InterpOutput], raw
     raw_arrays_solution.block_matrix = ___get_regular_grid_values_for_all_structural_groups(stacks_output, ValueType.values_block)
     raw_arrays_solution.fault_block = collapsed_output.get_block_from_value_type(ValueType.faults_block, slice_=collapsed_output.grid.dense_grid_slice).astype("int8").ravel()
     raw_arrays_solution.litho_faults_block = collapsed_output.get_block_from_value_type(ValueType.litho_faults_block, slice_=collapsed_output.grid.dense_grid_slice).astype("int32").ravel()
-    raw_arrays_solution.scalar_field_matrix = ___get_regular_grid_values_for_all_structural_groups(stacks_output, ValueType.scalar)
+    if include_raw_scalar_fields():
+        raw_arrays_solution.scalar_field_matrix = ___get_regular_grid_values_for_all_structural_groups(stacks_output, ValueType.scalar)
+        _fill_finite_fault_scalar_fields_with_dense_grid(stacks_output, raw_arrays_solution)
     raw_arrays_solution.mask_matrix = ___get_regular_grid_values_for_all_structural_groups(stacks_output, ValueType.mask_component)
     raw_arrays_solution.mask_matrix_squeezed = ___get_regular_grid_values_for_all_structural_groups(stacks_output, ValueType.squeeze_mask)
 
@@ -232,4 +241,50 @@ def _fill_block_solutions_with_dense_grid(stacks_output: list[InterpOutput], raw
     lith_block_temp[lith_block_temp == 0] = lith_block_temp.max() + 1
     raw_arrays_solution.lith_block = lith_block_temp
 
+
+def _finite_fault_stack_indices(stacks_output: list[InterpOutput]) -> np.ndarray:
+    return np.asarray([
+        i for i, output in enumerate(stacks_output)
+        if output.scalar_fields.finite_fault_scalar is not None
+    ], dtype=np.int64)
+
+
+def _fill_finite_fault_scalar_fields_with_octree_output(
+        octrees_output: list[OctreeLevel],
+        raw_arrays_solution: RawArraysSolution,
+) -> None:
+    stack_indices = _finite_fault_stack_indices(octrees_output[0].outputs)
+    if stack_indices.size == 0:
+        return
+
+    fields = [
+        get_regular_grid_value_for_level(
+            octree_list=octrees_output,
+            level=None,
+            value_type=ValueType.finite_fault_scalar,
+            scalar_n=int(stack_index),
+        ).ravel()
+        for stack_index in stack_indices
+    ]
+    raw_arrays_solution.finite_fault_scalar_field_matrix = BackendTensor.t.to_numpy(BackendTensor.t.stack(fields))
+    raw_arrays_solution.finite_fault_stack_indices = stack_indices
+
+
+def _fill_finite_fault_scalar_fields_with_dense_grid(
+        stacks_output: list[InterpOutput],
+        raw_arrays_solution: RawArraysSolution,
+) -> None:
+    stack_indices = _finite_fault_stack_indices(stacks_output)
+    if stack_indices.size == 0:
+        return
+
+    fields = [
+        stacks_output[int(stack_index)].get_block_from_value_type(
+            ValueType.finite_fault_scalar,
+            slice_=stacks_output[int(stack_index)].grid.dense_grid_slice,
+        )
+        for stack_index in stack_indices
+    ]
+    raw_arrays_solution.finite_fault_scalar_field_matrix = np.vstack(fields)
+    raw_arrays_solution.finite_fault_stack_indices = stack_indices
 

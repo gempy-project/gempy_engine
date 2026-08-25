@@ -20,6 +20,7 @@ class ScalarFieldOutput:
 
     values_block: Optional[np.ndarray]  #: Final values ignoring unconformities
     _values_block: Optional[np.ndarray] = dataclasses.field(init=False, repr=False)
+    finite_fault_scalar: Optional[np.ndarray] = None
 
     @property
     def values_block(self) -> Optional[np.ndarray]:

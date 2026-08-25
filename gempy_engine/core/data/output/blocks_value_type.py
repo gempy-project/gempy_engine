@@ -7,6 +7,7 @@ class ValueType(enum.Enum):
     litho_faults_block = enum.auto()
     
     scalar = enum.auto()
+    finite_fault_scalar = enum.auto()
     
     squeeze_mask = enum.auto()
     mask_component = enum.auto()

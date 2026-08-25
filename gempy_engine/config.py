@@ -43,3 +43,9 @@ is_numpy_installed = find_spec("numpy") is not None
 is_tensorflow_installed = find_spec("tensorflow") is not None
 is_pytorch_installed = find_spec("torch")
 is_pykeops_installed = find_spec("pykeops") is not None
+
+
+def include_raw_scalar_fields() -> bool:
+    return os.getenv('ONLY_LITH_SOLUTION', 'False') != 'True' or os.getenv(
+        'SET_RAW_SCALAR_FIELDS_IN_SOLUTION', 'False'
+    ) == 'True'
