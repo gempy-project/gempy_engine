@@ -186,6 +186,14 @@ class BackendTensor:
         print(f"\n Using pykeops: {cls.pykeops_enabled}. \n")
 
     @classmethod
+    def arange(cls, stop, *, dtype=None):
+        if cls.engine_backend == AvailableBackends.PYTORCH:
+            if isinstance(dtype, str):
+                dtype = getattr(torch, dtype)
+            return torch.arange(stop, dtype=dtype, device=cls.device)
+        return cls.t.arange(stop, dtype=dtype)
+
+    @classmethod
     def _wrap_pytorch_functions(cls):
         import torch
         _true_torch_zeros = torch._C._VariableFunctions.zeros

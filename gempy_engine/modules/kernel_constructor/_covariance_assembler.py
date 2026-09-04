@@ -98,10 +98,7 @@ def _get_cov_grad_legacy(cov_grad, dm, nugget, execution_mode: KernelExecutionMo
 
     matrix_shape = dm.hu.shape[0]
     LazyTensor = _lazy_tensor_class()
-    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
-        diag_ = BackendTensor.t.arange(matrix_shape).reshape(-1, 1).type(BackendTensor.dtype_obj)
-    else:
-        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype(BackendTensor.dtype)
+    diag_ = BackendTensor.arange(matrix_shape, dtype=BackendTensor.dtype_obj).reshape(-1, 1)
 
     diag_i = LazyTensor(diag_[:, None])
     diag_j = LazyTensor(diag_[None, :])
@@ -166,10 +163,7 @@ def _get_cov_surface_points_legacy(
 
     matrix_shape = k_rest_ref.shape[0]
     LazyTensor = _lazy_tensor_class()
-    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
-        diag_ = BackendTensor.t.arange(matrix_shape).reshape(-1, 1).type(BackendTensor.dtype_obj)
-    else:
-        diag_ = np.arange(matrix_shape).reshape(-1, 1).astype(BackendTensor.dtype)
+    diag_ = BackendTensor.arange(matrix_shape, dtype=BackendTensor.dtype_obj).reshape(-1, 1)
 
     nuggets = BackendTensor.t.zeros(matrix_shape, dtype=BackendTensor.dtype_obj)
     nuggets[grad_matrix_size:grad_matrix_size + nugget.shape[0]] += nugget
@@ -268,7 +262,7 @@ def _nugget_diagonal(
 
     LazyTensor = _lazy_tensor_class()
 
-    diag_ = BackendTensor.t.arange(matrix_size, dtype=nugget.dtype).reshape(-1, 1)
+    diag_ = BackendTensor.arange(matrix_size, dtype=nugget.dtype).reshape(-1, 1)
     diag_i = LazyTensor(diag_[:, None])
     diag_j = LazyTensor(diag_[None, :])
     values_j = LazyTensor(values[None, :, None])

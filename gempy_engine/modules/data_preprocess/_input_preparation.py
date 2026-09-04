@@ -38,7 +38,7 @@ def surface_points_preprocess(sp_input: SurfacePoints, tensors_structure: Tensor
     ref_points_repeated = b.t.repeat(ref_points, number_repetitions, 0)  # ref_points shape: (1, 3)
     ref_nugget_repeated = b.t.repeat(ref_nugget, number_repetitions, 0)
     surface_ids = b.t.repeat(
-        b.t.array(list(range(tensors_structure.n_surfaces)), dtype=rest_nugget.dtype),
+        b.arange(tensors_structure.n_surfaces, dtype=rest_nugget.dtype),
         number_repetitions,
         0,
     )
