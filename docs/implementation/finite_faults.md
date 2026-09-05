@@ -22,11 +22,11 @@ is not yet connected to the engine's older callable-based finite-fault hook.
 
 ### Phase 2: Projection correctness
 
-- [ ] Remove the incorrect fixed half-step from plane projection.
-- [ ] Define explicit behavior for near-zero gradients.
-- [ ] Test exact projection onto a plane and projection idempotency.
-- [ ] Decide whether nonlinear fields need iterative re-evaluation.
-- [ ] Fix the dense-grid gradient accessor before using it for projection.
+- [x] Remove the incorrect fixed half-step from plane projection.
+- [x] Define explicit behavior for near-zero gradients.
+- [x] Test exact projection onto a plane and projection idempotency.
+- [x] Decide whether nonlinear fields need iterative re-evaluation.
+- [x] Fix the dense-grid gradient accessor before using it for projection.
 
 ### Phase 3: Stack wiring
 
@@ -117,14 +117,30 @@ Equivalent JSON:
 }
 ```
 
+## Projection Contract
+
+`project_points_onto_surface` performs one Newton step:
+
+```text
+P' = P - (F(P) - target) * grad(F(P)) / ||grad(F(P))||^2
+```
+
+This projection is exact for a linear scalar field. The function cannot iterate
+for a nonlinear field because its inputs contain scalar and gradient values only
+at the original points. Iterative projection, if required by integration tests,
+must re-evaluate the interpolator at each set of projected coordinates and will
+be implemented at the engine integration layer.
+
+A point whose gradient norm is below `gradient_tolerance` is left unchanged only
+when its scalar residual is within `surface_tolerance`. Otherwise projection is
+undefined and the function raises `ValueError`. Tolerances are keyword-only and
+must be non-negative.
+
 ## Known Prototype Issues
 
-- `project_points_onto_surface` currently moves points only halfway to a linear plane.
-- Near-zero gradients are silently replaced with a denominator of one.
 - `FiniteFault.calculate_slip` expects callers to project points separately.
 - The local strike/dip frame is constant and therefore approximates curved faults.
 - The engine-integrated `FiniteFaultData` loses its callable when serialized.
-- `ScalarFieldOutput.exported_fields_dense_grid` currently returns scalar values as gradients.
 - Existing integration assertions do not verify the projected surface residual or expected geometry.
 
 ## Design Decisions

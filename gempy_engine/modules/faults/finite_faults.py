@@ -106,18 +106,47 @@ def get_ellipsoid_distance(points: np.ndarray, center: np.ndarray, u: np.ndarray
     return d
 
 
-def project_points_onto_surface(points: np.ndarray, scalar_field_values: np.ndarray, gradient_fields: tuple[np.ndarray, np.ndarray, np.ndarray], target_scalar_value: float = 0.0) -> np.ndarray:
+def project_points_onto_surface(
+        points: np.ndarray,
+        scalar_field_values: np.ndarray,
+        gradient_fields: tuple[np.ndarray, np.ndarray, np.ndarray],
+        target_scalar_value: float = 0.0,
+        *,
+        gradient_tolerance: float = 1e-12,
+        surface_tolerance: float = 1e-12,
+) -> np.ndarray:
     """
-    Project points onto the surface F(x,y,z) = target_scalar_value.
-    Formula: P' = P - (F(P) - target) * grad(F) / ||grad(F)||^2
+    Apply one Newton projection step toward ``F(x, y, z) = target``.
+
+    The step is exact for a linear scalar field. Nonlinear fields require the
+    scalar field and gradient to be re-evaluated before applying another step.
+    A point away from the surface cannot be projected when its gradient is
+    effectively zero, so that case raises instead of silently leaving it in an
+    invalid position.
     """
+    points = np.asarray(points)
+    scalar_field_values = np.asarray(scalar_field_values)
     gx, gy, gz = gradient_fields
-    grad = np.stack([gx, gy, gz], axis=-1)
+    grad = np.stack([np.asarray(gx), np.asarray(gy), np.asarray(gz)], axis=-1)
+
+    if points.ndim != 2 or points.shape[1] != 3:
+        raise ValueError("points must have shape (n, 3)")
+    if scalar_field_values.shape != (len(points),) or grad.shape != points.shape:
+        raise ValueError("scalar and gradient fields must contain one value per point")
+    if gradient_tolerance < 0 or surface_tolerance < 0:
+        raise ValueError("projection tolerances must be non-negative")
+
     grad_norm_sq = np.sum(grad ** 2, axis=-1)
-    grad_norm_sq = np.where(grad_norm_sq < 1e-12, 1.0, grad_norm_sq)
-    f_p = scalar_field_values - target_scalar_value
-    projection = points - 0.5 * (f_p[:, np.newaxis] * grad) / grad_norm_sq[:, np.newaxis]
-    return projection
+    residual = scalar_field_values - target_scalar_value
+    near_zero_gradient = grad_norm_sq <= gradient_tolerance ** 2
+    unprojectable = near_zero_gradient & (np.abs(residual) > surface_tolerance)
+    if np.any(unprojectable):
+        count = int(np.count_nonzero(unprojectable))
+        raise ValueError(f"Cannot project {count} point(s) with near-zero scalar-field gradient")
+
+    safe_grad_norm_sq = np.where(near_zero_gradient, 1.0, grad_norm_sq)
+    correction = residual[:, np.newaxis] * grad / safe_grad_norm_sq[:, np.newaxis]
+    return points - correction
 
 
 def cubic_hermite_taper(d: np.ndarray) -> np.ndarray:
