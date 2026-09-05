@@ -1,3 +1,4 @@
+from .finite_fault import FiniteFault, TaperType
 from .tensors_structure import TensorsStructure
 from .kernel_classes.orientations import Orientations, OrientationsInternals
 from .kernel_classes.surface_points import SurfacePoints, SurfacePointsInternals

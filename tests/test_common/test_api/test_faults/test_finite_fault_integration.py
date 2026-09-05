@@ -68,9 +68,9 @@ def test_finite_fault_integration_suite(finite_fault_setup):
             FiniteFault(center=center, strike_radius=0.8, dip_radius=0.4, taper=TaperType.CUBIC),
             FiniteFault(center=center, strike_radius=(1.0, 0.5), dip_radius=0.6, taper=TaperType.QUADRATIC),
             FiniteFault(center=center, strike_radius=0.7, dip_radius=0.7, taper=TaperType.SPLINE, spline_control_points=cp_bell),
-            FiniteFault(center=center, strike_radius=0.8, dip_radius=0.4, taper=TaperType.CUBIC, rotation=45),
-            FiniteFault(center=center, strike_radius=0.8, dip_radius=1, taper=TaperType.SPLINE, spline_control_points=cp_plateau, rotation=30),
-            FiniteFault(center=center, strike_radius=(1.2,0.8), dip_radius=(2,1), taper=TaperType.SPLINE, spline_control_points=cp_plateau, rotation=30)
+            FiniteFault(center=center, strike_radius=0.8, dip_radius=0.4, taper=TaperType.CUBIC, rotation_deg=45),
+            FiniteFault(center=center, strike_radius=0.8, dip_radius=1, taper=TaperType.SPLINE, spline_control_points=cp_plateau, rotation_deg=30),
+            FiniteFault(center=center, strike_radius=(1.2,0.8), dip_radius=(2,1), taper=TaperType.SPLINE, spline_control_points=cp_plateau, rotation_deg=30)
     ]
 
     if not plot_pyvista:

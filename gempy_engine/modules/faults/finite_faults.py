@@ -1,73 +1,38 @@
 import numpy as np
 
-from enum import Enum
-from dataclasses import dataclass
-from typing import Optional, Union, Tuple
 from scipy.interpolate import make_interp_spline
 
+from gempy_engine.core.data.finite_fault import FiniteFault, TaperType
 
-class TaperType(Enum):
-    CUBIC = "cubic"
-    QUADRATIC = "quadratic"
-    SPLINE = "spline"
+_DEFAULT_SPLINE_CONTROL_POINTS = np.array([
+        [0.0, 1.0],
+        [0.2, 0.95],
+        [0.5, 0.5],
+        [0.8, 0.05],
+        [1.0, 0.0]
+])
 
 
-@dataclass
-class FiniteFault:
-    """
-    Elegant API for defining finite faults.
-    
-    Args:
-        center: Center of the fault in 3D space.
-        strike_radius: Radius along the strike direction (u). 
-            Can be a single float or a tuple (positive_u, negative_u) for anisotropy.
-        dip_radius: Radius along the dip direction (v).
-            Can be a single float or a tuple (positive_v, negative_v) for anisotropy.
-        normal_radius: Radius along the normal direction (w). Default 1.0.
-        taper: The tapering function to use.
-        spline_control_points: If taper is SPLINE, these points define the curve.
-    """
-    center: np.ndarray
-    strike_radius: Union[float, Tuple[float, float]] = 1.0
-    dip_radius: Union[float, Tuple[float, float]] = 1.0
-    normal_radius: Optional[Union[float, Tuple[float, float]]] = None
-    taper: TaperType = TaperType.CUBIC
-    rotation: float = 0.0
-    spline_control_points: Optional[np.ndarray] = None
+def calculate_slip(finite_fault: FiniteFault, points: np.ndarray, normal: np.ndarray) -> np.ndarray:
+    """Calculate a slip multiplier using the prototype local-plane model."""
+    u, v, _ = get_local_frame(normal, angle_deg=finite_fault.rotation_deg)
+    distance = get_ellipsoid_distance(
+        points=points,
+        center=np.asarray(finite_fault.center),
+        u=u,
+        v=v,
+        a=finite_fault.strike_radius,
+        b=finite_fault.dip_radius,
+    )
 
-    def __post_init__(self):
-        if self.taper == TaperType.SPLINE and self.spline_control_points is None:
-            # Default bell-shaped spline if none provided
-            self.spline_control_points = np.array([
-                    [0.0, 1.0],
-                    [0.2, 0.95],
-                    [0.5, 0.5],
-                    [0.8, 0.05],
-                    [1.0, 0.0]
-            ])
-
-    def calculate_slip(self, points: np.ndarray, normal: np.ndarray) -> np.ndarray:
-        """
-        High-level method to calculate slip multiplier for given points.
-        """
-        u, v, w = get_local_frame(normal, angle_deg=self.rotation)
-        d = get_ellipsoid_distance(
-            points=points,
-            center=self.center,
-            u=u, v=v, w=w if self.normal_radius is not None else None,
-            a=self.strike_radius,
-            b=self.dip_radius,
-            c=self.normal_radius if self.normal_radius is not None else 1.0
-        )
-
-        if self.taper == TaperType.CUBIC:
-            return cubic_hermite_taper(d)
-        elif self.taper == TaperType.QUADRATIC:
-            return quadratic_taper(d)
-        elif self.taper == TaperType.SPLINE:
-            return spline_taper(d, self.spline_control_points)
-        else:
-            raise ValueError(f"Unknown taper type: {self.taper}")
+    if finite_fault.taper is TaperType.CUBIC:
+        return cubic_hermite_taper(distance)
+    if finite_fault.taper is TaperType.QUADRATIC:
+        return quadratic_taper(distance)
+    if finite_fault.taper is TaperType.SPLINE:
+        control_points = finite_fault.spline_control_points or _DEFAULT_SPLINE_CONTROL_POINTS
+        return spline_taper(distance, np.asarray(control_points))
+    raise ValueError(f"Unknown taper type: {finite_fault.taper}")
 
 
 def get_local_frame(normal: np.ndarray, angle_deg: float = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
