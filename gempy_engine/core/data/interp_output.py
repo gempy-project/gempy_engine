@@ -168,6 +168,8 @@ class InterpOutput:
                 block = self.values_block[0]
             case ValueType.scalar:
                 block = self.exported_fields.scalar_field
+            case ValueType.finite_fault_scalar:
+                block = self.scalar_fields.finite_fault_scalar
             case ValueType.squeeze_mask:
                 block = self.squeezed_mask_array
             case ValueType.mask_component:

@@ -1,6 +1,7 @@
 import numpy as np
 
 from gempy_engine.core.backend_tensor import BackendTensor
+from gempy_engine.config import include_raw_scalar_fields
 from gempy_engine.core.data.kernel_classes.faults import FaultsData
 from gempy_engine.core.data.options import InterpolationOptions
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
@@ -79,4 +80,6 @@ def _modify_faults_values_output(
         finite_fault_scalar_np,
         dtype=shifted_vals.dtype,
     )
+    if include_raw_scalar_fields():
+        output.finite_fault_scalar = finite_fault_scalar
     return shifted_vals * finite_fault_scalar

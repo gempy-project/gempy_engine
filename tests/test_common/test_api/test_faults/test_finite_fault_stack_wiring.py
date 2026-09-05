@@ -18,7 +18,8 @@ from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 
 
-def test_modify_fault_values_applies_projected_taper():
+def test_modify_fault_values_applies_projected_taper(monkeypatch):
+    monkeypatch.setenv("SET_RAW_SCALAR_FIELDS_IN_SOLUTION", "True")
     finite_fault = FiniteFault(center=(0.0, 0.0, 0.0), strike_radius=1.0, dip_radius=1.0)
     fault_input = FaultsData.from_user_input(thickness=None, finite_fault=finite_fault)
     points = np.array([
@@ -45,6 +46,52 @@ def test_modify_fault_values_applies_projected_taper():
     tapered_values = _modify_faults_values_output(fault_input, output, points)
 
     assert np.allclose(tapered_values, [[0.0, 2.0, 0.0]])
+    assert np.allclose(output.finite_fault_scalar, [0.0, 1.0, 0.0])
+
+
+@pytest.mark.parametrize("use_gpu", [False, True])
+def test_modify_fault_values_preserves_pytorch_backend(use_gpu):
+    torch = pytest.importorskip("torch")
+    if use_gpu and not torch.cuda.is_available():
+        pytest.skip("CUDA is not available")
+    BackendTensor._change_backend(AvailableBackends.PYTORCH, use_gpu=use_gpu)
+    dtype = BackendTensor.dtype_obj
+    device = BackendTensor.device
+
+    finite_fault = FiniteFault(
+        center=(0.0, 0.0, 0.0),
+        strike_radius=1.0,
+        dip_radius=1.0,
+        taper=TaperType.SPLINE,
+    )
+    fault_input = FaultsData.from_user_input(thickness=None, finite_fault=finite_fault)
+    points = torch.tensor([
+            [2.0, 0.0, 2.0],
+            [0.0, 0.0, 2.0],
+            [1.0, 0.0, 2.0],
+    ], dtype=dtype, device=device)
+    exported_fields = ExportedFields(
+        _scalar_field=torch.full((3,), 2.0, dtype=dtype, device=device),
+        _gx_field=torch.zeros(3, dtype=dtype, device=device),
+        _gy_field=torch.zeros(3, dtype=dtype, device=device),
+        _gz_field=torch.ones(3, dtype=dtype, device=device),
+        _grid_size=3,
+        _scalar_field_at_surface_points=torch.tensor([0.0], dtype=dtype, device=device),
+    )
+    output = ScalarFieldOutput(
+        weights=None,
+        grid=None,
+        exported_fields=exported_fields,
+        stack_relation=StackRelationType.FAULT,
+        values_block=torch.tensor([[1.0, 3.0, 3.0]], dtype=dtype, device=device),
+    )
+
+    tapered_values = _modify_faults_values_output(fault_input, output, points)
+
+    assert isinstance(tapered_values, torch.Tensor)
+    assert tapered_values.dtype == dtype
+    assert tapered_values.device == points.device
+    assert torch.allclose(tapered_values, torch.tensor([[0.0, 2.0, 0.0]], dtype=dtype, device=device))
 
 
 def test_finite_fault_gradient_options_do_not_mutate_input():
@@ -87,7 +134,9 @@ def test_finite_fault_stack_is_isolated_before_dependent_stack():
     assert all(0 not in chunk or chunk == [0] for chunk in chunks)
 
 
-def test_finite_fault_is_wired_into_dependent_stack(one_fault_model):
+def test_finite_fault_is_wired_into_dependent_stack(one_fault_model, monkeypatch):
+    monkeypatch.setenv("ONLY_LITH_SOLUTION", "True")
+    monkeypatch.setenv("SET_RAW_SCALAR_FIELDS_IN_SOLUTION", "True")
     interpolation_input, data_descriptor, options = copy.deepcopy(one_fault_model)
     options.evaluation_options.number_octree_levels = 1
     options.evaluation_options.mesh_extraction = False
@@ -114,13 +163,22 @@ def test_finite_fault_is_wired_into_dependent_stack(one_fault_model):
     finite = compute_model(interpolation_input, options, data_descriptor)
 
     finite_fault_output = finite.octrees_output[0].outputs[0].exported_fields
+    finite_fault_scalar = finite.octrees_output[0].outputs[0].scalar_fields.finite_fault_scalar
     baseline_dependent = baseline.octrees_output[0].outputs[2].exported_fields.scalar_field
     finite_dependent = finite.octrees_output[0].outputs[2].exported_fields.scalar_field
     assert finite_fault_output.gx_field is not None
     assert finite_fault_output.gy_field is not None
     assert finite_fault_output.gz_field is not None
+    assert finite_fault_scalar is not None
     assert options.evaluation_options.compute_scalar_gradient is False
     assert not np.allclose(finite_dependent, baseline_dependent)
+    assert finite.raw_arrays.block_matrix.size == 0
+    assert finite.raw_arrays.mask_matrix.size == 0
+    assert finite.raw_arrays.scalar_field_matrix.shape[0] == 3
+    assert np.array_equal(finite.raw_arrays.finite_fault_stack_indices, [0])
+    assert finite.raw_arrays.finite_fault_scalar_field_matrix.shape == (1, finite.raw_arrays.lith_block.size)
+    assert np.all((finite.raw_arrays.finite_fault_scalar_field_matrix >= 0) &
+                  (finite.raw_arrays.finite_fault_scalar_field_matrix <= 1))
 
 
 def test_finite_fault_flat_stack_matches_serial(one_fault_model, monkeypatch):
