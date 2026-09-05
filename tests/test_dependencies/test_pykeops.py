@@ -1,37 +1,27 @@
 import pytest
-import sys
-sys.path.append("/home/miguel/libkeops")
 
 pykeops = pytest.importorskip("pykeops")
 from pykeops.numpy import LazyTensor, Genred, Vi, Vj, Pm
 import numpy as np
 
-pykeops.config.verbose = True
-
-
-#@pytest.mark.skip('Only trigger manually when there is something wrong with pykeops compilation', )
 def test_keops_run():
-    import pykeops
-    pykeops.verbose = True
-    import os
-    os.environ["PYKEOPS_VERBOSE"] = "3"  # Maximum verbosity
-    os.environ["PYKEOPS_DEBUG"] = "1"    # Enables detailed debug mode
-    print(pykeops.get_build_folder())  # display new build_folder
-    pykeops.set_build_folder("/home/miguel/.s")
-
-    pykeops.clean_pykeops()  # just in case old build files are still present
-    pykeops.test_numpy_bindings()
+    # Compile a CPU kernel without changing or clearing the shared build cache.
+    x = np.arange(1, 10, dtype=np.float32).reshape(-1, 3)
+    y = np.arange(3, 9, dtype=np.float32).reshape(-1, 3)
+    reduction = Genred("SqNorm2(x - y)", ["x = Vi(3)", "y = Vj(3)"], axis=0)
+    result = reduction(x, y, backend="CPU")
+    np.testing.assert_allclose(result.ravel(), [63.0, 90.0])
 
 
 # @pytest.mark.skip('Only trigger manually when there is something wrong with'
 #                   'pykeops compilation', )
 def test_basic_op():
 
-    M, N = 1000, 20000
-    x = np.random.rand(M, 2)
-    y = np.random.rand(N, 2)
+    M, N = 16, 32
+    rng = np.random.default_rng(0)
+    x = rng.random((M, 2))
+    y = rng.random((N, 2))
     from pykeops.numpy import LazyTensor
-    pykeops.clean_pykeops()
     x_i = LazyTensor(
         x[:, None, :]
     )  # (M, 1, 2) KeOps LazyTensor, wrapped around the numpy array x
@@ -43,7 +33,8 @@ def test_basic_op():
     D_ij = ((x_i - y_j) ** 2)  # **Symbolic** (M, N) matrix of squared distances
     foo = D_ij.sum_reduction(axis=0, backend="CPU")
 
-    print(foo)
+    expected = ((x[:, None, :] - y[None, :, :]) ** 2).sum(axis=0)
+    np.testing.assert_allclose(foo, expected)
 
 
 
