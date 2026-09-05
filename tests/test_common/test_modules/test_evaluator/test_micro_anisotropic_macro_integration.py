@@ -1,7 +1,11 @@
+import copy
 import os
 
 import numpy as np
+import pytest
 
+from gempy_engine.config import AvailableBackends
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data import Orientations
 from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.API.interp_single._interp_scalar_field import (
@@ -17,7 +21,7 @@ from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import (
     solve_micro_weights,
 )
 
-PLOT = os.getenv("GEMPY_PLOT_MICRO", "1") == "1"
+PLOT = os.getenv("GEMPY_PLOT_MICRO", "0") == "1"
 
 _MICRO_SURFACE_COLORS = {0: "#00bfff", 1: "#ff6b35"}
 _MACRO_SURFACE_COLORS = {0: "#0099cc", 1: "#cc5500"}
@@ -36,8 +40,12 @@ def _eval_at_points(sp_internal, ori_internal, options, weights, xyz):
     return _evaluate_sys_eq(eval_in, weights, options)
 
 
+@pytest.mark.skipif(
+    BackendTensor.engine_backend is not AvailableBackends.numpy,
+    reason="Dense NumPy reference implementation",
+)
 def test_micro_correction_moves_contacts_closer_to_target(simple_model_2):
-    sp, orientations, options, data_descriptor = simple_model_2
+    sp, orientations, options, data_descriptor = copy.deepcopy(simple_model_2)
     orientations.dip_positions  = np.array([[ 0.,  4.], [ 4., 1.]])
     orientations.dip_gradients = np.array([[ -.2,  .8], [ 0, 1.]])
     options.kernel_options.range = 20
@@ -328,6 +336,10 @@ def _build_grid_3d(x_range, y_range, z_range, nx, ny, nz):
     return np.column_stack([xv.ravel(), yv.ravel(), zv.ravel()])
 
 
+@pytest.mark.skipif(
+    BackendTensor.engine_backend is not AvailableBackends.numpy,
+    reason="Dense NumPy reference implementation",
+)
 def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
     """3D analog of the 2D integration test.
 
@@ -339,7 +351,7 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
     The dense NumPy micro solve here is a reference implementation. Production
     path for 3D is intended to be PyKeOps matvec + CG, not dense K assembly.
     """
-    sp, orientations, options, data_descriptor = simple_model
+    sp, orientations, options, data_descriptor = copy.deepcopy(simple_model)
 
     options.evaluation_options.compute_scalar_gradient = True
 

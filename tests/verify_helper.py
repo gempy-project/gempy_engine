@@ -8,7 +8,7 @@ from approvaltests.reporters import GenericDiffReporter
 
 def gempy_verify_array(item, name: str, rtol: float = 1e-5, atol: float = 1e-5, ):
     import os
-    if os.environ.get('CI'):
+    if os.environ.get('CI') or os.environ.get('TEAMCITY_VERSION'):
         from approvaltests.reporters import PythonNativeReporter
         reporter = PythonNativeReporter()
     else:

@@ -149,8 +149,9 @@ def test_finite_fault_is_wired_into_dependent_stack(one_fault_model, monkeypatch
     )
 
     fault_points = interpolation_input.surface_points.sp_coords[:9]
+    fault_points_np = np.asarray(BackendTensor.t.to_numpy(fault_points))
     finite_fault = FiniteFault(
-        center=tuple(np.mean(fault_points, axis=0)),
+        center=tuple(np.mean(fault_points_np, axis=0)),
         strike_radius=0.75,
         dip_radius=0.75,
     )
@@ -189,11 +190,12 @@ def test_finite_fault_flat_stack_matches_serial(one_fault_model, monkeypatch):
     options.evaluation_options.compute_scalar_gradient = False
 
     fault_points = interpolation_input.surface_points.sp_coords[:9]
+    fault_points_np = np.asarray(BackendTensor.t.to_numpy(fault_points))
     data_descriptor.stack_structure.faults_input_data = [
         FaultsData.from_user_input(
             thickness=None,
             finite_fault=FiniteFault(
-                center=tuple(np.mean(fault_points, axis=0)),
+                center=tuple(np.mean(fault_points_np, axis=0)),
                 strike_radius=0.75,
                 dip_radius=0.75,
             ),
