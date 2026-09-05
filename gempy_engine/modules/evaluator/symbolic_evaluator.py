@@ -77,7 +77,49 @@ def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: 
         else:
             raise ValueError("Number of dimensions have to be 2 or 3")
 
+    scalar_field = _apply_micro_correction(scalar_field, solver_input, options)
+
     return ExportedFields(scalar_field, gx_field, gy_field, gz_field)
+
+
+def _apply_micro_correction(scalar_field: np.ndarray, solver_input: SolverInput, options: InterpolationOptions) -> np.ndarray:
+    micro = options.evaluation_options.micro_anisotropic
+    if not micro.enabled:
+        return scalar_field
+    if micro.weights is None or micro.points is None or micro.anisotropy_matrices is None:
+        return scalar_field
+
+    from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import evaluate_micro_correction
+
+    correction = evaluate_micro_correction(
+        xyz_to_interpolate=solver_input.xyz_to_interpolate,
+        micro_points=micro.points,
+        micro_weights=micro.weights,
+        anisotropy_matrices=micro.anisotropy_matrices,
+        kernel_range=micro.kernel_range,
+        kernel_type=micro.kernel_type,
+    )
+    return scalar_field + correction
+
+
+def _apply_micro_correction_stacked(scalar_field: np.ndarray, eval_input: EvaluatorInput, options: InterpolationOptions) -> np.ndarray:
+    micro = options.evaluation_options.micro_anisotropic
+    if not micro.enabled:
+        return scalar_field
+    if micro.weights is None or micro.points is None or micro.anisotropy_matrices is None:
+        return scalar_field
+
+    from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import evaluate_micro_correction
+
+    correction = evaluate_micro_correction(
+        xyz_to_interpolate=eval_input.xyz_to_interpolate,
+        micro_points=micro.points,
+        micro_weights=micro.weights,
+        anisotropy_matrices=micro.anisotropy_matrices,
+        kernel_range=micro.kernel_range,
+        kernel_type=micro.kernel_type,
+    )
+    return scalar_field + correction
 
 
 def _build_block_sparse_ranges(M_sizes: list[int], N_sizes: list[int]):
@@ -271,12 +313,14 @@ def symbolic_evaluator_optimized_stacked(
         gx_field = gx_fields[idx]
         gy_field = gy_fields[idx]
         gz_field = gz_fields[idx]
-        
+
         if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
             s_field = BackendTensor.t.to_numpy(s_field)
             if gx_field is not None: gx_field = BackendTensor.t.to_numpy(gx_field)
             if gy_field is not None: gy_field = BackendTensor.t.to_numpy(gy_field)
             if gz_field is not None: gz_field = BackendTensor.t.to_numpy(gz_field)
+
+        s_field = _apply_micro_correction_stacked(s_field, eval_inputs[idx], options_list[idx])
 
         results.append(ExportedFields(s_field, gx_field, gy_field, gz_field))
 
