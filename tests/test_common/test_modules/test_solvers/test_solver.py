@@ -29,7 +29,13 @@ weights_sol = np.array(
 
 def test_solver(kriging_eq):
     weights = kernel_reduction(*kriging_eq)
-    np.testing.assert_array_almost_equal(np.asarray(weights).reshape(-1,1), weights_sol, decimal=0.5)
+    weights_np = BackendTensor.t.to_numpy(weights).reshape(-1, 1)
+    # The fixture's condition number is about 945, so float32 roundoff can
+    # amplify to about 1e-4. The absolute tolerance covers reference rounding.
+    rtol = 1e-4 if weights_np.dtype == np.float32 else 1e-5
+    np.testing.assert_allclose(
+        weights_np, weights_sol, rtol=rtol, atol=5e-6
+    )
     print(weights)
 
 
@@ -41,9 +47,6 @@ def test_scalar_field_export(simple_model_2_internals, simple_grid_2d):
     solver_input = SolverInput(sp_internal, ori_internal, xyz_to_interpolate=simple_grid_2d, fault_internal=None)
     evp = evaluation_vectors_preparations(solver_input, options.kernel_options)
     print(evp)
-
-
-
 
 
 

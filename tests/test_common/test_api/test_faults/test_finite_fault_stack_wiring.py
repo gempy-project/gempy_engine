@@ -4,6 +4,8 @@ import numpy as np
 import pytest
 
 from gempy_engine import compute_model
+from gempy_engine.config import AvailableBackends
+from gempy_engine.core.data.finite_fault import TaperType
 from gempy_engine.API.interp_single._aux_faults_ops import (
     _modify_faults_values_output,
     _options_with_finite_fault_gradients,
