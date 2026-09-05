@@ -1,4 +1,5 @@
 import copy
+import warnings
 from typing import List, Any
 
 import numpy as np
@@ -22,6 +23,8 @@ from ...modules.dual_contouring.weighted_qef_setup_multicore import find_and_inj
 from ...modules.dual_contouring.dual_contouring_interface import (find_intersection_on_edge, get_triangulation_codes,
                                                                   get_masked_codes, mask_generation)
 from ...modules.dual_contouring.overlapping import average_overlapping_vertices, remove_fault_overlap_triangles
+from ...modules.dual_contouring._support_report import mesh_support_report
+from ...core.data.options.evaluation_options import OctreeRefinementMode
 
 
 @gempy_profiler_decorator
@@ -106,6 +109,7 @@ def dual_contouring_multi_scalar(
     surface_to_stack = []  # track which stack each surface belongs to
     # Generate meshes for each scalar field
     dc_data_per_surface_all = []
+    support_reports = []
     stack_relations = data_descriptor.stack_structure.masking_descriptor
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
         if stack_relations[n_scalar_field] is StackRelationType.NULL_SPACE:
@@ -114,6 +118,24 @@ def dual_contouring_multi_scalar(
         mask = all_mask_arrays[n_scalar_field]
         n_surfaces_to_export = output.scalar_field_at_sp.shape[0]
         for surface_i in range(n_surfaces_to_export):
+            report = None
+            if options.debug or options.evaluation_options.octree_refinement_mode != OctreeRefinementMode.FAST:
+                report = mesh_support_report(
+                    left_right_codes,
+                    output.exported_fields.scalar_field[output.grid.corners_grid_slice],
+                    output.scalar_field_at_sp[surface_i], base_number, mask,
+                    surface_index=surface_i,
+                    ancestor_coordinates=[level.grid.octree_grid.integer_coordinates for level in octree_list[:-1]]
+                )
+                report['stack_index'] = n_scalar_field
+                if report['internal_refinement_boundary_edge_count']:
+                    warnings.warn(
+                        f"Stack {n_scalar_field}, surface {surface_i}: "
+                        f"{report['internal_refinement_boundary_edge_count']} crossing edges lack "
+                        "in-domain refinement support; see mesh.support_report.",
+                        RuntimeWarning, stacklevel=2
+                    )
+            support_reports.append(report)
             valid_edges = all_valid_edges[n_scalar_field]
             valid_edges_per_surface = valid_edges.reshape((n_surfaces_to_export, -1, 12))
             slice_object = _surface_slicer(surface_i, valid_edges_per_surface)
@@ -153,6 +175,8 @@ def dual_contouring_multi_scalar(
             dc_data_list=dc_data_per_surface_all,
             max_workers=None
         )
+        for mesh, report in zip(all_meshes, support_reports):
+            mesh.support_report = report
         # endregion
         # Save differentiable vertices before in-place overlap modifications,
         # then replace mesh.vertices with a detached copy so averaging doesn't

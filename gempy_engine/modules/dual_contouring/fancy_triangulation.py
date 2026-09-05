@@ -4,100 +4,15 @@ from gempy_engine.modules.dual_contouring._aux import _correct_normals
 
 
 def get_left_right_array(octree_list: list[OctreeLevel]):
-    dtype = bool
-    match BackendTensor.engine_backend:
-        case BackendTensor.engine_backend.PYTORCH:
-            dtype = BackendTensor.tfnp.bool
-        case BackendTensor.engine_backend.numpy:
-            dtype = bool
-        case _:
-            raise ValueError("Unsupported backend")
-
-    # === Local function ===
-    def _compute_voxel_binary_code(root_bits_list, dir_idx: int, left_right_all, voxel_select_all):
-
-        # Calculate the voxels from root
-        processed_root_bits = []
-        for bit_array in root_bits_list:
-            idx_curr = bit_array
-            for active_voxels_per_lvl in voxel_select_all:
-                idx_curr = BackendTensor.tfnp.repeat(idx_curr[active_voxels_per_lvl], 8, axis=0)
-            processed_root_bits.append(idx_curr)
-
-        left_right_list = []
-        voxel_select_op = list(voxel_select_all[1:])
-        voxel_select_op.append(BackendTensor.tfnp.ones(
-            left_right_all[-1].shape[0],
-            dtype=dtype
-        )
-        )
-        left_right_all = left_right_all[::-1]
-        voxel_select_op = voxel_select_op[::-1]
-
-        for e, left_right_per_lvl in enumerate(left_right_all):  # size is equal to the depth of the tree (except root)
-            left_right_per_lvl_dir = left_right_per_lvl[:, dir_idx]
-            for n_rep in range(e):
-                inner = left_right_per_lvl_dir[voxel_select_op[e - n_rep]]
-                left_right_per_lvl_dir = BackendTensor.tfnp.repeat(inner, 8, axis=0)
-            left_right_list.append(left_right_per_lvl_dir)
-
-        # Combine refinement bits (LSB->MSB) with root bits (LSB->MSB)
-        final_list = left_right_list + processed_root_bits
-        binary_code = BackendTensor.tfnp.stack(final_list)
-        return binary_code
-
-    # === Local function ===
-
-    if len(octree_list) == 1:
-        # * Not only that, the current implementation only works with pure octree starting at [2,2,2]
-        raise ValueError("Octree list must have more than one level")
-
-    voxel_select_all = [octree_iter.grid.octree_grid.active_cells for octree_iter in octree_list[1:]]
-    left_right_all = [octree_iter.grid.octree_grid.left_right for octree_iter in octree_list[1:]]
-
-    # Dynamic generation of root indices
-    import numpy as np
-    root_res = octree_list[0].grid.octree_grid_shape
-    nx, ny, nz = int(root_res[0]), int(root_res[1]), int(root_res[2])
-
-    # Generate coordinate grids (Order: Z fast, Y, X slow)
-    x_indices = np.repeat(np.arange(nx), ny * nz)
-    y_indices = np.tile(np.repeat(np.arange(ny), nz), nx)
-    z_indices = np.tile(np.arange(nz), nx * ny)
-
-    def get_root_bits_list(indices):
-        max_val = max(nx, ny, nz)
-        # Calculate needed bits (at least 1)
-        n_bits = int(max_val - 1).bit_length() if max_val > 1 else 1
-
-        bits_list = []
-        for i in range(n_bits):
-            # Extract bit i (LSB to MSB)
-            bit_val = (indices >> i) & 1
-            bits_list.append(BackendTensor.tfnp.array(bit_val, dtype=dtype))
-        return bits_list
-
-    binary_x = _compute_voxel_binary_code(get_root_bits_list(x_indices), 0, left_right_all, voxel_select_all)
-    binary_y = _compute_voxel_binary_code(get_root_bits_list(y_indices), 1, left_right_all, voxel_select_all)
-    binary_z = _compute_voxel_binary_code(get_root_bits_list(z_indices), 2, left_right_all, voxel_select_all)
-
-    bool_to_int_x = BackendTensor.tfnp.packbits(binary_x, axis=0, bitorder="little")
-    bool_to_int_y = BackendTensor.tfnp.packbits(binary_y, axis=0, bitorder="little")
-    bool_to_int_z = BackendTensor.tfnp.packbits(binary_z, axis=0, bitorder="little")
-    left_right_array = BackendTensor.tfnp.vstack([bool_to_int_x, bool_to_int_y, bool_to_int_z]).T
-
-    if left_right_array.shape[0] == 0:
-        base_x = base_y = base_z = 0
-    else:
-        base_x = bool_to_int_x.max() + 1
-        base_y = bool_to_int_y.max() + 1
-        base_z = bool_to_int_z.max() + 1
-
-    return left_right_array, (base_x, base_y, base_z)
+    """Return signed sparse coordinates and theoretical (not active) bounds."""
+    grid = octree_list[-1].grid.octree_grid
+    return grid.integer_coordinates, tuple(int(n) for n in grid.regular_grid_shape)
 
 
 def _get_pack_factors(base_x, base_y, base_z):
     """Generates [base_y * base_z, base_z, 1] for packing 3D coordinates."""
+    if int(base_x) * int(base_y) * int(base_z) > 2 ** 63 - 1:
+        raise OverflowError("Octree domain exceeds signed int64 coordinate-key capacity")
     # Ensure we use int64 for packing to avoid overflow
     bx = BackendTensor.tfnp.array(base_x, dtype='int64')
     by = BackendTensor.tfnp.array(base_y, dtype='int64')
@@ -346,7 +261,10 @@ def _get_indices_via_searchsorted(voxel_code, compressed_0, compressed_1, compre
     """
     Memory-efficient replacement for broadcasting, preserving exact original indices.
     """
-    vc_1d = voxel_code.squeeze()
+    vc_1d = voxel_code.reshape(-1)
+    if len(vc_1d) == 0:
+        empty = BackendTensor.tfnp.zeros(0, dtype='int64')
+        return empty, empty, empty
 
     # 1. Get sorting indices to map back to original positions later
     sort_indices = BackendTensor.tfnp.argsort(vc_1d)

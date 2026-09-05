@@ -1,19 +1,22 @@
 import numpy as np
+import warnings
 from typing import List
 
 from ._curvature_analysis import mark_highest_curvature_voxels
 from ._octree_common import _generate_next_level_centers
+from ._neighbor_closure import close_refinement_mask
+from ...config import DEBUG_MODE
 from ...core.backend_tensor import BackendTensor
 from ...core.data.engine_grid import EngineGrid
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.interp_output import InterpOutput
 from ...core.data.octree_level import OctreeLevel
-from ...core.data.options.evaluation_options import EvaluationOptions
+from ...core.data.options.evaluation_options import EvaluationOptions, OctreeRefinementMode
 from ...core.data.regular_grid import RegularGrid
 
 
 def compute_next_octree_locations(prev_octree: OctreeLevel, evaluation_options: EvaluationOptions,
-                                  current_octree_level: int) -> EngineGrid:
+                                  current_octree_level: int, debug: bool = False) -> EngineGrid:
     ids = prev_octree.litho_faults_ids_corners_grid
     uv_8 = ids.reshape((-1, 8))
 
@@ -27,7 +30,26 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, evaluation_options: 
         prev_octree=prev_octree
     )
 
-    voxel_select = voxel_select | additional_voxel_selected_to_refinement
+    surface_mask = voxel_select
+    primary_mask = surface_mask | additional_voxel_selected_to_refinement
+    mode = OctreeRefinementMode(evaluation_options.octree_refinement_mode)
+    closure_enabled = (
+        mode != OctreeRefinementMode.FAST
+        and evaluation_options.mesh_extraction
+        and current_octree_level < evaluation_options.number_octree_levels_surface - 1
+    )
+    support_mask, missing_count = close_refinement_mask(
+        prev_octree.grid.octree_grid.integer_coordinates if closure_enabled else None,
+        primary_mask, prev_octree.grid.octree_grid.regular_grid_shape,
+        mode if closure_enabled else OctreeRefinementMode.FAST
+    )
+    voxel_select = primary_mask | support_mask
+    if missing_count:
+        warnings.warn(
+            f"Octree level {current_octree_level}: {missing_count} in-domain support cells "
+            "are absent from the sparse generation; neighbor closure cannot restore them.",
+            RuntimeWarning, stacklevel=2
+        )
     
     if compute_topology := False:  # TODO: Fix topology function
         raise NotImplementedError
@@ -49,6 +71,33 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, evaluation_options: 
             left_right=bool_idx
         ),
     )
+
+    if debug or DEBUG_MODE or evaluation_options.verbose:
+        primary_count = int(primary_mask.sum())
+        minimum_level = current_octree_level < evaluation_options.octree_min_level
+        child_grid = grid_next_centers.octree_grid
+        corner_offsets = BackendTensor.t.array(
+            [[x, y, z] for x in (0, 1) for y in (0, 1) for z in (0, 1)], dtype='int64'
+        )
+        # Diagnostics only: count stored rows representing the same lattice point.
+        corner_coordinates = (child_grid.integer_coordinates[:, None, :] + corner_offsets).reshape(-1, 3)
+        unique_corners = np.unique(BackendTensor.t.to_numpy(corner_coordinates), axis=0).shape[0]
+        grid_next_centers.octree_grid.refinement_debug = dict(
+            primary_surface_mask=surface_mask,
+            additional_refinement_mask=additional_voxel_selected_to_refinement,
+            support_only_mask=support_mask,
+            current_cell_count=len(primary_mask),
+            primary_surface_count=int(surface_mask.sum()),
+            additional_refinement_count=int(additional_voxel_selected_to_refinement.sum()),
+            minimum_level_count=len(primary_mask) if minimum_level else 0,
+            curvature_count=0 if minimum_level else int(additional_voxel_selected_to_refinement.sum()),
+            support_only_count=int(support_mask.sum()),
+            final_refinement_count=int(voxel_select.sum()),
+            closure_multiplier=int(voxel_select.sum()) / primary_count if primary_count else 1.0,
+            missing_current_neighbor_count=missing_count,
+            generated_child_count=len(xyz_coords),
+            duplicate_corner_count=len(corner_coordinates) - unique_corners
+        )
 
     if True:
         grid_next_centers.debug_vals = (xyz_coords, xyz_anchor, shift_select_xyz, bool_idx, voxel_select, grid_next_centers)
