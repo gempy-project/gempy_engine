@@ -207,8 +207,8 @@ class BackendTensor:
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
             if isinstance(tensor, torch.Tensor):
-                return _true_torch_sum(tensor, axis, dtype=dtype)
-            return tensor.sum(axis)
+                return _true_torch_sum(tensor, axis, dtype=dtype, keepdim=keepdims)
+            return tensor.sum(axis, keepdims=keepdims)
 
         def _repeat(tensor, n_repeats, axis=None):
             if not isinstance(tensor, torch.Tensor):
@@ -228,6 +228,8 @@ class BackendTensor:
             # Resolve string dtypes safely
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype)
+            elif dtype is not None and not isinstance(dtype, torch.dtype):
+                dtype = torch.from_numpy(numpy.empty((), dtype=dtype)).dtype
 
             # 1. Fast Path: It's already a Tensor
             if isinstance(array_like, torch.Tensor):

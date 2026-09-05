@@ -76,10 +76,13 @@ def _modify_faults_values_output(
         points=projected_points,
         normal=gradient_matrix[center_index],
     )
-    finite_fault_scalar = BackendTensor.t.array(
-        finite_fault_scalar_np,
-        dtype=shifted_vals.dtype,
-    )
+    if isinstance(shifted_vals, np.ndarray):
+        finite_fault_scalar = finite_fault_scalar_np.astype(shifted_vals.dtype, copy=False)
+    else:
+        finite_fault_scalar = BackendTensor.t.array(
+            finite_fault_scalar_np,
+            dtype=shifted_vals.dtype,
+        )
     if include_raw_scalar_fields():
         output.finite_fault_scalar = finite_fault_scalar
     return shifted_vals * finite_fault_scalar

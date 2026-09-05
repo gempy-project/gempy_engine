@@ -126,6 +126,7 @@ def project_points_onto_surface(
     """
     points = np.asarray(points)
     scalar_field_values = np.asarray(scalar_field_values)
+    target_scalar_value = np.asarray(target_scalar_value)
     gx, gy, gz = gradient_fields
     grad = np.stack([np.asarray(gx), np.asarray(gy), np.asarray(gz)], axis=-1)
 

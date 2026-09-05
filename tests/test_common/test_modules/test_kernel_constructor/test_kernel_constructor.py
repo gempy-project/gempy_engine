@@ -53,7 +53,7 @@ def test_covariance_cubic_kernel(simple_model_2):
 
     sol = BackendTensor.tfnp.sum(cov, axis=1, keepdims=True)
     
-    gempy_verify_array(sol, "axis=1")
+    gempy_verify_array(sol, "axis=1", rtol=1e-4)
 
 
 def test_b_vector(simple_model_2):

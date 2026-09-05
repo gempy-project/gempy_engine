@@ -1,6 +1,10 @@
 import enum
 import os
 
+# Tests are headless by default. Set GEMPY_TEST_PLOTS=True for interactive plotting.
+if os.getenv("GEMPY_TEST_PLOTS", "False") != "True":
+    os.environ.setdefault("MPLBACKEND", "Agg")
+
 # Allow overriding backend via DEFAULT_BACKEND env var (for CI matrix builds)
 _backend_name = os.getenv('DEFAULT_BACKEND', 'numpy')
 
