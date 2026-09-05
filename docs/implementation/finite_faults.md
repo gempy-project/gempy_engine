@@ -6,8 +6,9 @@ Define finite faults as validated, serializable input data and use that
 definition to taper fault displacement on the interpolated fault surface.
 
 The implementation is based on the projection and UV taper prototype in
-`gempy_engine/modules/faults/finite_faults.py`. The prototype is useful, but it
-is not yet connected to the engine's older callable-based finite-fault hook.
+`gempy_engine/modules/faults/finite_faults.py`. Its declarative input is now
+connected to fault-stack interpolation; geometric and backend validation remain
+for Phase 4.
 
 ## Status
 
@@ -30,13 +31,13 @@ is not yet connected to the engine's older callable-based finite-fault hook.
 
 ### Phase 3: Stack wiring
 
-- [ ] Replace the callable in `FiniteFaultData` with the declarative definition.
-- [ ] Associate at most one finite-fault definition with each fault stack.
-- [ ] Validate that definitions are attached only to `StackRelationType.FAULT` stacks.
-- [ ] Make scalar gradients available when a finite-fault stack is evaluated.
-- [ ] Pass the fault scalar field, gradients, and surface isovalue to the taper operation.
-- [ ] Apply the taper to the fault drift before dependent stacks are interpolated.
-- [ ] Cover both sequential and flat-stack interpolation paths.
+- [x] Replace the callable in `FiniteFaultData` with the declarative definition.
+- [x] Associate at most one finite-fault definition with each fault stack.
+- [x] Validate that definitions are attached only to `StackRelationType.FAULT` stacks.
+- [x] Make scalar gradients available when a finite-fault stack is evaluated.
+- [x] Pass the fault scalar field, gradients, and surface isovalue to the taper operation.
+- [x] Apply the taper to the fault drift before dependent stacks are interpolated.
+- [x] Cover both sequential and flat-stack interpolation paths.
 
 ### Phase 4: Integration and backend support
 
@@ -136,11 +137,45 @@ when its scalar residual is within `surface_tolerance`. Otherwise projection is
 undefined and the function raises `ValueError`. Tolerances are keyword-only and
 must be non-negative.
 
+## Stack Attachment
+
+The finite-fault definition belongs to the stack that interpolates the fault.
+Attach it through that stack's `FaultsData` entry:
+
+```python
+from gempy_engine.core.data.kernel_classes.faults import FaultsData
+
+fault_data = FaultsData.from_user_input(
+    thickness=None,
+    finite_fault=finite_fault,
+)
+input_data_descriptor.stack_structure.faults_input_data = [
+    fault_data,
+    None,
+    None,
+]
+```
+
+`faults_input_data` must contain one entry per stack. A finite-fault definition
+is valid only on a cokriging stack with `StackRelationType.FAULT` and exactly one
+surface, because that surface supplies the projection isovalue.
+
+The engine privately enables scalar gradients for finite-fault stacks without
+changing the caller's global or per-stack options. The fault scalar field,
+full-length gradients, and surface isovalue are used to project all evaluation
+coordinates. A fixed local frame is taken from the valid projected point nearest
+the configured center. The resulting slip multiplier tapers the stored fault
+drift before dependent stacks read it.
+
+In flat-stack mode, finite-fault stacks are isolated into singleton chunks and
+use the non-stacked symbolic evaluator. Ordinary stacks continue to use the
+optimized stacked evaluator. NumPy and PyKeOps reductions can differ slightly
+because their floating-point reduction orders are different.
+
 ## Known Prototype Issues
 
-- `FiniteFault.calculate_slip` expects callers to project points separately.
+- Standalone `FiniteFault.calculate_slip` expects callers to project points separately; engine stack wiring performs that projection.
 - The local strike/dip frame is constant and therefore approximates curved faults.
-- The engine-integrated `FiniteFaultData` loses its callable when serialized.
 - Existing integration assertions do not verify the projected surface residual or expected geometry.
 
 ## Design Decisions

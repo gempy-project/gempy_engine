@@ -3,7 +3,7 @@ from typing import List
 
 import numpy as np
 
-from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
+from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output, _options_with_finite_fault_gradients
 from ._interp_single_feature import input_preprocess, interpolate_feature_with_cokrig, interpolate_feature_with_external_function
 from ._masking_ops import combine_scalar_fields
 from ._stack_ops import InterpolationState, process_chunk
@@ -105,6 +105,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
 
         # Check for stack specific options override
         options_i = stack_structure.interpolation_options if stack_structure.interpolation_options is not None else options
+        options_i = _options_with_finite_fault_gradients(options_i, stack_structure.active_faults_input_data)
 
         if stack_structure.interp_function is not None:
             # External function path - skip tensor/solver prep (may have zero points/orientations)
@@ -152,7 +153,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
         if interpolation_input_i.stack_relation is StackRelationType.FAULT:  # * This is also for faults!
             values_output = _modify_faults_values_output(  # ! This is all_STACK_values_block (not all_scalar_fields_outputs)
                 fault_input=fault_input,
-                values_on_all_xyz=output.values_on_all_xyz,
+                output=output,
                 xyz_to_interpolate=solver_input.xyz_to_interpolate
             )
             all_stack_values_block[i, :] = values_output
@@ -167,8 +168,8 @@ def _compute_independent_chunks(stack_structure: StacksStructure, len_grid: int)
     Stacks are processed in chunks where all stacks in a chunk have their
     fault dependencies already resolved by previous chunks.
     
-    External-function stacks are always emitted as singleton chunks so they
-    are never batched into PyKeOps stacked solver/evaluator calls.
+    External-function and finite-fault stacks are emitted as singleton chunks
+    so they can use evaluation behavior that differs from ordinary stacks.
     """
 
     faults_relations = stack_structure.faults_relations
@@ -176,8 +177,10 @@ def _compute_independent_chunks(stack_structure: StacksStructure, len_grid: int)
     n_stacks = stack_structure.n_stacks
 
     external_stacks = _get_external_stack_indices(stack_structure)
+    finite_fault_stacks = _get_finite_fault_stack_indices(stack_structure)
+    isolated_stacks = external_stacks | finite_fault_stacks
 
-    if faults_relations is None and not external_stacks:
+    if faults_relations is None and not isolated_stacks:
         return [list(range(n_stacks))]
 
     fault_stacks = {i for i in range(n_stacks) if masking_descriptor[i] is StackRelationType.FAULT}
@@ -198,12 +201,12 @@ def _compute_independent_chunks(stack_structure: StacksStructure, len_grid: int)
         if not chunk:
             raise RuntimeError("Circular fault dependency detected")
 
-        normal = [i for i in chunk if i not in external_stacks]
-        external_subchunks = [[i] for i in chunk if i in external_stacks]
+        normal = [i for i in chunk if i not in isolated_stacks]
+        isolated_subchunks = [[i] for i in chunk if i in isolated_stacks]
 
         if normal:
             chunks.append(normal)
-        chunks.extend(external_subchunks)
+        chunks.extend(isolated_subchunks)
 
         remaining -= set(chunk)
         resolved.update(i for i in chunk if i in fault_stacks)
@@ -243,3 +246,12 @@ def _get_external_stack_indices(stack_structure: StacksStructure) -> set[int]:
     if stack_structure.interp_functions_per_stack is None:
         return set()
     return {i for i, f in enumerate(stack_structure.interp_functions_per_stack) if f is not None}
+
+
+def _get_finite_fault_stack_indices(stack_structure: StacksStructure) -> set[int]:
+    if stack_structure.faults_input_data is None:
+        return set()
+    return {
+        i for i, fault_data in enumerate(stack_structure.faults_input_data)
+        if fault_data is not None and fault_data.finite_fault_defined
+    }

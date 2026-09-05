@@ -16,6 +16,7 @@ from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.octree_level import OctreeLevel
 from ...core.data.solutions import Solutions
+from ...core.data.stack_relation_type import StackRelationType
 from ...core.utils import gempy_profiler_decorator
 from ...core.exceptions import GemPyEngineInputError
 from ...core.data.options.temp_interpolation_values import TempInterpolationValues
@@ -224,6 +225,28 @@ def _check_input_validity(interpolation_input: InterpolationInput, options: Inte
                     f"Validation Error: Stack {stack_index} has no orientations. "
                     f"Each stack must have at least one orientation, unless it uses an external interpolation function."
                 )
+
+        # 3.6 Finite-fault definitions belong to single-surface fault stacks
+        if ss.faults_input_data is not None:
+            if len(ss.faults_input_data) != ss.n_stacks:
+                raise GemPyEngineInputError(
+                    "Validation Error: faults_input_data must contain one entry per stack."
+                )
+            for stack_index, fault_data in enumerate(ss.faults_input_data):
+                if fault_data is None or not fault_data.finite_fault_defined:
+                    continue
+                if ss.masking_descriptor[stack_index] is not StackRelationType.FAULT:
+                    raise GemPyEngineInputError(
+                        f"Validation Error: Finite-fault definition on stack {stack_index} requires a FAULT stack."
+                    )
+                if ss.number_of_surfaces_per_stack[stack_index] != 1:
+                    raise GemPyEngineInputError(
+                        f"Validation Error: Finite-fault stack {stack_index} must contain exactly one surface."
+                    )
+                if _stack_uses_external_function(ss, stack_index):
+                    raise GemPyEngineInputError(
+                        f"Validation Error: Finite-fault stack {stack_index} requires cokriging evaluation."
+                    )
 
     # 4. Check surfaces consistency
     # 4.1 Each surface must have at least one surface point
