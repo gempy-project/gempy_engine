@@ -73,6 +73,12 @@ default profile. Supplying spline points for another taper is invalid.
 projects points onto the fault surface, so normal distance is not part of its
 two-dimensional footprint. A volumetric ellipsoid would be a separate model.
 
+Direct GemPy Engine callers provide the center and radii in engine coordinates.
+GemPy models persist these values in world coordinates and transform a runtime
+copy together with the model inputs before calling the engine. The persisted
+finite-fault definition is not modified. The current strike/dip representation
+requires an isotropic transform that does not tilt the vertical axis.
+
 ## Serialization
 
 Pydantic dataclasses use `TypeAdapter` for serialization and deserialization:
