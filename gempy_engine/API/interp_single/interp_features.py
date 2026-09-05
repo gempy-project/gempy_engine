@@ -28,7 +28,8 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
             grid_1_centers: EngineGrid = get_next_octree_grid(
                 prev_octree=next_octree,
                 evaluation_options=options.evaluation_options,
-                current_octree_level=i
+                current_octree_level=i,
+                debug=options.debug
             )
             interpolation_input.set_temp_grid(grid_1_centers)
         octree_list.append(next_octree)
