@@ -186,6 +186,14 @@ class BackendTensor:
         print(f"\n Using pykeops: {cls.pykeops_enabled}. \n")
 
     @classmethod
+    def arange(cls, stop, *, dtype=None):
+        if cls.engine_backend == AvailableBackends.PYTORCH:
+            if isinstance(dtype, str):
+                dtype = getattr(torch, dtype)
+            return torch.arange(stop, dtype=dtype, device=cls.device)
+        return cls.t.arange(stop, dtype=dtype)
+
+    @classmethod
     def _wrap_pytorch_functions(cls):
         import torch
         _true_torch_zeros = torch._C._VariableFunctions.zeros
@@ -205,8 +213,12 @@ class BackendTensor:
         def _repeat(tensor, n_repeats, axis=None):
             if not isinstance(tensor, torch.Tensor):
                 tensor = torch.as_tensor(tensor, device=cls.device)
+            elif tensor.device != cls.device:
+                tensor = tensor.to(cls.device)
             if not isinstance(n_repeats, torch.Tensor):
                 n_repeats = torch.as_tensor(n_repeats, device=cls.device)
+            elif n_repeats.device != cls.device:
+                n_repeats = n_repeats.to(cls.device)
             return _true_torch_repeat_interleave(tensor, n_repeats, dim=axis)
 
         def _array(array_like, dtype=None):
