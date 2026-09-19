@@ -18,6 +18,7 @@ class RegularGrid:
     left_right: np.ndarray = field(default=None, repr=False, init=False)
     _integer_coordinates: np.ndarray = field(default=None, repr=False, init=False)
     refinement_debug: dict = field(default=None, repr=False, init=False)
+    physical_extent: np.ndarray = field(default=None, repr=False, init=False)
     
     values: np.ndarray = field(default=None, repr=False, init=False)
     original_values: np.ndarray = field(default=None, repr=False, init=False)  #: When the regular grid is representing a octree level, only active cells are stored in values. This is the original values of the regular grid.
@@ -28,6 +29,7 @@ class RegularGrid:
 
     def __post_init__(self):
         self.regular_grid_shape = BackendTensor.t.array(self.regular_grid_shape)
+        self.physical_extent = BackendTensor.t.array(self.orthogonal_extent)
         self.orthogonal_extent = BackendTensor.t.array(self.orthogonal_extent) + 1e-6  # * This to avoid some errors evaluating in 0 (e.g. bias in dual contouring)
 
         self._create_regular_grid_3d()
@@ -68,6 +70,7 @@ class RegularGrid:
         )
 
         regular_grid_for_octree_level.values = xyz_coords_octree  # ! Overwrite the common values
+        regular_grid_for_octree_level.physical_extent = BackendTensor.t.copy(previous_regular_grid.physical_extent)
         regular_grid_for_octree_level._active_cells = active_cells
         regular_grid_for_octree_level.left_right = left_right
         regular_grid_for_octree_level._integer_coordinates = (

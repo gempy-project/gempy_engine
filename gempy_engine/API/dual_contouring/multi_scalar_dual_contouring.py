@@ -1,4 +1,5 @@
 import copy
+import os
 import warnings
 from typing import List, Any
 
@@ -24,7 +25,8 @@ from ...modules.dual_contouring.dual_contouring_interface import (find_intersect
                                                                   get_masked_codes, mask_generation)
 from ...modules.dual_contouring.overlapping import average_overlapping_vertices, remove_fault_overlap_triangles
 from ...modules.dual_contouring._support_report import mesh_support_report
-from ...core.data.options.evaluation_options import OctreeRefinementMode
+from ...core.data.options.evaluation_options import OctreeRefinementMode, MeshExtentCapping
+from ...modules.dual_contouring._extent_capping import boundary_lattice, cap_mesh
 
 
 @gempy_profiler_decorator
@@ -52,6 +54,7 @@ def dual_contouring_multi_scalar(
 
     octree_leaves = octree_list[-1]
     all_meshes: List[DualContouringMesh] = []
+    cap_enabled = MeshExtentCapping(options.evaluation_options.mesh_extraction_extent_capping) != MeshExtentCapping.NONE
 
     dual_contouring_options = copy.deepcopy(options)
     dual_contouring_options.evaluation_options.compute_scalar_gradient = True
@@ -86,7 +89,8 @@ def dual_contouring_multi_scalar(
             _xyz_corners=octree_leaves.grid.corners_grid.values,
             scalar_field_on_corners=output.exported_fields.scalar_field[output.grid.corners_grid_slice],
             scalar_at_sp=output.scalar_field_at_sp,
-            masking=mask
+            masking=mask,
+            strict_crossings=cap_enabled
         )
 
         all_surfaces_intersection.append(intersection_xyz)
@@ -110,6 +114,7 @@ def dual_contouring_multi_scalar(
     # Generate meshes for each scalar field
     dc_data_per_surface_all = []
     support_reports = []
+    surface_metadata = []
     stack_relations = data_descriptor.stack_structure.masking_descriptor
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
         if stack_relations[n_scalar_field] is StackRelationType.NULL_SPACE:
@@ -125,7 +130,8 @@ def dual_contouring_multi_scalar(
                     output.exported_fields.scalar_field[output.grid.corners_grid_slice],
                     output.scalar_field_at_sp[surface_i], base_number, mask,
                     surface_index=surface_i,
-                    ancestor_coordinates=[level.grid.octree_grid.integer_coordinates for level in octree_list[:-1]]
+                    ancestor_coordinates=[level.grid.octree_grid.integer_coordinates for level in octree_list[:-1]],
+                    strict_crossings=cap_enabled
                 )
                 report['stack_index'] = n_scalar_field
                 if report['internal_refinement_boundary_edge_count']:
@@ -154,11 +160,13 @@ def dual_contouring_multi_scalar(
                 tree_depth=options.number_octree_levels,
                 base_number=base_number,
                 triangulation_method=options.evaluation_options.triangulation_method,
-                generated_cell_coordinates=left_right_codes
+                generated_cell_coordinates=left_right_codes,
+                strict_crossings=cap_enabled
             )
 
             dc_data_per_surface_all.append(dc_data_per_surface)
             surface_to_stack.append(n_scalar_field)
+            surface_metadata.append((n_scalar_field, surface_i, float(output.scalar_field_at_sp[surface_i])))
             if compute_overlap:
                 left_right_per_mesh.append(all_left_right_codes[n_scalar_field][dc_data_per_surface.valid_voxels])
 
@@ -213,7 +221,70 @@ def dual_contouring_multi_scalar(
             mesh.vertices = BackendTensor.t.to_numpy(mesh.vertices)
             mesh.edges = BackendTensor.t.to_numpy(mesh.edges)
 
+    for index, (mesh, (stack_index, surface_index, isovalue)) in enumerate(zip(all_meshes, surface_metadata)):
+        mesh.stack_index = stack_index
+        mesh.surface_index = surface_index
+        mesh.exported_surface_index = index
+        mesh.isovalue = isovalue
+        mesh.inside_convention = "scalar <= isovalue" if cap_enabled else None
+
+    skip_triangles = os.getenv("GEMPY_SKIP_TRIANGULATION", "0").lower() in ("true", "1", "t", "y", "yes")
+    if cap_enabled and all_meshes and not skip_triangles:
+        extent = BackendTensor.t.to_numpy(octree_list[0].grid.octree_grid.physical_extent)
+        skip_reasons = []
+        fault_relations = data_descriptor.stack_structure.faults_relations
+        for mesh in all_meshes:
+            stack = mesh.stack_index
+            mask = all_mask_arrays[stack]
+            faulted = (stack_relations[stack] is StackRelationType.FAULT
+                       or (fault_relations is not None and np.any(fault_relations[:, stack])))
+            masked = mask is not None and not bool(mask.all())
+            skip_reasons.append(
+                "Capping skipped: fault or extraction-mask boundary ownership is not supported"
+                if faulted or masked else None
+            )
+        geometry = None
+        coordinates = points = np.empty((0, 3))
+        boundary_scalars = None
+        if any(reason is None for reason in skip_reasons):
+            geometry = boundary_lattice(base_number, extent)
+            coordinates, points, _ = geometry
+            boundary_scalars = _interp_on_boundary(points, interpolation_input, options, data_descriptor)
+        for mesh, dc_data, reason in zip(all_meshes, dc_data_per_surface_all, skip_reasons):
+            cell_coordinates = BackendTensor.t.to_numpy(dc_data.left_right_codes[dc_data.valid_voxels])
+            cap_mesh(mesh, cell_coordinates, base_number, extent, coordinates,
+                     boundary_scalars[mesh.stack_index] if reason is None else np.empty(0),
+                     mesh.isovalue, boundary_geometry=geometry, skip_reason=reason)
+            mesh.capping_report["boundary_scalar_points"] = len(points) if reason is None else 0
+            mesh.capping_report["original_vertex_count"] = len(cell_coordinates)
+
     return all_meshes
+
+
+def _interp_on_boundary(points, interpolation_input, options, data_descriptor):
+    """Evaluate each stack once per boundary batch, reusing it for its surfaces."""
+    boundary_options = copy.deepcopy(options)
+    boundary_options.evaluation_options.compute_scalar = True
+    boundary_options.evaluation_options.compute_scalar_gradient = False
+    saved_grid = interpolation_input.grid
+    saved_stack = data_descriptor.stack_structure.stack_number
+    scalars = [np.empty(len(points)) for _ in range(data_descriptor.stack_structure.n_stacks)]
+    batch_size = max(1, int(options.evaluation_options.evaluation_chunk_size))
+    try:
+        for start in range(0, len(points), batch_size):
+            stop = min(start + batch_size, len(points))
+            interpolation_input.set_temp_grid(EngineGrid(custom_grid=GenericGrid(
+                values=BackendTensor.t.array(points[start:stop], dtype=BackendTensor.dtype)
+            )))
+            outputs = interpolate_all_fields_no_octree(interpolation_input, boundary_options, data_descriptor)
+            for stack_index, output in enumerate(outputs):
+                scalars[stack_index][start:stop] = BackendTensor.t.to_numpy(
+                    output.exported_fields.scalar_field[output.grid.custom_grid_slice]
+                )
+    finally:
+        interpolation_input.set_temp_grid(saved_grid)
+        data_descriptor.stack_structure.stack_number = saved_stack
+    return scalars
 
 
 def _validate_stack_relations(data_descriptor: InputDataDescriptor, n_scalar_field: int) -> None:

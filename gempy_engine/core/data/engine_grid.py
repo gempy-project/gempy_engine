@@ -59,10 +59,12 @@ class EngineGrid:
 
     @classmethod
     def from_regular_grid(cls, regular_grid: RegularGrid) -> "EngineGrid":
-        return cls(
+        grid = cls(
             dense_grid=regular_grid,
             octree_grid=RegularGrid(regular_grid.orthogonal_extent, np.array([2, 2, 2]))
         )
+        grid.octree_grid.physical_extent = BackendTensor.t.copy(regular_grid.physical_extent)
+        return grid
 
     @property
     def values(self) -> np.ndarray:

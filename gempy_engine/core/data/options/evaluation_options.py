@@ -15,6 +15,11 @@ class OctreeRefinementMode(str, enum.Enum):
     PRECISE = "precise"
 
 
+class MeshExtentCapping(str, enum.Enum):
+    NONE = "none"
+    SCALAR_LESS_EQUAL = "scalar_less_equal"
+
+
 class MeshExtractionMaskingOptions(enum.Enum):
     NOTHING = enum.auto()  # * This is only for testing
     DISJOINT = enum.auto()
@@ -39,6 +44,7 @@ class EvaluationOptions:
     triangulation_method: TriangulationMethod = TriangulationMethod.LEGACY
     
     mesh_extraction: bool = True
+    mesh_extraction_extent_capping: MeshExtentCapping = MeshExtentCapping.NONE
     mesh_extraction_masking_options: MeshExtractionMaskingOptions = MeshExtractionMaskingOptions.INTERSECT
     mesh_extraction_fancy: Annotated[bool, deprecated("Old extraction method not in use anymore")] = True
 

@@ -32,7 +32,13 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
     # Use nanmean directly without intermediate copy
     bias_xyz_slice = edges_xyz[:, :12]
     
-    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+    if dc_data_per_stack.strict_crossings:
+        # Zero coordinates are valid samples, not missing edge constraints.
+        mask = valid_edges_bool[:, :, None]
+        sum_valid = (bias_xyz_slice * mask).sum(axis=1)
+        count_valid = mask.sum(axis=1)
+        mass_points = sum_valid / count_valid
+    elif BackendTensor.engine_backend == AvailableBackends.PYTORCH:
         mask = bias_xyz_slice == 0
         bias_xyz_masked = BackendTensor.tfnp.where(mask, float('nan'), bias_xyz_slice)
         mass_points = BackendTensor.tfnp.nanmean(bias_xyz_masked, axis=1)
@@ -96,7 +102,10 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
         
         # Solve ATA @ x = ATb  (use solve instead of inv for numerical stability)
         import torch
-        reg = 1e-4 * torch.eye(3, device=ATA.device, dtype=ATA.dtype).unsqueeze(0)
+        # The mass-point constraints already make ATA positive definite. Extra
+        # origin-centered regularization biases the capped solid's volume.
+        strength = 0 if dc_data_per_stack.strict_crossings else 1e-4
+        reg = strength * torch.eye(3, device=ATA.device, dtype=ATA.dtype).unsqueeze(0)
         vertices = torch.linalg.solve(ATA + reg, ATb)
     else:
         # NumPy: use efficient einsum
