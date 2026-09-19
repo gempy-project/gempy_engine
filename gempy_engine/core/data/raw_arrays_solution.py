@@ -123,7 +123,7 @@ class RawArraysSolution:
         pd = require_pandas()
 
         vertex: list[np.ndarray] = self.vertices
-        simplex_list: list[np.ndarray] = self.edges
+        simplex_list: list[np.ndarray] = [triangles.copy() for triangles in self.edges]
         
         idx_max = 0
         for i, simplex_array in enumerate(simplex_list):
@@ -287,4 +287,3 @@ def _fill_finite_fault_scalar_fields_with_dense_grid(
     ]
     raw_arrays_solution.finite_fault_scalar_field_matrix = np.vstack(fields)
     raw_arrays_solution.finite_fault_stack_indices = stack_indices
-

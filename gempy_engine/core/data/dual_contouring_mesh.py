@@ -11,6 +11,12 @@ class DualContouringMesh:
     edges: np.ndarray
     dc_data: Optional[DualContouringData] = None  # * In principle we need this just for testing
     support_report: Optional[dict] = None
+    capping_report: Optional[dict] = None
+    stack_index: Optional[int] = None
+    surface_index: Optional[int] = None
+    exported_surface_index: Optional[int] = None
+    isovalue: Optional[float] = None
+    inside_convention: Optional[str] = None
 
     def __repr__(self):
         return f"DualContouringMesh({self.vertices.shape[0]} vertices, {self.edges.shape[0]} edges)"
