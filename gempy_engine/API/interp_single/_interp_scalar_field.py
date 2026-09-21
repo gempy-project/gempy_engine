@@ -111,18 +111,19 @@ def _evaluate_sys_eq(eval_input: Union[SolverInput, EvaluatorInput], weights: np
     else:
         exported_fields = generic_evaluator(eval_input, weights, options)
 
-    return _restore_corner_fields(exported_fields, inverse)
-
-
-def _restore_corner_fields(exported_fields: ExportedFields, inverse) -> ExportedFields:
-    """Expand a reduced evaluation before attaching original grid metadata."""
     if inverse is not None:
-        for name in ('_scalar_field', '_gx_field', '_gy_field', '_gz_field'):
-            values = getattr(exported_fields, name)
-            if values is not None:
-                index = BackendTensor.t.to_numpy(inverse) if isinstance(values, np.ndarray) else inverse
-                setattr(exported_fields, name, values[index])
+        _restore_corner_fields(exported_fields, inverse)
+
     return exported_fields
+
+
+def _restore_corner_fields(exported_fields: ExportedFields, inverse) -> None:
+    """Expand a reduced evaluation before attaching original grid metadata."""
+    for name in ('_scalar_field', '_gx_field', '_gy_field', '_gz_field'):
+        values = getattr(exported_fields, name)
+        if values is not None:
+            index = BackendTensor.t.to_numpy(inverse) if isinstance(values, np.ndarray) else inverse
+            setattr(exported_fields, name, values[index])
 
 
 def _deduplicate_corners(eval_input: SolverInput | EvaluatorInput, grid: EngineGrid | None):
