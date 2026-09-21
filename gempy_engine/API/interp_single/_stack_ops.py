@@ -274,7 +274,8 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
     )
 
     for idx, exported_fields in enumerate(exported_fields_list):
-        _restore_corner_fields(exported_fields, inverses[idx])
+        if inverses[idx] is not None:
+            _restore_corner_fields(exported_fields, inverses[idx])
         exported_fields.set_structure_values_from_eval_input(eval_inputs[idx])
         exported_fields.debug = eval_inputs[idx].solver_input.debug
 
