@@ -18,7 +18,6 @@ class RegularGrid:
     left_right: np.ndarray = field(default=None, repr=False, init=False)
     _integer_coordinates: np.ndarray = field(default=None, repr=False, init=False)
     refinement_debug: dict = field(default=None, repr=False, init=False)
-    physical_extent: np.ndarray = field(default=None, repr=False, init=False)
     
     values: np.ndarray = field(default=None, repr=False, init=False)
     original_values: np.ndarray = field(default=None, repr=False, init=False)  #: When the regular grid is representing a octree level, only active cells are stored in values. This is the original values of the regular grid.
@@ -29,8 +28,7 @@ class RegularGrid:
 
     def __post_init__(self):
         self.regular_grid_shape = BackendTensor.t.array(self.regular_grid_shape)
-        self.physical_extent = BackendTensor.t.array(self.orthogonal_extent)
-        self.orthogonal_extent = BackendTensor.t.array(self.orthogonal_extent) + 1e-6  # * This to avoid some errors evaluating in 0 (e.g. bias in dual contouring)
+        self.orthogonal_extent = BackendTensor.t.array(self.orthogonal_extent)
 
         self._create_regular_grid_3d()
 
@@ -50,15 +48,15 @@ class RegularGrid:
     
     @property
     def x_coord(self):
-        return BackendTensor.t.linspace(self.orthogonal_extent[0] + self.dx / 2, self.orthogonal_extent[1] - self.dx / 2, self.resolution[0])
+        return BackendTensor.t.linspace(self.orthogonal_extent[0] + self.dx / 2, self.orthogonal_extent[1] - self.dx / 2, self.resolution[0], dtype=BackendTensor.dtype_obj)
 
     @property
     def y_coord(self):
-        return BackendTensor.t.linspace(self.orthogonal_extent[2] + self.dy / 2, self.orthogonal_extent[3] - self.dy / 2, self.resolution[1])
+        return BackendTensor.t.linspace(self.orthogonal_extent[2] + self.dy / 2, self.orthogonal_extent[3] - self.dy / 2, self.resolution[1], dtype=BackendTensor.dtype_obj)
 
     @property
     def z_coord(self):
-        return BackendTensor.t.linspace(self.orthogonal_extent[4] + self.dz / 2, self.orthogonal_extent[5] - self.dz / 2, self.resolution[2])
+        return BackendTensor.t.linspace(self.orthogonal_extent[4] + self.dz / 2, self.orthogonal_extent[5] - self.dz / 2, self.resolution[2], dtype=BackendTensor.dtype_obj)
 
     @classmethod
     def from_octree_level(cls, xyz_coords_octree: np.ndarray, previous_regular_grid: "RegularGrid",
@@ -70,7 +68,6 @@ class RegularGrid:
         )
 
         regular_grid_for_octree_level.values = xyz_coords_octree  # ! Overwrite the common values
-        regular_grid_for_octree_level.physical_extent = BackendTensor.t.copy(previous_regular_grid.physical_extent)
         regular_grid_for_octree_level._active_cells = active_cells
         regular_grid_for_octree_level.left_right = left_right
         regular_grid_for_octree_level._integer_coordinates = (

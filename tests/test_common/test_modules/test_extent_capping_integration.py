@@ -27,7 +27,7 @@ from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 
 
-dc = importlib.import_module("gempy_engine.API.dual_contouring.multi_scalar_dual_contouring")
+dc = importlib.import_module("gempy_engine.API.dual_contouring.extent_capping")
 EXTENT = np.array([-2., 4., 10., 14., -8., -3.])
 
 
@@ -117,13 +117,14 @@ def test_default_and_explicit_none_have_identical_arrays(plane_model, monkeypatc
     boundary.assert_not_called()
 
 
-def test_enabled_preserves_physical_extent_and_caller_grid(plane_model, backend):
+@pytest.mark.parametrize("mode", list(MeshExtentCapping))
+def test_all_modes_preserve_exact_extent_and_caller_grid(plane_model, backend, mode):
     inputs, options, descriptor = plane_model()
     grid = inputs.grid
     root = grid.octree_grid
     original_extent = BackendTensor.t.to_numpy(root.orthogonal_extent).copy()
     original_values = BackendTensor.t.to_numpy(root.values).copy()
-    options.evaluation_options.mesh_extraction_extent_capping = MeshExtentCapping.SCALAR_LESS_EQUAL
+    options.evaluation_options.mesh_extraction_extent_capping = mode
     solution = compute_model(inputs, options, descriptor)
     assert len(solution.octrees_output) == 2
     root_values = BackendTensor.t.to_numpy(solution.octrees_output[0].grid.octree_grid.values)
@@ -131,9 +132,9 @@ def test_enabled_preserves_physical_extent_and_caller_grid(plane_model, backend)
     coordinate_tolerance = 2 * np.finfo(root_values.dtype).eps * np.max(np.abs(EXTENT))
     for level in solution.octrees_output:
         octree = level.grid.octree_grid
-        np.testing.assert_array_equal(BackendTensor.t.to_numpy(octree.physical_extent), EXTENT)
+        np.testing.assert_array_equal(BackendTensor.t.to_numpy(octree.orthogonal_extent), EXTENT)
         if backend is AvailableBackends.PYTORCH:
-            assert octree.physical_extent.device.type == "cpu"
+            assert octree.orthogonal_extent.device.type == "cpu"
         coordinates = BackendTensor.t.to_numpy(octree.integer_coordinates)
         shape = BackendTensor.t.to_numpy(octree.regular_grid_shape)
         expected = EXTENT[::2] + (coordinates + .5) * (EXTENT[1::2] - EXTENT[::2]) / shape
@@ -143,7 +144,7 @@ def test_enabled_preserves_physical_extent_and_caller_grid(plane_model, backend)
         BackendTensor.t.to_numpy(solution.octrees_output[0].grid.octree_grid.orthogonal_extent), EXTENT)
     assert inputs.grid is grid
     assert grid.octree_grid is root
-    np.testing.assert_array_equal(BackendTensor.t.to_numpy(root.physical_extent), EXTENT)
+    np.testing.assert_array_equal(BackendTensor.t.to_numpy(root.orthogonal_extent), EXTENT)
     np.testing.assert_array_equal(BackendTensor.t.to_numpy(root.orthogonal_extent), original_extent)
     np.testing.assert_array_equal(BackendTensor.t.to_numpy(root.values), original_values)
 
