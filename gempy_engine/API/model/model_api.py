@@ -20,7 +20,6 @@ from ...core.data.stack_relation_type import StackRelationType
 from ...core.utils import gempy_profiler_decorator
 from ...core.exceptions import GemPyEngineInputError
 from ...core.data.options.temp_interpolation_values import TempInterpolationValues
-from ...core.data.options.evaluation_options import MeshExtentCapping
 from ...modules.geophysics.fw_gravity import compute_gravity
 from ...modules.geophysics.fw_magnetic import compute_tmi
 from ...modules.weights_cache.weights_cache_interface import WeightCache
@@ -43,25 +42,6 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
 
         # Check input is valid
         _check_input_validity(interpolation_input, options, data_descriptor)  # TODO
-
-        if (options.evaluation_options.mesh_extraction
-                and MeshExtentCapping(options.evaluation_options.mesh_extraction_extent_capping) != MeshExtentCapping.NONE
-                and interpolation_input.grid.octree_grid is not None):
-            # Keep the legacy offset and caller-owned grids untouched when capping
-            # is disabled. Enabled extraction samples the exact physical box.
-            interpolation_input = copy.copy(interpolation_input)
-            grid = copy.copy(interpolation_input.grid)
-            root = copy.copy(grid.octree_grid)
-            root.orthogonal_extent = BackendTensor.t.copy(root.physical_extent)
-            coordinates = BackendTensor.t.array(root.integer_coordinates, dtype=BackendTensor.dtype)
-            root.values = root.physical_extent[::2] + (coordinates + 0.5) * (
-                (root.physical_extent[1::2] - root.physical_extent[::2]) / root.regular_grid_shape
-            )
-            root.original_values = BackendTensor.t.copy(root.values)
-            grid.octree_grid = root
-            grid.corners_grid = None
-            interpolation_input._original_grid = grid
-            interpolation_input.set_temp_grid(grid)
 
         output: list[OctreeLevel] = interpolate_n_octree_levels(
             interpolation_input=interpolation_input,

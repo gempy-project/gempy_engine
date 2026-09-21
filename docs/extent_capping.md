@@ -33,22 +33,25 @@ If no isosurface intersects the box, no box shell is manufactured, even when
 the whole box satisfies the inside condition. This is closure of existing
 isosurfaces, not unconditional extraction of the complete clipped sublevel set.
 
-`RegularGrid.physical_extent` retains the requested extent through refinement.
-Enabled `compute_model` calls use a private root grid sampled against that exact
-box, rather than the legacy `1e-6` translated box. Caps are generated in engine
-coordinates, before downstream output transforms. Original vertex indices are
-preserved and cap vertices are appended.
+`RegularGrid.orthogonal_extent` is the single requested extent used for grid
+sampling, refinement, and capping. All octree levels retain that exact extent,
+whether capping is enabled or disabled. There is no conditional private root-grid
+resampling or extent translation. Caps are generated in engine coordinates,
+before downstream output transforms. Original vertex indices are preserved and
+cap vertices are appended.
 
 Enabled extraction and cap clipping share strict scalar crossing rules. An
 endpoint equal to the isovalue is inside; an entire iso-valued edge is not a
 crossing. Interpolation parameters are clamped and snapped within `1e-12` of an
-endpoint. Nonfinite scalar inputs are rejected with a diagnostic. Enabled QEF
-mass points use edge-validity masks, including genuine zero coordinates, and
-avoid PyTorch's additional origin-centered regularization.
+endpoint. Nonfinite scalar inputs are rejected with a diagnostic. QEF mass
+points use edge-validity masks globally, including genuine zero coordinates,
+regardless of capping mode. Enabled QEF solving avoids PyTorch's additional
+origin-centered regularization.
 
-With capping disabled, legacy grid sampling, crossings, QEF solving, and mesh
-arrays retain their previous behavior. Enabled interior geometry can differ
-because its sampling and crossing conventions are deliberately stricter.
+With capping disabled, no boundary evaluation or cap construction is performed.
+Exact grid sampling and zero-coordinate handling apply in both modes; uncapped
+mesh arrays are not guaranteed to match legacy output. Enabled interior geometry
+can differ because its crossing and QEF-solving conventions are stricter.
 
 ## Best-Effort Contract
 
@@ -99,11 +102,13 @@ cap geometry and topology are NumPy postprocessing and are not differentiable.
 
 One unique finest-level six-face lattice is shared across surfaces. Boundary
 scalar values are evaluated once per stack per batch and reused across that
-stack's isosurfaces. `evaluation_chunk_size` bounds the boundary point batch;
+stack's isosurfaces. The API module `API/dual_contouring/extent_capping.py`
+orchestrates capping and restores the grid and stack cursor after boundary
+evaluation, including failures. `evaluation_chunk_size` bounds the boundary point batch;
 the existing evaluator also applies its own kernel-workload chunking.
 
 Boundary storage scales as `O(nx*ny + nx*nz + ny*nz)`, but Python dictionaries,
 triangle connectivity, and topology audits have substantial additional memory
 cost. This is a correctness-first implementation: there is no adaptive cap
-simplification, cross-call cache, or reuse of shifted legacy corner samples.
+simplification, cross-call cache, or reuse of existing corner samples.
 Large-depth GPU and production-scale memory benchmarks remain outstanding.
