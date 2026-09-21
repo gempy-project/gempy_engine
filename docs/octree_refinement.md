@@ -80,14 +80,13 @@ time/memory benchmarks are still needed before recommending a different default.
 
 ## Opt-in Evaluation and Triangulation
 
-Both optimizations are independent of the refinement mode and default to `False`:
+Corner deduplication is independent of the refinement mode and defaults to `False`:
 
 ```python
 options.evaluation_options.deduplicate_octree_corners = True
-options.evaluation_options.triangulation_sort_once = True
 ```
 
-Set either selector back to `False` to use its legacy path. Both selectors are
+Set this selector back to `False` to evaluate the full corner layout. It is
 included in `InterpolationOptions` JSON serialization.
 
 Corner deduplication uses signed integer lattice coordinates and vectorized
@@ -118,12 +117,6 @@ Ineligible stacks retain their full rows within the same fused call. Backend
 selection and existing finite-fault dispatch restrictions remain unchanged.
 External interpolation callbacks keep their existing path and full grid layout.
 
-The triangulation selector sorts the active voxel codes once per surface call and
-reuses that lookup across all six edge cases. It preserves triangle order,
-neighbor filtering, and normal correction; it does not rewrite edge topology or
-change vertex generation. Its lookup is local to the surface call and safe for
-parallel surface processing.
-
 ### Unique-Edge Quads
 
 To select quad-based connectivity instead of the legacy triangle construction:
@@ -135,8 +128,9 @@ options.evaluation_options.triangulation_method = TriangulationMethod.QUADS
 ```
 
 The default is `TriangulationMethod.LEGACY`. This selector is serialized with the
-other evaluation options. `triangulation_sort_once` applies only to the legacy
-method; quad mode already uses one sorted cell lookup.
+other evaluation options and is independent of corner deduplication and refinement
+mode. Legacy triangulation sorts voxel codes locally for each edge case; quad mode
+uses one sorted cell lookup.
 
 Quad mode identifies each primal edge by its lower integer endpoint and direction,
 deduplicates these identities, and finds the four incident cells. Each complete
