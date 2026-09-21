@@ -242,10 +242,6 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
                          options_per_stack: list[InterpolationOptions] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
     from gempy_engine.modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
 
-    if not BackendTensor.use_pykeops:
-        return _evaluate(interpolation_inputs, options, solver_inputs, stack_structure,
-                         tensor_structs, stack_indices, options_per_stack)
-
     eval_inputs: list[EvaluatorInput] = []
     for idx, global_i in enumerate(stack_indices):
         stack_structure.stack_number = global_i
