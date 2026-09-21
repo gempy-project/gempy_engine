@@ -225,6 +225,7 @@ def _evaluate(interpolation_inputs: list[InterpolationInput], options: Interpola
             eval_input=eval_input,
             weights=eval_input.solver_input.weights_x0,
             options=options_per_stack[idx] if options_per_stack is not None else options,
+            grid=interpolation_inputs[idx].grid,
         )
 
         exported_fields.set_structure_values_from_eval_input(eval_input)
@@ -240,6 +241,11 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
                          tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None,
                          options_per_stack: list[InterpolationOptions] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
     from gempy_engine.modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
+
+    # Use the per-stack evaluator so expansion precedes metadata and segmentation.
+    if any(o.evaluation_options.deduplicate_octree_corners for o in (options_per_stack or [options])):
+        return _evaluate(interpolation_inputs, options, solver_inputs, stack_structure,
+                         tensor_structs, stack_indices, options_per_stack)
 
     eval_inputs: list[EvaluatorInput] = []
     for idx, global_i in enumerate(stack_indices):
