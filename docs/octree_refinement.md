@@ -78,15 +78,16 @@ thresholds or measurements of interpolation/reporting overhead.
 The default remains fast. Representative curved, multi-stack, faulted, and GPU
 time/memory benchmarks are still needed before recommending a different default.
 
-## Opt-in Corner Evaluation
+## Opt-in Evaluation and Triangulation
 
-Corner deduplication is independent of the refinement mode and defaults to `False`:
+Both optimizations are independent of the refinement mode and default to `False`:
 
 ```python
 options.evaluation_options.deduplicate_octree_corners = True
+options.evaluation_options.triangulation_sort_once = True
 ```
 
-Set the selector back to `False` to use its legacy path. The selector is
+Set either selector back to `False` to use its legacy path. Both selectors are
 included in `InterpolationOptions` JSON serialization.
 
 Corner deduplication uses signed integer lattice coordinates and vectorized
@@ -114,3 +115,9 @@ Normal and flat stacks support the selector. With deduplication enabled for any
 stack in a flat chunk, that chunk uses per-stack evaluation instead of the fused
 PyKeOps evaluator; each stack still selects its usual dense or symbolic backend.
 External interpolation callbacks keep their existing path and full grid layout.
+
+The triangulation selector sorts the active voxel codes once per surface call and
+reuses that lookup across all six edge cases. It preserves triangle order,
+neighbor filtering, and normal correction; it does not rewrite edge topology or
+change vertex generation. Its lookup is local to the surface call and safe for
+parallel surface processing.

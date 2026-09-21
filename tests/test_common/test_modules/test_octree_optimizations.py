@@ -1,3 +1,4 @@
+from itertools import product
 from unittest.mock import patch
 
 import numpy as np
@@ -14,6 +15,7 @@ from gempy_engine.core.data.regular_grid import RegularGrid
 from gempy_engine.API.interp_single._octree_generation import _generate_corners
 from gempy_engine.API.interp_single._interp_scalar_field import _deduplicate_corners, _evaluate_sys_eq, _solve_interpolation
 from gempy_engine.API.interp_single._interp_single_feature import input_preprocess
+from gempy_engine.modules.dual_contouring.fancy_triangulation import triangulate
 from gempy_engine.modules.octrees_topology._octree_common import _generate_next_level_centers
 from tests.fixtures.simple_models import simple_model_interpolation_input_factory
 
@@ -133,6 +135,31 @@ def test_evaluation_and_gradient_parity(backend, flat_input, symbolic, monkeypat
             torch.testing.assert_close(old, new, atol=1e-7, rtol=1e-8)
 
 
+@pytest.mark.parametrize('case', ['dense', 'sparse', 'empty', 'no_edges'])
+def test_triangulation_parity_and_sort_count(backend, case):
+    t = BackendTensor.t
+    coords = np.array(list(product(range(3), range(4), range(5))), dtype=np.int64)
+    rng = np.random.default_rng(17)
+    rng.shuffle(coords)
+    if case == 'sparse':
+        coords = coords[::2]
+    if case == 'empty':
+        coords = coords[:0]
+    coords = t.array(coords, dtype='int64')
+    valid = t.array(rng.random((len(coords), 12)) > 0.3, dtype=bool)
+    if case == 'no_edges':
+        valid[:] = False
+    normals = t.array(rng.normal(size=(len(coords), 12, 3)))
+    vertices = t.array(coords, dtype='float64') + 0.5
+    with patch.object(BackendTensor.tfnp, 'argsort', wraps=BackendTensor.tfnp.argsort) as sort:
+        old = triangulate(coords, valid, 1, normals, vertices, (3, 4, 5))
+        assert sort.call_count == (0 if case == 'empty' else 6)
+        sort.reset_mock()
+        new = triangulate(coords, valid, 1, normals, vertices, (3, 4, 5), sort_once=True)
+        assert sort.call_count == 1
+    np.testing.assert_array_equal(t.to_numpy(old), t.to_numpy(new))
+
+
 @pytest.mark.parametrize('flat', [False, True])
 def test_model_parity(backend, flat, monkeypatch):
     from gempy_engine.API.model.model_api import compute_model
@@ -145,6 +172,7 @@ def test_model_parity(backend, flat, monkeypatch):
     interp, options, descriptor = simple_model_interpolation_input_factory()
     options.evaluation_options.number_octree_levels = 2
     options.evaluation_options.deduplicate_octree_corners = True
+    options.evaluation_options.triangulation_sort_once = True
     monkeypatch.setenv('GEMPY_FLAT_STACKS', str(flat))
     if flat:
         # Public flat dispatch requires PyKeOps; exercise the same stack manager
@@ -230,6 +258,9 @@ def test_public_pykeops_flat_parity(backend, monkeypatch):
 def test_selectors_serialization():
     options = InterpolationOptions.from_args(range=1., c_o=1.)
     assert not options.evaluation_options.deduplicate_octree_corners
+    assert not options.evaluation_options.triangulation_sort_once
     options.evaluation_options.deduplicate_octree_corners = True
+    options.evaluation_options.triangulation_sort_once = True
     restored = InterpolationOptions.model_validate_json(options.model_dump_json())
     assert restored.evaluation_options.deduplicate_octree_corners
+    assert restored.evaluation_options.triangulation_sort_once
