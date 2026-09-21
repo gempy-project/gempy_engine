@@ -179,10 +179,8 @@ def test_selector_serialization():
     options = InterpolationOptions.from_args(range=1., c_o=1.)
     assert options.evaluation_options.triangulation_method is TriangulationMethod.LEGACY
     options.evaluation_options.triangulation_method = TriangulationMethod.QUADS
-    options.evaluation_options.triangulation_sort_once = True
     restored = InterpolationOptions.model_validate_json(options.model_dump_json())
     assert restored.evaluation_options.triangulation_method is TriangulationMethod.QUADS
-    assert restored.evaluation_options.triangulation_sort_once
 
 
 def test_public_model_mesh_parity(backend, monkeypatch):

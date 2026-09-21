@@ -29,7 +29,6 @@ class DualContouringData:
     extra_edge_xyz: Optional[np.ndarray] = None      # (n_valid_voxels, K, 3)
     extra_edge_normals: Optional[np.ndarray] = None   # (n_valid_voxels, K, 3)
     extra_weights: Optional[np.ndarray] = None        # (n_valid_voxels, K)
-    triangulation_sort_once: bool = False
     triangulation_method: TriangulationMethod = TriangulationMethod.LEGACY
     generated_cell_coordinates: Optional[np.ndarray] = None  # Before geological masking.
     triangulation_report: dict = field(default_factory=dict)  # Quad support before overlap/fault triangle removal.

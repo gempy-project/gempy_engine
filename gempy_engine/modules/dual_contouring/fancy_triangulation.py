@@ -20,7 +20,7 @@ def _get_pack_factors(base_x, base_y, base_z):
     return BackendTensor.tfnp.stack([by * bz, bz, BackendTensor.t.array(1)], axis=0)
 
 
-def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, vertex, base_number: tuple[int, int, int] | list[int], sort_once: bool = False):
+def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, vertex, base_number: tuple[int, int, int] | list[int]):
     # * Variables
     # Determine base_number dynamically from the data to support arbitrary grid shapes
     base_x, base_y, base_z = base_number
@@ -32,10 +32,6 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, v
 
     # * Consts
     voxel_code = (left_right_array * pack_factors).sum(1).reshape(-1, 1)
-    sorted_lookup = None
-    if sort_once:
-        order = BackendTensor.tfnp.argsort(voxel_code.reshape(-1))
-        sorted_lookup = (voxel_code.reshape(-1)[order], order)
     # ----------
 
     indices = []
@@ -61,8 +57,7 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, v
             voxel_normals=voxel_normals,
             n=n,
             base_number=base_number,
-            pack_factors=pack_factors,
-            sorted_lookup=sorted_lookup
+            pack_factors=pack_factors
         )
 
         indices.append(indices_patch)
@@ -78,7 +73,7 @@ def triangulate(left_right_array, valid_edges, tree_depth: int, voxel_normals, v
 
 def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
                                left_right_array_active_edge, voxel_code, voxel_normals, n,
-                               base_number, pack_factors, sorted_lookup=None):
+                               base_number, pack_factors):
     """
     Important concepts to understand this triangulation:
     - left_right_array (n_voxels, 3-directions) contains a unique number per direction describing if it is left (even) or right (odd) and the voxel level
@@ -119,7 +114,7 @@ def compute_triangles_for_edge(edge_vector_a, edge_vector_b, edge_vector_c,
 
     x, y, z = _get_indices_via_searchsorted(
         voxel_code,
-        compressed_idx_0, compressed_idx_1, compressed_idx_2, sorted_lookup=sorted_lookup
+        compressed_idx_0, compressed_idx_1, compressed_idx_2
     )
 
     # Step 5: Calculate normals and order triangles
@@ -262,7 +257,7 @@ def _calculate_normals_and_order_triangles(x, y, z, voxel_normals, n):
     return normal
 
 
-def _get_indices_via_searchsorted(voxel_code, compressed_0, compressed_1, compressed_2, sorted_lookup=None):
+def _get_indices_via_searchsorted(voxel_code, compressed_0, compressed_1, compressed_2):
     """
     Memory-efficient replacement for broadcasting, preserving exact original indices.
     """
@@ -272,11 +267,8 @@ def _get_indices_via_searchsorted(voxel_code, compressed_0, compressed_1, compre
         return empty, empty, empty
 
     # 1. Get sorting indices to map back to original positions later
-    if sorted_lookup is None:
-        sort_indices = BackendTensor.tfnp.argsort(vc_1d)
-        sorted_vc = vc_1d[sort_indices]
-    else:
-        sorted_vc, sort_indices = sorted_lookup
+    sort_indices = BackendTensor.tfnp.argsort(vc_1d)
+    sorted_vc = vc_1d[sort_indices]
 
     # 2. Search in the correctly sorted array (O(M log N) time)
     idx_0_sorted = BackendTensor.tfnp.searchsorted(sorted_vc, compressed_0)
