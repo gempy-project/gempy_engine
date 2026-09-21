@@ -124,3 +124,36 @@ reuses that lookup across all six edge cases. It preserves triangle order,
 neighbor filtering, and normal correction; it does not rewrite edge topology or
 change vertex generation. Its lookup is local to the surface call and safe for
 parallel surface processing.
+
+### Unique-Edge Quads
+
+To select quad-based connectivity instead of the legacy triangle construction:
+
+```python
+from gempy_engine.core.data.options.evaluation_options import TriangulationMethod
+
+options.evaluation_options.triangulation_method = TriangulationMethod.QUADS
+```
+
+The default is `TriangulationMethod.LEGACY`. This selector is serialized with the
+other evaluation options. `triangulation_sort_once` applies only to the legacy
+method; quad mode already uses one sorted cell lookup.
+
+Quad mode identifies each primal edge by its lower integer endpoint and direction,
+deduplicates these identities, and finds the four incident cells. Each complete
+crossing edge produces one quad, split deterministically into two triangles for
+the existing mesh output format. Winding follows the crossing-edge gradients.
+The existing tolerant crossing rule is preserved; inconsistent crossing flags
+on shared edges raise an error rather than silently creating inconsistent faces.
+
+Incomplete quads are skipped, never emitted as partial triangles.
+`mesh.dc_data.triangulation_report` records crossing edges, complete quads, and
+missing support at physical boundaries, geological masks, and internal refinement
+boundaries. Missing-cell counts are incidences and boundary categories can overlap.
+Direct callers without pre-mask cell coordinates receive an unknown interior
+boundary classification. Counts precede subsequent overlap/fault triangle removal.
+
+This is same-level connectivity, not coarse/fine transition stitching or extent
+capping, and it does not resolve ambiguous topology or guarantee watertightness.
+NumPy and CPU Torch parity are tested; GPU behavior and end-to-end performance
+still require validation.
