@@ -60,7 +60,7 @@ change even in fast mode.
 For an interior planar one-cell selection, the full halo approaches 3x the parent
 count; isolated selections can reach 27x (7x in balanced mode). Each selected
 parent contributes eight centers and 64 stored corner rows at the next level.
-No corner deduplication or interpolation caching is introduced here.
+Stored corner rows retain that layout even when evaluation deduplication is enabled.
 
 A NumPy float64 lookup-only smoke benchmark on a dense `32 x 32 x 32` lattice
 gave the following counts (not an end-to-end interpolation benchmark):
@@ -77,3 +77,40 @@ thresholds or measurements of interpolation/reporting overhead.
 
 The default remains fast. Representative curved, multi-stack, faulted, and GPU
 time/memory benchmarks are still needed before recommending a different default.
+
+## Opt-in Corner Evaluation
+
+Corner deduplication is independent of the refinement mode and defaults to `False`:
+
+```python
+options.evaluation_options.deduplicate_octree_corners = True
+```
+
+Set the selector back to `False` to use its legacy path. The selector is
+included in `InterpolationOptions` JSON serialization.
+
+Corner deduplication uses signed integer lattice coordinates and vectorized
+unique/inverse operations on the active NumPy or Torch device. Each unique corner
+is evaluated at its first existing physical row, not reconstructed from the extent
+origin (which can shift across refinement levels). Scalar and gradient fields are
+gathered back to the full original layout before surface-point metadata, fault
+processing, segmentation, refinement, or mesh extraction. Centers, dense/custom
+grids, sections, topography, geophysics points, and appended surface points are
+never merged with corners or with each other. No lookup or evaluated field is
+cached across calls, stacks, or levels.
+
+Fault evaluation columns are gathered with the same indices only when duplicate
+corners have identical fault values. Otherwise that evaluation uses the legacy
+path. Differentiable corner coordinates or differentiable fault-value rows also
+use the legacy path: merging independent row derivatives would change autograd.
+Gradients with respect to weights, model inputs, and appended surface points are
+preserved. Empty, non-corner, and incompatible/custom corner layouts fall back
+safely. Physical duplicates can differ by roundoff; checks allow 32 dtype epsilons
+of relative/absolute error, so output parity is numerical rather than bitwise.
+Torch requires `scatter_reduce_` support. Small grids may not benefit from the
+unique operation, gathers, and equality checks (which can synchronize a GPU).
+
+Normal and flat stacks support the selector. With deduplication enabled for any
+stack in a flat chunk, that chunk uses per-stack evaluation instead of the fused
+PyKeOps evaluator; each stack still selects its usual dense or symbolic backend.
+External interpolation callbacks keep their existing path and full grid layout.

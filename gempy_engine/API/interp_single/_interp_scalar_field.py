@@ -1,10 +1,12 @@
 from typing import Any, Union
+from copy import copy
 
 import numpy as np
 from numpy import dtype, ndarray
 
 import gempy_engine.config
 from ...core.backend_tensor import BackendTensor
+from ...core.data.engine_grid import EngineGrid
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import SolverInput, SolverInput_v2, EvaluatorInput
 from ...core.data.options import KernelOptions, InterpolationOptions
@@ -99,10 +101,77 @@ def _solve_interpolation_result(
     return result
 
 
-def _evaluate_sys_eq(eval_input: Union[SolverInput, EvaluatorInput], weights: np.ndarray, options: InterpolationOptions) -> ExportedFields:
+def _evaluate_sys_eq(eval_input: Union[SolverInput, EvaluatorInput], weights: np.ndarray, options: InterpolationOptions,
+                     grid: EngineGrid | None = None) -> ExportedFields:
+    inverse = None
+    if options.evaluation_options.deduplicate_octree_corners:
+        eval_input, inverse = _deduplicate_corners(eval_input, grid)
     if BackendTensor.use_pykeops:
         exported_fields = symbolic_evaluator(eval_input, weights, options)
     else:
         exported_fields = generic_evaluator(eval_input, weights, options)
 
+    if inverse is not None:
+        for name in ('_scalar_field', '_gx_field', '_gy_field', '_gz_field'):
+            values = getattr(exported_fields, name)
+            if values is not None:
+                index = BackendTensor.t.to_numpy(inverse) if isinstance(values, np.ndarray) else inverse
+                setattr(exported_fields, name, values[index])
     return exported_fields
+
+
+def _deduplicate_corners(eval_input: SolverInput | EvaluatorInput, grid: EngineGrid | None):
+    """Call-local evaluation view; never change grid layout or surface-point metadata."""
+    if grid is None or grid.octree_grid is None or grid.corners_grid is None:
+        return eval_input, None
+    corners = grid.corners_grid.values
+    # Separate coordinate/fault row derivatives must not be redirected to a representative.
+    if len(corners) == 0 or getattr(corners, 'requires_grad', False):
+        return eval_input, None
+    faults = eval_input.fault_internal
+    fault_values = faults.fault_values_everywhere if faults.n_faults else None
+    if getattr(fault_values, 'requires_grad', False):
+        return eval_input, None
+
+    t = BackendTensor.t
+    offsets = t.array([[x, y, z] for x in (0, 1) for y in (0, 1) for z in (0, 1)], dtype='int64')
+    coordinates = (grid.octree_grid.integer_coordinates[:, None, :] + offsets).reshape(-1, 3)
+    if len(coordinates) != len(corners):
+        return eval_input, None
+    if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.PYTORCH:
+        import torch
+        unique, inverse = torch.unique(coordinates, dim=0, return_inverse=True)
+        first = torch.full((len(unique),), len(corners), dtype=torch.int64, device=coordinates.device)
+        first.scatter_reduce_(0, inverse, torch.arange(len(corners), device=coordinates.device), reduce='amin')
+    else:
+        _, first, inverse = np.unique(coordinates, axis=0, return_index=True, return_inverse=True)
+    if len(first) == len(corners):
+        return eval_input, None
+
+    start, stop = grid.corners_grid_slice.start, grid.corners_grid_slice.stop
+    xyz = eval_input.xyz_to_interpolate
+    # Use original physical rows, not extent + lattice * spacing: refined extents
+    # may carry a different origin shift. Reject non-lattice/custom corner layouts.
+    tolerance = 32 * np.finfo(BackendTensor.dtype).eps
+    if not t.allclose(xyz[start:stop], xyz[start + first][inverse], rtol=tolerance, atol=tolerance):
+        return eval_input, None
+    if fault_values is not None:
+        if not t.all(fault_values[:, start:stop] == fault_values[:, start + first][:, inverse]):
+            return eval_input, None
+
+    before = BackendTensor.arange(start, dtype='int64')
+    after = stop + BackendTensor.arange(len(xyz) - stop, dtype='int64')
+    keep = t.concatenate((before, start + first, after))
+    restore = t.concatenate((before, start + inverse,
+                             start + len(first) + BackendTensor.arange(len(xyz) - stop, dtype='int64')))
+    reduced = copy(eval_input)
+    reduced.xyz_to_interpolate = xyz[keep]
+    if fault_values is not None:
+        reduced_faults = copy(faults)
+        reduced_faults.fault_values_everywhere = fault_values[:, keep]
+        if isinstance(reduced, EvaluatorInput):
+            reduced.solver_input = copy(reduced.solver_input)
+            reduced.solver_input.fault_internal = reduced_faults
+        else:
+            reduced.fault_internal = reduced_faults
+    return reduced, restore

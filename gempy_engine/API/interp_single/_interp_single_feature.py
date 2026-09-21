@@ -35,7 +35,7 @@ def interpolate_feature_with_cokrig(interpolation_input: InterpolationInput,
     xyz = solver_input.xyz_to_interpolate
 
     weights = compute_weights(solver_input, stack_number, options)
-    exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options)
+    exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options, grid=grid)
 
     exported_fields.set_structure_values(
         reference_sp_position=data_shape.reference_sp_position,

@@ -30,6 +30,7 @@ class EvaluationOptions:
     octree_error_threshold: float = 1.  #: Number of standard deviations to consider a voxel as candidate to refine
     octree_min_level: int = 2
     octree_refinement_mode: OctreeRefinementMode = OctreeRefinementMode.FAST
+    deduplicate_octree_corners: bool = False  #: Evaluate unique corners, then restore the original row layout.
     
     mesh_extraction: bool = True
     mesh_extraction_masking_options: MeshExtractionMaskingOptions = MeshExtractionMaskingOptions.INTERSECT
