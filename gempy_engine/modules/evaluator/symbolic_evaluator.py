@@ -178,8 +178,6 @@ def symbolic_evaluator_optimized_stacked(
     M_sizes = [ei.xyz_to_interpolate.shape[0] for ei in eval_inputs]
     N_sizes = [w.shape[0] for w in weights_list]
 
-    kernel_data_list = []
-
     # 2. Define a small wrapper function for the executor to map over
     def _run_prep(args):
         ei, axis, opt = args
@@ -195,33 +193,40 @@ def symbolic_evaluator_optimized_stacked(
     # For now, we take from the first one
     base_options = options_list[0]
 
-    if base_options.compute_scalar is True:
-        prep_tasks = [(ei, None, options_list[idx]) for idx, ei in enumerate(eval_inputs)]
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            kernel_data_list = list(executor.map(_run_prep, prep_tasks))
+    axes = ([None] if base_options.compute_scalar else []) + ([0, 1, 2] if base_options.compute_scalar_gradient else [])
+    if not axes:
+        raise ValueError("At least one of scalar or scalar gradient must be enabled")
+    tile_factor = len(axes)
+    prep_tasks = [(ei, axis, options_list[idx]) for axis in axes for idx, ei in enumerate(eval_inputs)]
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        kernel_data_list = list(executor.map(_run_prep, prep_tasks))
+    concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
 
-        concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
-        
+    if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
+        from pykeops.numpy import LazyTensor
+    else:
+        from pykeops.torch import LazyTensor
+
+    if base_options.compute_scalar:
+        # The scalar constructor's fault selector assumes one stack. Select
+        # local fault rows here before the shared block-sparse reduction.
+        faults = concat_kernel_data.ref_fault
+        concat_kernel_data.ref_fault = None
         eval_kernel_scalar = create_scalar_kernel(
             concat_kernel_data,
             base_options.kernel_options,
             execution_mode=KernelExecutionMode.SYMBOLIC,
         )
+        if faults is not None:
+            fault_rows = BackendTensor.t.concatenate([
+                BackendTensor.t.concatenate((BackendTensor.t.zeros(n - ei.fault_internal.n_faults, dtype=BackendTensor.dtype_obj),
+                                             BackendTensor.t.ones(ei.fault_internal.n_faults, dtype=BackendTensor.dtype_obj)))
+                for _ in axes for ei, n in zip(eval_inputs, N_sizes)
+            ])
+            fault_selector = LazyTensor(fault_rows.reshape(-1, 1), axis=0)
+            eval_kernel_scalar = eval_kernel_scalar + fault_selector * (faults.faults_i * faults.faults_j).sum(-1)
 
-    if base_options.compute_scalar_gradient is True:
-        prep_tasks = []
-        for idx, ei in enumerate(eval_inputs):
-            prep_tasks.append((ei, 0, options_list[idx]))  # X gradient
-        for idx, ei in enumerate(eval_inputs):
-            prep_tasks.append((ei, 1, options_list[idx]))  # Y gradient
-        for idx, ei in enumerate(eval_inputs):
-            prep_tasks.append((ei, 2, options_list[idx]))  # Z gradient
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            kernel_data_list = list(executor.map(_run_prep, prep_tasks))
-
-        concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
-        
+    if base_options.compute_scalar_gradient:
         eval_kernel_grad = create_grad_kernel(
             concat_kernel_data,
             base_options.kernel_options,
@@ -231,17 +236,16 @@ def symbolic_evaluator_optimized_stacked(
     # region kernels
     match (base_options.compute_scalar, base_options.compute_scalar_gradient):
         case (True, True):
-            # Concatenate eval kernel
-            eval_kernel = BackendTensor.t.concatenate([eval_kernel_scalar, eval_kernel_grad], axis=1)
-            tile_factor = 4
+            # LazyTensor index axes cannot be concatenated. Both formulas use
+            # the same stacked data; select scalar for the first output block.
+            scalar_rows = BackendTensor.t.concatenate((BackendTensor.t.ones(sum(M_sizes), dtype=BackendTensor.dtype_obj),
+                                                       -BackendTensor.t.ones(3 * sum(M_sizes), dtype=BackendTensor.dtype_obj)))
+            scalar_selector = LazyTensor(scalar_rows.reshape(-1, 1), axis=1)
+            eval_kernel = scalar_selector.ifelse(eval_kernel_scalar, eval_kernel_grad)
         case (True, False):
             eval_kernel = eval_kernel_scalar
-            tile_factor = 1
         case (False, True):
             eval_kernel = eval_kernel_grad
-            tile_factor = 3
-        case (False, False):
-            raise ValueError("Cannot compute scalar and scalar gradient simultaneously")
     # endregion
 
     M_sizes = M_sizes * tile_factor

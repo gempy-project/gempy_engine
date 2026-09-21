@@ -111,9 +111,12 @@ of relative/absolute error, so output parity is numerical rather than bitwise.
 Torch requires `scatter_reduce_` support. Small grids may not benefit from the
 unique operation, gathers, and equality checks (which can synchronize a GPU).
 
-Normal and flat stacks support the selector. With deduplication enabled for any
-stack in a flat chunk, that chunk uses per-stack evaluation instead of the fused
-PyKeOps evaluator; each stack still selects its usual dense or symbolic backend.
+Normal and flat stacks support the selector. Fused PyKeOps evaluation compresses
+each eligible stack independently, performs one block-sparse reduction with the
+different reduced lengths, and restores each result before attaching metadata.
+Ineligible stacks retain their full rows within the same fused call. Without
+PyKeOps, flat stacks use per-stack evaluation. Existing finite-fault dispatch
+restrictions remain unchanged.
 External interpolation callbacks keep their existing path and full grid layout.
 
 The triangulation selector sorts the active voxel codes once per surface call and
