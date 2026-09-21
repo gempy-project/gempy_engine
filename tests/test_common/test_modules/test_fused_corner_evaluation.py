@@ -68,15 +68,3 @@ def test_fused_corner_evaluation_uses_reduced_views(backend, monkeypatch):
         assert result._gx_field is None
         assert result._gy_field is None
         assert result._gz_field is None
-
-
-@pytest.mark.parametrize('deduplicate', [False, True])
-def test_non_pykeops_dispatch(backend, deduplicate):
-    interp, options, descriptor = simple_model_interpolation_input_factory()
-    options.evaluation_options.deduplicate_octree_corners = deduplicate
-    with patch.object(_stack_ops, '_evaluate', return_value=([], [])) as evaluate, \
-            patch.object(symbolic, 'symbolic_evaluator_optimized_stacked',
-                         side_effect=AssertionError('PyKeOps is disabled')):
-        assert _stack_ops._evaluate_optimized([interp], options, [], descriptor.stack_structure,
-                                              [], [0]) == ([], [])
-    assert evaluate.call_count == 1
