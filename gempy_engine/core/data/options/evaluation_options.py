@@ -22,6 +22,11 @@ class MeshExtractionMaskingOptions(enum.Enum):
     RAW = enum.auto()
 
 
+class TriangulationMethod(str, enum.Enum):
+    LEGACY = "legacy"
+    QUADS = "quads"
+
+
 @dataclass
 class EvaluationOptions:
     _number_octree_levels: int = 1
@@ -30,6 +35,8 @@ class EvaluationOptions:
     octree_error_threshold: float = 1.  #: Number of standard deviations to consider a voxel as candidate to refine
     octree_min_level: int = 2
     octree_refinement_mode: OctreeRefinementMode = OctreeRefinementMode.FAST
+    deduplicate_octree_corners: bool = False  #: Evaluate unique corners, then restore the original row layout.
+    triangulation_method: TriangulationMethod = TriangulationMethod.LEGACY
     
     mesh_extraction: bool = True
     mesh_extraction_masking_options: MeshExtractionMaskingOptions = MeshExtractionMaskingOptions.INTERSECT

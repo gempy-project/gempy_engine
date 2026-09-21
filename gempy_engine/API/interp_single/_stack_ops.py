@@ -1,7 +1,7 @@
 import concurrent.futures
 
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output, _options_with_finite_fault_gradients
-from ._interp_scalar_field import _evaluate_sys_eq, compute_weights
+from ._interp_scalar_field import _deduplicate_corners, _evaluate_sys_eq, _restore_corner_fields, compute_weights
 from ._interp_single_feature import interpolate_feature_with_external_function
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
@@ -225,6 +225,7 @@ def _evaluate(interpolation_inputs: list[InterpolationInput], options: Interpola
             eval_input=eval_input,
             weights=eval_input.solver_input.weights_x0,
             options=options_per_stack[idx] if options_per_stack is not None else options,
+            grid=interpolation_inputs[idx].grid,
         )
 
         exported_fields.set_structure_values_from_eval_input(eval_input)
@@ -257,15 +258,24 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
     weights_list = [ei.solver_input.weights_x0 for ei in eval_inputs]
 
     options_list = options_per_stack or [options] * len(stack_indices)
+    reduced_inputs = []
+    inverses = []
+    for eval_input, interpolation_input, options_i in zip(eval_inputs, interpolation_inputs, options_list):
+        reduced, inverse = (_deduplicate_corners(eval_input, interpolation_input.grid)
+                            if options_i.evaluation_options.deduplicate_octree_corners else (eval_input, None))
+        reduced_inputs.append(reduced)
+        inverses.append(inverse)
 
     # Call the stacked evaluator (single PyKeOps call with block-sparse ranges)
     exported_fields_list: list[ExportedFields] = symbolic_evaluator_optimized_stacked(
-        eval_inputs=eval_inputs,
+        eval_inputs=reduced_inputs,
         weights_list=weights_list,
         options_list=options_list
     )
 
     for idx, exported_fields in enumerate(exported_fields_list):
+        if inverses[idx] is not None:
+            _restore_corner_fields(exported_fields, inverses[idx])
         exported_fields.set_structure_values_from_eval_input(eval_inputs[idx])
         exported_fields.debug = eval_inputs[idx].solver_input.debug
 
