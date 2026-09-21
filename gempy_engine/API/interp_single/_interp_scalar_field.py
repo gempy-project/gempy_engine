@@ -111,6 +111,11 @@ def _evaluate_sys_eq(eval_input: Union[SolverInput, EvaluatorInput], weights: np
     else:
         exported_fields = generic_evaluator(eval_input, weights, options)
 
+    return _restore_corner_fields(exported_fields, inverse)
+
+
+def _restore_corner_fields(exported_fields: ExportedFields, inverse) -> ExportedFields:
+    """Expand a reduced evaluation before attaching original grid metadata."""
     if inverse is not None:
         for name in ('_scalar_field', '_gx_field', '_gy_field', '_gz_field'):
             values = getattr(exported_fields, name)
