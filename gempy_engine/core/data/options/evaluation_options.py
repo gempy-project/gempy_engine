@@ -31,6 +31,7 @@ class EvaluationOptions:
     octree_min_level: int = 2
     octree_refinement_mode: OctreeRefinementMode = OctreeRefinementMode.FAST
     deduplicate_octree_corners: bool = False  #: Evaluate unique corners, then restore the original row layout.
+    triangulation_sort_once: bool = False  #: Reuse one voxel-code sort across the six edge cases per surface.
     
     mesh_extraction: bool = True
     mesh_extraction_masking_options: MeshExtractionMaskingOptions = MeshExtractionMaskingOptions.INTERSECT
