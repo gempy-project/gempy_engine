@@ -32,6 +32,7 @@ class DualContouringData:
     triangulation_method: TriangulationMethod = TriangulationMethod.LEGACY
     generated_cell_coordinates: Optional[np.ndarray] = None  # Before geological masking.
     triangulation_report: dict = field(default_factory=dict)  # Quad support before overlap/fault triangle removal.
+    strict_crossings: bool = False
 
     @property
     def valid_voxels(self):
