@@ -60,9 +60,9 @@ def generic_evaluator(
             if gz_field is not None:
                 gz_field[slice_array] = gz_chunk  # type: ignore
 
-    # Force garbage collection every few chunks to prevent memory buildup
-    if n_chunks:
-        gc.collect()
+        # Collect every five chunks and after the final chunk.
+        if (i + 1) % 5 == 0 or i == n_chunks - 1:
+            gc.collect()
         
     if n_chunks > 5:
         print(f"Chunking done: {n_chunks} chunks")
