@@ -22,6 +22,7 @@ from numpy import ndarray, dtype
 
 from ...modules.activator import activator_interface
 from ...modules.data_preprocess import data_preprocess_interface
+from ...modules.evaluator.micro_correction import fit_micro_correction
 
 
 @dataclass
@@ -90,8 +91,15 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
     for idx, i in enumerate(chunk):
         state.solver_inputs[i] = chunk_solver_inputs[idx]
 
+    corrections = [fit_micro_correction(ii, solver, solver.weights_x0, opt,
+                                        tensor.number_of_points_per_surface)
+                   for ii, solver, opt, tensor in zip(chunk_interpolation_inputs, chunk_solver_inputs,
+                                                      chunk_options, chunk_tensor_structs)]
+
     # Evaluate this chunk
-    if any(fault_input.finite_fault_defined for fault_input in (item.fault_values for item in chunk_interpolation_inputs)):
+    # The fused PyKeOps evaluator cannot concatenate scalar and gradient lazy kernels.
+    if (any(item.fault_values.finite_fault_defined for item in chunk_interpolation_inputs)
+            or any(opt.compute_scalar_gradient for opt in chunk_options)):
         chunk_eval_inputs, chunk_exported_fields = _evaluate(
             interpolation_inputs=chunk_interpolation_inputs,
             options=state.options,
@@ -100,6 +108,7 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
             tensor_structs=chunk_tensor_structs,
             stack_indices=chunk,
             options_per_stack=chunk_options,
+            micro_corrections=corrections,
         )
     else:
         chunk_eval_inputs, chunk_exported_fields = _evaluate_optimized(
@@ -110,6 +119,7 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
             tensor_structs=chunk_tensor_structs,
             stack_indices=chunk,
             options_per_stack=chunk_options,
+            micro_corrections=corrections,
         )
 
     for idx, i in enumerate(chunk):
@@ -206,8 +216,9 @@ def _segment(
 
 
 def _evaluate(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
-              tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None,
-              options_per_stack: list[InterpolationOptions] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
+               tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None,
+               options_per_stack: list[InterpolationOptions] | None = None,
+               micro_corrections=None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
     eval_inputs: list[EvaluatorInput] = []
     exported_fields_per_stack: list[ExportedFields] = []
     for idx, global_i in enumerate(stack_indices):
@@ -226,6 +237,7 @@ def _evaluate(interpolation_inputs: list[InterpolationInput], options: Interpola
             weights=eval_input.solver_input.weights_x0,
             options=options_per_stack[idx] if options_per_stack is not None else options,
             grid=interpolation_inputs[idx].grid,
+            micro_correction=micro_corrections[idx] if micro_corrections is not None else None,
         )
 
         exported_fields.set_structure_values_from_eval_input(eval_input)
@@ -238,8 +250,9 @@ def _evaluate(interpolation_inputs: list[InterpolationInput], options: Interpola
 
 
 def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
-                         tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None,
-                         options_per_stack: list[InterpolationOptions] | None = None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
+                          tensor_structs: list[TensorsStructure], stack_indices: list[int] | None = None,
+                          options_per_stack: list[InterpolationOptions] | None = None,
+                          micro_corrections=None) -> tuple[list[EvaluatorInput], list[ExportedFields]]:
     from gempy_engine.modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
 
     eval_inputs: list[EvaluatorInput] = []
@@ -270,7 +283,8 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
     exported_fields_list: list[ExportedFields] = symbolic_evaluator_optimized_stacked(
         eval_inputs=reduced_inputs,
         weights_list=weights_list,
-        options_list=options_list
+        options_list=options_list,
+        micro_corrections=micro_corrections,
     )
 
     for idx, exported_fields in enumerate(exported_fields_list):
@@ -379,6 +393,9 @@ def _process_external_chunk(state: InterpolationState, chunk: list[int]):
         all_interpolation_input=state.root_interpolation_input,
         stack_structure=state.stack_structure
     )
+    if (options_i.micro_options.enabled and interpolation_input_i.micro_points is not None
+            and len(interpolation_input_i.micro_points.points)):
+        raise NotImplementedError("Authored micro points on external-function stacks are not supported")
 
     output: ScalarFieldOutput = interpolate_feature_with_external_function(
         interpolation_input=interpolation_input_i,

@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator, PrivateAttr
 
 import gempy_engine.config
 from .evaluation_options import MeshExtractionMaskingOptions, EvaluationOptions
+from .micro_anisotropic_options import MicroAnisotropicOptions
 from .temp_interpolation_values import TempInterpolationValues
 from ..kernel_classes.kernel_functions import AvailableKernelFunctions
 from .kernel_options import KernelOptions, NuggetImplementation
@@ -31,6 +32,7 @@ class InterpolationOptions(BaseModel):
     # @off
     kernel_options: KernelOptions = Field(init=True, exclude=False)  # * This is the compression of the fields above and the way to go in the future
     evaluation_options: EvaluationOptions = Field(init=True, exclude= False)
+    micro_options: MicroAnisotropicOptions = Field(default_factory=MicroAnisotropicOptions)
 
     debug: bool
     cache_mode: CacheMode

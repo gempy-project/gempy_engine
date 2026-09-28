@@ -20,6 +20,7 @@ from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import (
     compute_anisotropy_matrices_from_gradients,
     solve_micro_weights,
 )
+from gempy_engine.modules.evaluator.micro_correction import MicroCorrection
 
 PLOT = os.getenv("GEMPY_PLOT_MICRO", "0") == "1"
 
@@ -34,10 +35,10 @@ def _build_grid_2d(x_range, y_range, nx, ny):
     return np.column_stack([xv.ravel(), yv.ravel()])
 
 
-def _eval_at_points(sp_internal, ori_internal, options, weights, xyz):
+def _eval_at_points(sp_internal, ori_internal, options, weights, xyz, correction=None):
     eval_in = SolverInput(sp_internal, ori_internal, xyz_to_interpolate=xyz, fault_internal=None)
     options.evaluation_options.compute_scalar_gradient = True
-    return _evaluate_sys_eq(eval_in, weights, options)
+    return _evaluate_sys_eq(eval_in, weights, options, micro_correction=correction)
 
 
 @pytest.mark.skipif(
@@ -124,14 +125,9 @@ def test_micro_correction_moves_contacts_closer_to_target(simple_model_2):
     options.evaluation_options.compute_scalar_gradient = False
     macro_fields = _eval_at_points(sp_internal, ori_internal, options, macro_weights, grid_xy)
 
-    micro = options.evaluation_options.micro_anisotropic
-    micro.enabled = True
-    micro.points = constraint_points
-    micro.weights = all_weights
-    micro.anisotropy_matrices = A
-    micro.kernel_range = micro_kernel_range
+    correction = MicroCorrection(constraint_points, A, all_weights, micro_kernel_range, "matern_5_2")
 
-    micro_fields = _eval_at_points(sp_internal, ori_internal, options, macro_weights, grid_xy)
+    micro_fields = _eval_at_points(sp_internal, ori_internal, options, macro_weights, grid_xy, correction)
 
     macro_field_2d = macro_fields.scalar_field.reshape(40, 40)
     micro_field_2d = micro_fields.scalar_field.reshape(40, 40)
@@ -143,8 +139,7 @@ def test_micro_correction_moves_contacts_closer_to_target(simple_model_2):
     assert max_abs_diff > 1e-6, f"Micro correction should produce nonzero change, got max abs diff = {max_abs_diff}"
 
     # --- contact compliance ---
-    micro_exported = _eval_at_points(sp_internal, ori_internal, options, macro_weights, contacts)
-    options.evaluation_options.micro_anisotropic.enabled = False
+    micro_exported = _eval_at_points(sp_internal, ori_internal, options, macro_weights, contacts, correction)
     corrected_contacts = micro_exported.scalar_field
     rms_before = np.sqrt(np.mean(contact_residuals ** 2))
     rms_after = np.sqrt(np.mean((target_values_at_contacts - corrected_contacts) ** 2))
@@ -155,9 +150,7 @@ def test_micro_correction_moves_contacts_closer_to_target(simple_model_2):
 
     # --- macro point preservation ---
     options.evaluation_options.compute_scalar_gradient = False
-    micro.enabled = True  # re-enable for this eval
-    macro_after_exported = _eval_at_points(sp_internal, ori_internal, options, macro_weights, macro_sp_coords)
-    micro.enabled = False
+    macro_after_exported = _eval_at_points(sp_internal, ori_internal, options, macro_weights, macro_sp_coords, correction)
     macro_after_sp = macro_after_exported.scalar_field
     macro_drift = np.abs(macro_after_sp - macro_at_sp)
     max_macro_drift = np.max(macro_drift)
@@ -376,10 +369,10 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
     macro_weights = _solve_interpolation(solver_input, options.kernel_options)
 
     # --- target scalars: median macro scalar at original surface points ---
-    def _eval_3d(xyz):
+    def _eval_3d(xyz, correction=None):
         proxy = SolverInput(sp_internal, ori_internal, xyz_to_interpolate=xyz, fault_internal=None)
         options.evaluation_options.compute_scalar_gradient = True
-        return _evaluate_sys_eq(proxy, macro_weights, options)
+        return _evaluate_sys_eq(proxy, macro_weights, options, micro_correction=correction)
 
     exported_macro_sp = _eval_3d(macro_sp_coords)
     macro_at_sp = exported_macro_sp.scalar_field
@@ -419,7 +412,7 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
     # --- build micro constraint system ---
     # When preserve_macro_points=True: contacts + macro SP as zero-residual constraints.
     # When False: contacts only.
-    micro = options.evaluation_options.micro_anisotropic
+    micro = options.micro_options
     micro.preserve_macro_points = False # this need to be false no question
     preserve = micro.preserve_macro_points
 
@@ -458,14 +451,9 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
     options.evaluation_options.compute_scalar_gradient = False
     macro_fields = _eval_3d(grid_xyz)
 
-    micro = options.evaluation_options.micro_anisotropic
-    micro.enabled = True
-    micro.points = constraint_points
-    micro.weights = all_weights
-    micro.anisotropy_matrices = A
-    micro.kernel_range = micro_kernel_range
+    correction = MicroCorrection(constraint_points, A, all_weights, micro_kernel_range, "exponential")
 
-    micro_fields = _eval_3d(grid_xyz)
+    micro_fields = _eval_3d(grid_xyz, correction)
 
     macro_field = macro_fields.scalar_field
     micro_field = micro_fields.scalar_field
@@ -477,9 +465,7 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
     assert max_abs_diff > 1e-8, f"3D micro correction should produce nonzero change, got max abs diff = {max_abs_diff}"
 
     # --- contact compliance ---
-    micro.enabled = True
-    micro_exported = _eval_3d(contacts)
-    micro.enabled = False
+    micro_exported = _eval_3d(contacts, correction)
     corrected_contacts = micro_exported.scalar_field
     rms_before = np.sqrt(np.mean(contact_residuals ** 2))
     rms_after = np.sqrt(np.mean((target_values_at_contacts - corrected_contacts) ** 2))
@@ -491,9 +477,7 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
     # --- macro point preservation (only when macro SP are constraints) ---
     if preserve:
         options.evaluation_options.compute_scalar_gradient = False
-        micro.enabled = True
-        macro_after_exported = _eval_3d(macro_sp_coords)
-        micro.enabled = False
+        macro_after_exported = _eval_3d(macro_sp_coords, correction)
         macro_after_sp = macro_after_exported.scalar_field
         macro_drift = np.abs(macro_after_sp - macro_at_sp)
         max_macro_drift = np.max(macro_drift)

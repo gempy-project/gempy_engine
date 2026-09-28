@@ -45,12 +45,17 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
         _check_input_validity(interpolation_input, options, data_descriptor)  # TODO
 
         micro = interpolation_input.micro_points
-        if (micro is not None and len(micro.points)
-                and not options.evaluation_options.micro_anisotropic.enabled):
+        if micro is not None and len(micro.points):
             surface_boundaries = np.cumsum(data_descriptor.stack_structure.number_of_surfaces_per_stack)
+            if (micro.surface_indices >= surface_boundaries[-1]).any():
+                raise ValueError("micro_points.surface_indices contains an unknown global surface index")
             for stack_index in np.unique(np.searchsorted(surface_boundaries, micro.surface_indices, side="right")):
+                overrides = data_descriptor.stack_structure.interpolation_options_per_stack
+                stack_options = overrides[stack_index] if overrides is not None and overrides[stack_index] is not None else options
+                if stack_options.micro_options.enabled:
+                    continue
                 warnings.warn(
-                    f"Stack {stack_index} contains micro points, but micro_anisotropic.enabled is False; "
+                    f"Stack {stack_index} contains micro points, but micro_options.enabled is False; "
                     "these points will be ignored. Set it to True to apply the correction.",
                     UserWarning,
                     stacklevel=2,

@@ -13,31 +13,7 @@ from .stack_relation_type import StackRelationType
 from .stacks_structure import StacksStructure
 from .kernel_classes.faults import FaultsData
 from .kernel_classes.server.input_parser import InterpolationInputSchema
-
-
-@dataclass
-class MicroPoints:
-    """Authored contacts; surface_indices index surfaces globally in the structural frame."""
-    points: np.ndarray
-    anisotropy_matrices: np.ndarray
-    nuggets: np.ndarray
-    surface_indices: np.ndarray
-
-    def __post_init__(self):
-        self.points = np.asarray(self.points, dtype=float)
-        self.anisotropy_matrices = np.asarray(self.anisotropy_matrices, dtype=float)
-        self.nuggets = np.asarray(self.nuggets, dtype=float)
-        indices = np.asarray(self.surface_indices)
-        n = len(self.points)
-        if (self.points.shape != (n, 3) or self.anisotropy_matrices.shape != (n, 3, 3)
-                or self.nuggets.shape != (n,) or indices.shape != (n,)
-                or not np.issubdtype(indices.dtype, np.integer)):
-            raise ValueError("Invalid micro_points shapes or surface_indices dtype")
-        if (not np.isfinite(self.points).all() or not np.isfinite(self.anisotropy_matrices).all()
-                or not np.isfinite(self.nuggets).all() or (self.nuggets < 0).any()
-                or (indices < 0).any()):
-            raise ValueError("micro_points must be finite with nonnegative nuggets and indices")
-        self.surface_indices = indices.astype(np.int64)
+from .micro_points import MicroPoints
 
 
 @dataclass

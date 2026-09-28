@@ -10,6 +10,7 @@ from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import SolverInput, EvaluatorInput
+from .micro_correction import apply_micro_correction, MicroCorrection
 from ..kernel_constructor.kernel_constructor_interface import yield_evaluation_grad_kernel, yield_evaluation_kernel
 from ..kernel_constructor.execution_mode import KernelExecutionMode
 from ..kernel_constructor._internalDistancesMatrices import DistancesBuffer
@@ -77,62 +78,7 @@ def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: 
         else:
             raise ValueError("Number of dimensions have to be 2 or 3")
 
-    scalar_field = _apply_micro_correction(scalar_field, solver_input, options)
-    micro = options.evaluation_options.micro_anisotropic
-    if options.compute_scalar_gradient and micro.enabled and micro.weights is not None:
-        from .micro_anisotropic_evaluator import evaluate_micro_gradient
-        gradient = evaluate_micro_gradient(solver_input.xyz_to_interpolate, micro.points, micro.weights,
-                                           micro.anisotropy_matrices, micro.kernel_range, micro.kernel_type)
-        if isinstance(gx_field, np.ndarray):
-            gradient = gradient.astype(gx_field.dtype)
-        gx_field = gx_field + gradient[:, 0]
-        gy_field = gy_field + gradient[:, 1]
-        if gz_field is not None:
-            gz_field = gz_field + gradient[:, 2]
-
     return ExportedFields(scalar_field, gx_field, gy_field, gz_field)
-
-
-def _apply_micro_correction(scalar_field: np.ndarray, solver_input: SolverInput, options: InterpolationOptions) -> np.ndarray:
-    micro = options.evaluation_options.micro_anisotropic
-    if not micro.enabled:
-        return scalar_field
-    if micro.weights is None or micro.points is None or micro.anisotropy_matrices is None:
-        return scalar_field
-
-    from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import evaluate_micro_correction
-
-    correction = evaluate_micro_correction(
-        xyz_to_interpolate=solver_input.xyz_to_interpolate,
-        micro_points=micro.points,
-        micro_weights=micro.weights,
-        anisotropy_matrices=micro.anisotropy_matrices,
-        kernel_range=micro.kernel_range,
-        kernel_type=micro.kernel_type,
-    )
-    if isinstance(scalar_field, np.ndarray):
-        correction = correction.astype(scalar_field.dtype)
-    return scalar_field + correction
-
-
-def _apply_micro_correction_stacked(scalar_field: np.ndarray, eval_input: EvaluatorInput, options: InterpolationOptions) -> np.ndarray:
-    micro = options.evaluation_options.micro_anisotropic
-    if not micro.enabled:
-        return scalar_field
-    if micro.weights is None or micro.points is None or micro.anisotropy_matrices is None:
-        return scalar_field
-
-    from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import evaluate_micro_correction
-
-    correction = evaluate_micro_correction(
-        xyz_to_interpolate=eval_input.xyz_to_interpolate,
-        micro_points=micro.points,
-        micro_weights=micro.weights,
-        anisotropy_matrices=micro.anisotropy_matrices,
-        kernel_range=micro.kernel_range,
-        kernel_type=micro.kernel_type,
-    )
-    return scalar_field + correction
 
 
 def _build_block_sparse_ranges(M_sizes: list[int], N_sizes: list[int]):
@@ -177,7 +123,8 @@ def _validate_stacked_dimensions(eval_kernel, weights, M_sizes: list[int], N_siz
 def symbolic_evaluator_optimized_stacked(
         eval_inputs: list[EvaluatorInput],
         weights_list: list[np.ndarray],
-        options_list: list[InterpolationOptions]
+        options_list: list[InterpolationOptions],
+        micro_corrections: list[MicroCorrection | None] | None = None,
 ) -> list[ExportedFields]:
     """Evaluate multiple fields in a single PyKeOps call using block-sparse ranges.
     
@@ -347,9 +294,10 @@ def symbolic_evaluator_optimized_stacked(
             if gy_field is not None: gy_field = BackendTensor.t.to_numpy(gy_field)
             if gz_field is not None: gz_field = BackendTensor.t.to_numpy(gz_field)
 
-        s_field = _apply_micro_correction_stacked(s_field, eval_inputs[idx], options_list[idx])
-
-        results.append(ExportedFields(s_field, gx_field, gy_field, gz_field))
+        fields = ExportedFields(s_field, gx_field, gy_field, gz_field)
+        if micro_corrections is not None:
+            apply_micro_correction(fields, eval_inputs[idx].xyz_to_interpolate, micro_corrections[idx])
+        results.append(fields)
 
     return results
 

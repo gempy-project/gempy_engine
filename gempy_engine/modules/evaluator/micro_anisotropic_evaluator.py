@@ -13,14 +13,19 @@ def _kernel_value(r: np.ndarray, kernel_type: MicroKernelType) -> np.ndarray:
     matern_3_2    — Matérn 3/2:   K(r) = (1 + sqrt(3) r) exp(-sqrt(3) r)
     matern_5_2    — Matérn 5/2:   K(r) = (1 + sqrt(5) r + 5r²/3) exp(-sqrt(5) r)
     """
+    if not isinstance(r, (np.ndarray, np.generic, float, int)):
+        import torch
+        exp = torch.exp
+    else:
+        exp = np.exp
     if kernel_type == "exponential":
-        return np.exp(-r)
+        return exp(-r)
     elif kernel_type == "matern_3_2":
         a = np.sqrt(3.0) * r
-        return (1.0 + a) * np.exp(-a)
+        return (1.0 + a) * exp(-a)
     elif kernel_type == "matern_5_2":
         a = np.sqrt(5.0) * r
-        return (1.0 + a + (5.0 / 3.0) * r * r) * np.exp(-a)
+        return (1.0 + a + (5.0 / 3.0) * r * r) * exp(-a)
     else:
         raise ValueError(f"Unknown micro kernel type: {kernel_type}")
 
@@ -61,6 +66,12 @@ def build_micro_design_matrix(xyz: np.ndarray, centers: np.ndarray,
                               anisotropy_matrices: np.ndarray, kernel_range: float,
                               kernel_type: MicroKernelType) -> np.ndarray:
     """Rows are evaluation points; column j uses the evaluator's center j metric."""
+    if not isinstance(xyz, np.ndarray):
+        import torch
+        centers = torch.as_tensor(centers, dtype=xyz.dtype, device=xyz.device)
+        matrices = torch.as_tensor(anisotropy_matrices, dtype=xyz.dtype, device=xyz.device)
+        return torch.stack([_kernel_value(torch.linalg.vector_norm((xyz - center) @ matrix.T, dim=1) / kernel_range,
+                                          kernel_type) for center, matrix in zip(centers, matrices)], dim=1)
     result = np.empty((len(xyz), len(centers)), dtype=np.float64)
     for j, (center, matrix) in enumerate(zip(centers, anisotropy_matrices)):
         result[:, j] = _kernel_value(
