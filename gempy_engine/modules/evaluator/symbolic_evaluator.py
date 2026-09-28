@@ -10,7 +10,6 @@ from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import SolverInput, EvaluatorInput
-from .micro_correction import apply_micro_correction, MicroCorrection
 from ..kernel_constructor.kernel_constructor_interface import yield_evaluation_grad_kernel, yield_evaluation_kernel
 from ..kernel_constructor.execution_mode import KernelExecutionMode
 from ..kernel_constructor._internalDistancesMatrices import DistancesBuffer
@@ -124,7 +123,6 @@ def symbolic_evaluator_optimized_stacked(
         eval_inputs: list[EvaluatorInput],
         weights_list: list[np.ndarray],
         options_list: list[InterpolationOptions],
-        micro_corrections: list[MicroCorrection | None] | None = None,
 ) -> list[ExportedFields]:
     """Evaluate multiple fields in a single PyKeOps call using block-sparse ranges.
     
@@ -295,8 +293,6 @@ def symbolic_evaluator_optimized_stacked(
             if gz_field is not None: gz_field = BackendTensor.t.to_numpy(gz_field)
 
         fields = ExportedFields(s_field, gx_field, gy_field, gz_field)
-        if micro_corrections is not None:
-            apply_micro_correction(fields, eval_inputs[idx].xyz_to_interpolate, micro_corrections[idx])
         results.append(fields)
 
     return results

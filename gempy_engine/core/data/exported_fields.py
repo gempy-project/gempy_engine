@@ -17,6 +17,7 @@ class ExportedFields:
     _n_points_per_surface: Optional[np.ndarray] = None
     _slice_feature: Optional[slice] = field(default_factory=lambda: slice(None, None))  # Slice all the surface points
     _grid_size: Optional[int] = None
+    _macro_reference_size: Optional[int] = None
 
     _scalar_field_at_surface_points: Optional[np.ndarray] = None
     scalar_field_at_fault_shell: Optional[np.ndarray] = None
@@ -24,15 +25,17 @@ class ExportedFields:
     debug = None
 
     def set_structure_values(self, reference_sp_position: Optional[np.ndarray], slice_feature: Optional[slice],
-                             grid_size: int):
+                              grid_size: int, macro_reference_size: int | None = None):
         self._n_points_per_surface = reference_sp_position
         self._grid_size = grid_size
         self._slice_feature = slice_feature
+        self._macro_reference_size = macro_reference_size
 
     def set_structure_values_from_eval_input(self, evaluator_input: EvaluatorInput):
         self._n_points_per_surface = evaluator_input._n_points_per_surface
         self._grid_size = evaluator_input._grid_size
         self._slice_feature = evaluator_input._slice_feature
+        self._macro_reference_size = evaluator_input._macro_reference_size
 
     @property
     def n_points_per_surface(self) -> np.ndarray:
@@ -53,7 +56,7 @@ class ExportedFields:
         if self.scalar_field_at_fault_shell is not None:  # * For now this has priority over everything else
             return self.scalar_field_at_fault_shell
         elif self._scalar_field_at_surface_points is None:
-            scalar_field_at_all_sp = self._scalar_field[self.grid_size:]
+            scalar_field_at_all_sp = self._scalar_field[self.grid_size:self._macro_reference_size]
             scalar_field_at_feature_sp = scalar_field_at_all_sp[self._slice_feature]
             scalar_field_at_one_point_per_surface = scalar_field_at_feature_sp[self.npf]
             return scalar_field_at_one_point_per_surface
@@ -66,7 +69,7 @@ class ExportedFields:
 
     @property
     def scalar_field(self):
-        if self._slice_feature is None:
+        if self._grid_size is None:
             return self._scalar_field
 
         return self._scalar_field[:self._grid_size]

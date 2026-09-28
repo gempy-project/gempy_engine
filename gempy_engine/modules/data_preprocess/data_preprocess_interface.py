@@ -18,9 +18,12 @@ def prepare_orientations(orientations: Orientations) -> OrientationsInternals:
     return orientations_preprocess(orientations)
 
 
-def prepare_grid(grid: np.ndarray, surface_points: SurfacePoints) -> np.ndarray:
+def prepare_grid(grid: np.ndarray, surface_points: SurfacePoints, micro_points=None) -> np.ndarray:
     grid = BackendTensor.t.array(grid, dtype=BackendTensor.dtype)
-    concat = bt.tfnp.concatenate([grid, surface_points.sp_coords])
+    arrays = [grid, surface_points.sp_coords]
+    if micro_points is not None:
+        arrays.append(micro_points.points)
+    concat = bt.tfnp.concatenate(arrays)
     return concat
 
 

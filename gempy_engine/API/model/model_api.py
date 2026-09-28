@@ -1,6 +1,5 @@
 import copy
 import time
-import warnings
 from typing import Optional, Any
 
 import numpy as np
@@ -21,6 +20,7 @@ from ...core.data.stack_relation_type import StackRelationType
 from ...core.utils import gempy_profiler_decorator
 from ...core.exceptions import GemPyEngineInputError
 from ...core.data.options.temp_interpolation_values import TempInterpolationValues
+from ...modules.data_preprocess.micro_points import prepare_micro_points
 from ...modules.geophysics.fw_gravity import compute_gravity
 from ...modules.geophysics.fw_magnetic import compute_tmi
 from ...modules.weights_cache.weights_cache_interface import WeightCache
@@ -44,22 +44,7 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
         # Check input is valid
         _check_input_validity(interpolation_input, options, data_descriptor)  # TODO
 
-        micro = interpolation_input.micro_points
-        if micro is not None and len(micro.points):
-            surface_boundaries = np.cumsum(data_descriptor.stack_structure.number_of_surfaces_per_stack)
-            if (micro.surface_indices >= surface_boundaries[-1]).any():
-                raise ValueError("micro_points.surface_indices contains an unknown global surface index")
-            for stack_index in np.unique(np.searchsorted(surface_boundaries, micro.surface_indices, side="right")):
-                overrides = data_descriptor.stack_structure.interpolation_options_per_stack
-                stack_options = overrides[stack_index] if overrides is not None and overrides[stack_index] is not None else options
-                if stack_options.micro_options.enabled:
-                    continue
-                warnings.warn(
-                    f"Stack {stack_index} contains micro points, but micro_options.enabled is False; "
-                    "these points will be ignored. Set it to True to apply the correction.",
-                    UserWarning,
-                    stacklevel=2,
-                )
+        prepare_micro_points(interpolation_input, options, data_descriptor.stack_structure)
 
         output: list[OctreeLevel] = interpolate_n_octree_levels(
             interpolation_input=interpolation_input,

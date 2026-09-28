@@ -4,7 +4,6 @@ import warnings
 
 import numpy as np
 
-from gempy_engine.core.data.internal_structs import SolverInput
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.micro_points import MicroArray
@@ -20,13 +19,11 @@ class MicroCorrection:
     kernel_type: str
 
 
-def fit_micro_correction(interpolation_input, solver_input, weights, options, surface_sizes):
+def fit_micro_correction(interpolation_input, macro_values, options, surface_sizes):
     micro = interpolation_input.micro_points
     settings = options.micro_options
     if not settings.enabled or micro is None or not len(micro.points):
         return None
-    if solver_input.fault_internal.n_faults:
-        raise NotImplementedError("Authored micro-point correction with fault-coupled stacks is not supported")
     if (not np.isfinite(settings.kernel_range) or settings.kernel_range <= 0
             or not np.isfinite(settings.nugget) or settings.nugget < 0):
         raise ValueError("micro kernel_range must be positive and nuggets nonnegative and finite")
@@ -36,7 +33,7 @@ def fit_micro_correction(interpolation_input, solver_input, weights, options, su
         import torch
     solve_error = torch.linalg.LinAlgError if is_torch else np.linalg.LinAlgError
     def tensor(value):
-        return torch.as_tensor(value, dtype=weights.dtype, device=weights.device) if is_torch else np.asarray(value)
+        return torch.as_tensor(value, dtype=macro_values.dtype, device=macro_values.device) if is_torch else np.asarray(value)
 
     macro_points = tensor(interpolation_input.surface_points.sp_coords)
     points = tensor(micro.points)
@@ -49,16 +46,13 @@ def fit_micro_correction(interpolation_input, solver_input, weights, options, su
     if not sizes or sum(sizes) != len(macro_points):
         raise ValueError("Micro targets require the stack's surface point counts")
 
-    # Evaluate only the macro field at contacts and their parent surfaces.
-    from gempy_engine.API.interp_single._interp_scalar_field import _evaluate_sys_eq
-    xyz = torch.cat((macro_points, points)) if is_torch else np.vstack((macro_points, points))
-    proxy = SolverInput(solver_input.sp_internal, solver_input.ori_internal, xyz, solver_input.fault_internal)
-    macro_values = _evaluate_sys_eq(proxy, weights, options).scalar_field_everywhere
-    chunks = macro_values[:len(macro_points)].split(sizes) if is_torch else np.split(
-        macro_values[:len(macro_points)], np.cumsum(sizes)[:-1])
+    macro_sp = macro_values[interpolation_input.grid.len_all_grids:interpolation_input.macro_reference_size]
+    macro_sp = macro_sp[interpolation_input.slice_feature]
+    contact_values = macro_values[interpolation_input.micro_slice][interpolation_input.micro_indices]
+    chunks = macro_sp.split(sizes) if is_torch else np.split(macro_sp, np.cumsum(sizes)[:-1])
     means = (torch.stack([chunk.mean() for chunk in chunks]) if is_torch
              else np.array([chunk.mean() for chunk in chunks]))
-    residuals = means[micro.surface_indices] - macro_values[len(macro_points):]
+    residuals = means[micro.surface_indices] - contact_values
 
     centers = points
     if settings.preserve_macro_points:
@@ -70,10 +64,10 @@ def fit_micro_correction(interpolation_input, solver_input, weights, options, su
     design = build_micro_design_matrix(centers, centers, matrices, settings.kernel_range, settings.kernel_type)
     diagonal = tensor(micro.nuggets) + settings.nugget
     if settings.preserve_macro_points:
-        diagonal = (torch.cat((diagonal, weights.new_zeros(len(macro_points)))) if is_torch else
+        diagonal = (torch.cat((diagonal, macro_values.new_zeros(len(macro_points)))) if is_torch else
                     np.concatenate((diagonal, np.zeros(len(macro_points)))))
     design = design + (torch.diag(diagonal) if is_torch else np.diag(diagonal))
-    rhs = (torch.cat((residuals, weights.new_zeros(len(macro_points)))) if is_torch and settings.preserve_macro_points
+    rhs = (torch.cat((residuals, macro_values.new_zeros(len(macro_points)))) if is_torch and settings.preserve_macro_points
            else np.concatenate((residuals, np.zeros(len(macro_points)))) if settings.preserve_macro_points else residuals)
     try:
         fitted = torch.linalg.solve(design, rhs) if is_torch else np.linalg.solve(design, rhs)

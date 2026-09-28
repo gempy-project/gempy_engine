@@ -30,6 +30,8 @@ class InterpolationInput:
 
     _all_surface_points: SurfacePoints = None
     micro_points: Optional[MicroPoints] = None
+    _all_micro_points: Optional[MicroPoints] = None
+    _micro_indices: Optional[np.ndarray] = None
 
     # region per model ? Not sure what I mean here
 
@@ -104,6 +106,8 @@ class InterpolationInput:
         # ! Setting this on the constructor does not work with data classes.
         ii_subset.fault_values = stack_structure.active_faults_input_data
         ii_subset.all_surface_points = all_interpolation_input.surface_points
+        ii_subset._all_micro_points = all_interpolation_input._all_micro_points
+        ii_subset._micro_indices = np.flatnonzero(mask) if all_interpolation_input._all_micro_points is not None else None
 
         return ii_subset
 
@@ -140,6 +144,27 @@ class InterpolationInput:
     @property
     def slice_feature(self):
         return self.surface_points.slice_feature
+
+    @property
+    def evaluation_micro_points(self):
+        return self._all_micro_points
+
+    @property
+    def micro_indices(self):
+        return self._micro_indices
+
+    @property
+    def macro_reference_size(self):
+        return self.grid.len_all_grids + self.all_surface_points.n_points
+
+    @property
+    def micro_slice(self):
+        start = self.macro_reference_size
+        return slice(start, start + (len(self._all_micro_points.points) if self._all_micro_points is not None else 0))
+
+    @property
+    def evaluation_size(self):
+        return self.micro_slice.stop
 
     @property
     def fault_values(self):

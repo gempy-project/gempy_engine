@@ -40,6 +40,24 @@ options store fitted state. Set `enabled = False` to deactivate without removing
 authored contacts. PyTorch fits preserve gradients through coordinates, matrices,
 and contact nuggets; nearest metric selection for macro constraints is discrete.
 
-Fault-coupled and external-function stacks do not support enabled authored micro
-contacts. Flat stacks retain fused macro scalar evaluation when possible; gradient
-evaluation uses the non-fused macro evaluator.
+The final scalar field is the faulted macro field plus the stack-local micro
+deformation. Faults do not mask, displace, or split the micro kernel. Contacts
+on fault-affected stratigraphic stacks fit residuals against the macro field
+including upstream ordinary or finite faults. When any contact's stack is enabled,
+every stack evaluates the same coordinate layout: grid, all macro surface points,
+then all authored micro contacts (including contacts on disabled stacks). These
+last coordinates are evaluation queries only, not macro interpolation constraints
+or public grid cells. The fit reads macro values directly from that evaluation;
+there is no separate macro kernel call for the contacts. Upstream fault rows use
+the same suffix, including activation and finite-fault projection. Fault-row
+minimum and finite-fault normal selection use only the grid and macro surface
+point prefix, so appended contacts cannot change the reference frame. Enabled
+authored micro points on fault stacks are rejected, whether or not the fault has
+upstream dependencies. Disabled authored points on fault stacks are ignored.
+The micro fit uses a dense NumPy or PyTorch solve (not PyKeOps); macro PyKeOps
+acceleration remains available and micro evaluation is tensor-native (the dense
+fit and correction are not PyKeOps-accelerated). Flat stacks
+retain fused macro scalar evaluation when possible; gradients use the non-fused
+macro evaluator. Nearest-center metric assignment for preserved macro points is
+discrete. Finite-fault projection uses NumPy and is not end-to-end differentiable.
+Enabled authored micro contacts on external-function stacks remain unsupported.

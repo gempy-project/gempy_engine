@@ -19,6 +19,7 @@ from ...core.data.options import InterpolationOptions
 from ...core.data.scalar_field_output import ScalarFieldOutput
 from ...core.data.stack_relation_type import StackRelationType
 from ...core.data.stacks_structure import StacksStructure
+from ...modules.data_preprocess.data_preprocess_interface import prepare_grid
 
 
 # @off
@@ -57,7 +58,7 @@ def _interpolate_stack_flat(root_data_descriptor: InputDataDescriptor, root_inte
                             options: InterpolationOptions) -> ScalarFieldOutput | List[ScalarFieldOutput]:
     stack_structure = root_data_descriptor.stack_structure
 
-    xyz_to_interpolate_size: int = root_interpolation_input.grid.len_all_grids + root_interpolation_input.surface_points.n_points
+    xyz_to_interpolate_size: int = root_interpolation_input.evaluation_size
     all_stack_values_block: np.ndarray = BackendTensor.t.zeros(
         (stack_structure.n_stacks, xyz_to_interpolate_size),
         dtype=BackendTensor.dtype_obj
@@ -95,7 +96,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
 
     all_scalar_fields_outputs: List[ScalarFieldOutput | None] = [None] * stack_structure.n_stacks
 
-    xyz_to_interpolate_size: int = root_interpolation_input.grid.len_all_grids + root_interpolation_input.surface_points.n_points
+    xyz_to_interpolate_size: int = root_interpolation_input.evaluation_size
     all_stack_values_block: np.ndarray = BackendTensor.t.zeros(
         (stack_structure.n_stacks, xyz_to_interpolate_size),
         dtype=BackendTensor.dtype_obj)  # * Used for faults
@@ -117,6 +118,7 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
                     and interpolation_input_i.micro_points is not None
                     and len(interpolation_input_i.micro_points.points)):
                 raise NotImplementedError("Authored micro points on external-function stacks are not supported")
+            fault_input = interpolation_input_i.fault_values
 
             output: ScalarFieldOutput = interpolate_feature_with_external_function(
                 interpolation_input=interpolation_input_i,
@@ -158,7 +160,10 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
             values_output = _modify_faults_values_output(  # ! This is all_STACK_values_block (not all_scalar_fields_outputs)
                 fault_input=fault_input,
                 output=output,
-                xyz_to_interpolate=solver_input.xyz_to_interpolate
+                xyz_to_interpolate=(solver_input.xyz_to_interpolate if stack_structure.interp_function is None else
+                                    prepare_grid(interpolation_input_i.grid.values,
+                                                 interpolation_input_i.all_surface_points,
+                                                 interpolation_input_i.evaluation_micro_points))
             )
             all_stack_values_block[i, :] = values_output
 
