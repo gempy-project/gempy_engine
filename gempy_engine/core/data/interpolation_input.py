@@ -30,6 +30,7 @@ class InterpolationInput:
 
     _all_surface_points: SurfacePoints = None
     micro_points: Optional[MicroPoints] = None
+    # Prepared by prepare_micro_points: shared queries and this stack's rows in them.
     _all_micro_points: Optional[MicroPoints] = None
     _micro_indices: Optional[np.ndarray] = None
 
@@ -86,8 +87,6 @@ class InterpolationInput:
         if micro is not None:
             start = int(stack_structure.number_of_surfaces_per_stack[:stack_number].sum())
             stop = start + int(stack_structure.number_of_surfaces_per_stack[stack_number])
-            if (micro.surface_indices >= int(np.sum(stack_structure.number_of_surfaces_per_stack))).any():
-                raise ValueError("micro_points.surface_indices contains an unknown global surface index")
             mask = (micro.surface_indices >= start) & (micro.surface_indices < stop)
             micro = MicroPoints(micro.points[mask], micro.anisotropy_matrices[mask],
                                 micro.nuggets[mask], micro.surface_indices[mask] - start)

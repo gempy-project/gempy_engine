@@ -28,6 +28,9 @@ Alternatively, engine callers pass `MicroPoints(points, anisotropy_matrices,
 nuggets, surface_indices)` to `InterpolationInput(..., micro_points=...)`.
 `surface_indices` are zero-based **global** surface indices in structural-frame
 order. Inputs have shapes `(N, 3)`, `(N, 3, 3)`, `(N,)`, and `(N,)` respectively.
+Internal stack subsets rebase surface indices to the owning stack. Model preparation
+validates ownership and supported stack types once, then shares contact queries
+across stacks; the authored arrays are not converted or mutated in place.
 The matrices transform coordinate differences into each contact's local metric;
 GemPy builds them from the inverse support axes after coordinate transforms.
 

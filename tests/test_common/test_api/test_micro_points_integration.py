@@ -5,7 +5,8 @@ from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data import InterpolationOptions, Orientations, SurfacePoints, TensorsStructure
 from gempy_engine.core.data.engine_grid import EngineGrid, RegularGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
-from gempy_engine.core.data.interpolation_input import InterpolationInput, MicroPoints
+from gempy_engine.core.data.interpolation_input import InterpolationInput
+from gempy_engine.core.data.micro_points import MicroPoints
 from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.backend_tensor import BackendTensor
@@ -440,5 +441,55 @@ def test_disabled_fault_surface_micro_is_ignored(monkeypatch, flat, root_enabled
         expected_size = ii.grid.len_all_grids + ii.surface_points.n_points + len(ii.micro_points.points)
         assert all(len(o.scalar_fields.exported_fields.scalar_field_everywhere) == expected_size
                    for o in result.octrees_output[0].outputs)
+    finally:
+        BackendTensor._change_backend(AvailableBackends.numpy)
+
+
+@pytest.mark.parametrize('flat', [False, True])
+def test_external_micro_contacts_rejected_before_evaluation(monkeypatch, flat):
+    ii, descriptor, options = _fault_micro_model()
+    descriptor.stack_structure.interp_functions_per_stack = [None, CustomInterpolationFunctions(
+        scalar_field_at_surface_points=np.array([0.4]),
+        implicit_function=lambda xyz: xyz[:, 2],
+    )]
+    monkeypatch.setenv('GEMPY_FLAT_STACKS', str(flat))
+
+    def unexpected_evaluation(*args, **kwargs):
+        pytest.fail('Unsupported micro contacts must be rejected before interpolation')
+
+    monkeypatch.setattr('gempy_engine.API.model.model_api.interpolate_n_octree_levels', unexpected_evaluation)
+    with pytest.raises(NotImplementedError, match='external-function stacks'):
+        compute_model(ii, options, descriptor)
+
+
+@pytest.mark.parametrize('flat', [False, True])
+@pytest.mark.parametrize('deduplicate', [False, True])
+def test_micro_contacts_flow_through_octree_and_mesh(monkeypatch, flat, deduplicate):
+    ii, descriptor, options = _fault_micro_model()
+    ii.set_temp_grid(EngineGrid.from_regular_grid(RegularGrid(
+        orthogonal_extent=[0, 1, 0, 1, 0, 1], regular_grid_shape=[2, 2, 2])))
+    options.evaluation_options.number_octree_levels = 2
+    options.evaluation_options.number_octree_levels_surface = 2
+    options.evaluation_options.mesh_extraction = True
+    options.evaluation_options.compute_scalar_gradient = True
+    options.evaluation_options.deduplicate_octree_corners = deduplicate
+    monkeypatch.setenv('GEMPY_FLAT_STACKS', str(flat))
+    BackendTensor._change_backend(AvailableBackends.numpy, use_pykeops=flat)
+    try:
+        result = compute_model(ii, options, descriptor)
+        assert len(result.octrees_output) == 2
+        for level in result.octrees_output:
+            for output in level.outputs:
+                fields = output.exported_fields
+                assert len(fields.scalar_field) == output.grid.len_all_grids
+                assert len(fields.scalar_field_everywhere) == (
+                    output.grid.len_all_grids + ii.surface_points.n_points + len(ii.micro_points.points))
+                assert np.isfinite(fields.scalar_field_everywhere).all()
+        assert result.dc_meshes
+        for mesh in result.dc_meshes:
+            assert mesh is not None
+            assert len(mesh.vertices) > 0
+            assert len(mesh.edges) > 0
+            assert np.isfinite(mesh.vertices).all()
     finally:
         BackendTensor._change_backend(AvailableBackends.numpy)

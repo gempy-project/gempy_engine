@@ -2,6 +2,8 @@
 
 This document records the historical prototype and design exploration. For the
 current authored-contact API and limitations, see [docs/micro_points.md](docs/micro_points.md).
+The historical covariance solve and gradient-derived metrics below now live in
+`tests/test_common/test_modules/test_evaluator/micro_reference.py`, not the production API.
 
 ## Goal
 

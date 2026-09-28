@@ -1,7 +1,12 @@
 import numpy as np
+import pytest
 
 from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import (
     evaluate_micro_correction,
+    evaluate_micro_gradient,
+    evaluate_micro_values_and_gradient,
+)
+from .micro_reference import (
     build_micro_covariance,
     solve_micro_weights,
     compute_anisotropy_matrices_from_gradients,
@@ -10,6 +15,49 @@ from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import (
 
 def _make_identity_anisotropy(N: int) -> np.ndarray:
     return np.tile(np.eye(3, dtype=np.float64), (N, 1, 1))
+
+
+@pytest.mark.parametrize("kernel_type", ["exponential", "matern_3_2", "matern_5_2"])
+def test_joint_values_and_gradient_numpy(kernel_type):
+    xyz = np.array([[0., 0., 0.], [.7, -.4, .2], [1., 2., 3.]])
+    centers = np.array([[0., 0., 0.], [1., 1., 1.]])
+    weights = np.array([1.2, -.4])
+    matrices = np.array([np.diag([2., 1., .5]), np.diag([.5, 2., 1.])])
+    values, gradient = evaluate_micro_values_and_gradient(
+        xyz, centers, weights, matrices, 1.3, kernel_type, compute_gradient=True,
+    )
+    only_values, no_gradient = evaluate_micro_values_and_gradient(xyz, centers, weights, matrices, 1.3, kernel_type)
+    np.testing.assert_allclose(values, only_values)
+    np.testing.assert_allclose(values, evaluate_micro_correction(xyz, centers, weights, matrices, 1.3, kernel_type))
+    np.testing.assert_allclose(gradient, evaluate_micro_gradient(xyz, centers, weights, matrices, 1.3, kernel_type))
+    assert no_gradient is None
+    for axis in range(3):
+        shifted = xyz.copy()
+        shifted[:, axis] += 1e-6
+        finite_difference = (evaluate_micro_correction(shifted, centers, weights, matrices, 1.3, kernel_type)
+                             - values) / 1e-6
+        np.testing.assert_allclose(gradient[1:, axis], finite_difference[1:], atol=2e-6)
+
+
+@pytest.mark.parametrize("kernel_type", ["exponential", "matern_3_2", "matern_5_2"])
+def test_joint_values_and_gradient_torch(kernel_type):
+    torch = pytest.importorskip("torch")
+    xyz = torch.tensor([[0., 0., 0.], [.7, -.4, .2]], dtype=torch.float64, requires_grad=True)
+    centers = torch.tensor([[0., 0., 0.]], dtype=torch.float64)
+    weights = torch.tensor([1.2], dtype=torch.float64, requires_grad=True)
+    matrices = torch.diag(torch.tensor([2., 1., .5], dtype=torch.float64))[None]
+    values, gradient = evaluate_micro_values_and_gradient(
+        xyz, centers, weights, matrices, 1.3, kernel_type, compute_gradient=True,
+    )
+    only_values, no_gradient = evaluate_micro_values_and_gradient(xyz, centers, weights, matrices, 1.3, kernel_type)
+    torch.testing.assert_close(values, only_values)
+    torch.testing.assert_close(values, evaluate_micro_correction(xyz, centers, weights, matrices, 1.3, kernel_type))
+    torch.testing.assert_close(gradient, evaluate_micro_gradient(xyz, centers, weights, matrices, 1.3, kernel_type))
+    assert no_gradient is None
+    assert torch.isfinite(gradient).all()
+    values[1].backward()
+    torch.testing.assert_close(xyz.grad[1], gradient[1])
+    assert weights.grad is not None
 
 
 # ----------------------------------------------------------------

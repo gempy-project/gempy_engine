@@ -22,7 +22,7 @@ def prepare_grid(grid: np.ndarray, surface_points: SurfacePoints, micro_points=N
     grid = BackendTensor.t.array(grid, dtype=BackendTensor.dtype)
     arrays = [grid, surface_points.sp_coords]
     if micro_points is not None:
-        arrays.append(micro_points.points)
+        arrays.append(BackendTensor.t.array(micro_points.points, dtype=BackendTensor.dtype))
     concat = bt.tfnp.concatenate(arrays)
     return concat
 

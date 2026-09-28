@@ -7,7 +7,7 @@ import numpy as np
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.micro_points import MicroArray
-from .micro_anisotropic_evaluator import build_micro_design_matrix, evaluate_micro_correction, evaluate_micro_gradient
+from .micro_anisotropic_evaluator import build_micro_design_matrix, evaluate_micro_values_and_gradient
 
 
 @dataclass(frozen=True)
@@ -82,14 +82,15 @@ def fit_micro_correction(interpolation_input, macro_values, options, surface_siz
 def apply_micro_correction(fields, xyz, correction: MicroCorrection | None):
     if correction is None:
         return fields
-    values = evaluate_micro_correction(xyz, correction.points, correction.weights,
-                                       correction.matrices, correction.kernel_range, correction.kernel_type)
+    values, grad = evaluate_micro_values_and_gradient(
+        xyz, correction.points, correction.weights, correction.matrices,
+        correction.kernel_range, correction.kernel_type,
+        compute_gradient=fields.gx_field_everywhere is not None,
+    )
     if isinstance(fields.scalar_field_everywhere, np.ndarray):
         values = values.astype(fields.scalar_field_everywhere.dtype)
     fields._scalar_field = fields.scalar_field_everywhere + values
     if fields.gx_field_everywhere is not None:
-        grad = evaluate_micro_gradient(xyz, correction.points, correction.weights,
-                                       correction.matrices, correction.kernel_range, correction.kernel_type)
         if isinstance(fields.gx_field_everywhere, np.ndarray):
             grad = grad.astype(fields.gx_field_everywhere.dtype)
         fields._gx_field = fields.gx_field_everywhere + grad[:, 0]

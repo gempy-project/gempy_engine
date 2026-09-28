@@ -12,7 +12,10 @@ else:
 
 @dataclass
 class MicroPoints:
-    """Authored contacts; surface_indices index surfaces globally in the structural frame."""
+    """Authored contacts indexed by surface in the owning InterpolationInput.
+
+    Root inputs use global structural-frame indices; stack subsets use local indices.
+    """
     points: MicroArray
     anisotropy_matrices: MicroArray
     nuggets: MicroArray

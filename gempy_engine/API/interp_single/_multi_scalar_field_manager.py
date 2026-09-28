@@ -114,10 +114,6 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
                 all_interpolation_input=root_interpolation_input,
                 stack_structure=stack_structure
             )
-            if (options_i.micro_options.enabled
-                    and interpolation_input_i.micro_points is not None
-                    and len(interpolation_input_i.micro_points.points)):
-                raise NotImplementedError("Authored micro points on external-function stacks are not supported")
             fault_input = interpolation_input_i.fault_values
 
             output: ScalarFieldOutput = interpolate_feature_with_external_function(

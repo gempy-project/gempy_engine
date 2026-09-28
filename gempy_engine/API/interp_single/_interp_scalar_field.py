@@ -12,7 +12,6 @@ from ...core.data.internal_structs import SolverInput, SolverInput_v2, Evaluator
 from ...core.data.options import KernelOptions, InterpolationOptions
 from ...modules.evaluator.generic_evaluator import generic_evaluator
 from ...modules.evaluator.symbolic_evaluator import symbolic_evaluator
-from ...modules.evaluator.micro_correction import apply_micro_correction, MicroCorrection
 from ...modules.kernel_constructor.drift_design import (
     analyze_drift_design,
     build_drift_design,
@@ -103,7 +102,7 @@ def _solve_interpolation_result(
 
 
 def _evaluate_sys_eq(eval_input: Union[SolverInput, EvaluatorInput], weights: np.ndarray, options: InterpolationOptions,
-                      grid: EngineGrid | None = None, micro_correction: MicroCorrection | None = None) -> ExportedFields:
+                      grid: EngineGrid | None = None) -> ExportedFields:
     inverse = None
     if options.evaluation_options.deduplicate_octree_corners:
         eval_input, inverse = _deduplicate_corners(eval_input, grid)
@@ -111,7 +110,6 @@ def _evaluate_sys_eq(eval_input: Union[SolverInput, EvaluatorInput], weights: np
         exported_fields = symbolic_evaluator(eval_input, weights, options)
     else:
         exported_fields = generic_evaluator(eval_input, weights, options)
-    apply_micro_correction(exported_fields, eval_input.xyz_to_interpolate, micro_correction)
 
     if inverse is not None:
         _restore_corner_fields(exported_fields, inverse)

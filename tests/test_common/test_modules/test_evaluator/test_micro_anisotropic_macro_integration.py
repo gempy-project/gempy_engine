@@ -16,11 +16,11 @@ from gempy_engine.modules.data_preprocess._input_preparation import (
     surface_points_preprocess,
     orientations_preprocess,
 )
-from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import (
+from .micro_reference import (
     compute_anisotropy_matrices_from_gradients,
     solve_micro_weights,
 )
-from gempy_engine.modules.evaluator.micro_correction import MicroCorrection
+from gempy_engine.modules.evaluator.micro_correction import MicroCorrection, apply_micro_correction
 
 PLOT = os.getenv("GEMPY_PLOT_MICRO", "0") == "1"
 
@@ -38,7 +38,8 @@ def _build_grid_2d(x_range, y_range, nx, ny):
 def _eval_at_points(sp_internal, ori_internal, options, weights, xyz, correction=None):
     eval_in = SolverInput(sp_internal, ori_internal, xyz_to_interpolate=xyz, fault_internal=None)
     options.evaluation_options.compute_scalar_gradient = True
-    return _evaluate_sys_eq(eval_in, weights, options, micro_correction=correction)
+    fields = _evaluate_sys_eq(eval_in, weights, options)
+    return apply_micro_correction(fields, xyz, correction)
 
 
 @pytest.mark.skipif(
@@ -372,7 +373,8 @@ def test_micro_correction_moves_3d_contacts_closer_to_target(simple_model):
     def _eval_3d(xyz, correction=None):
         proxy = SolverInput(sp_internal, ori_internal, xyz_to_interpolate=xyz, fault_internal=None)
         options.evaluation_options.compute_scalar_gradient = True
-        return _evaluate_sys_eq(proxy, macro_weights, options, micro_correction=correction)
+        fields = _evaluate_sys_eq(proxy, macro_weights, options)
+        return apply_micro_correction(fields, xyz, correction)
 
     exported_macro_sp = _eval_3d(macro_sp_coords)
     macro_at_sp = exported_macro_sp.scalar_field

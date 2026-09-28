@@ -29,6 +29,9 @@ def prepare_micro_points(interpolation_input: InterpolationInput, options: Inter
                     f"Stack {stack_index} is a fault stack: enabled authored micro points on fault surfaces "
                     "are not supported. Disable micro_options for this stack or remove its micro points."
                 )
+            functions = stack_structure.interp_functions_per_stack
+            if functions is not None and functions[stack_index] is not None:
+                raise NotImplementedError("Authored micro points on external-function stacks are not supported")
             enabled = True
             continue
         warnings.warn(

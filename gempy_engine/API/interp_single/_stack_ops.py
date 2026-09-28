@@ -386,10 +386,6 @@ def _process_external_chunk(state: InterpolationState, chunk: list[int]):
         all_interpolation_input=state.root_interpolation_input,
         stack_structure=state.stack_structure
     )
-    if (options_i.micro_options.enabled and interpolation_input_i.micro_points is not None
-            and len(interpolation_input_i.micro_points.points)):
-        raise NotImplementedError("Authored micro points on external-function stacks are not supported")
-
     output: ScalarFieldOutput = interpolate_feature_with_external_function(
         interpolation_input=interpolation_input_i,
         options=options_i,
