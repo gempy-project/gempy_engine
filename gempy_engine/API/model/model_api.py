@@ -1,5 +1,6 @@
 import copy
 import time
+import warnings
 from typing import Optional, Any
 
 import numpy as np
@@ -42,6 +43,18 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
 
         # Check input is valid
         _check_input_validity(interpolation_input, options, data_descriptor)  # TODO
+
+        micro = interpolation_input.micro_points
+        if (micro is not None and len(micro.points)
+                and not options.evaluation_options.micro_anisotropic.enabled):
+            surface_boundaries = np.cumsum(data_descriptor.stack_structure.number_of_surfaces_per_stack)
+            for stack_index in np.unique(np.searchsorted(surface_boundaries, micro.surface_indices, side="right")):
+                warnings.warn(
+                    f"Stack {stack_index} contains micro points, but micro_anisotropic.enabled is False; "
+                    "these points will be ignored. Set it to True to apply the correction.",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
         output: list[OctreeLevel] = interpolate_n_octree_levels(
             interpolation_input=interpolation_input,

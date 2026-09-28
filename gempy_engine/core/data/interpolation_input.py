@@ -16,6 +16,31 @@ from .kernel_classes.server.input_parser import InterpolationInputSchema
 
 
 @dataclass
+class MicroPoints:
+    """Authored contacts; surface_indices index surfaces globally in the structural frame."""
+    points: np.ndarray
+    anisotropy_matrices: np.ndarray
+    nuggets: np.ndarray
+    surface_indices: np.ndarray
+
+    def __post_init__(self):
+        self.points = np.asarray(self.points, dtype=float)
+        self.anisotropy_matrices = np.asarray(self.anisotropy_matrices, dtype=float)
+        self.nuggets = np.asarray(self.nuggets, dtype=float)
+        indices = np.asarray(self.surface_indices)
+        n = len(self.points)
+        if (self.points.shape != (n, 3) or self.anisotropy_matrices.shape != (n, 3, 3)
+                or self.nuggets.shape != (n,) or indices.shape != (n,)
+                or not np.issubdtype(indices.dtype, np.integer)):
+            raise ValueError("Invalid micro_points shapes or surface_indices dtype")
+        if (not np.isfinite(self.points).all() or not np.isfinite(self.anisotropy_matrices).all()
+                or not np.isfinite(self.nuggets).all() or (self.nuggets < 0).any()
+                or (indices < 0).any()):
+            raise ValueError("micro_points must be finite with nonnegative nuggets and indices")
+        self.surface_indices = indices.astype(np.int64)
+
+
+@dataclass
 class InterpolationInput:
     # @ off
     surface_points: SurfacePoints
@@ -28,6 +53,7 @@ class InterpolationInput:
     segmentation_function: Optional[callable] = None  # * From scalar field to values
 
     _all_surface_points: SurfacePoints = None
+    micro_points: Optional[MicroPoints] = None
 
     # region per model ? Not sure what I mean here
 
@@ -38,7 +64,8 @@ class InterpolationInput:
 
     def __init__(self, surface_points: SurfacePoints, orientations: Orientations, grid: EngineGrid,
                  unit_values: Optional[np.ndarray] = None, segmentation_function: Optional[callable] = None,
-                 stack_relation: StackRelationType = StackRelationType.ERODE, weights: list[np.ndarray] = None):
+                  stack_relation: StackRelationType = StackRelationType.ERODE, weights: list[np.ndarray] = None,
+                  micro_points: Optional[MicroPoints] = None):
         if weights is None:
             weights = []
         
@@ -50,6 +77,7 @@ class InterpolationInput:
         self.segmentation_function = segmentation_function
         self.stack_relation = stack_relation
         self.weights = weights
+        self.micro_points = micro_points
 
     # @ on
 
@@ -76,6 +104,15 @@ class InterpolationInput:
             unit_values = all_interpolation_input.unit_values[cum_number_surfaces_l0:cum_number_surfaces_l1]
 
         grid = all_interpolation_input.grid
+        micro = all_interpolation_input.micro_points
+        if micro is not None:
+            start = int(stack_structure.number_of_surfaces_per_stack[:stack_number].sum())
+            stop = start + int(stack_structure.number_of_surfaces_per_stack[stack_number])
+            if (micro.surface_indices >= int(np.sum(stack_structure.number_of_surfaces_per_stack))).any():
+                raise ValueError("micro_points.surface_indices contains an unknown global surface index")
+            mask = (micro.surface_indices >= start) & (micro.surface_indices < stop)
+            micro = MicroPoints(micro.points[mask], micro.anisotropy_matrices[mask],
+                                micro.nuggets[mask], micro.surface_indices[mask] - start)
 
         # * (miguel 24) This interpolation input goes on the InterpOutput so we are not computing its gradients
         ii_subset: InterpolationInput = cls(
@@ -84,7 +121,8 @@ class InterpolationInput:
             grid=grid,
             unit_values=unit_values,
             stack_relation=stack_structure.active_masking_descriptor,
-            weights=(all_interpolation_input.weights[stack_number] if stack_number < len(all_interpolation_input.weights) else None)
+            weights=(all_interpolation_input.weights[stack_number] if stack_number < len(all_interpolation_input.weights) else None),
+            micro_points=micro,
         )
 
         # ! Setting this on the constructor does not work with data classes.

@@ -33,7 +33,9 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
     )
 
     if (os.getenv("GEMPY_FLAT_STACKS", "False").lower() in ("true", "1", "t", "y", "yes") and
-            BackendTensor.use_pykeops 
+            BackendTensor.use_pykeops and
+            (interpolation_input.micro_points is None or
+             not options.evaluation_options.micro_anisotropic.enabled)
             # and not has_external_functions
     ):
         all_scalar_fields_outputs: List[ScalarFieldOutput] = _interpolate_stack_flat(data_descriptor, interpolation_input, options)
@@ -113,6 +115,10 @@ def _interpolate_stack(root_data_descriptor: InputDataDescriptor, root_interpola
                 all_interpolation_input=root_interpolation_input,
                 stack_structure=stack_structure
             )
+            if (options_i.evaluation_options.micro_anisotropic.enabled
+                    and interpolation_input_i.micro_points is not None
+                    and len(interpolation_input_i.micro_points.points)):
+                raise NotImplementedError("Authored micro points on external-function stacks are not supported")
 
             output: ScalarFieldOutput = interpolate_feature_with_external_function(
                 interpolation_input=interpolation_input_i,

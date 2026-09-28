@@ -35,7 +35,9 @@ def interpolate_feature_with_cokrig(interpolation_input: InterpolationInput,
     xyz = solver_input.xyz_to_interpolate
 
     weights = compute_weights(solver_input, stack_number, options)
-    exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options, grid=grid)
+    eval_options = _options_with_micro_correction(interpolation_input, solver_input, weights, options,
+                                                  data_shape.number_of_points_per_surface)
+    exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, eval_options, grid=grid)
 
     exported_fields.set_structure_values(
         reference_sp_position=data_shape.reference_sp_position,
@@ -51,6 +53,74 @@ def interpolate_feature_with_cokrig(interpolation_input: InterpolationInput,
 
     output = _segment(exported_fields, external_segment_funct, grid, interpolation_input, options, xyz)
     return output
+
+
+def _options_with_micro_correction(interpolation_input, solver_input, weights, options, surface_sizes):
+    micro_data = interpolation_input.micro_points
+    if micro_data is None or not options.evaluation_options.micro_anisotropic.enabled:
+        return options
+    if len(micro_data.points) == 0:
+        local_options = options.model_copy(deep=True)
+        local_options.evaluation_options.micro_anisotropic.enabled = False
+        return local_options
+    if solver_input.fault_internal.n_faults:
+        raise NotImplementedError("Authored micro-point correction with fault-coupled stacks is not supported")
+
+    from ...modules.evaluator.micro_anisotropic_evaluator import build_micro_design_matrix
+
+    local_options = options.model_copy(deep=True)
+    micro = local_options.evaluation_options.micro_anisotropic
+    if (not np.isfinite(micro.kernel_range) or micro.kernel_range <= 0
+            or not np.isfinite(micro.nugget) or micro.nugget < 0):
+        raise ValueError("micro kernel_range must be positive and nuggets nonnegative and finite")
+
+    points = micro_data.points
+    macro_sp = interpolation_input.surface_points.sp_coords
+    if BackendTensor.engine_backend is AvailableBackends.PYTORCH:
+        import torch
+        macro_points = macro_sp.detach().cpu().numpy()
+    else:
+        macro_points = np.asarray(macro_sp)
+    sizes = (surface_sizes.detach().cpu().numpy() if BackendTensor.engine_backend is AvailableBackends.PYTORCH
+             else np.asarray(surface_sizes))
+    if len(sizes) == 0 or sizes.sum() != len(macro_points):
+        raise ValueError("Micro targets require the stack's surface point counts")
+
+    macro_options = options.model_copy(deep=True)
+    macro_options.evaluation_options.micro_anisotropic.enabled = False
+    macro_xyz = np.vstack((macro_points, points))
+    if BackendTensor.engine_backend is AvailableBackends.PYTORCH:
+        macro_xyz = torch.as_tensor(macro_xyz, device=weights.device, dtype=weights.dtype)
+    proxy = SolverInput(solver_input.sp_internal, solver_input.ori_internal, macro_xyz,
+                        solver_input.fault_internal)
+    macro_values = _evaluate_sys_eq(proxy, weights, macro_options).scalar_field_everywhere
+    if BackendTensor.engine_backend is AvailableBackends.PYTORCH:
+        macro_values = macro_values.detach().cpu().numpy()
+    means = [np.mean(chunk) for chunk in np.split(macro_values[:len(macro_points)], np.cumsum(sizes)[:-1])]
+    residuals = np.asarray(means)[micro_data.surface_indices] - macro_values[len(macro_points):]
+
+    centers = points
+    matrices = micro_data.anisotropy_matrices
+    if micro.preserve_macro_points:
+        # Borrow the nearest authored metric for added macro constraint centers.
+        nearest = np.argmin(np.sum((macro_points[:, None, :] - points[None, :, :]) ** 2, axis=2), axis=1)
+        centers = np.vstack((points, macro_points))
+        matrices = np.concatenate((matrices, matrices[nearest]))
+    design = build_micro_design_matrix(centers, centers, matrices, micro.kernel_range, micro.kernel_type)
+    design[np.arange(len(points)), np.arange(len(points))] += micro_data.nuggets + micro.nugget
+    rhs = np.concatenate((residuals, np.zeros(len(macro_points)))) if micro.preserve_macro_points else residuals
+    try:
+        fitted = np.linalg.solve(design, rhs)
+    except np.linalg.LinAlgError:
+        fitted = np.linalg.lstsq(design, rhs, rcond=None)[0]
+        import warnings
+        warnings.warn("Micro-point system is singular; using least-squares fit", RuntimeWarning, stacklevel=2)
+    if not np.isfinite(fitted).all():
+        raise ValueError("Micro-point fit produced non-finite weights")
+    micro.points = centers
+    micro.anisotropy_matrices = matrices
+    micro.weights = fitted * micro.strength
+    return local_options
 
 
 def interpolate_feature_with_external_function(interpolation_input: InterpolationInput,

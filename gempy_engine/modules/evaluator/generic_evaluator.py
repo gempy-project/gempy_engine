@@ -69,9 +69,7 @@ def generic_evaluator(
 
     micro = options.evaluation_options.micro_anisotropic
     if micro.enabled and micro.weights is not None and micro.points is not None and micro.anisotropy_matrices is not None:
-        from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import evaluate_micro_correction
-        if BackendTensor.engine_backend != gempy_engine.config.AvailableBackends.numpy:
-            scalar_field = BackendTensor.t.to_numpy(scalar_field)
+        from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import evaluate_micro_correction, evaluate_micro_gradient
         correction = evaluate_micro_correction(
             xyz_to_interpolate=solver_input.xyz_to_interpolate,
             micro_points=micro.points,
@@ -80,7 +78,18 @@ def generic_evaluator(
             kernel_range=micro.kernel_range,
             kernel_type=micro.kernel_type,
         )
+        if isinstance(scalar_field, np.ndarray):
+            correction = correction.astype(scalar_field.dtype)
         scalar_field = scalar_field + correction
+        if options.compute_scalar_gradient:
+            grad = evaluate_micro_gradient(solver_input.xyz_to_interpolate, micro.points, micro.weights,
+                                           micro.anisotropy_matrices, micro.kernel_range, micro.kernel_type)
+            if isinstance(gx_field, np.ndarray):
+                grad = grad.astype(gx_field.dtype)
+            gx_field = gx_field + grad[:, 0]
+            gy_field = gy_field + grad[:, 1]
+            if gz_field is not None:
+                gz_field = gz_field + grad[:, 2]
 
     return ExportedFields(scalar_field, gx_field, gy_field, gz_field)
 

@@ -78,6 +78,17 @@ def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: 
             raise ValueError("Number of dimensions have to be 2 or 3")
 
     scalar_field = _apply_micro_correction(scalar_field, solver_input, options)
+    micro = options.evaluation_options.micro_anisotropic
+    if options.compute_scalar_gradient and micro.enabled and micro.weights is not None:
+        from .micro_anisotropic_evaluator import evaluate_micro_gradient
+        gradient = evaluate_micro_gradient(solver_input.xyz_to_interpolate, micro.points, micro.weights,
+                                           micro.anisotropy_matrices, micro.kernel_range, micro.kernel_type)
+        if isinstance(gx_field, np.ndarray):
+            gradient = gradient.astype(gx_field.dtype)
+        gx_field = gx_field + gradient[:, 0]
+        gy_field = gy_field + gradient[:, 1]
+        if gz_field is not None:
+            gz_field = gz_field + gradient[:, 2]
 
     return ExportedFields(scalar_field, gx_field, gy_field, gz_field)
 
@@ -99,6 +110,8 @@ def _apply_micro_correction(scalar_field: np.ndarray, solver_input: SolverInput,
         kernel_range=micro.kernel_range,
         kernel_type=micro.kernel_type,
     )
+    if isinstance(scalar_field, np.ndarray):
+        correction = correction.astype(scalar_field.dtype)
     return scalar_field + correction
 
 

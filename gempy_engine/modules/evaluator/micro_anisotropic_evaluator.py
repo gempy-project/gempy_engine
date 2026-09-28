@@ -37,6 +37,9 @@ def evaluate_micro_correction(
 
     V(x) = sum_i w_i * K(||A_i (x - p_i)|| / range)
     """
+    if not isinstance(xyz_to_interpolate, np.ndarray):
+        return _evaluate_micro_torch(xyz_to_interpolate, micro_points, micro_weights,
+                                     anisotropy_matrices, kernel_range, kernel_type)
     M = xyz_to_interpolate.shape[0]
     N = micro_points.shape[0]
     correction = np.zeros(M, dtype=np.float64)
@@ -52,6 +55,80 @@ def evaluate_micro_correction(
         correction += wj * _kernel_value(r, kernel_type)
 
     return correction
+
+
+def build_micro_design_matrix(xyz: np.ndarray, centers: np.ndarray,
+                              anisotropy_matrices: np.ndarray, kernel_range: float,
+                              kernel_type: MicroKernelType) -> np.ndarray:
+    """Rows are evaluation points; column j uses the evaluator's center j metric."""
+    result = np.empty((len(xyz), len(centers)), dtype=np.float64)
+    for j, (center, matrix) in enumerate(zip(centers, anisotropy_matrices)):
+        result[:, j] = _kernel_value(
+            np.linalg.norm((xyz - center) @ matrix.T, axis=1) / kernel_range, kernel_type
+        )
+    return result
+
+
+def evaluate_micro_gradient(xyz: np.ndarray, centers: np.ndarray, weights: np.ndarray,
+                            matrices: np.ndarray, kernel_range: float,
+                            kernel_type: MicroKernelType) -> np.ndarray:
+    if not isinstance(xyz, np.ndarray):
+        return _evaluate_micro_torch(xyz, centers, weights, matrices, kernel_range, kernel_type,
+                                     compute_gradient=True)[1]
+    gradient = np.zeros_like(xyz, dtype=np.float64)
+    for center, matrix, weight in zip(centers, matrices, weights):
+        delta = xyz - center
+        transformed = delta @ matrix.T
+        distance = np.linalg.norm(transformed, axis=1)
+        r = distance / kernel_range
+        if kernel_type == "exponential":
+            derivative = -np.exp(-r)
+        elif kernel_type == "matern_3_2":
+            derivative = -3 * r * np.exp(-np.sqrt(3) * r)
+        elif kernel_type == "matern_5_2":
+            derivative = -(5 / 3) * r * (1 + np.sqrt(5) * r) * np.exp(-np.sqrt(5) * r)
+        else:
+            raise ValueError(f"Unknown micro kernel type: {kernel_type}")
+        scale = np.divide(derivative, kernel_range * distance,
+                          out=np.zeros_like(distance), where=distance > 0)
+        gradient += weight * scale[:, None] * (transformed @ matrix)
+    return gradient
+
+
+def _evaluate_micro_torch(xyz, centers, weights, matrices, kernel_range, kernel_type,
+                          compute_gradient=False):
+    import torch
+
+    centers = torch.as_tensor(centers, dtype=xyz.dtype, device=xyz.device)
+    weights = torch.as_tensor(weights, dtype=xyz.dtype, device=xyz.device)
+    matrices = torch.as_tensor(matrices, dtype=xyz.dtype, device=xyz.device)
+    correction = xyz.new_zeros(xyz.shape[0])
+    gradient = xyz.new_zeros(xyz.shape) if compute_gradient else None
+    for center, matrix, weight in zip(centers, matrices, weights):
+        transformed = (xyz - center) @ matrix.T
+        distance = torch.linalg.vector_norm(transformed, dim=1)
+        r = distance / kernel_range
+        if kernel_type == "exponential":
+            value = torch.exp(-r)
+            if compute_gradient:
+                derivative = -value
+        elif kernel_type == "matern_3_2":
+            a = np.sqrt(3.) * r
+            value = (1 + a) * torch.exp(-a)
+            if compute_gradient:
+                derivative = -3 * r * torch.exp(-a)
+        elif kernel_type == "matern_5_2":
+            a = np.sqrt(5.) * r
+            value = (1 + a + 5 / 3 * r * r) * torch.exp(-a)
+            if compute_gradient:
+                derivative = -(5 / 3) * r * (1 + a) * torch.exp(-a)
+        else:
+            raise ValueError(f"Unknown micro kernel type: {kernel_type}")
+        correction = correction + weight * value
+        if compute_gradient:
+            scale = derivative / (kernel_range * distance.clamp_min(torch.finfo(xyz.dtype).tiny))
+            gradient = gradient + weight * torch.where(distance > 0, scale, 0)[:, None] * (transformed @ matrix)
+    return (correction, gradient) if compute_gradient else correction
 
 
 def build_micro_covariance(
