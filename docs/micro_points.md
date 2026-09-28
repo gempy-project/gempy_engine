@@ -43,6 +43,11 @@ options store fitted state. Set `enabled = False` to deactivate without removing
 authored contacts. PyTorch fits preserve gradients through coordinates, matrices,
 and contact nuggets; nearest metric selection for macro constraints is discrete.
 
+Contact targets use the macro field at the first (reference) point of each
+surface, not the mean of its macro samples. These target isovalues remain fixed
+for segmentation and mesh extraction after correction, including when
+`preserve_macro_points = False` allows the macro reference points to move.
+
 The final scalar field is the faulted macro field plus the stack-local micro
 deformation. Faults do not mask, displace, or split the micro kernel. Contacts
 on fault-affected stratigraphic stacks fit residuals against the macro field

@@ -243,6 +243,47 @@ def _fault_micro_model(finite=False, chain=False):
     return ii, descriptor, options
 
 
+@pytest.mark.parametrize('backend', ['numpy', 'flat', 'torch'])
+@pytest.mark.parametrize('preserve_macro_points', [False, True])
+@pytest.mark.parametrize('macro_nugget', [0., 0.1])
+def test_micro_contacts_match_final_surface_isovalues(monkeypatch, backend, preserve_macro_points, macro_nugget):
+    ii, descriptor, options = _fault_micro_model()
+    micro = ii.micro_points
+    ii.micro_points = MicroPoints(micro.points[:1], micro.anisotropy_matrices[:1],
+                                  micro.nuggets[:1], micro.surface_indices[:1])
+    ii.surface_points.sp_coords[-1, 2] += 0.15
+    ii.surface_points.nugget_effect_scalar[4:] = macro_nugget
+    options.micro_options.preserve_macro_points = preserve_macro_points
+    options.micro_options.nugget = 0.
+    options.micro_options.strength = 1.
+    monkeypatch.setenv('GEMPY_FLAT_STACKS', str(backend == 'flat'))
+    if backend == 'torch':
+        pytest.importorskip('torch')
+    BackendTensor._change_backend(
+        AvailableBackends.PYTORCH if backend == 'torch' else AvailableBackends.numpy,
+        use_pykeops=backend == 'flat',
+    )
+    try:
+        options.micro_options.enabled = False
+        with pytest.warns(UserWarning, match='ignored'):
+            baseline = compute_model(ii, options, descriptor)
+        baseline_fields = baseline.octrees_output[0].outputs[-1].exported_fields
+        target = BackendTensor.t.to_numpy(baseline_fields.scalar_field_at_surface_points).copy()
+        if macro_nugget:
+            macro_values = BackendTensor.t.to_numpy(baseline_fields.scalar_field_everywhere)[-4:]
+            assert abs(macro_values.mean() - target.item()) > 1e-4
+
+        options.micro_options.enabled = True
+        result = compute_model(ii, options, descriptor)
+        fields = result.octrees_output[0].outputs[-1].exported_fields
+        final_isovalues = BackendTensor.t.to_numpy(fields.scalar_field_at_surface_points)
+        contact_values = BackendTensor.t.to_numpy(fields.scalar_field_everywhere)[-1:]
+        np.testing.assert_allclose(final_isovalues, target, atol=1e-6)
+        np.testing.assert_allclose(contact_values, final_isovalues, atol=1e-6)
+    finally:
+        BackendTensor._change_backend(AvailableBackends.numpy)
+
+
 @pytest.mark.parametrize('finite,chain', [(False, False), (False, True), (True, False)])
 def test_fault_micro_contacts_flow_through_dependencies(monkeypatch, finite, chain):
     ii, descriptor, options = _fault_micro_model(finite, chain)
@@ -464,8 +505,10 @@ def test_external_micro_contacts_rejected_before_evaluation(monkeypatch, flat):
 
 @pytest.mark.parametrize('flat', [False, True])
 @pytest.mark.parametrize('deduplicate', [False, True])
-def test_micro_contacts_flow_through_octree_and_mesh(monkeypatch, flat, deduplicate):
+@pytest.mark.parametrize('preserve_macro_points', [False, True])
+def test_micro_contacts_flow_through_octree_and_mesh(monkeypatch, flat, deduplicate, preserve_macro_points):
     ii, descriptor, options = _fault_micro_model()
+    options.micro_options.preserve_macro_points = preserve_macro_points
     ii.set_temp_grid(EngineGrid.from_regular_grid(RegularGrid(
         orthogonal_extent=[0, 1, 0, 1, 0, 1], regular_grid_shape=[2, 2, 2])))
     options.evaluation_options.number_octree_levels = 2
@@ -485,6 +528,12 @@ def test_micro_contacts_flow_through_octree_and_mesh(monkeypatch, flat, deduplic
                 assert len(fields.scalar_field_everywhere) == (
                     output.grid.len_all_grids + ii.surface_points.n_points + len(ii.micro_points.points))
                 assert np.isfinite(fields.scalar_field_everywhere).all()
+            strata_fields = level.outputs[-1].exported_fields
+            np.testing.assert_allclose(
+                strata_fields.scalar_field_everywhere[-len(ii.micro_points.points):],
+                np.repeat(strata_fields.scalar_field_at_surface_points, len(ii.micro_points.points)),
+                atol=1e-6,
+            )
         assert result.dc_meshes
         for mesh in result.dc_meshes:
             assert mesh is not None

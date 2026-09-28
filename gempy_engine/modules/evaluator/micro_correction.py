@@ -17,6 +17,7 @@ class MicroCorrection:
     weights: MicroArray
     kernel_range: float
     kernel_type: str
+    surface_isovalues: MicroArray | None = None
 
 
 def fit_micro_correction(interpolation_input, macro_values, options, surface_sizes):
@@ -50,9 +51,10 @@ def fit_micro_correction(interpolation_input, macro_values, options, surface_siz
     macro_sp = macro_sp[interpolation_input.slice_feature]
     contact_values = macro_values[interpolation_input.micro_slice][interpolation_input.micro_indices]
     chunks = macro_sp.split(sizes) if is_torch else np.split(macro_sp, np.cumsum(sizes)[:-1])
-    means = (torch.stack([chunk.mean() for chunk in chunks]) if is_torch
-             else np.array([chunk.mean() for chunk in chunks]))
-    residuals = means[micro.surface_indices] - contact_values
+    # ExportedFields uses the first macro point of each surface as its reference.
+    surface_isovalues = (torch.stack([chunk[0] for chunk in chunks]) if is_torch
+                        else np.array([chunk[0] for chunk in chunks]))
+    residuals = surface_isovalues[micro.surface_indices] - contact_values
 
     centers = points
     if settings.preserve_macro_points:
@@ -76,7 +78,8 @@ def fit_micro_correction(interpolation_input, macro_values, options, surface_siz
         warnings.warn("Micro-point system is singular; using least-squares fit", RuntimeWarning, stacklevel=2)
     if not (torch.isfinite(fitted).all() if is_torch else np.isfinite(fitted).all()):
         raise ValueError("Micro-point fit produced non-finite weights")
-    return MicroCorrection(centers, matrices, fitted * settings.strength, settings.kernel_range, settings.kernel_type)
+    return MicroCorrection(centers, matrices, fitted * settings.strength, settings.kernel_range,
+                           settings.kernel_type, surface_isovalues)
 
 
 def apply_micro_correction(fields, xyz, correction: MicroCorrection | None):
@@ -90,6 +93,9 @@ def apply_micro_correction(fields, xyz, correction: MicroCorrection | None):
     if isinstance(fields.scalar_field_everywhere, np.ndarray):
         values = values.astype(fields.scalar_field_everywhere.dtype)
     fields._scalar_field = fields.scalar_field_everywhere + values
+    if correction.surface_isovalues is not None:
+        # Keep segmentation and extraction on the fitted targets even if macro points move.
+        fields.scalar_field_at_surface_points = correction.surface_isovalues
     if fields.gx_field_everywhere is not None:
         if isinstance(fields.gx_field_everywhere, np.ndarray):
             grad = grad.astype(fields.gx_field_everywhere.dtype)
