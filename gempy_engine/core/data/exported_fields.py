@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 import numpy as np
 
 from gempy_engine.core.data.internal_structs import EvaluatorInput
+from gempy_engine.core.data.micro_points import MicroPointResults
 
 
 @dataclass(init=True)
@@ -13,6 +14,7 @@ class ExportedFields:
     _gx_field: Optional[np.ndarray] = None
     _gy_field: Optional[np.ndarray] = None
     _gz_field: Optional[np.ndarray] = None
+    micro_point_results: Optional[MicroPointResults] = None
 
     _n_points_per_surface: Optional[np.ndarray] = None
     _slice_feature: Optional[slice] = field(default_factory=lambda: slice(None, None))  # Slice all the surface points

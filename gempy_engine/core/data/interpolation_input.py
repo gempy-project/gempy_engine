@@ -89,7 +89,8 @@ class InterpolationInput:
             stop = start + int(stack_structure.number_of_surfaces_per_stack[stack_number])
             mask = (micro.surface_indices >= start) & (micro.surface_indices < stop)
             micro = MicroPoints(micro.points[mask], micro.anisotropy_matrices[mask],
-                                micro.nuggets[mask], micro.surface_indices[mask] - start)
+                                micro.nuggets[mask], micro.surface_indices[mask] - start,
+                                micro.support_to_engine)
 
         # * (miguel 24) This interpolation input goes on the InterpOutput so we are not computing its gradients
         ii_subset: InterpolationInput = cls(

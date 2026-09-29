@@ -17,6 +17,7 @@ from gempy_engine.core.data.interpolation_functions import CustomInterpolationFu
 from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import (
     build_micro_design_matrix, evaluate_micro_correction, evaluate_micro_gradient,
 )
+from gempy_engine.modules.evaluator.micro_correction import align_micro_matrices
 
 
 @pytest.mark.parametrize("flat", [False, True])
@@ -147,8 +148,9 @@ def test_unknown_global_surface_index_with_stack_overrides():
 def test_micro_subset_uses_global_surface_indices():
     grid = EngineGrid.from_regular_grid(RegularGrid(
         orthogonal_extent=[0, 1, 0, 1, 0, 1], regular_grid_shape=[2, 2, 2]))
+    transform = np.diag([2., 3., 4.])
     contacts = MicroPoints(np.array([[0., 0., 0.], [1., 1., 1.]]),
-                           np.array([np.eye(3), np.eye(3)]), np.zeros(2), np.array([0, 1]))
+                           np.array([np.eye(3), np.eye(3)]), np.zeros(2), np.array([0, 1]), transform)
     ii = InterpolationInput(SurfacePoints(np.zeros((4, 3))),
                             Orientations(np.zeros((2, 3)), np.ones((2, 3))), grid,
                             micro_points=contacts)
@@ -158,10 +160,37 @@ def test_micro_subset_uses_global_surface_indices():
     subset = InterpolationInput.from_interpolation_input_subset(ii, stacks)
     np.testing.assert_array_equal(subset.micro_points.points, contacts.points[1:])
     np.testing.assert_array_equal(subset.micro_points.surface_indices, [0])
+    np.testing.assert_array_equal(subset.micro_points.support_to_engine, transform)
     ii._all_micro_points = contacts
     subset = InterpolationInput.from_interpolation_input_subset(ii, stacks)
     np.testing.assert_array_equal(subset.micro_indices, [1])
     assert subset.micro_slice == slice(grid.len_all_grids + 4, grid.len_all_grids + 6)
+
+
+@pytest.mark.parametrize('flat', [False, True])
+def test_aligned_results_map_to_root_contact_rows_across_stacks(monkeypatch, flat):
+    sp = np.array([[0.2, 0.2, 0.4], [0.8, 0.2, 0.4], [0.2, 0.8, 0.4], [0.8, 0.8, 0.4]])
+    grid = EngineGrid.from_regular_grid(RegularGrid(
+        orthogonal_extent=[0, 1, 0, 1, 0, 1], regular_grid_shape=[2, 2, 2]))
+    micro = MicroPoints(np.array([[0.5, 0.5, 0.62], [0.5, 0.5, 0.42]]),
+                        np.repeat(np.eye(3)[None], 2, axis=0), np.zeros(2), np.array([1, 0]))
+    ii = InterpolationInput(SurfacePoints(np.vstack((sp, sp + [0., 0., 0.2]))),
+                            Orientations(np.array([[0.5, 0.5, 0.4], [0.5, 0.5, 0.6]]),
+                                         np.array([[0.3, 0., 1.], [0., 0.2, 1.]])), grid, micro_points=micro)
+    descriptor = InputDataDescriptor(TensorsStructure(np.array([4, 4])), StacksStructure(
+        np.array([4, 4]), np.array([1, 1]), np.array([1, 1]),
+        [StackRelationType.ERODE, StackRelationType.ERODE]))
+    options = InterpolationOptions.from_args(range=3., c_o=1., uni_degree=0, mesh_extraction=False)
+    options.micro_options.enabled = True
+    monkeypatch.setenv('GEMPY_FLAT_STACKS', str(flat))
+    BackendTensor._change_backend(AvailableBackends.numpy, use_pykeops=flat)
+    try:
+        results = compute_model(ii, options, descriptor).micro_point_results
+        np.testing.assert_array_equal(results.source_indices, [1, 0])
+        assert results.macro_gradients.shape == (2, 3)
+        assert results.anisotropy_matrices.shape == (2, 3, 3)
+    finally:
+        BackendTensor._change_backend(AvailableBackends.numpy)
 
 
 def test_micro_design_and_gradient_match_evaluation():
@@ -542,3 +571,185 @@ def test_micro_contacts_flow_through_octree_and_mesh(monkeypatch, flat, deduplic
             assert np.isfinite(mesh.vertices).all()
     finally:
         BackendTensor._change_backend(AvailableBackends.numpy)
+
+
+@pytest.mark.parametrize('backend', ['numpy', 'flat', 'torch'])
+@pytest.mark.parametrize('gradient_output', [False, True])
+def test_aligned_results_use_uncorrected_contact_gradients(monkeypatch, backend, gradient_output):
+    from gempy_engine.modules.evaluator.micro_correction import fit_micro_fields
+    ii, descriptor, options = _fault_micro_model()
+    ii.orientations.dip_gradients[-1] = [0.7, 0.2, 1.]
+    a = np.array([[2., 0.3, 0.], [0., 1.5, 0.2], [0., 0., 0.8]])
+    authored_basis = np.array([[1., 0., 0.], [0., 2., 0.], [0., 0., 3.]])
+    ii.micro_points = MicroPoints(ii.micro_points.points, np.repeat(np.linalg.inv(a @ authored_basis)[None], 3, axis=0),
+                                  ii.micro_points.nuggets, ii.micro_points.surface_indices, a)
+    options.micro_options.preserve_macro_points = True
+    options.evaluation_options.compute_scalar_gradient = gradient_output
+    monkeypatch.setenv('GEMPY_FLAT_STACKS', str(backend == 'flat'))
+    BackendTensor._change_backend(AvailableBackends.PYTORCH if backend == 'torch' else AvailableBackends.numpy,
+                                  use_pykeops=backend == 'flat', grads=backend == 'torch')
+    try:
+        options.micro_options.align_to_macro = False
+        unaligned = compute_model(ii, options, descriptor)
+        assert unaligned.micro_point_results is None
+        suffix = slice(-len(ii.micro_points.points), None)
+        raw_gradients = []
+        def capture(interpolation_input, fields, *args):
+            if interpolation_input.micro_indices is not None and len(interpolation_input.micro_indices):
+                raw_gradients.append(np.stack([
+                    BackendTensor.t.to_numpy(getattr(fields, f'{axis}_field_everywhere')[suffix]).copy()
+                    for axis in ('gx', 'gy', 'gz')], axis=1))
+            return fit_micro_fields(interpolation_input, fields, *args)
+        monkeypatch.setattr('gempy_engine.API.interp_single._interp_single_feature.fit_micro_fields', capture)
+        monkeypatch.setattr('gempy_engine.API.interp_single._stack_ops.fit_micro_fields', capture)
+        options.micro_options.align_to_macro = True
+        result = compute_model(ii, options, descriptor)
+        raw_grad = raw_gradients[-1]
+        published = result.micro_point_results
+        assert published is not None
+        np.testing.assert_array_equal(published.source_indices, [0, 1, 2])
+        np.testing.assert_allclose(BackendTensor.t.to_numpy(published.macro_gradients), raw_grad, rtol=1e-5, atol=1e-5)
+        fitted = BackendTensor.t.to_numpy(published.anisotropy_matrices)
+        assert fitted.shape == (3, 3, 3)
+        for matrix, gradient in zip(fitted, raw_grad):
+            basis = np.linalg.inv(a) @ np.linalg.inv(matrix)
+            np.testing.assert_allclose(np.linalg.norm(basis, axis=0), [1., 2., 3.], atol=1e-5)
+            np.testing.assert_allclose(basis[:, 2] / np.linalg.norm(basis[:, 2]),
+                                       gradient @ a / np.linalg.norm(gradient @ a), atol=1e-5)
+        fields = result.octrees_output[-1].outputs[-1].exported_fields
+        assert (fields.gx_field_everywhere is not None) == gradient_output
+        assert options.evaluation_options.compute_scalar_gradient == gradient_output
+        np.testing.assert_allclose(BackendTensor.t.to_numpy(fields.scalar_field_everywhere[suffix]),
+                                   np.repeat(BackendTensor.t.to_numpy(fields.scalar_field_at_surface_points), 3), atol=3e-5)
+    finally:
+        BackendTensor._change_backend(AvailableBackends.numpy)
+
+
+@pytest.mark.parametrize('flat', [False, True])
+def test_curved_macro_normals_match_independent_contact_differences(monkeypatch, flat):
+    sp = np.array([[0.2, 0.2, 0.35], [0.8, 0.2, 0.49],
+                   [0.2, 0.8, 0.44], [0.8, 0.8, 0.67]])
+    contacts = np.array([[0.32, 0.34, 0.48], [0.7, 0.65, 0.59]])
+    grid = EngineGrid.from_regular_grid(RegularGrid(
+        orthogonal_extent=[0, 1, 0, 1, 0, 1], regular_grid_shape=[2, 2, 2]))
+    ii = InterpolationInput(SurfacePoints(sp), Orientations(
+        np.array([[0.5, 0.5, 0.48]]), np.array([[0.4, 0.2, 1.]])), grid,
+        micro_points=MicroPoints(contacts, np.repeat(np.diag([1., 2., 0.5])[None], 2, axis=0),
+                                 np.zeros(2), np.zeros(2, dtype=int)))
+    descriptor = InputDataDescriptor(TensorsStructure(np.array([4])), StacksStructure(
+        np.array([4]), np.array([1]), np.array([1]), [StackRelationType.ERODE]))
+    options = InterpolationOptions.from_args(range=3., c_o=1., uni_degree=0, mesh_extraction=False)
+    options.micro_options.enabled = True
+    options.micro_options.align_to_macro = True
+    options.evaluation_options.compute_scalar_gradient = False
+    step = 1e-3
+    shifts = np.eye(3) * step
+    queries = np.concatenate([contacts + shift for shift in shifts] +
+                             [contacts - shift for shift in shifts])
+    baseline_input = InterpolationInput(SurfacePoints(sp), ii.orientations,
+                                        EngineGrid.from_regular_grid(RegularGrid(
+                                            orthogonal_extent=[0, 1, 0, 1, 0, 1], regular_grid_shape=[2, 2, 2])))
+    baseline_input.grid.custom_grid = EngineGrid.from_xyz_coords(queries).custom_grid
+    monkeypatch.setenv('GEMPY_FLAT_STACKS', str(flat))
+    BackendTensor._change_backend(AvailableBackends.numpy, use_pykeops=flat)
+    try:
+        baseline = compute_model(baseline_input, options, descriptor)
+        values = baseline.octrees_output[0].outputs[0].exported_fields.scalar_field_everywhere[
+            baseline_input.grid.custom_grid_slice]
+        differences = np.stack([(values[axis * 2:(axis + 1) * 2] -
+                                 values[(axis + 3) * 2:(axis + 4) * 2]) / (2 * step)
+                                for axis in range(3)], axis=1)
+        normals = differences / np.linalg.norm(differences, axis=1, keepdims=True)
+        assert np.linalg.norm(normals[0] - normals[1]) > 1e-3
+
+        result = compute_model(ii, options, descriptor)
+        published = result.micro_point_results
+        np.testing.assert_array_equal(published.source_indices, [0, 1])
+        published_normals = published.macro_gradients / np.linalg.norm(
+            published.macro_gradients, axis=1, keepdims=True)
+        np.testing.assert_allclose(published_normals, normals, atol=3e-3)
+        matrices = published.anisotropy_matrices
+        for matrix, normal in zip(matrices, normals):
+            axis = np.linalg.inv(matrix)[:, 2]
+            np.testing.assert_allclose(axis / np.linalg.norm(axis), normal, atol=2e-3)
+        assert result.octrees_output[0].outputs[0].exported_fields.gx_field_everywhere is None
+    finally:
+        BackendTensor._change_backend(AvailableBackends.numpy)
+
+
+@pytest.mark.parametrize('flat', [False, True])
+def test_mixed_stack_overrides_acquire_only_enabled_macro_normals(monkeypatch, flat):
+    sp = np.array([[0.2, 0.2, 0.4], [0.8, 0.2, 0.4],
+                   [0.2, 0.8, 0.4], [0.8, 0.8, 0.4]])
+    grid = EngineGrid.from_regular_grid(RegularGrid(
+        orthogonal_extent=[0, 1, 0, 1, 0, 1], regular_grid_shape=[2, 2, 2]))
+    micro = MicroPoints(np.array([[0.5, 0.5, 0.62], [0.5, 0.5, 0.42]]),
+                        np.repeat(np.diag([1., 2., 0.5])[None], 2, axis=0),
+                        np.zeros(2), np.array([1, 0]))
+    ii = InterpolationInput(SurfacePoints(np.vstack((sp, sp + [0., 0., 0.2]))),
+                            Orientations(np.array([[0.5, 0.5, 0.4], [0.5, 0.5, 0.6]]),
+                                         np.array([[0.3, 0., 1.], [0., 0.2, 1.]])), grid, micro_points=micro)
+    options = InterpolationOptions.from_args(range=3., c_o=1., uni_degree=0, mesh_extraction=False)
+    options.evaluation_options.compute_scalar_gradient = False
+    overrides = [options.model_copy(deep=True), options.model_copy(deep=True)]
+    overrides[1].micro_options.enabled = True
+    overrides[1].micro_options.align_to_macro = True
+    descriptor = InputDataDescriptor(TensorsStructure(np.array([4, 4])), StacksStructure(
+        np.array([4, 4]), np.array([1, 1]), np.array([1, 1]),
+        [StackRelationType.ERODE, StackRelationType.ERODE], interpolation_options_per_stack=overrides))
+    monkeypatch.setenv('GEMPY_FLAT_STACKS', str(flat))
+    BackendTensor._change_backend(AvailableBackends.numpy, use_pykeops=flat)
+    try:
+        with pytest.warns(UserWarning, match='Stack 0 contains micro points.*ignored'):
+            result = compute_model(ii, options, descriptor)
+        published = result.micro_point_results
+        np.testing.assert_array_equal(published.source_indices, [0])
+        assert published.macro_gradients.shape == (1, 3)
+        assert np.isfinite(published.macro_gradients).all()
+        assert np.linalg.norm(published.macro_gradients) > 1e-4
+        axis = np.linalg.inv(published.anisotropy_matrices[0])[:, 2]
+        normal = published.macro_gradients[0] / np.linalg.norm(published.macro_gradients[0])
+        np.testing.assert_allclose(axis / np.linalg.norm(axis), normal, atol=1e-5)
+        for output in result.octrees_output[0].outputs:
+            assert output.exported_fields.gx_field_everywhere is None
+        assert not options.micro_options.enabled
+        assert not options.evaluation_options.compute_scalar_gradient
+        assert not overrides[0].micro_options.enabled
+        assert not overrides[1].evaluation_options.compute_scalar_gradient
+    finally:
+        BackendTensor._change_backend(AvailableBackends.numpy)
+
+
+@pytest.mark.parametrize('backend', ['numpy', 'torch'])
+def test_alignment_zero_gradient_and_authored_frame_independence(backend):
+    torch = pytest.importorskip('torch') if backend == 'torch' else None
+    BackendTensor._change_backend(AvailableBackends.PYTORCH if torch else AvailableBackends.numpy, grads=bool(torch))
+    try:
+        a = np.diag([2., 3., 4.])
+        basis = np.diag([0.5, 1., 2.])
+        matrix = np.linalg.inv(a @ basis)
+        matrices = np.stack((matrix, matrix @ np.array([[0., -1., 0.], [1., 0., 0.], [0., 0., 1.]])))
+        if torch:
+            matrices = torch.tensor(matrices, dtype=torch.float64, requires_grad=True)
+            a = torch.tensor(a, dtype=torch.float64, requires_grad=True)
+            gradients = torch.tensor([[1., 2., 3.], [0., 0., 0.]], dtype=torch.float64, requires_grad=True)
+        else:
+            gradients = np.array([[1., 2., 3.], [0., 0., 0.]])
+        micro = MicroPoints(np.zeros((2, 3)), matrices, np.zeros(2), np.zeros(2, dtype=int), a)
+        fitted = align_micro_matrices(micro, gradients)
+        np.testing.assert_allclose(BackendTensor.t.to_numpy(fitted[1]), BackendTensor.t.to_numpy(matrices[1]))
+        np.testing.assert_allclose(np.linalg.norm(np.linalg.inv(BackendTensor.t.to_numpy(a)) @
+                                                   np.linalg.inv(BackendTensor.t.to_numpy(fitted[0])), axis=0),
+                                   [0.5, 1., 2.])
+        if torch:
+            grads = torch.autograd.grad(fitted[0].square().sum(), (matrices, a, gradients))
+            assert all(torch.isfinite(g).all() and g.abs().max() > 0 for g in grads)
+    finally:
+        BackendTensor._change_backend(AvailableBackends.numpy)
+
+
+@pytest.mark.parametrize('transform', [np.zeros((3, 3)), np.ones((2, 3)),
+                                      np.diag([1., 1., np.nan])])
+def test_micro_rejects_invalid_support_to_engine(transform):
+    with pytest.raises(ValueError, match='support_to_engine'):
+        MicroPoints(np.zeros((1, 3)), np.eye(3)[None], np.zeros(1), np.array([0]), transform)

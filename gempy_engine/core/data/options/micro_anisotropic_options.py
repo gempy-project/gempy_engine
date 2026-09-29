@@ -7,6 +7,7 @@ MicroKernelType = Literal["exponential", "matern_3_2", "matern_5_2"]
 
 class MicroAnisotropicOptions(BaseModel):
     enabled: bool = False
+    align_to_macro: bool = True
     kernel_range: float = 1.0                    # range for the micro kernel
     kernel_type: MicroKernelType = "matern_5_2"  # kernel function for micro solve + eval
     nugget: float = 0.0                          # diagonal nugget for the micro solve

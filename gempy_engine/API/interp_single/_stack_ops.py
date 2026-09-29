@@ -22,7 +22,7 @@ from numpy import ndarray, dtype
 
 from ...modules.activator import activator_interface
 from ...modules.data_preprocess import data_preprocess_interface
-from ...modules.evaluator.micro_correction import apply_micro_correction, fit_micro_correction
+from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
 
 
 @dataclass
@@ -94,7 +94,8 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
     # Evaluate this chunk
     # The fused PyKeOps evaluator cannot concatenate scalar and gradient lazy kernels.
     if (any(item.fault_values.finite_fault_defined for item in chunk_interpolation_inputs)
-            or any(opt.compute_scalar_gradient for opt in chunk_options)):
+            or any(micro_evaluation_options(opt, item).compute_scalar_gradient
+                   for opt, item in zip(chunk_options, chunk_interpolation_inputs))):
         chunk_eval_inputs, chunk_exported_fields = _evaluate(
             interpolation_inputs=chunk_interpolation_inputs,
             options=state.options,
@@ -117,10 +118,9 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
 
     for idx, i in enumerate(chunk):
         state.eval_inputs[i] = chunk_eval_inputs[idx]
-        correction = fit_micro_correction(chunk_interpolation_inputs[idx],
-                                          chunk_exported_fields[idx].scalar_field_everywhere,
-                                          chunk_options[idx], chunk_tensor_structs[idx].number_of_points_per_surface)
-        apply_micro_correction(chunk_exported_fields[idx], chunk_eval_inputs[idx].xyz_to_interpolate, correction)
+        fit_micro_fields(chunk_interpolation_inputs[idx], chunk_exported_fields[idx], chunk_options[idx],
+                         chunk_tensor_structs[idx].number_of_points_per_surface,
+                         chunk_eval_inputs[idx].xyz_to_interpolate, chunk_options[idx].compute_scalar_gradient)
 
     # Segment this chunk
     chunk_outputs = _segment(
@@ -231,7 +231,8 @@ def _evaluate(interpolation_inputs: list[InterpolationInput], options: Interpola
         exported_fields: ExportedFields = _evaluate_sys_eq(
             eval_input=eval_input,
             weights=eval_input.solver_input.weights_x0,
-            options=options_per_stack[idx] if options_per_stack is not None else options,
+            options=micro_evaluation_options(options_per_stack[idx] if options_per_stack is not None else options,
+                                             interpolation_inputs[idx]),
             grid=interpolation_inputs[idx].grid,
         )
 

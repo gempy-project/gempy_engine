@@ -6,7 +6,7 @@ import numpy as np
 
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.core.data.micro_points import MicroArray
+from gempy_engine.core.data.micro_points import MicroArray, MicroPointResults
 from .micro_anisotropic_evaluator import build_micro_design_matrix, evaluate_micro_values_and_gradient
 
 
@@ -20,7 +20,53 @@ class MicroCorrection:
     surface_isovalues: MicroArray | None = None
 
 
-def fit_micro_correction(interpolation_input, macro_values, options, surface_sizes):
+def align_micro_matrices(micro, gradients):
+    """Align world support z to the uncorrected macro normal, retaining world radii."""
+    is_torch = BackendTensor.engine_backend is AvailableBackends.PYTORCH
+    if is_torch:
+        import torch
+        tensor = lambda value: torch.as_tensor(value, dtype=gradients.dtype, device=gradients.device)
+        linalg = torch.linalg
+        cross = torch.linalg.cross
+        stack = torch.stack
+        where = torch.where
+    else:
+        tensor = np.asarray
+        linalg = np.linalg
+        cross = np.cross
+        stack = np.stack
+        where = np.where
+
+    matrices = tensor(micro.anisotropy_matrices)
+    a = tensor(micro.support_to_engine) if micro.support_to_engine is not None else tensor(np.eye(3))
+    basis = linalg.inv(a) @ linalg.inv(matrices)
+    radii = linalg.vector_norm(basis, dim=1) if is_torch else linalg.norm(basis, axis=1)
+    world_gradient = gradients @ a
+    norm = linalg.vector_norm(world_gradient, dim=1, keepdim=True) if is_torch else linalg.norm(world_gradient, axis=1, keepdims=True)
+    valid = norm > 1e-12
+    z = world_gradient / where(valid, norm, tensor(1.))
+    z = where(valid, z, tensor([0., 0., 1.]))
+    reference = where(abs(z[:, :1]) < 0.9, tensor([1., 0., 0.]), tensor([0., 1., 0.]))
+    x = cross(reference, z)
+    x = x / (linalg.vector_norm(x, dim=1, keepdim=True) if is_torch else linalg.norm(x, axis=1, keepdims=True))
+    y = cross(z, x)
+    frame = stack((x, y, z), dim=-1) if is_torch else stack((x, y, z), axis=-1)
+    aligned = linalg.inv(a @ (frame * radii[:, None, :]))
+    return where(valid[:, :, None], aligned, matrices)
+
+
+def micro_evaluation_options(options, interpolation_input):
+    """Request macro gradients locally without modifying caller-visible options."""
+    micro = interpolation_input.micro_points
+    if (micro is None or not len(micro.points) or not options.micro_options.enabled
+            or not options.micro_options.align_to_macro or options.compute_scalar_gradient):
+        return options
+    updated = options.model_copy(deep=True)
+    updated.evaluation_options.compute_scalar_gradient = True
+    return updated
+
+
+def fit_micro_correction(interpolation_input, macro_values, options, surface_sizes, macro_gradients=None):
     micro = interpolation_input.micro_points
     settings = options.micro_options
     if not settings.enabled or micro is None or not len(micro.points):
@@ -39,6 +85,10 @@ def fit_micro_correction(interpolation_input, macro_values, options, surface_siz
     macro_points = tensor(interpolation_input.surface_points.sp_coords)
     points = tensor(micro.points)
     matrices = tensor(micro.anisotropy_matrices)
+    if settings.align_to_macro:
+        if macro_gradients is None:
+            raise ValueError("Aligned micro contacts require macro gradients")
+        matrices = align_micro_matrices(micro, macro_gradients)
     if is_torch and isinstance(surface_sizes, torch.Tensor):
         # Surface counts are integer metadata, not part of the differentiable fit.
         sizes = surface_sizes.cpu().tolist()
@@ -80,6 +130,27 @@ def fit_micro_correction(interpolation_input, macro_values, options, surface_siz
         raise ValueError("Micro-point fit produced non-finite weights")
     return MicroCorrection(centers, matrices, fitted * settings.strength, settings.kernel_range,
                            settings.kernel_type, surface_isovalues)
+
+
+def fit_micro_fields(interpolation_input, fields, options, surface_sizes, xyz, publish_gradients):
+    """Keep contact gradients uncorrected and publish only authored aligned rows."""
+    micro = interpolation_input.micro_points
+    aligned = micro is not None and len(micro.points) and options.micro_options.enabled and options.micro_options.align_to_macro
+    gradients = None
+    if aligned:
+        rows = interpolation_input.micro_slice
+        indices = interpolation_input.micro_indices
+        gradients = BackendTensor.t.stack((fields.gx_field_everywhere[rows][indices],
+                                           fields.gy_field_everywhere[rows][indices],
+                                           fields.gz_field_everywhere[rows][indices]), axis=1)
+    correction = fit_micro_correction(interpolation_input, fields.scalar_field_everywhere,
+                                      options, surface_sizes, gradients)
+    if aligned:
+        fields.micro_point_results = MicroPointResults(interpolation_input.micro_indices.copy(), gradients,
+                                                        correction.matrices[:len(micro.points)])
+    apply_micro_correction(fields, xyz, correction)
+    if not publish_gradients:
+        fields._gx_field = fields._gy_field = fields._gz_field = None
 
 
 def apply_micro_correction(fields, xyz, correction: MicroCorrection | None):

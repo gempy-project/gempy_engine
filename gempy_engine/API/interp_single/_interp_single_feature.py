@@ -19,7 +19,7 @@ from ...core.data.scalar_field_output import ScalarFieldOutput
 from ...core.data.stack_relation_type import StackRelationType
 from ...modules.activator import activator_interface
 from ...modules.data_preprocess import data_preprocess_interface
-from ...modules.evaluator.micro_correction import apply_micro_correction, fit_micro_correction
+from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
 
 
 def interpolate_feature_with_cokrig(interpolation_input: InterpolationInput,
@@ -37,10 +37,10 @@ def interpolate_feature_with_cokrig(interpolation_input: InterpolationInput,
     xyz = solver_input.xyz_to_interpolate
 
     weights = compute_weights(solver_input, stack_number, options)
-    exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options, grid=grid)
-    correction = fit_micro_correction(interpolation_input, exported_fields.scalar_field_everywhere, options,
-                                      data_shape.number_of_points_per_surface)
-    apply_micro_correction(exported_fields, xyz, correction)
+    exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights,
+                                                       micro_evaluation_options(options, interpolation_input), grid=grid)
+    fit_micro_fields(interpolation_input, exported_fields, options,
+                     data_shape.number_of_points_per_surface, xyz, options.compute_scalar_gradient)
 
     exported_fields.set_structure_values(
         reference_sp_position=data_shape.reference_sp_position,
