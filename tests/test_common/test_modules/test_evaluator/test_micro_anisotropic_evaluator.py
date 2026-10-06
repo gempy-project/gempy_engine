@@ -42,22 +42,23 @@ def test_joint_values_and_gradient_numpy(kernel_type):
 @pytest.mark.parametrize("kernel_type", ["exponential", "matern_3_2", "matern_5_2"])
 def test_joint_values_and_gradient_torch(kernel_type):
     torch = pytest.importorskip("torch")
-    xyz = torch.tensor([[0., 0., 0.], [.7, -.4, .2]], dtype=torch.float64, requires_grad=True)
-    centers = torch.tensor([[0., 0., 0.]], dtype=torch.float64)
-    weights = torch.tensor([1.2], dtype=torch.float64, requires_grad=True)
-    matrices = torch.diag(torch.tensor([2., 1., .5], dtype=torch.float64))[None]
-    values, gradient = evaluate_micro_values_and_gradient(
-        xyz, centers, weights, matrices, 1.3, kernel_type, compute_gradient=True,
-    )
-    only_values, no_gradient = evaluate_micro_values_and_gradient(xyz, centers, weights, matrices, 1.3, kernel_type)
-    torch.testing.assert_close(values, only_values)
-    torch.testing.assert_close(values, evaluate_micro_correction(xyz, centers, weights, matrices, 1.3, kernel_type))
-    torch.testing.assert_close(gradient, evaluate_micro_gradient(xyz, centers, weights, matrices, 1.3, kernel_type))
-    assert no_gradient is None
-    assert torch.isfinite(gradient).all()
-    values[1].backward()
-    torch.testing.assert_close(xyz.grad[1], gradient[1])
-    assert weights.grad is not None
+    with torch.enable_grad():
+        xyz = torch.tensor([[0., 0., 0.], [.7, -.4, .2]], dtype=torch.float64, requires_grad=True)
+        centers = torch.tensor([[0., 0., 0.]], dtype=torch.float64)
+        weights = torch.tensor([1.2], dtype=torch.float64, requires_grad=True)
+        matrices = torch.diag(torch.tensor([2., 1., .5], dtype=torch.float64))[None]
+        values, gradient = evaluate_micro_values_and_gradient(
+            xyz, centers, weights, matrices, 1.3, kernel_type, compute_gradient=True,
+        )
+        only_values, no_gradient = evaluate_micro_values_and_gradient(xyz, centers, weights, matrices, 1.3, kernel_type)
+        torch.testing.assert_close(values, only_values)
+        torch.testing.assert_close(values, evaluate_micro_correction(xyz, centers, weights, matrices, 1.3, kernel_type))
+        torch.testing.assert_close(gradient, evaluate_micro_gradient(xyz, centers, weights, matrices, 1.3, kernel_type))
+        assert no_gradient is None
+        assert torch.isfinite(gradient).all()
+        values[1].backward()
+        torch.testing.assert_close(xyz.grad[1], gradient[1])
+        assert weights.grad is not None
 
 
 # ----------------------------------------------------------------

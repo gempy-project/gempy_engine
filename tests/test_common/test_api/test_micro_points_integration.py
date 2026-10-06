@@ -20,7 +20,32 @@ from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import (
 from gempy_engine.modules.evaluator.micro_correction import align_micro_matrices
 
 
-@pytest.mark.parametrize("flat", [False, True])
+@pytest.fixture(autouse=True)
+def numpy_backend(restore_backend):
+    BackendTensor._change_backend(AvailableBackends.numpy)
+
+
+@pytest.fixture
+def pykeops():
+    pytest.importorskip("pykeops")
+
+
+@pytest.fixture(params=[False, True])
+def flat(request):
+    if request.param:
+        request.getfixturevalue("pykeops")
+    return request.param
+
+
+@pytest.fixture(params=["numpy", "flat", "torch"])
+def backend(request):
+    if request.param == "flat":
+        request.getfixturevalue("pykeops")
+    elif request.param == "torch":
+        pytest.importorskip("torch")
+    return request.param
+
+
 @pytest.mark.parametrize("gradient", [False, True])
 def test_authored_micro_contacts_are_stack_local(monkeypatch, flat, gradient):
     if flat:
@@ -167,7 +192,6 @@ def test_micro_subset_uses_global_surface_indices():
     assert subset.micro_slice == slice(grid.len_all_grids + 4, grid.len_all_grids + 6)
 
 
-@pytest.mark.parametrize('flat', [False, True])
 def test_aligned_results_map_to_root_contact_rows_across_stacks(monkeypatch, flat):
     sp = np.array([[0.2, 0.2, 0.4], [0.8, 0.2, 0.4], [0.2, 0.8, 0.4], [0.8, 0.8, 0.4]])
     grid = EngineGrid.from_regular_grid(RegularGrid(
@@ -272,10 +296,13 @@ def _fault_micro_model(finite=False, chain=False):
     return ii, descriptor, options
 
 
-@pytest.mark.parametrize('backend', ['numpy', 'flat', 'torch'])
 @pytest.mark.parametrize('preserve_macro_points', [False, True])
 @pytest.mark.parametrize('macro_nugget', [0., 0.1])
 def test_micro_contacts_match_final_surface_isovalues(monkeypatch, backend, preserve_macro_points, macro_nugget):
+    BackendTensor._change_backend(
+        AvailableBackends.PYTORCH if backend == 'torch' else AvailableBackends.numpy,
+        use_pykeops=backend == 'flat',
+    )
     ii, descriptor, options = _fault_micro_model()
     micro = ii.micro_points
     ii.micro_points = MicroPoints(micro.points[:1], micro.anisotropy_matrices[:1],
@@ -286,12 +313,6 @@ def test_micro_contacts_match_final_surface_isovalues(monkeypatch, backend, pres
     options.micro_options.nugget = 0.
     options.micro_options.strength = 1.
     monkeypatch.setenv('GEMPY_FLAT_STACKS', str(backend == 'flat'))
-    if backend == 'torch':
-        pytest.importorskip('torch')
-    BackendTensor._change_backend(
-        AvailableBackends.PYTORCH if backend == 'torch' else AvailableBackends.numpy,
-        use_pykeops=backend == 'flat',
-    )
     try:
         options.micro_options.enabled = False
         with pytest.warns(UserWarning, match='ignored'):
@@ -314,7 +335,7 @@ def test_micro_contacts_match_final_surface_isovalues(monkeypatch, backend, pres
 
 
 @pytest.mark.parametrize('finite,chain', [(False, False), (False, True), (True, False)])
-def test_fault_micro_contacts_flow_through_dependencies(monkeypatch, finite, chain):
+def test_fault_micro_contacts_flow_through_dependencies(monkeypatch, finite, chain, pykeops):
     ii, descriptor, options = _fault_micro_model(finite, chain)
     from gempy_engine.API.interp_single._aux_faults_ops import _modify_faults_values_output
 
@@ -378,7 +399,6 @@ def test_fault_micro_query_preserves_torch_gradients():
 
 
 @pytest.mark.parametrize('finite', [False, True])
-@pytest.mark.parametrize('flat', [False, True])
 def test_fault_reference_prefix_unaffected_by_remote_contact(monkeypatch, finite, flat):
     ii, descriptor, options = _fault_micro_model(finite=finite)
     ii.micro_points.points[0] = [50., -50., 50.]
@@ -423,7 +443,6 @@ def test_micro_fit_uses_existing_macro_evaluation(monkeypatch):
     assert calls == [ii.grid.len_all_grids + ii.surface_points.n_points + len(ii.micro_points.points)] * 3
 
 
-@pytest.mark.parametrize('flat', [False, True])
 def test_external_upstream_fault_evaluates_shared_suffix(monkeypatch, flat):
     ii, descriptor, options = _fault_micro_model()
     descriptor.stack_structure.interp_functions_per_stack = [CustomInterpolationFunctions(
@@ -442,7 +461,7 @@ def test_external_upstream_fault_evaluates_shared_suffix(monkeypatch, flat):
         BackendTensor._change_backend(AvailableBackends.numpy)
 
 
-def test_flat_faults_use_each_faults_segmentation_function(monkeypatch):
+def test_flat_faults_use_each_faults_segmentation_function(monkeypatch, pykeops):
     ii, descriptor, options = _fault_micro_model(chain=True)
     relations = descriptor.stack_structure.faults_relations
     relations[0, 1] = False
@@ -479,7 +498,6 @@ def test_flat_faults_use_each_faults_segmentation_function(monkeypatch):
         BackendTensor._change_backend(AvailableBackends.numpy)
 
 
-@pytest.mark.parametrize('flat', [False, True])
 @pytest.mark.parametrize('chain', [False, True])
 def test_fault_surface_micro_rejected_even_with_upstream_faults(monkeypatch, flat, chain):
     ii, descriptor, options = _fault_micro_model(chain=chain)
@@ -493,7 +511,6 @@ def test_fault_surface_micro_rejected_even_with_upstream_faults(monkeypatch, fla
         BackendTensor._change_backend(AvailableBackends.numpy)
 
 
-@pytest.mark.parametrize('flat', [False, True])
 @pytest.mark.parametrize('root_enabled', [False, True])
 def test_disabled_fault_surface_micro_is_ignored(monkeypatch, flat, root_enabled):
     ii, descriptor, options = _fault_micro_model()
@@ -532,7 +549,6 @@ def test_external_micro_contacts_rejected_before_evaluation(monkeypatch, flat):
         compute_model(ii, options, descriptor)
 
 
-@pytest.mark.parametrize('flat', [False, True])
 @pytest.mark.parametrize('deduplicate', [False, True])
 @pytest.mark.parametrize('preserve_macro_points', [False, True])
 def test_micro_contacts_flow_through_octree_and_mesh(monkeypatch, flat, deduplicate, preserve_macro_points):
@@ -573,12 +589,14 @@ def test_micro_contacts_flow_through_octree_and_mesh(monkeypatch, flat, deduplic
         BackendTensor._change_backend(AvailableBackends.numpy)
 
 
-@pytest.mark.parametrize('backend', ['numpy', 'flat', 'torch'])
 @pytest.mark.parametrize('gradient_output', [False, True])
 def test_aligned_results_use_uncorrected_contact_gradients(monkeypatch, backend, gradient_output):
     from gempy_engine.modules.evaluator.micro_correction import fit_micro_fields
+    BackendTensor._change_backend(AvailableBackends.PYTORCH if backend == 'torch' else AvailableBackends.numpy,
+                                  use_pykeops=backend == 'flat', grads=backend == 'torch')
     ii, descriptor, options = _fault_micro_model()
-    ii.orientations.dip_gradients[-1] = [0.7, 0.2, 1.]
+    ii.orientations = Orientations(ii.orientations.dip_positions,
+                                   np.array([[1., 0., 0.], [0.7, 0.2, 1.]]))
     a = np.array([[2., 0.3, 0.], [0., 1.5, 0.2], [0., 0., 0.8]])
     authored_basis = np.array([[1., 0., 0.], [0., 2., 0.], [0., 0., 3.]])
     ii.micro_points = MicroPoints(ii.micro_points.points, np.repeat(np.linalg.inv(a @ authored_basis)[None], 3, axis=0),
@@ -586,8 +604,6 @@ def test_aligned_results_use_uncorrected_contact_gradients(monkeypatch, backend,
     options.micro_options.preserve_macro_points = True
     options.evaluation_options.compute_scalar_gradient = gradient_output
     monkeypatch.setenv('GEMPY_FLAT_STACKS', str(backend == 'flat'))
-    BackendTensor._change_backend(AvailableBackends.PYTORCH if backend == 'torch' else AvailableBackends.numpy,
-                                  use_pykeops=backend == 'flat', grads=backend == 'torch')
     try:
         options.micro_options.align_to_macro = False
         unaligned = compute_model(ii, options, descriptor)
@@ -625,7 +641,6 @@ def test_aligned_results_use_uncorrected_contact_gradients(monkeypatch, backend,
         BackendTensor._change_backend(AvailableBackends.numpy)
 
 
-@pytest.mark.parametrize('flat', [False, True])
 def test_curved_macro_normals_match_independent_contact_differences(monkeypatch, flat):
     sp = np.array([[0.2, 0.2, 0.35], [0.8, 0.2, 0.49],
                    [0.2, 0.8, 0.44], [0.8, 0.8, 0.67]])
@@ -677,7 +692,6 @@ def test_curved_macro_normals_match_independent_contact_differences(monkeypatch,
         BackendTensor._change_backend(AvailableBackends.numpy)
 
 
-@pytest.mark.parametrize('flat', [False, True])
 def test_mixed_stack_overrides_acquire_only_enabled_macro_normals(monkeypatch, flat):
     sp = np.array([[0.2, 0.2, 0.4], [0.8, 0.2, 0.4],
                    [0.2, 0.8, 0.4], [0.8, 0.8, 0.4]])
