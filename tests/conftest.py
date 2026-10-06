@@ -84,8 +84,23 @@ def tests_root():
 
 @pytest.fixture(autouse=True)
 def restore_backend():
-    current_backend = BackendTensor.engine_backend
-    current_use_gpu = BackendTensor.use_gpu
-    yield
-    if BackendTensor.engine_backend != current_backend or BackendTensor.use_gpu != current_use_gpu:
-        BackendTensor._change_backend(engine_backend=current_backend, use_gpu=current_use_gpu)
+    from gempy_engine.config import is_pytorch_installed
+
+    def settings():
+        return dict(engine_backend=BackendTensor.engine_backend, use_gpu=BackendTensor.use_gpu,
+                    use_pykeops=BackendTensor.use_pykeops, dtype=BackendTensor.dtype,
+                    grads=BackendTensor.COMPUTE_GRADS)
+
+    original = settings()
+    pykeops_enabled = BackendTensor.pykeops_enabled
+    if is_pytorch_installed:
+        import torch
+        grad_enabled = torch.is_grad_enabled()
+    try:
+        yield
+    finally:
+        if settings() != original:
+            BackendTensor._change_backend(**original)
+        BackendTensor.pykeops_enabled = pykeops_enabled
+        if is_pytorch_installed:
+            torch.set_grad_enabled(grad_enabled)

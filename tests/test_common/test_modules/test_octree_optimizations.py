@@ -136,7 +136,9 @@ def test_evaluation_and_gradient_parity(backend, flat_input, symbolic, monkeypat
 @pytest.mark.parametrize('flat', [False, True])
 def test_model_parity(backend, flat, monkeypatch):
     from gempy_engine.API.model.model_api import compute_model
-    from gempy_engine.API.interp_single import _multi_scalar_field_manager as manager
+
+    if flat:
+        pytest.importorskip('pykeops')
 
     monkeypatch.setenv('GEMPY_FLAT_STACKS', 'False')
     interp, options, descriptor = simple_model_interpolation_input_factory()
@@ -147,9 +149,7 @@ def test_model_parity(backend, flat, monkeypatch):
     options.evaluation_options.deduplicate_octree_corners = True
     monkeypatch.setenv('GEMPY_FLAT_STACKS', str(flat))
     if flat:
-        # Public flat dispatch requires PyKeOps; exercise the same stack manager
-        # with dense per-stack evaluation here without requiring the JIT compiler.
-        monkeypatch.setattr(manager, '_interpolate_stack', manager._interpolate_stack_flat)
+        monkeypatch.setattr(BackendTensor, 'use_pykeops', True)
     optimized = compute_model(interp, options, descriptor)
     t = BackendTensor.t
     for old_level, new_level in zip(legacy.octrees_output, optimized.octrees_output):
@@ -165,9 +165,11 @@ def test_model_parity(backend, flat, monkeypatch):
 
 @pytest.mark.parametrize('flat', [False, True])
 def test_fault_model_parity(backend, flat, monkeypatch):
-    from gempy_engine.API.interp_single import _multi_scalar_field_manager as manager
     from gempy_engine.API.model.model_api import compute_model
     from tests.fixtures.complex_geometries import graben_fault_model
+
+    if flat:
+        pytest.importorskip('pykeops')
 
     monkeypatch.setenv('GEMPY_FLAT_STACKS', 'False')
     results = []
@@ -177,7 +179,8 @@ def test_fault_model_parity(backend, flat, monkeypatch):
         options.evaluation_options.mesh_extraction = False
         options.evaluation_options.deduplicate_octree_corners = optimized
         if flat and optimized:
-            monkeypatch.setattr(manager, '_interpolate_stack', manager._interpolate_stack_flat)
+            monkeypatch.setenv('GEMPY_FLAT_STACKS', 'True')
+            monkeypatch.setattr(BackendTensor, 'use_pykeops', True)
         results.append(compute_model(interp, options, descriptor))
     t = BackendTensor.t
     for old_level, new_level in zip(results[0].octrees_output, results[1].octrees_output):
