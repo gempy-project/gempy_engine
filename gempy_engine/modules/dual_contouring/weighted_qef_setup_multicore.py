@@ -158,16 +158,26 @@ def find_and_inject_multi_surface_constraints_multicore(
         cross_weight: float = DEFAULT_CROSS_SURFACE_WEIGHT,
         max_workers: int = None,  # None defaults to min(32, os.cpu_count() + 4)
         surface_to_stack: Optional[List[int]] = None,
-        faults_relations: Optional[np.ndarray] = None
+        faults_relations: Optional[np.ndarray] = None,
+        *,
+        allowed_partners_per_surface: Optional[List[set]] = None
 ) -> None:
+    """Inject constraints, optionally using explicit partner sets (including empty sets).
+
+    The API can restrict fault preparation to both directions of directed fault
+    pairs. None preserves the legacy helper and its existing fallback behavior.
+    """
     n_surfaces = len(dc_data_list)
+    if allowed_partners_per_surface is not None and len(allowed_partners_per_surface) != n_surfaces:
+        raise ValueError('Expected one allowed partner set per surface')
     if n_surfaces < 2:
         return
 
     # --- 0. Determine allowed pairwise partners (improvement 4.1 + 4.2) ---
-    allowed_partners_per_surface = _build_allowed_partners(
-        surface_to_stack, faults_relations, n_surfaces
-    )
+    if allowed_partners_per_surface is None:
+        allowed_partners_per_surface = _build_allowed_partners(
+            surface_to_stack, faults_relations, n_surfaces
+        )
 
     # --- 1. Generate codes ---
     voxel_codes_per_surface = _generate_voxel_codes(left_right_per_mesh, base_number)

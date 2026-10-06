@@ -2,6 +2,21 @@
 
 ## Status And Goal
 
+**Superseded target plan:** see [Voxel-Based Contact Reconciliation](voxel_contact_reconciliation.md)
+for the agreed contact rules, architecture, tests, and next implementation steps.
+The discussion established shared-cell averaging across eligible structural
+groups, strict same-group isolation, accepted coarse-resolution sticking, and
+reuse of the working `pretty` fault approach. Exact planar intersection and
+independent-surface isolation are no longer the target contract.
+
+The remainder of this document is a historical record of the initial plan,
+characterization results, and planar prototype. Its affine-only support limits,
+QEF-bypass policy, and delivery checklist must not be interpreted as requirements
+for the revised voxel-based implementation. The first voxel-based runtime
+milestone is now implemented; see the linked plan's Runtime Snapshot for current
+behavior and remaining limitations. The planar implementation described below
+is no longer the active `contact_aware` path.
+
 The Phase 1 characterization suite and legacy benchmark harness are implemented.
 The initial Phase 2 `contact_aware` mode now supports planar erosion/onlap with
 explicit validation and procedural, array-only computational modules. Broader

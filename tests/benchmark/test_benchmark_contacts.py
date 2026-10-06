@@ -1,9 +1,10 @@
-"""Phase 1 legacy baselines, independent of the contact correctness catalogue.
+"""Legacy baselines and opt-in contact-aware extraction/model coverage.
 
 Run with single-thread BLAS (OMP_NUM_THREADS=OPENBLAS_NUM_THREADS=MKL_NUM_THREADS=1).
 GEMPY_CONTACT_BENCHMARK_ROUNDS controls pedantic rounds (default 5); iterations
 are always 1 so mutable inputs are fresh for every timed call. Use --benchmark-json
 to retain extra_info. No timing thresholds or seam-correctness claims are made.
+Set GEMPY_CONTACT_AWARE_BENCHMARKS=1 for the upcoming cell-based integration.
 """
 
 import copy
@@ -98,6 +99,8 @@ def extract(descriptor, interpolation_input, options, octrees):
 
 def prepare(scope, case, resolution, mode):
     """Return target, untimed per-round setup, and JSON-safe workload metadata."""
+    if scope == "overlap" and mode == "contact_aware":
+        raise ValueError("contact_aware must use the contact-cells scope, not legacy_overlap")
     model = make_model(case, resolution)
     interpolation_input, options, descriptor = model
     info = dict(scope=scope, case=case, mode=mode, backend="numpy", dtype="float64",
@@ -158,6 +161,11 @@ def prepare(scope, case, resolution, mode):
 def add_mesh_counts(info, meshes, prefix):
     info[f"{prefix}_vertices"] = sum(len(m.vertices) for m in meshes)
     info[f"{prefix}_triangles"] = sum(len(m.edges) for m in meshes)
+    if meshes and all(m.contact_report is not None for m in meshes):
+        report = meshes[0].contact_report
+        info.update(reconciled_contact_sets=report['contact_count'],
+                    rejected_contact_candidates=report['conflict_count'],
+                    contact_count_note="Reconciled sets are accepted voxel contacts, not exact mesh intersections.")
     if meshes and all(m.dc_data is not None for m in meshes):
         data = [m.dc_data for m in meshes]
         add_cell_counts(info, [d.left_right_codes[d.valid_voxels] for d in data],
@@ -175,10 +183,15 @@ def add_cell_counts(info, coordinates, base, mapping):
 
 
 @pytest.mark.parametrize("resolution", [4, 8], ids=lambda value: f"r{value}")
-@pytest.mark.parametrize("mode", ["none", "pretty", "watertight"])
+@pytest.mark.parametrize("mode", ["none", "pretty", "watertight", "contact_aware"])
 @pytest.mark.parametrize("case", ["single_stack", "unconformity"])
 @pytest.mark.parametrize("scope", ["overlap", "extraction", "model"])
 def test_benchmark_contacts(benchmark, monkeypatch, scope, case, resolution, mode):
+    if mode == "contact_aware":
+        if scope == "overlap":
+            pytest.skip("Cell reconciliation has a separate prepared-module benchmark")
+        if os.getenv("GEMPY_CONTACT_AWARE_BENCHMARKS") != "1":
+            pytest.skip("Set GEMPY_CONTACT_AWARE_BENCHMARKS=1 after cell-based integration")
     monkeypatch.setenv("DUAL_CONTOURING_MULTITHREAD", "False")
     monkeypatch.setenv("GEMPY_SKIP_TRIANGULATION", "0")
     monkeypatch.setattr(dc, "DUAL_CONTOURING_VERTEX_OVERLAP", DualContouringOverlap[mode])
