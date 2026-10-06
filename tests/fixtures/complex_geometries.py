@@ -157,7 +157,7 @@ def one_finite_fault_model():
     return interpolation_input, input_data_descriptor, options
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def graben_fault_model():
     centers = np.array([500, 500, -550])
     rescaling_factor = 240
@@ -178,7 +178,8 @@ def graben_fault_model():
 
     resolution = [2, 2, 2]
     extent = np.array([-500, 500., -500, 500, -450, 550]) / rescaling_factor
-    regular_grid = RegularGrid(extent, resolution)
+    # Preserve the historical sampling lattice now that RegularGrid no longer shifts extents.
+    regular_grid = RegularGrid(extent + 1e-6, resolution)
     grid = EngineGrid(octree_grid=regular_grid)
 
     interpolation_input = InterpolationInput(spi, ori, grid, ids)

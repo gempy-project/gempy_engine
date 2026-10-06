@@ -7,7 +7,7 @@ from ...core.backend_tensor import BackendTensor
 
 
 def mesh_support_report(coordinates, scalar_corners, isovalue, domain_shape,
-                        mask=None, surface_index=0, ancestor_coordinates=()):
+                        mask=None, surface_index=0, ancestor_coordinates=(), strict_crossings=False):
     """Classify missing incident cells for unique sampled sign-changing edges.
 
     This diagnoses sampled crossings, not unsampled components or later triangle
@@ -30,7 +30,10 @@ def mesh_support_report(coordinates, scalar_corners, isovalue, domain_shape,
         ((0, 1), (2, 3), (4, 5), (6, 7)),
     )):
         for a, b in pairs:
-            crossing = (scalar[:, a] >= iso) != (scalar[:, b] >= iso)
+            if strict_crossings:
+                crossing = (scalar[:, a] <= iso) != (scalar[:, b] <= iso)
+            else:
+                crossing = (scalar[:, a] >= iso) != (scalar[:, b] >= iso)
             edges.update((direction, *p) for p in coords[crossing] + corners[a])
     report = dict(surface_index=surface_index, crossing_edge_count=len(edges),
                   missing_incident_cell_count=0, physical_boundary_edge_count=0,

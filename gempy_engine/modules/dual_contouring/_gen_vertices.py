@@ -29,21 +29,12 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
     edges_xyz[:, :12][valid_edges_bool] = xyz_on_edge
     edges_normals[:, :12][valid_edges_bool] = gradients
 
-    # Use nanmean directly without intermediate copy
+    # Zero coordinates are valid samples, not missing edge constraints.
     bias_xyz_slice = edges_xyz[:, :12]
-    
-    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
-        mask = bias_xyz_slice == 0
-        bias_xyz_masked = BackendTensor.tfnp.where(mask, float('nan'), bias_xyz_slice)
-        mass_points = BackendTensor.tfnp.nanmean(bias_xyz_masked, axis=1)
-    else:
-        # NumPy: more efficient approach using sum and count
-        mask = bias_xyz_slice != 0
-        sum_valid = (bias_xyz_slice * mask).sum(axis=1)
-        count_valid = mask.sum(axis=1)
-        # Avoid division by zero
-        count_valid = BackendTensor.tfnp.maximum(count_valid, 1)
-        mass_points = sum_valid / count_valid
+    mask = valid_edges_bool[:, :, None]
+    sum_valid = (bias_xyz_slice * mask).sum(axis=1)
+    count_valid = mask.sum(axis=1)
+    mass_points = sum_valid / count_valid
 
     # Assign mass points to bias positions
     edges_xyz[:, 12:15] = mass_points[:, None, :]
@@ -96,7 +87,10 @@ def generate_dual_contouring_vertices(dc_data_per_stack: DualContouringData, sli
         
         # Solve ATA @ x = ATb  (use solve instead of inv for numerical stability)
         import torch
-        reg = 1e-4 * torch.eye(3, device=ATA.device, dtype=ATA.dtype).unsqueeze(0)
+        # The mass-point constraints already make ATA positive definite. Extra
+        # origin-centered regularization biases the capped solid's volume.
+        strength = 0 if dc_data_per_stack.strict_crossings else 1e-4
+        reg = strength * torch.eye(3, device=ATA.device, dtype=ATA.dtype).unsqueeze(0)
         vertices = torch.linalg.solve(ATA + reg, ATb)
     else:
         # NumPy: use efficient einsum

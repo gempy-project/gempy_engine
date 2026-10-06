@@ -5,6 +5,7 @@ import numpy as np
 
 from ._find_vertex_overlap import find_repeated_voxels_across_stacks
 from ._apply_vertex_overlap_logic import apply_relations_to_overlaps
+from ._scalar_crossing import scalar_crossing_parameters
 from .fancy_triangulation import get_left_right_array
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
@@ -20,11 +21,42 @@ from ...core.data.stacks_structure import StacksStructure
 # region edges
 
 def find_intersection_on_edge(_xyz_corners, scalar_field_on_corners,
-                              scalar_at_sp, masking=None) -> Tuple:
+                              scalar_at_sp, masking=None, *, strict_crossings=False) -> Tuple:
+    """Find edge intersections, optionally using exact scalar-side classification."""
+    if strict_crossings:
+        return _find_strict_intersections(_xyz_corners, scalar_field_on_corners, scalar_at_sp, masking)
     if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
         return find_intersection_on_edge_torch(_xyz_corners, scalar_field_on_corners, scalar_at_sp, masking)
     else:
         return find_intersection_on_edge_numpy(_xyz_corners, scalar_field_on_corners, scalar_at_sp, masking)
+
+
+def _find_strict_intersections(xyz_corners, scalars, isovalues, masking):
+    xp = BackendTensor.t
+    xyz = xyz_corners.reshape(-1, 8, 3)
+    scalars = scalars.reshape(1, -1, 8)
+    if masking is not None:
+        xyz = xyz[masking]
+        scalars = scalars[:, masking]
+    if not bool(xp.isfinite(xyz).all()):
+        raise ValueError("Strict edge crossings require finite corner coordinates")
+
+    # Preserve the legacy x/y/z edge ordering and start-to-end direction.
+    start = [4, 5, 6, 7, 2, 3, 6, 7, 1, 3, 5, 7]
+    end = [0, 1, 2, 3, 0, 1, 4, 5, 0, 2, 4, 6]
+    valid, t = scalar_crossing_parameters(
+        scalars[:, :, start], scalars[:, :, end], isovalues.reshape(-1, 1, 1), xp=xp
+    )
+    shape = (*valid.shape, 3)
+    a = xp.broadcast_to(xyz[None, :, start, :], shape)[valid]
+    b = xp.broadcast_to(xyz[None, :, end, :], shape)[valid]
+    weights = t[valid][:, None]
+    intersections = (1 - weights) * a + weights * b
+    if not bool(xp.isfinite(intersections).all()):
+        raise ValueError("Nonfinite strict edge intersection coordinates")
+    if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+        return intersections, valid.reshape(-1)
+    return intersections, valid.reshape(-1, 12)
 
 
 def find_intersection_on_edge_numpy(_xyz_corners, scalar_field_on_corners,
