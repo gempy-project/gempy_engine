@@ -12,6 +12,7 @@ class DualContouringOverlap(Flag):
     none = auto()
     pretty = auto()
     watertight = auto()
+    contact_aware = auto()
 
 # Define the paths for the .env files
 

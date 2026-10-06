@@ -2,9 +2,10 @@
 
 ## Status And Goal
 
-The initial Phase 1 characterization suite and benchmark harness are implemented.
-No new meshing mode or runtime changes are implemented yet. Phase 1 remains open
-until the QEF policy, tolerances, and diagnostic contract are settled.
+The Phase 1 characterization suite and legacy benchmark harness are implemented.
+The initial Phase 2 `contact_aware` mode now supports planar erosion/onlap with
+explicit validation and procedural, array-only computational modules. Broader
+relations, backends, and performance comparisons remain pending.
 
 Add an opt-in post-dual-contouring mode that reconciles erosion and onlap
 contacts while preserving the existing extraction modes. Build the correctness
@@ -52,7 +53,7 @@ These are baseline observations, not authorization to change legacy behavior.
 
 ## Option And Compatibility Contract
 
-Add `DualContouringOverlap.contact_aware` to the existing enum. Select it with:
+`DualContouringOverlap.contact_aware` is appended to the existing enum. Select it with:
 
 ```bash
 DUAL_CONTOURING_VERTEX_OVERLAP=contact_aware
@@ -105,17 +106,15 @@ described as replacing or correcting those constraints.
 The characterization suite demonstrates that existing enabled-mode QEF
 preparation can move parallel nonintersecting surfaces and reverse their order.
 Reusing that preparation cannot meet a no-contact geometric-isolation contract
-relative to independent extraction. Decide the new-mode QEF policy before
-implementation: either accept and document inherited geometry, or explicitly
-approve omitting/restricting cross-surface constraints in the new branch. The
-latter changes extraction preparation, although the new contact algorithm can
-still live entirely after dual contouring. Neither choice changes legacy modes.
+relative to independent extraction. The approved initial policy omits all
+cross-surface QEF constraints in the new, non-fault branch. This changes new-mode
+extraction preparation; the contact algorithm itself remains entirely after
+dual contouring. Legacy modes retain their existing constraints and ordering.
 
-Retain the generated geometry before destructive non-fault averaging. In the new branch, replace
-broad erosion/onlap averaging with contact-aware reconciliation; retain the
-existing directed fault operations without applying non-fault averaging first.
-Extract the fault-only operation into a small helper only if needed, leaving the
-legacy sequence and numerical behavior unchanged.
+The new branch replaces broad erosion/onlap averaging with contact-aware
+reconciliation. Faulted models are explicitly unsupported initially. A future
+extension must preserve directed fault copying and triangle removal without
+applying broad non-fault averaging first. Leave the legacy sequence unchanged.
 
 Do not silently alter QEF preparation or compensate for arbitrary upstream
 distortion with mesh snapping. Displacement is possible, not inevitable for
@@ -123,10 +122,12 @@ every same-cell candidate; geometry and partner normals determine its effect.
 
 ### Initial Support Boundary
 
-- Start with `MeshExtractionMaskingOptions.INTERSECT`, which retains contact cells.
+- Require NumPy CPU float64. Float32 QEF rounding can exceed the initial absolute spatial tolerance; PyTorch additionally uses origin-centered QEF regularization. Reject those configurations rather than concealing displacement with a larger tolerance.
+- Require one or two stacks, exactly one surface per stack. Two-stack relations must be `[ERODE, BASEMENT]` or `[ONLAP, BASEMENT]`.
+- Require scalar fields affine on supplied corner samples and planar extracted patches. Curved scalar fields are rejected, not approximated with fitted planes.
+- Require `MeshExtractionMaskingOptions.INTERSECT`, which retains contact cells but does not guarantee that the finite extracted triangles reach the seam.
 - Do not claim initial support for `DISJOINT`; missing contact cells cannot be recovered reliably after extraction.
-- Treat `RAW` separately: candidate geometry exists, but geological ownership still governs clipping.
-- Respect existing fault splits; do not reconnect displaced horizons across a fault.
+- Reject `RAW`, faults, null-space stacks, and extent capping in the initial mode.
 - No global remeshing, mesh-Boolean dependency, or new full-volume ownership allocation by default.
 - No differentiability guarantee for topology-changing post-processing. Mesh vertices and triangles are returned as NumPy arrays; `vertices_tensor` retains the pre-overlap solve output. Preserve and document that split rather than implying reconciled topology has differentiable tensor vertices.
 
@@ -269,7 +270,7 @@ Set performance budgets after collecting repeatable measurements.
 - [x] Measure inherited QEF distortion in false-overlap cases.
 - [x] Add stage/end-to-end benchmark harness and initial timing/memory smoke baselines.
 - [ ] Collect repeated timing distributions and multi-stack sparse/no-contact baselines.
-- [ ] Decide whether new-mode extraction preparation may omit/restrict broad QEF constraints.
+- [x] Decide whether new-mode extraction preparation may omit/restrict broad QEF constraints.
 - [ ] Finalize tolerance, tie, unsupported-input, and diagnostic policies.
 
 Acceptance: the suite identifies known limitations without requiring a new mode
@@ -277,12 +278,12 @@ and separates legacy regressions from new-feature correctness expectations.
 
 ### Phase 2: Opt-In Dispatch And Basic Contacts
 
-- [ ] Add `DualContouringOverlap.contact_aware` and subprocess configuration tests.
-- [ ] Introduce isolated new-mode dispatch while preserving existing branches.
-- [ ] Collect and process meshes once in the new branch.
-- [ ] Preserve fault-only operations without broad non-fault averaging.
-- [ ] Implement two-surface planar erosion/onlap clipping and matching seam edges.
-- [ ] Verify input non-mutation, tensor contract, and honest diagnostics.
+- [x] Add `DualContouringOverlap.contact_aware` and subprocess configuration tests.
+- [x] Introduce isolated `match` dispatch while preserving existing branches and legacy-only Flag combinations.
+- [x] Collect and process meshes once in the new branch.
+- [x] Reject faulted inputs until fault-only handling is supported and tested.
+- [x] Implement two-surface planar erosion/onlap clipping and matching seam edges.
+- [x] Verify input non-mutation, tensor contract, and honest diagnostics.
 
 Acceptance: basic analytic contacts pass; old modes match pre-change references;
 no-contact stage inputs remain untouched; unsupported inputs fail or report as
@@ -394,4 +395,59 @@ claims are established. The performance no-contact model is single-stack, so it
 does not measure sparse multi-stack pair-search overhead. Shared-cell counts are
 candidates, not proven contact counts. The overlap benchmark isolates only the
 final accumulated pass; extraction includes QEF, repeated earlier passes, and
-cache cleanup. No runtime correction has been made.
+cache cleanup. These observations describe legacy modes, which remain unchanged.
+
+## Initial Runtime Implementation
+
+New module boundaries follow the procedural data flow:
+
+```text
+API.prepare_planar_contact
+  -> modules.contact_planes.fit_contact_plane(points, scalars, isovalue)
+  -> explicit planes and geological relation
+API.dual_contouring_multi_scalar
+  -> independent extraction, once
+API.reconcile_contact_meshes
+  -> modules.contact_geometry.reconcile_planar_contact(arrays, planes, retained_sign)
+  -> returned arrays and report
+```
+
+`contact_planes.py` and `contact_geometry.py` import only NumPy. Neither imports
+the other or reads backend/configuration state. They do not mutate input arrays.
+The API validates options, passes data, and attaches returned geometry to meshes.
+Temporary input and stack-cursor copies avoid mutating caller state without
+deep-copying callback objects or tensor graphs.
+
+Plane fitting validates affine consistency before extraction. Geometry clips the
+truncated patch, splits intersecting controller triangles, and unions seam
+breakpoints so both patches contain matching edge segments. It validates seam
+incidence: target edges have one incident face, controller edges have one at a
+patch boundary or two internally. Boundary seam counts are reported explicitly.
+Coincident planes, partially supported seams, nonplanar input, and coordinates
+whose precision cannot represent the requested tolerance fail with `ValueError`.
+Wholly discarded targets return empty faces; retained parallel surfaces never
+join. Output arrays may contain unused vertices after clipping.
+
+For reconciled two-stack outputs, `mesh.contact_report` describes the result and
+role. `vertices_tensor`, `dc_data`, and `support_report` continue to describe
+pre-reconciliation extraction, not final vertex/cell correspondence. Single-stack
+output remains independent extraction without a contact report.
+
+Additional tests:
+
+- `test_contact_planes.py`: independent affine fits and validation failures.
+- `test_contact_geometry.py`: perpendicular/oblique seams, mismatched segmentation, ownership, winding, boundary incidence, insufficient support, coordinate precision, and non-mutation.
+- `test_contact_aware_integration.py`: synthetic extraction and true `compute_model()` tests using external affine functions, early support rejection, new-stage isolation, legacy Flag compatibility, and callback identity preservation.
+
+The production tests choose planes that actually intersect the finite extracted
+triangle support. For example, at root resolution 6 with two octree levels,
+erosion at `z=0.39` leaves the target patch ending at `z=0.375`; the successful
+erosion test instead uses `z=0.36`. This limitation cannot be repaired by snapping
+a missing seam into existence. Refinement/support improvements remain separate
+work. A field supplied through ordinary kriging is not necessarily affine even
+when its observations describe a plane, so it may be rejected by this initial
+strict support contract.
+
+The generalized sparse candidate algorithm above remains future work. The
+initial implementation scans the two finite patches and does not yet claim
+sparse multi-stack scalability or closed lithological solids.
