@@ -11,11 +11,9 @@ from gempy_engine.modules.faults.finite_faults import project_points_onto_surfac
 def _grab_stack_fault_data(_all_stack_values_block, _interpolation_input_i, _stack_structure, grid_size:int) -> FaultsData:
     fault_data = _interpolation_input_i.fault_values or FaultsData()
     fault_data.fault_values_everywhere = _all_stack_values_block[_stack_structure.active_faults_relations]
-    fv_on_all_sp = fault_data.fault_values_everywhere[:, grid_size:]
+    fv_on_all_sp = fault_data.fault_values_everywhere[:, grid_size:_interpolation_input_i.macro_reference_size]
     fault_data.fault_values_on_sp = fv_on_all_sp[:, _interpolation_input_i.slice_feature]
     return fault_data
-
-
 
 def _options_with_finite_fault_gradients(
         options: InterpolationOptions,
@@ -35,7 +33,8 @@ def _modify_faults_values_output(
         xyz_to_interpolate: np.ndarray,
 ) -> np.ndarray:
     values_on_all_xyz = output.values_on_all_xyz
-    val_min = BackendTensor.t.min(values_on_all_xyz, axis=1).reshape(-1, 1)  # ? Is this as good as it gets?
+    reference_size = output.exported_fields._macro_reference_size or len(xyz_to_interpolate)
+    val_min = BackendTensor.t.min(values_on_all_xyz[:, :reference_size], axis=1).reshape(-1, 1)
     shifted_vals = (values_on_all_xyz - val_min)  # * Shift values between 0 and 1... hopefully
     if not fault_input.finite_fault_defined:
         return shifted_vals
@@ -65,12 +64,12 @@ def _modify_faults_values_output(
     )
 
     gradient_matrix = np.stack(gradients_np, axis=-1)
-    valid_gradient = np.linalg.norm(gradient_matrix, axis=1) > 1e-12
+    valid_gradient = np.linalg.norm(gradient_matrix[:reference_size], axis=1) > 1e-12
     if not np.any(valid_gradient):
         raise ValueError("Cannot determine finite-fault frame from near-zero gradients")
 
     center = np.asarray(fault_input.finite_fault.center)
-    distances_to_center = np.linalg.norm(projected_points - center, axis=1)
+    distances_to_center = np.linalg.norm(projected_points[:reference_size] - center, axis=1)
     center_index = np.argmin(np.where(valid_gradient, distances_to_center, np.inf))
     finite_fault_scalar_np = fault_input.finite_fault.calculate_slip(
         points=projected_points,

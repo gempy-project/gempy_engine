@@ -99,6 +99,7 @@ class EvaluatorInput:
     _n_points_per_surface: Optional[np.ndarray] = None
     _slice_feature: Optional[slice] = field(default_factory=lambda: slice(None, None))  # Slice all the surface points
     _grid_size: Optional[int] = None
+    _macro_reference_size: Optional[int] = None
 
     def __init__(self,
                  solver_input: SolverInput_v2,
@@ -109,6 +110,7 @@ class EvaluatorInput:
         self.solver_input = solver_input
         self._n_points_per_surface = tensor_struct.reference_sp_position
         self._slice_feature = interpolation_input.slice_feature
+        self._macro_reference_size = interpolation_input.macro_reference_size
         
         if only_surface_points:
             xyz_to_interpolate = interpolation_input.all_surface_points.sp_coords
@@ -116,7 +118,8 @@ class EvaluatorInput:
         else:
             xyz_to_interpolate: np.ndarray = data_preprocess_interface.prepare_grid(
                 grid=interpolation_input.grid.values,
-                surface_points=interpolation_input.all_surface_points
+                surface_points=interpolation_input.all_surface_points,
+                micro_points=interpolation_input.evaluation_micro_points
             )
             self._grid_size = interpolation_input.grid.len_all_grids
 

@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
+from types import SimpleNamespace
 
 import pytest
 
@@ -24,7 +25,7 @@ def test_computations_do_not_share_volatile_option_state(monkeypatch):
     monkeypatch.setattr(model_api, "_check_input_validity", lambda *_: None)
 
     def observe_options(interpolation_input, options, data_descriptor):
-        level = interpolation_input
+        level = interpolation_input.level
         options.temp_interpolation_values.current_octree_level = level
         barrier.wait()
         return options.temp_interpolation_values.current_octree_level
@@ -39,7 +40,9 @@ def test_computations_do_not_share_volatile_option_state(monkeypatch):
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [
-            executor.submit(model_api.compute_model, level, options, None)
+            executor.submit(model_api.compute_model,
+                            SimpleNamespace(level=level, micro_points=None), options,
+                            SimpleNamespace(stack_structure=None))
             for level in (1, 3)
         ]
 

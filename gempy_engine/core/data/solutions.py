@@ -7,6 +7,7 @@ from ...config import SET_RAW_ARRAYS_IN_SOLUTION
 from ..backend_tensor import BackendTensor
 from .dual_contouring_mesh import DualContouringMesh
 from .octree_level import OctreeLevel
+from .micro_points import MicroPointResults
 from .raw_arrays_solution import RawArraysSolution
 
 
@@ -19,6 +20,7 @@ class Solutions:
     # ------
     gravity: np.ndarray = None
     magnetics: np.ndarray = None
+    micro_point_results: Optional[MicroPointResults] = None
 
     debug_input_data: dict = {}
     
@@ -32,6 +34,22 @@ class Solutions:
         self.gravity = fw_gravity
         self.magnetics = fw_magnetics
         self.block_solution_type = block_solution_type
+        aligned = [output.exported_fields.micro_point_results for output in octrees_output[-1].outputs
+                   if output.exported_fields.micro_point_results is not None]
+        if aligned:
+            from gempy_engine.config import AvailableBackends
+            if BackendTensor.engine_backend is AvailableBackends.PYTORCH:
+                import torch
+                concatenate = torch.cat
+            else:
+                concatenate = np.concatenate
+            self.micro_point_results = MicroPointResults(
+                np.concatenate([part.source_indices for part in aligned]),
+                concatenate([part.macro_gradients for part in aligned]),
+                concatenate([part.anisotropy_matrices for part in aligned]),
+            )
+        else:
+            self.micro_point_results = None
 
         self._set_scalar_field_at_surface_points_and_elements_order(octrees_output)
             

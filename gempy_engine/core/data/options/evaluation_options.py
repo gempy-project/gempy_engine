@@ -5,7 +5,6 @@ from typing import Annotated
 
 from typing_extensions import deprecated
 
-from .micro_anisotropic_options import MicroAnisotropicOptions
 
 
 class OctreeRefinementMode(str, enum.Enum):
@@ -49,8 +48,6 @@ class EvaluationOptions:
     mesh_extraction_fancy: Annotated[bool, deprecated("Old extraction method not in use anymore")] = True
 
     evaluation_chunk_size: int = 500_000
-
-    micro_anisotropic: MicroAnisotropicOptions = field(default_factory=MicroAnisotropicOptions)
 
 
     compute_scalar: bool = True

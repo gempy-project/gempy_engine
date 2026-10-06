@@ -20,6 +20,7 @@ from ...core.data.stack_relation_type import StackRelationType
 from ...core.utils import gempy_profiler_decorator
 from ...core.exceptions import GemPyEngineInputError
 from ...core.data.options.temp_interpolation_values import TempInterpolationValues
+from ...modules.data_preprocess.micro_points import prepare_micro_points
 from ...modules.geophysics.fw_gravity import compute_gravity
 from ...modules.geophysics.fw_magnetic import compute_tmi
 from ...modules.weights_cache.weights_cache_interface import WeightCache
@@ -42,6 +43,8 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
 
         # Check input is valid
         _check_input_validity(interpolation_input, options, data_descriptor)  # TODO
+
+        prepare_micro_points(interpolation_input, options, data_descriptor.stack_structure)
 
         output: list[OctreeLevel] = interpolate_n_octree_levels(
             interpolation_input=interpolation_input,

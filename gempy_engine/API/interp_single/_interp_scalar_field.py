@@ -102,7 +102,7 @@ def _solve_interpolation_result(
 
 
 def _evaluate_sys_eq(eval_input: Union[SolverInput, EvaluatorInput], weights: np.ndarray, options: InterpolationOptions,
-                     grid: EngineGrid | None = None) -> ExportedFields:
+                      grid: EngineGrid | None = None) -> ExportedFields:
     inverse = None
     if options.evaluation_options.deduplicate_octree_corners:
         eval_input, inverse = _deduplicate_corners(eval_input, grid)

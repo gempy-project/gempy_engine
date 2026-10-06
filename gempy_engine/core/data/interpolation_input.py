@@ -13,6 +13,7 @@ from .stack_relation_type import StackRelationType
 from .stacks_structure import StacksStructure
 from .kernel_classes.faults import FaultsData
 from .kernel_classes.server.input_parser import InterpolationInputSchema
+from .micro_points import MicroPoints
 
 
 @dataclass
@@ -28,6 +29,10 @@ class InterpolationInput:
     segmentation_function: Optional[callable] = None  # * From scalar field to values
 
     _all_surface_points: SurfacePoints = None
+    micro_points: Optional[MicroPoints] = None
+    # Prepared by prepare_micro_points: shared queries and this stack's rows in them.
+    _all_micro_points: Optional[MicroPoints] = None
+    _micro_indices: Optional[np.ndarray] = None
 
     # region per model ? Not sure what I mean here
 
@@ -38,7 +43,8 @@ class InterpolationInput:
 
     def __init__(self, surface_points: SurfacePoints, orientations: Orientations, grid: EngineGrid,
                  unit_values: Optional[np.ndarray] = None, segmentation_function: Optional[callable] = None,
-                 stack_relation: StackRelationType = StackRelationType.ERODE, weights: list[np.ndarray] = None):
+                  stack_relation: StackRelationType = StackRelationType.ERODE, weights: list[np.ndarray] = None,
+                  micro_points: Optional[MicroPoints] = None):
         if weights is None:
             weights = []
         
@@ -50,6 +56,7 @@ class InterpolationInput:
         self.segmentation_function = segmentation_function
         self.stack_relation = stack_relation
         self.weights = weights
+        self.micro_points = micro_points
 
     # @ on
 
@@ -76,6 +83,14 @@ class InterpolationInput:
             unit_values = all_interpolation_input.unit_values[cum_number_surfaces_l0:cum_number_surfaces_l1]
 
         grid = all_interpolation_input.grid
+        micro = all_interpolation_input.micro_points
+        if micro is not None:
+            start = int(stack_structure.number_of_surfaces_per_stack[:stack_number].sum())
+            stop = start + int(stack_structure.number_of_surfaces_per_stack[stack_number])
+            mask = (micro.surface_indices >= start) & (micro.surface_indices < stop)
+            micro = MicroPoints(micro.points[mask], micro.anisotropy_matrices[mask],
+                                micro.nuggets[mask], micro.surface_indices[mask] - start,
+                                micro.support_to_engine)
 
         # * (miguel 24) This interpolation input goes on the InterpOutput so we are not computing its gradients
         ii_subset: InterpolationInput = cls(
@@ -84,12 +99,15 @@ class InterpolationInput:
             grid=grid,
             unit_values=unit_values,
             stack_relation=stack_structure.active_masking_descriptor,
-            weights=(all_interpolation_input.weights[stack_number] if stack_number < len(all_interpolation_input.weights) else None)
+            weights=(all_interpolation_input.weights[stack_number] if stack_number < len(all_interpolation_input.weights) else None),
+            micro_points=micro,
         )
 
         # ! Setting this on the constructor does not work with data classes.
         ii_subset.fault_values = stack_structure.active_faults_input_data
         ii_subset.all_surface_points = all_interpolation_input.surface_points
+        ii_subset._all_micro_points = all_interpolation_input._all_micro_points
+        ii_subset._micro_indices = np.flatnonzero(mask) if all_interpolation_input._all_micro_points is not None else None
 
         return ii_subset
 
@@ -126,6 +144,27 @@ class InterpolationInput:
     @property
     def slice_feature(self):
         return self.surface_points.slice_feature
+
+    @property
+    def evaluation_micro_points(self):
+        return self._all_micro_points
+
+    @property
+    def micro_indices(self):
+        return self._micro_indices
+
+    @property
+    def macro_reference_size(self):
+        return self.grid.len_all_grids + self.all_surface_points.n_points
+
+    @property
+    def micro_slice(self):
+        start = self.macro_reference_size
+        return slice(start, start + (len(self._all_micro_points.points) if self._all_micro_points is not None else 0))
+
+    @property
+    def evaluation_size(self):
+        return self.micro_slice.stop
 
     @property
     def fault_values(self):

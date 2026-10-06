@@ -1,6 +1,9 @@
 # Micro Anisotropic Field Deformation Notes
 
-This document summarizes the current prototype and the recommended next steps for moving the micro-correction idea into GemPy Engine with minimal disruption to the existing macro interpolation path.
+This document records the historical prototype and design exploration. For the
+current authored-contact API and limitations, see [docs/micro_points.md](docs/micro_points.md).
+The historical covariance solve and gradient-derived metrics below now live in
+`tests/test_common/test_modules/test_evaluator/micro_reference.py`, not the production API.
 
 ## Goal
 
@@ -333,7 +336,9 @@ micro_weights = solve_micro_weights(
 )
 ```
 
-10. Store on `options.evaluation_options.micro_anisotropic` and evaluate final field.
+10. Prototype-only: apply fitted weights explicitly; the current authored API
+    uses `options.micro_options` for settings and a stack-local `MicroCorrection`
+    for fitted state (see [docs/micro_points.md](docs/micro_points.md)).
 
 ### 3D Frame Construction
 

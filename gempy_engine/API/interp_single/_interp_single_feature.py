@@ -16,8 +16,10 @@ from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.options import InterpolationOptions
 from ...core.data.scalar_field_output import ScalarFieldOutput
+from ...core.data.stack_relation_type import StackRelationType
 from ...modules.activator import activator_interface
 from ...modules.data_preprocess import data_preprocess_interface
+from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
 
 
 def interpolate_feature_with_cokrig(interpolation_input: InterpolationInput,
@@ -35,12 +37,16 @@ def interpolate_feature_with_cokrig(interpolation_input: InterpolationInput,
     xyz = solver_input.xyz_to_interpolate
 
     weights = compute_weights(solver_input, stack_number, options)
-    exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights, options, grid=grid)
+    exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights,
+                                                       micro_evaluation_options(options, interpolation_input), grid=grid)
+    fit_micro_fields(interpolation_input, exported_fields, options,
+                     data_shape.number_of_points_per_surface, xyz, options.compute_scalar_gradient)
 
     exported_fields.set_structure_values(
         reference_sp_position=data_shape.reference_sp_position,
         slice_feature=interpolation_input.slice_feature,
-        grid_size=interpolation_input.grid.len_all_grids
+        grid_size=interpolation_input.grid.len_all_grids,
+        macro_reference_size=interpolation_input.macro_reference_size
     )
 
     exported_fields.debug = solver_input.debug
@@ -64,7 +70,11 @@ def interpolate_feature_with_external_function(interpolation_input: Interpolatio
         grid = interpolation_input.grid
 
     # region Interpolate scalar field
-    xyz = grid.values
+    shared_queries = (interpolation_input.evaluation_micro_points is not None or
+                      interpolation_input.stack_relation is StackRelationType.FAULT)
+    xyz = (data_preprocess_interface.prepare_grid(grid.values, interpolation_input.all_surface_points,
+                                                   interpolation_input.evaluation_micro_points)
+           if shared_queries else grid.values)
 
     exported_fields: ExportedFields = _interpolate_external_function(
         interp_funct=external_interp_funct,
@@ -74,7 +84,8 @@ def interpolate_feature_with_external_function(interpolation_input: Interpolatio
     exported_fields.set_structure_values(
         reference_sp_position=None,
         slice_feature=None,
-        grid_size=xyz.shape[0]
+        grid_size=grid.len_all_grids,
+        macro_reference_size=interpolation_input.macro_reference_size if shared_queries else None
     )
     output = _segment(exported_fields, external_segment_funct, grid, interpolation_input, options, xyz)
 
@@ -92,7 +103,8 @@ def input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpol
     # * We need to interpolate in ALL the surface points not only the surface points of the stack
     grid_internal: np.ndarray = data_preprocess_interface.prepare_grid(
         grid=grid.values,
-        surface_points=interpolation_input.all_surface_points
+        surface_points=interpolation_input.all_surface_points,
+        micro_points=interpolation_input.evaluation_micro_points
     )
 
     fault_values: FaultsData = interpolation_input.fault_values
@@ -149,11 +161,14 @@ def _scalar_field_segmentation(exported_fields: ExportedFields, external_segment
 
 
 def _interpolate_external_function(interp_funct, xyz):
+    def field(func):
+        return BackendTensor.t.array(func(xyz), dtype=BackendTensor.dtype) if func is not None else None
+
     exported_fields = ExportedFields(
-        _scalar_field=interp_funct.implicit_function(xyz),
-        _gx_field=interp_funct.gx_function(xyz) if interp_funct.gx_function is not None else None,
-        _gy_field=interp_funct.gy_function(xyz) if interp_funct.gy_function is not None else None,
-        _gz_field=interp_funct.gz_function(xyz) if interp_funct.gz_function is not None else None,
+        _scalar_field=field(interp_funct.implicit_function),
+        _gx_field=field(interp_funct.gx_function),
+        _gy_field=field(interp_funct.gy_function),
+        _gz_field=field(interp_funct.gz_function),
         _scalar_field_at_surface_points=interp_funct.scalar_field_at_surface_points
     )
     return exported_fields
