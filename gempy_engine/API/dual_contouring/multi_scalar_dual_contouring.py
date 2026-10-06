@@ -152,7 +152,9 @@ def dual_contouring_multi_scalar(
                 gradients=output_on_edges[n_scalar_field][slice_object],
                 n_surfaces_to_export=n_scalar_field,
                 tree_depth=options.number_octree_levels,
-                base_number=base_number
+                base_number=base_number,
+                triangulation_method=options.evaluation_options.triangulation_method,
+                generated_cell_coordinates=left_right_codes
             )
 
             dc_data_per_surface_all.append(dc_data_per_surface)

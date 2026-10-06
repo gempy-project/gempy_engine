@@ -201,7 +201,7 @@ def symbolic_evaluator_optimized_stacked(
             kernel_data_list = list(executor.map(_run_prep, prep_tasks))
 
         concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
-        
+
         eval_kernel_scalar = create_scalar_kernel(
             concat_kernel_data,
             base_options.kernel_options,
@@ -221,7 +221,7 @@ def symbolic_evaluator_optimized_stacked(
             kernel_data_list = list(executor.map(_run_prep, prep_tasks))
 
         concat_kernel_data: KernelInput = _build_stacked_kernel_data(kernel_data_list)
-        
+
         eval_kernel_grad = create_grad_kernel(
             concat_kernel_data,
             base_options.kernel_options,

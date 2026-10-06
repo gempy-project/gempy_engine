@@ -60,7 +60,7 @@ change even in fast mode.
 For an interior planar one-cell selection, the full halo approaches 3x the parent
 count; isolated selections can reach 27x (7x in balanced mode). Each selected
 parent contributes eight centers and 64 stored corner rows at the next level.
-No corner deduplication or interpolation caching is introduced here.
+Stored corner rows retain that layout even when evaluation deduplication is enabled.
 
 A NumPy float64 lookup-only smoke benchmark on a dense `32 x 32 x 32` lattice
 gave the following counts (not an end-to-end interpolation benchmark):
@@ -77,3 +77,76 @@ thresholds or measurements of interpolation/reporting overhead.
 
 The default remains fast. Representative curved, multi-stack, faulted, and GPU
 time/memory benchmarks are still needed before recommending a different default.
+
+## Opt-in Evaluation and Triangulation
+
+Corner deduplication is independent of the refinement mode and defaults to `False`:
+
+```python
+options.evaluation_options.deduplicate_octree_corners = True
+```
+
+Set this selector back to `False` to evaluate the full corner layout. It is
+included in `InterpolationOptions` JSON serialization.
+
+Corner deduplication uses signed integer lattice coordinates and vectorized
+unique/inverse operations on the active NumPy or Torch device. Each unique corner
+is evaluated at its first existing physical row, not reconstructed from the extent
+origin (which can shift across refinement levels). Scalar and gradient fields are
+gathered back to the full original layout before surface-point metadata, fault
+processing, segmentation, refinement, or mesh extraction. Centers, dense/custom
+grids, sections, topography, geophysics points, and appended surface points are
+never merged with corners or with each other. No lookup or evaluated field is
+cached across calls, stacks, or levels.
+
+Fault evaluation columns are gathered with the same indices only when duplicate
+corners have identical fault values. Otherwise that evaluation uses the legacy
+path. Differentiable corner coordinates or differentiable fault-value rows also
+use the legacy path: merging independent row derivatives would change autograd.
+Gradients with respect to weights, model inputs, and appended surface points are
+preserved. Empty, non-corner, and incompatible/custom corner layouts fall back
+safely. Physical duplicates can differ by roundoff; checks allow 32 dtype epsilons
+of relative/absolute error, so output parity is numerical rather than bitwise.
+Torch requires `scatter_reduce_` support. Small grids may not benefit from the
+unique operation, gathers, and equality checks (which can synchronize a GPU).
+
+Normal and flat stacks support the selector. Fused PyKeOps evaluation compresses
+each eligible stack independently, performs one block-sparse reduction with the
+different reduced lengths, and restores each result before attaching metadata.
+Ineligible stacks retain their full rows within the same fused call. Backend
+selection and existing finite-fault dispatch restrictions remain unchanged.
+External interpolation callbacks keep their existing path and full grid layout.
+
+### Unique-Edge Quads
+
+To select quad-based connectivity instead of the legacy triangle construction:
+
+```python
+from gempy_engine.core.data.options.evaluation_options import TriangulationMethod
+
+options.evaluation_options.triangulation_method = TriangulationMethod.QUADS
+```
+
+The default is `TriangulationMethod.LEGACY`. This selector is serialized with the
+other evaluation options and is independent of corner deduplication and refinement
+mode. Legacy triangulation sorts voxel codes locally for each edge case; quad mode
+uses one sorted cell lookup.
+
+Quad mode identifies each primal edge by its lower integer endpoint and direction,
+deduplicates these identities, and finds the four incident cells. Each complete
+crossing edge produces one quad, split deterministically into two triangles for
+the existing mesh output format. Winding follows the crossing-edge gradients.
+The existing tolerant crossing rule is preserved; inconsistent crossing flags
+on shared edges raise an error rather than silently creating inconsistent faces.
+
+Incomplete quads are skipped, never emitted as partial triangles.
+`mesh.dc_data.triangulation_report` records crossing edges, complete quads, and
+missing support at physical boundaries, geological masks, and internal refinement
+boundaries. Missing-cell counts are incidences and boundary categories can overlap.
+Direct callers without pre-mask cell coordinates receive an unknown interior
+boundary classification. Counts precede subsequent overlap/fault triangle removal.
+
+This is same-level connectivity, not coarse/fine transition stitching or extent
+capping, and it does not resolve ambiguous topology or guarantee watertightness.
+NumPy and CPU Torch parity are tested; GPU behavior and end-to-end performance
+still require validation.

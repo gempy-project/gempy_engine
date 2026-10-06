@@ -7,8 +7,10 @@ from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.dual_contouring_mesh import DualContouringMesh
+from ...core.data.options.evaluation_options import TriangulationMethod
 from ...core.utils import gempy_profiler_decorator
 from ...modules.dual_contouring.fancy_triangulation import triangulate
+from ...modules.dual_contouring.quad_triangulation import triangulate_quads
 
 
 @gempy_profiler_decorator
@@ -72,6 +74,15 @@ def _process_one_surface(dc_data: DualContouringData, left_right_codes) -> DualC
 def _compute_triangulation(dc_data_per_surface: DualContouringData,
                            left_right_codes, edges_normals, vertex):
     """Compute triangulation indices for a specific surface."""
+
+    method = TriangulationMethod(dc_data_per_surface.triangulation_method)
+    if method == TriangulationMethod.QUADS:
+        return triangulate_quads(
+            left_right_codes, dc_data_per_surface.valid_edges, edges_normals, vertex,
+            dc_data_per_surface.base_number,
+            generated_coordinates=dc_data_per_surface.generated_cell_coordinates,
+            report=dc_data_per_surface.triangulation_report
+        )
 
     # * Fancy triangulation 👗
     valid_voxels = dc_data_per_surface.valid_voxels

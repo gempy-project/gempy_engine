@@ -76,6 +76,7 @@ class BackendTensor:
                         use_gpu: bool = False, dtype: Optional[str] = None, grads: bool = False):
         cls.dtype = DEFAULT_TENSOR_DTYPE if dtype is None else dtype
         cls.dtype_obj = cls.dtype
+        cls.COMPUTE_GRADS = grads
         match engine_backend:
             case (engine_backend.numpy):
                 if is_numpy_installed is False:
@@ -122,7 +123,6 @@ class BackendTensor:
                 cls.tensor_types = pytorch_copy.Tensor
 
                 torch.set_num_threads(torch.get_num_threads())  # Use all available threads
-                cls.COMPUTE_GRADS = grads  # Store the grads setting
                 if grads is False:
                     cls._torch_no_grad_context = torch.no_grad()
                     cls._torch_no_grad_context.__enter__()
