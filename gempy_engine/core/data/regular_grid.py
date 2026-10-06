@@ -16,6 +16,8 @@ class RegularGrid:
     
     _active_cells: np.ndarray = field(default=None, repr=False, init=False)
     left_right: np.ndarray = field(default=None, repr=False, init=False)
+    _integer_coordinates: np.ndarray = field(default=None, repr=False, init=False)
+    refinement_debug: dict = field(default=None, repr=False, init=False)
     
     values: np.ndarray = field(default=None, repr=False, init=False)
     original_values: np.ndarray = field(default=None, repr=False, init=False)  #: When the regular grid is representing a octree level, only active cells are stored in values. This is the original values of the regular grid.
@@ -68,6 +70,10 @@ class RegularGrid:
         regular_grid_for_octree_level.values = xyz_coords_octree  # ! Overwrite the common values
         regular_grid_for_octree_level._active_cells = active_cells
         regular_grid_for_octree_level.left_right = left_right
+        regular_grid_for_octree_level._integer_coordinates = (
+            2 * BackendTensor.tfnp.repeat(previous_regular_grid.integer_coordinates[active_cells], 8, axis=0)
+            + BackendTensor.t.array(left_right, dtype='int64')
+        )
 
         return regular_grid_for_octree_level
 
@@ -85,6 +91,16 @@ class RegularGrid:
             regular_grid_shape=[2, 2, 2],  # ! This needs to be generalized. For now I hardcoded the octree initial shapes
             left_right=None
         )
+
+    @property
+    def integer_coordinates(self):
+        """Signed lattice coordinates in sparse row order (Z fastest at root)."""
+        if self._integer_coordinates is None:
+            axes = [BackendTensor.arange(int(n), dtype='int64') for n in self.regular_grid_shape]
+            self._integer_coordinates = BackendTensor.t.stack(
+                BackendTensor.t.meshgrid(*axes, indexing='ij'), axis=-1
+            ).reshape(-1, 3)
+        return self._integer_coordinates
 
     @property
     def active_cells(self) -> np.ndarray:

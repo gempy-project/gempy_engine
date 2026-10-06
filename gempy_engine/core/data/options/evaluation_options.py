@@ -8,6 +8,13 @@ from typing_extensions import deprecated
 from .micro_anisotropic_options import MicroAnisotropicOptions
 
 
+class OctreeRefinementMode(str, enum.Enum):
+    """Support stencil, not 2:1 balancing or a guarantee of watertightness."""
+    FAST = "fast"
+    BALANCED = "balanced"
+    PRECISE = "precise"
+
+
 class MeshExtractionMaskingOptions(enum.Enum):
     NOTHING = enum.auto()  # * This is only for testing
     DISJOINT = enum.auto()
@@ -22,6 +29,7 @@ class EvaluationOptions:
     octree_curvature_threshold: float = -1.  #: Threshold to do octree refinement due to curvature to deal with angular geometries. This curvature assumes that 1 is the maximum curvature of any voxel
     octree_error_threshold: float = 1.  #: Number of standard deviations to consider a voxel as candidate to refine
     octree_min_level: int = 2
+    octree_refinement_mode: OctreeRefinementMode = OctreeRefinementMode.FAST
     
     mesh_extraction: bool = True
     mesh_extraction_masking_options: MeshExtractionMaskingOptions = MeshExtractionMaskingOptions.INTERSECT

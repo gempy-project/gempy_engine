@@ -19,11 +19,12 @@ from ...core.data.options.evaluation_options import EvaluationOptions
 
 
 def get_next_octree_grid(prev_octree: OctreeLevel, evaluation_options: EvaluationOptions,
-                         current_octree_level: int = 9999) -> EngineGrid:
+                         current_octree_level: int = 9999, debug: bool = False) -> EngineGrid:
     octree_from_output: EngineGrid = compute_next_octree_locations(
         prev_octree=prev_octree,
         evaluation_options=evaluation_options,
-        current_octree_level=current_octree_level
+        current_octree_level=current_octree_level,
+        debug=debug
     )
     return octree_from_output
 
