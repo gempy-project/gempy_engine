@@ -277,6 +277,7 @@ DEFAULT_BACKEND=numpy PYTHONPATH=. /home/leguark/.venv/2025/bin/pytest \
   tests/test_common/test_modules/test_contact_cells.py \
   tests/test_common/test_modules/test_contact_topology.py \
   tests/test_common/test_modules/test_contact_aware_integration.py \
+  tests/test_common/test_modules/test_compound_contacts.py \
   tests/test_common/test_modules/test_contact_reconciliation.py \
   tests/test_common/test_modules/test_contact_reconciliation_integration.py \
   tests/test_common/test_modules/test_quad_triangulation.py \
@@ -298,6 +299,7 @@ benchmark: its replacement is the dedicated `contact-cells` scope.
 GEMPY_CONTACT_AWARE_BENCHMARKS=1 GEMPY_CONTACT_BENCHMARK_ROUNDS=1 \
   DEFAULT_BACKEND=numpy /home/leguark/.venv/2025/bin/pytest \
   tests/benchmark/test_benchmark_contact_cells.py \
+  tests/benchmark/test_benchmark_finalize_cells.py \
   tests/benchmark/test_benchmark_contacts.py --benchmark-only -q
 
 /home/leguark/.venv/2025/bin/python tests/benchmark/contact_benchmark_runner.py \
@@ -315,6 +317,88 @@ Recorded milestone verification:
 - 64 benchmark smoke cases passed with the new-mode opt-in enabled. Four `contact_aware`/legacy-overlap-only combinations were deliberately skipped in favor of the prepared cell suite.
 - Isolated RSS runners completed for prepared dense contacts and production unconformity extraction in the new mode.
 - Independent review reproductions confirmed the null-space ownership and fault-fault QEF fixes. No full-repository or GPU verification was performed.
+
+## Compound Contact Validation
+
+The extraction acceptance matrix now includes partitioned three-stack erosion
+and onlap ownership, three-way junctions, curved contacts, same-group competition,
+and mixed fault/ordinary contacts on both CPU backends and floating dtypes.
+These are analytic field/gradient extraction fixtures, not full kriging models.
+Checks cover retained face indices/order, positive area, orientation relative to
+the original faces, connected retained patches, edge incidence at most two per
+individual surface, equal cells/positions per contact ID, and unchanged unshared
+positions. The ordinary seam cases require every internal target boundary edge
+to match an actual eligible controller edge by its pair of contact IDs; vertices
+merely having equal positions is insufficient. Domain boundaries are identified
+using the common grid's integer-cell limits. Directed controller/target surfaces
+must not retain duplicate fully shared triangle patches.
+
+`test_compound_contacts.py` additionally exercises a redundant middle patch in
+a three-surface truncation chain. Triangle removal drops that participant and
+one complete shared cell, while a two-member attachment survives. It checks
+original-position recomputation, restored unsupported rows, matching attachment
+edges, no collapsed/inverted retained faces, stable IDs/positions/faces under
+every surface permutation, same-group isolation, and an adjacent directional
+fault anchor, in float32 and float64. This validates those constructed cases,
+not a universal guarantee against under-resolved geometric defects.
+
+Milestone verification: **396 focused regression tests passed**, including the
+new compound checks and existing legacy references, plus **all four production
+weighted-QEF tests** in `contact_aware`, including higher resolution. The twelve
+finalization benchmark cases passed when enabled and were skipped when disabled;
+three larger production-model benchmark cases passed. These results include the
+explicit known-gap characterization below, not acceptance of that junction.
+
+### Known Fault-Junction Gap
+
+The compound milestone is **not closed**. In the extracted `fault_mixed` case,
+fault stack 0 controls stack 1 but not stack 2. Stack 1 truncates stack 2. At cell
+`(2, 2, 2)`, the fault anchor prevents the ordinary stack-1/stack-2 merge, leaving
+two unmatched internal stack-2 boundary edges:
+
+- `(1, 2, 2) -> (2, 2, 2)`
+- `(2, 2, 2) -> (3, 2, 2)`
+
+This is a contact defect, not a domain boundary. The explicit characterization
+test `test_characterization_fault_mixed_has_two_unmarked_junction_boundary_edges`
+records the gap and `fault_anchored` rejection; its passing result is **not**
+connectivity acceptance. Closing this junction requires an agreed fault-junction
+policy or a separate cell-local junction representation. Simply absorbing the
+unaffected stack into the anchored set would violate the current ban on ordinary
+merges into fault sets. No such change is made by this validation milestone.
+Volume assembly remains deferred until this conflict is resolved.
+
+### Performance Measurements
+
+The opt-in finalization suite times only `finalize_cell_vertices`, excluding
+preparation and external fixture copies (the function's own output copies remain
+timed). Its prepared three-member contacts either retain
+all members or discard one unsupported member per group. At 8192 contacts
+(24,576 vertices), five-round float64 medians with CPU/BLAS threads pinned to one
+were **6.37 ms supported** and **33.13 ms pruned**. The supported run included a
+176.88 ms outlier; these short measurements are not a stable scaling guarantee.
+Fresh-worker lifetime peak RSS was about **607 MiB** for either case, including
+imports, preparation, copies, and execution, not stage-only allocation. Current
+`/proc` RSS and `ru_maxrss` differed in those workers; no allocation delta is
+inferred from them.
+
+The larger production unconformity benchmark (root `8^3`, two octree levels,
+4096 leaf cells) passed for `none`, `pretty`, and `contact_aware`. Five-round
+end-to-end medians were 2.198 s, 2.187 s, and 2.120 s respectively, with lifetime
+peak RSS around 806-809 MiB. The new mode retained 52 contact sets and 1555
+triangles, versus 1622 triangles in the legacy modes. These small timing
+differences do not establish a speedup. The previously omitted production
+weighted-QEF `higher_resolution` test also passed in `contact_aware` on NumPy.
+GPU execution and full-repository verification remain outstanding.
+
+```bash
+GEMPY_CONTACT_AWARE_BENCHMARKS=1 GEMPY_CONTACT_BENCHMARK_ROUNDS=5 \
+  DEFAULT_BACKEND=numpy OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  /home/leguark/.venv/2025/bin/pytest tests/benchmark/test_benchmark_finalize_cells.py -q
+
+/home/leguark/.venv/2025/bin/python tests/benchmark/contact_benchmark_runner.py \
+  --scope finalize-cells --case compound_pruned --mode contact_aware --size 8192 --dtype float64
+```
 
 ## Deferred Work
 

@@ -162,7 +162,7 @@ def extraction(monkeypatch):
     monkeypatch.setattr(dc, "DUAL_CONTOURING_VERTEX_OVERLAP", config.DualContouringOverlap.contact_aware)
 
     def make(name="planar_erosion", dtype="float64", backend=config.AvailableBackends.numpy):
-        catalogue_name = ("three_way_junction" if name == "fault_mixed" else "parallel_false_overlap"
+        catalogue_name = ("three_way_junction" if name in ("fault_mixed", "three_stack_erosion", "three_stack_onlap") else "parallel_false_overlap"
                           if name == "fault_parallel" else name
                           if name in ("onlap", "parallel_false_overlap", "three_way_junction") else "planar_erosion")
         case = build_contact_case(catalogue_name, resolution=6)
@@ -180,6 +180,11 @@ def extraction(monkeypatch):
             case.relations = (StackRelationType.FAULT, StackRelationType.BASEMENT)
         elif name == "fault_mixed":
             case.relations = (StackRelationType.FAULT, StackRelationType.ERODE, StackRelationType.BASEMENT)
+        elif name == "three_stack_onlap":
+            case.relations = (StackRelationType.ONLAP, StackRelationType.ONLAP, StackRelationType.BASEMENT)
+        elif name == "same_group_competition":
+            case.normals[:] = [(1, 0, 0), (0, 0, 1)]
+            case.levels[:] = [.40, .47]
         BackendTensor._change_backend(backend, use_gpu=False, use_pykeops=False, dtype=dtype, grads=False)
         root = RegularGrid(np.array([0., 1., 0., 1., 0., 1.]), list(case.resolution))
         offsets = np.array(list(product((0, 1), repeat=3)))
@@ -189,6 +194,8 @@ def extraction(monkeypatch):
                                     Orientations(np.empty((0, 3)), np.empty((0, 3))), grid)
         normals = case.normals[:1] if name == "same_group" else case.normals
         isovalues = [case.levels] if name == "same_group" else [[level] for level in case.levels]
+        if name == "same_group_competition":
+            isovalues[0] = [.40, .46]
         n = len(normals)
         faults = np.zeros((n, n), dtype=bool)
         if name in ("fault", "fault_parallel", "fault_mixed"):
@@ -200,6 +207,21 @@ def extraction(monkeypatch):
         options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
         xyz = _numpy(grid.values)
         ownership = np.ones((n, len(xyz)), dtype=bool)
+        if name == "three_stack_erosion":
+            above = xyz @ normals.T >= case.levels
+            ownership[0] = above[:, 0]
+            ownership[1] = ~above[:, 0] & above[:, 1]
+            ownership[2] = ~above[:, 0] & ~above[:, 1]
+        elif name == "three_stack_onlap":
+            above = xyz @ normals.T >= case.levels
+            ownership[0] = above[:, 1] & above[:, 2]
+            ownership[1] = ~ownership[0] & above[:, 2]
+            ownership[2] = ~above[:, 2]
+        elif name == "fault_mixed":
+            above = xyz @ normals[1] >= case.levels[1]
+            ownership[1], ownership[2] = above, ~above
+        elif name == "same_group_competition":
+            ownership[0] = xyz @ normals[0] >= case.levels[0]
         if n == 2 and name not in ("fault", "fault_parallel", "no_overlap"):
             controller, truncated, sign = ((1, 0, 1) if case.relations[0] is StackRelationType.ONLAP
                                             else (0, 1, -1))
@@ -421,6 +443,189 @@ def test_three_stack_extraction_shares_one_original_mean(extraction, monkeypatch
         expected = np.mean([_numpy(mesh.vertices_tensor)[i] for mesh, i in zip(meshes, indices)], axis=0)
         for mesh, i in zip(meshes, indices):
             np.testing.assert_allclose(mesh.vertices[i], expected)
+
+
+@pytest.fixture
+def real_contact_meshes(extraction, monkeypatch):
+    def make(name, dtype="float64", backend=config.AvailableBackends.numpy):
+        case, descriptor, inputs, options, levels = extraction(name, dtype=dtype, backend=backend)
+        snapshots = []
+        extract = dc.compute_dual_contouring_v2
+
+        def capture(**kwargs):
+            meshes = extract(**dict(kwargs, max_workers=1))
+            snapshots.extend((_numpy(m.vertices).copy(), _numpy(m.edges).copy()) for m in meshes)
+            return meshes
+
+        monkeypatch.setattr(dc, "compute_dual_contouring_v2", capture)
+        stage = Mock(wraps=dc.reconcile_contact_meshes)
+        monkeypatch.setattr(dc, "reconcile_contact_meshes", stage)
+        meshes = dc.dual_contouring_multi_scalar(descriptor, inputs, options, levels)
+        if name in ("three_stack_erosion", "three_stack_onlap"):
+            masks = np.array([_numpy(o.squeezed_mask_array) for o in levels[0].outputs])
+            np.testing.assert_array_equal(masks.sum(axis=0), 1)
+            assert all(mask.any() and not mask.all() for mask in masks)
+            owned = stage.call_args.args[4] if stage.call_args.args else stage.call_args.kwargs["corner_ownership"]
+            assert any(np.any(rows.any(axis=1) & ~rows.all(axis=1)) for rows in owned)
+        cells = [_numpy(m.dc_data.left_right_codes[m.dc_data.valid_voxels]) for m in meshes]
+        metadata = [(m.stack_index, m.surface_index,
+                     float(_numpy(levels[0].outputs[m.stack_index].scalar_field_at_sp)[m.surface_index]))
+                    for m in meshes]
+        return case, descriptor, meshes, cells, snapshots, metadata
+
+    return make
+
+
+REAL_CONTACT_CASES = ["planar_erosion", "onlap", "three_way_junction", "curved", "fault_mixed",
+                      "three_stack_erosion", "three_stack_onlap", "same_group_competition"]
+
+
+@pytest.mark.parametrize("backend", [config.AvailableBackends.numpy, config.AvailableBackends.PYTORCH])
+@pytest.mark.parametrize("dtype", ["float32", "float64"])
+@pytest.mark.parametrize("name", REAL_CONTACT_CASES)
+def test_real_extraction_retains_face_indices_area_winding_and_supported_ids(real_contact_meshes, name, dtype, backend):
+    _, _, meshes, cells, snapshots, _ = real_contact_meshes(name, dtype, backend)
+    members = {}
+    for surface, (mesh, coordinates, (vertices, faces)) in enumerate(zip(meshes, cells, snapshots)):
+        ids = _assert_report(mesh)
+        assert len(np.unique(ids[ids >= 0])) == np.count_nonzero(ids >= 0)
+        np.testing.assert_array_equal(mesh.vertices[ids < 0], vertices[ids < 0])
+        assert len(mesh.vertices) == len(vertices) == len(coordinates)
+        np.testing.assert_array_equal(_numpy(mesh.vertices_tensor), vertices)
+        original_faces = {tuple(face): index for index, face in enumerate(faces)}
+        retained_indices = [original_faces[tuple(face)] for face in mesh.edges]
+        assert np.all(np.diff(retained_indices) > 0)
+        edges, counts = np.unique(np.sort(np.concatenate([
+            mesh.edges[:, [0, 1]], mesh.edges[:, [1, 2]], mesh.edges[:, [2, 0]]]), axis=1),
+            axis=0, return_counts=True)
+        assert np.all(counts <= 2), (name, surface, "nonmanifold edge")
+        neighbors = {}
+        for a, b in edges:
+            neighbors.setdefault(int(a), set()).add(int(b))
+            neighbors.setdefault(int(b), set()).add(int(a))
+        if neighbors:
+            pending, visited = [next(iter(neighbors))], set()
+            while pending:
+                vertex = pending.pop()
+                if vertex not in visited:
+                    visited.add(vertex)
+                    pending.extend(neighbors[vertex] - visited)
+            assert visited == set(neighbors), (name, surface, "disconnected retained patch")
+        before = vertices[mesh.edges]
+        after = mesh.vertices[mesh.edges]
+        original_normals = np.cross(before[:, 1] - before[:, 0], before[:, 2] - before[:, 0])
+        final_normals = np.cross(after[:, 1] - after[:, 0], after[:, 2] - after[:, 0])
+        assert np.all(np.linalg.norm(final_normals, axis=1) > 0), (name, surface, "zero area")
+        assert np.all(np.einsum("ij,ij->i", original_normals, final_normals) > 0), (name, surface, "winding")
+        ordinary = mesh.stack_index != 0 or name != "fault_mixed"
+        if ordinary:
+            assert np.all(np.isin(np.flatnonzero(ids >= 0), mesh.edges)), (name, surface, "unsupported IDs")
+        for row in np.flatnonzero(ids >= 0):
+            members.setdefault(int(ids[row]), []).append((surface, int(row)))
+    assert members
+    for contact_id, rows in members.items():
+        assert len(rows) >= 2, (name, contact_id, "singleton ID")
+        assert len({meshes[s].stack_index for s, _ in rows}) == len(rows)
+        surface, row = rows[0]
+        for partner, partner_row in rows[1:]:
+            np.testing.assert_array_equal(cells[surface][row], cells[partner][partner_row])
+            np.testing.assert_array_equal(meshes[surface].vertices[row], meshes[partner].vertices[partner_row])
+    if name in ("three_stack_erosion", "three_stack_onlap"):
+        assert any(len(rows) == 3 for rows in members.values())
+    if name == "same_group_competition":
+        assert [(m.stack_index, m.surface_index) for m in meshes] == [(0, 0), (0, 1), (1, 0)]
+        assert set(map(tuple, cells[0])) & set(map(tuple, cells[1])) & set(map(tuple, cells[2]))
+        competed = 0
+        for rows in members.values():
+            target_rows = [row for surface, row in rows if surface == 2]
+            if not target_rows:
+                continue
+            row = target_rows[0]
+            candidates = [np.flatnonzero(np.all(coordinates == cells[2][row], axis=1))
+                          for coordinates in cells[:2]]
+            if not all(len(candidate) == 1 for candidate in candidates):
+                continue
+            competed += 1
+            distances = [np.sum((snapshots[s][0][candidate[0]] - snapshots[2][0][row]) ** 2)
+                         for s, candidate in enumerate(candidates)]
+            chosen = int(np.argmin(distances))
+            assert (chosen, int(candidates[chosen][0])) in rows
+            assert meshes[1 - chosen].contact_report["contact_ids"][candidates[1 - chosen][0]] == -1
+        assert competed > 0
+
+
+def _internal_boundary_gaps(extracted):
+    case, descriptor, meshes, cells, _, metadata = extracted
+    _, fault_pairs, truncation_pairs = contact_api._contact_relations(metadata, descriptor.stack_structure)
+    all_edges, boundary_edges = [], []
+    for mesh in meshes:
+        edges = np.sort(np.concatenate([mesh.edges[:, [0, 1]], mesh.edges[:, [1, 2]],
+                                        mesh.edges[:, [2, 0]]]), axis=1)
+        unique, counts = np.unique(edges, axis=0, return_counts=True)
+        all_edges.append({tuple(sorted(mesh.contact_report["contact_ids"][edge]))
+                          for edge in unique if np.all(mesh.contact_report["contact_ids"][edge] >= 0)})
+        boundary_edges.append(unique[counts == 1])
+    domain_cells = np.array(list(product(*(range(n) for n in case.resolution))))
+    lower, upper = domain_cells.min(axis=0), domain_cells.max(axis=0)
+    seam_count = 0
+    gaps = []
+    for target, (mesh, edges) in enumerate(zip(meshes, boundary_edges)):
+        controllers = {controller for controller, partner in truncation_pairs | fault_pairs if partner == target}
+        if not controllers:
+            continue
+        for edge in edges:
+            coordinates = cells[target][edge]
+            domain_boundary = np.any(np.all(coordinates == lower, axis=0) |
+                                     np.all(coordinates == upper, axis=0))
+            ids = mesh.contact_report["contact_ids"][edge]
+            if domain_boundary and not np.all(ids >= 0):
+                continue
+            seam_count += int(not domain_boundary)
+            if not np.all(ids >= 0):
+                gaps.append((target, coordinates.tolist(), ids.tolist(), "unmarked internal boundary"))
+                continue
+            key = tuple(sorted(ids))
+            if not any(key in all_edges[c] for c in controllers):
+                gaps.append((target, coordinates.tolist(), ids.tolist(), "missing actual controller edge"))
+    return seam_count, gaps
+
+
+@pytest.mark.parametrize("backend", [config.AvailableBackends.numpy, config.AvailableBackends.PYTORCH])
+@pytest.mark.parametrize("dtype", ["float32", "float64"])
+@pytest.mark.parametrize("name", [name for name in REAL_CONTACT_CASES if name != "fault_mixed"])
+def test_real_extraction_internal_boundary_has_actual_controller_edge(real_contact_meshes, name, dtype, backend):
+    extracted = real_contact_meshes(name, dtype, backend)
+    seam_count, gaps = _internal_boundary_gaps(extracted)
+    assert not gaps, (name, seam_count, gaps)
+    _, descriptor, meshes, _, _, metadata = extracted
+    _, _, pairs = contact_api._contact_relations(metadata, descriptor.stack_structure)
+    patches = []
+    for mesh in meshes:
+        keys = np.sort(mesh.contact_report['contact_ids'][mesh.edges], axis=1)
+        patches.append({tuple(row) for row in keys if row[0] >= 0 and row[0] < row[1] < row[2]})
+    for controller, target in pairs:
+        assert not patches[controller] & patches[target], (name, controller, target, "duplicate shared patch")
+    # The original junction intentionally has full ownership: it has contacts,
+    # but no truncated internal boundary. The chain cases exercise real seams.
+    assert seam_count == 0 if name == "three_way_junction" else seam_count > 0
+
+
+def test_characterization_fault_mixed_has_two_unmarked_junction_boundary_edges(real_contact_meshes):
+    """Known gap, NOT seam acceptance: a fault anchor blocks the ordinary junction."""
+    extracted = real_contact_meshes("fault_mixed")
+    seam_count, gaps = _internal_boundary_gaps(extracted)
+    assert seam_count == 5
+    assert gaps == [
+        (2, [[1, 2, 2], [2, 2, 2]], [1, -1], "unmarked internal boundary"),
+        (2, [[2, 2, 2], [3, 2, 2]], [-1, 8], "unmarked internal boundary"),
+    ]
+    meshes, cells = extracted[2:4]
+    assert any(conflict["cell"] == (2, 2, 2) and conflict["reason"] == "fault_anchored"
+               for conflict in meshes[0].contact_report["conflicts"])
+    rows = [int(np.flatnonzero(np.all(coordinates == [2, 2, 2], axis=1))[0]) for coordinates in cells]
+    assert meshes[1].contact_report["contact_ids"][rows[1]] >= 0
+    assert meshes[2].contact_report["contact_ids"][rows[2]] == -1
+    assert not np.array_equal(meshes[1].vertices[rows[1]], meshes[2].vertices[rows[2]])
 
 
 @pytest.mark.parametrize("hidden", [0, 1])
