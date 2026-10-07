@@ -1,7 +1,87 @@
+from itertools import permutations
+
 import numpy as np
 import pytest
 
-from gempy_engine.modules.dual_contouring.contact_cells import reconcile_cell_vertices
+from gempy_engine.modules.dual_contouring.contact_cells import finalize_cell_vertices, reconcile_cell_vertices
+
+
+@pytest.mark.parametrize('supported', [[False, True], [False, False], [True, True]])
+def test_finalize_pair_support_restores_originals_without_mutation(supported):
+    inputs = _inputs([0, 8])
+    provisional, ids, _ = reconcile_cell_vertices(*inputs)
+    faces = [np.array([[0, 0, 0]], dtype=int) if keep else np.empty((0, 3), dtype=int)
+             for keep in supported]
+    vertices, final_ids, report = finalize_cell_vertices(inputs[0], provisional, ids, faces, inputs[3])
+    retained = all(supported)
+    for surface in range(2):
+        np.testing.assert_array_equal(vertices[surface], provisional[surface] if retained else inputs[0][surface])
+        np.testing.assert_array_equal(final_ids[surface], [0 if retained else -1])
+        np.testing.assert_array_equal(provisional[surface], [[4, 0, 0]])
+        np.testing.assert_array_equal(ids[surface], [0])
+    assert report['contact_count'] == int(retained)
+    assert report['unsupported_contact_member_count'] == supported.count(False)
+
+
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+def test_finalize_three_way_mean_uses_supported_originals(dtype):
+    inputs = _inputs([0, 2, 10], dtype=dtype)
+    provisional, ids, _ = reconcile_cell_vertices(*inputs)
+    faces = [np.empty((0, 3), dtype=int), np.array([[0, 0, 0]]), np.array([[0, 0, 0]])]
+    vertices, final_ids, report = finalize_cell_vertices(inputs[0], provisional, ids, faces, inputs[3])
+    np.testing.assert_array_equal(vertices[0], inputs[0][0])
+    for surface in (1, 2):
+        np.testing.assert_array_equal(vertices[surface], [[6, 0, 0]])
+        assert vertices[surface].dtype == dtype
+    assert [array[0] for array in final_ids] == [-1, 0, 0]
+    assert report['contact_count'] == 1
+    assert report['dissolved_contact_count'] == 0
+
+
+def test_finalize_does_not_regroup_same_stack_competitors():
+    inputs = _inputs([0, 4, 1], [0, 0, 1])
+    provisional, ids, _ = reconcile_cell_vertices(*inputs)
+    faces = [np.empty((0, 3), dtype=int), np.array([[0, 0, 0]]), np.array([[0, 0, 0]])]
+    vertices, final_ids, report = finalize_cell_vertices(inputs[0], provisional, ids, faces, inputs[3])
+    for actual, original in zip(vertices, inputs[0]):
+        np.testing.assert_array_equal(actual, original)
+    assert [array[0] for array in final_ids] == [-1, -1, -1]
+    assert report['contact_count'] == 0
+
+
+def test_finalize_preserves_fault_snap_with_discarded_target():
+    inputs = _inputs([4, 0])
+    faults = {(0, 1)}
+    provisional, ids, _ = reconcile_cell_vertices(*inputs, fault_pairs=faults)
+    faces = [np.array([[0, 0, 0]]), np.empty((0, 3), dtype=int)]
+    vertices, final_ids, report = finalize_cell_vertices(inputs[0], provisional, ids, faces, inputs[3], faults)
+    for actual, expected in zip(vertices, provisional):
+        np.testing.assert_array_equal(actual, expected)
+    assert [array[0] for array in final_ids] == [0, 0]
+    assert report['contact_count'] == 1
+    assert report['unsupported_contact_member_count'] == 0
+
+
+def test_finalize_partial_group_mean_is_surface_order_independent():
+    inputs = _inputs([1e16, 1., -1e16, 10.])
+    provisional, ids, _ = reconcile_cell_vertices(*inputs)
+    faces = [np.array([[0, 0, 0]]) for _ in range(3)] + [np.empty((0, 3), dtype=int)]
+    expected = None
+    for order in permutations(range(4)):
+        positions, final_ids, report = finalize_cell_vertices(
+            [inputs[0][i] for i in order], [provisional[i] for i in order],
+            [ids[i] for i in order], [faces[i] for i in order], [inputs[3][i] for i in order],
+        )
+        for index, surface in enumerate(order):
+            if surface == 3:
+                np.testing.assert_array_equal(positions[index], inputs[0][surface])
+                assert final_ids[index][0] == -1
+            else:
+                if expected is None:
+                    expected = positions[index].copy()
+                np.testing.assert_array_equal(positions[index], expected)
+                assert final_ids[index][0] == ids[surface][0]
+        assert report['contact_count'] == 1
 
 
 def _inputs(xs, groups=None, cells=None, dtype=np.float64):

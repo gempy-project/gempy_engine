@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from ...modules.dual_contouring.contact_cells import reconcile_cell_vertices
+from ...modules.dual_contouring.contact_cells import finalize_cell_vertices, reconcile_cell_vertices
 from ...modules.dual_contouring.contact_topology import build_contact_relations, contact_surface_roles, reconcile_cell_faces
 from ...modules.dual_contouring.weighted_qef_setup_multicore import find_and_inject_multi_surface_constraints_multicore
 
@@ -48,9 +48,10 @@ def reconcile_contact_meshes(all_meshes, cell_coordinates, surface_metadata, dat
         contact_relations = _contact_relations(surface_metadata, stacks)
     allowed_pairs, fault_pairs, truncation_pairs = contact_relations
     _, ordinary_surfaces = contact_surface_roles(surface_to_stack, stacks.masking_descriptor, stacks.faults_relations)
+    surface_ids = [(item[0], item[1]) for item in surface_metadata]
     vertices, contact_ids, position_report = reconcile_cell_vertices(
         [mesh.vertices for mesh in all_meshes], cell_coordinates, surface_to_stack,
-        [(item[0], item[1]) for item in surface_metadata], allowed_pairs, fault_pairs,
+        surface_ids, allowed_pairs, fault_pairs,
         contact_eligible=[np.any(owned, axis=1) for owned in corner_ownership],
     )
     faces, topology_report = reconcile_cell_faces(
@@ -58,6 +59,10 @@ def reconcile_contact_meshes(all_meshes, cell_coordinates, surface_metadata, dat
         position_report['fault_overlap_vertices'], truncation_pairs,
         ownership_targets=np.flatnonzero(ordinary_surfaces),
     )
+    vertices, contact_ids, finalization_report = finalize_cell_vertices(
+        [mesh.vertices for mesh in all_meshes], vertices, contact_ids, faces, surface_ids, fault_pairs,
+    )
+    position_report.update(finalization_report)
     for index, mesh in enumerate(all_meshes):
         mesh.vertices, mesh.edges = vertices[index], faces[index]
         mesh.contact_report = dict(
