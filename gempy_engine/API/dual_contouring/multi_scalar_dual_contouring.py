@@ -1,5 +1,6 @@
 import copy
 import warnings
+from dataclasses import replace
 from typing import List, Any
 
 import numpy as np
@@ -26,6 +27,7 @@ from ...modules.dual_contouring.overlapping import average_overlapping_vertices,
 from ...modules.dual_contouring._support_report import mesh_support_report
 from ...core.data.options.evaluation_options import OctreeRefinementMode, MeshExtentCapping
 from .extent_capping import cap_meshes_at_extent
+from .contact_reconciliation import prepare_contact_constraints, reconcile_contact_meshes
 
 
 @gempy_profiler_decorator
@@ -54,6 +56,37 @@ def dual_contouring_multi_scalar(
     octree_leaves = octree_list[-1]
     all_meshes: List[DualContouringMesh] = []
     cap_enabled = MeshExtentCapping(options.evaluation_options.mesh_extraction_extent_capping) != MeshExtentCapping.NONE
+
+    match DUAL_CONTOURING_VERTEX_OVERLAP:
+        case DualContouringOverlap.none:
+            contact_aware = False
+            overlap_enabled = False
+        case DualContouringOverlap.pretty | DualContouringOverlap.watertight:
+            contact_aware = False
+            overlap_enabled = True
+        case DualContouringOverlap.contact_aware:
+            contact_aware = True
+            overlap_enabled = False
+        case mode if isinstance(mode, DualContouringOverlap) and mode & DualContouringOverlap.contact_aware:
+            raise ValueError("contact_aware cannot be combined with other dual contouring overlap flags")
+        case mode if isinstance(mode, DualContouringOverlap) and not mode.value & ~(
+                DualContouringOverlap.none | DualContouringOverlap.pretty | DualContouringOverlap.watertight
+        ).value:
+            # Legacy bitfields, including zero, used the broad non-none branch.
+            contact_aware = False
+            overlap_enabled = mode != DualContouringOverlap.none
+        case _:
+            raise ValueError(f"Unsupported dual contouring overlap mode: {DUAL_CONTOURING_VERTEX_OVERLAP!r}")
+
+    if contact_aware:
+        if len(octree_leaves.outputs) != data_descriptor.stack_structure.n_stacks:
+            raise ValueError("contact_aware requires one leaf output per stack")
+        if cap_enabled:
+            raise ValueError("contact_aware extent capping requires contact identities for added boundary vertices")
+        # Isolate the temporary grid and mutable stack cursor without copying tensors.
+        interpolation_input = copy.copy(interpolation_input)
+        interpolation_input.weights = list(interpolation_input.weights)
+        data_descriptor = replace(data_descriptor, stack_structure=copy.copy(data_descriptor.stack_structure))
 
     dual_contouring_options = copy.deepcopy(options)
     dual_contouring_options.evaluation_options.compute_scalar_gradient = True
@@ -105,7 +138,7 @@ def dual_contouring_multi_scalar(
 
     # endregion
 
-    compute_overlap = (len(all_left_right_codes) > 1) and DUAL_CONTOURING_VERTEX_OVERLAP != DualContouringOverlap.none
+    compute_overlap = (len(all_left_right_codes) > 1) and overlap_enabled
 
     # region Vertex gen and triangulation
     left_right_per_mesh = []
@@ -114,6 +147,7 @@ def dual_contouring_multi_scalar(
     dc_data_per_surface_all = []
     support_reports = []
     surface_metadata = []
+    corner_ownership = []
     stack_relations = data_descriptor.stack_structure.masking_descriptor
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
         if stack_relations[n_scalar_field] is StackRelationType.NULL_SPACE:
@@ -166,8 +200,16 @@ def dual_contouring_multi_scalar(
             dc_data_per_surface_all.append(dc_data_per_surface)
             surface_to_stack.append(n_scalar_field)
             surface_metadata.append((n_scalar_field, surface_i, float(output.scalar_field_at_sp[surface_i])))
-            if compute_overlap:
+            if compute_overlap or contact_aware:
                 left_right_per_mesh.append(all_left_right_codes[n_scalar_field][dc_data_per_surface.valid_voxels])
+            if contact_aware:
+                owned = output.squeezed_mask_array[output.grid.corners_grid_slice].reshape(-1, 8)
+                if mask is not None:
+                    owned = owned[mask]
+                corner_ownership.append(BackendTensor.t.to_numpy(owned[dc_data_per_surface.valid_voxels]).copy())
+
+        if contact_aware:
+            continue
 
         # --- Weighted QEF: inject cross-surface constraints before vertex generation ---
         if compute_overlap and left_right_per_mesh:
@@ -219,6 +261,22 @@ def dual_contouring_multi_scalar(
         for mesh in all_meshes:
             mesh.vertices = BackendTensor.t.to_numpy(mesh.vertices)
             mesh.edges = BackendTensor.t.to_numpy(mesh.edges)
+
+    if contact_aware:
+        contact_relations = prepare_contact_constraints(
+            dc_data_per_surface_all, left_right_per_mesh, surface_metadata,
+            data_descriptor, base_number,
+        )
+        all_meshes = compute_dual_contouring_v2(dc_data_list=dc_data_per_surface_all, max_workers=None)
+        for mesh, report in zip(all_meshes, support_reports):
+            mesh.support_report = report
+            mesh.vertices_tensor = mesh.vertices
+            mesh.vertices = BackendTensor.t.to_numpy(mesh.vertices).copy()
+            mesh.edges = BackendTensor.t.to_numpy(mesh.edges).copy()
+        reconcile_contact_meshes(
+            all_meshes, [BackendTensor.t.to_numpy(cells) for cells in left_right_per_mesh],
+            surface_metadata, data_descriptor, corner_ownership, contact_relations=contact_relations,
+        )
 
     for index, (mesh, (stack_index, surface_index, isovalue)) in enumerate(zip(all_meshes, surface_metadata)):
         mesh.stack_index = stack_index
