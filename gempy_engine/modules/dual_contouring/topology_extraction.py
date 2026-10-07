@@ -100,27 +100,106 @@ def classify_cell_branches(values, valid_edges, unsafe_warnings=None):
     return labels, counts, coefficients, affine, ambiguous_count
 
 
+def sampled_face_segment(values):
+    """Bounded chord through unique bilinear face roots, not an interior certificate.
+
+    Each face uses only its four shared nodes in canonical axis order. The
+    resultant enumerates all isolated roots rather than choosing a Newton seed.
+    Multiple roots, coincident restrictions and edge-aligned roots are rejected.
+    """
+    endpoints = []
+    for axis in range(3):
+        other = [a for a in range(3) if a != axis]
+        for side in (0, 1):
+            nodes = []
+            for u, v in ((0, 0), (1, 0), (0, 1), (1, 1)):
+                bits = np.zeros(3, dtype=int)
+                bits[axis], bits[other[0]], bits[other[1]] = side, u, v
+                nodes.append(np.flatnonzero(np.all(CORNERS == bits, axis=1))[0])
+            face = values[:, nodes]
+            if np.any((face.min(axis=1) > 0) | (face.max(axis=1) < 0)):
+                continue
+            scales = np.max(np.abs(face), axis=1)
+            if np.any(scales < 1e-14):
+                raise ValueError('degenerate_sampled_face: entire face lies on an interface')
+            face = face / scales[:, None]
+            a = face[:, 0]
+            b = face[:, 1] - a
+            c = face[:, 2] - a
+            d = face[:, 3] - a - b - c
+            polynomial = np.array([b[0]*d[1]-b[1]*d[0],
+                                   a[0]*d[1]+b[0]*c[1]-a[1]*d[0]-b[1]*c[0],
+                                   a[0]*c[1]-a[1]*c[0]])
+            nonzero = np.flatnonzero(np.abs(polynomial) > 1e-12)
+            if not len(nonzero):
+                raise ValueError('degenerate_sampled_face: nonisolated or unresolved bilinear intersection')
+            face_roots = []
+            for root in np.roots(polynomial[nonzero[0]:]):
+                if abs(root.imag) > 1e-10 or not -1e-10 <= root.real <= 1+1e-10:
+                    continue
+                u = float(root.real)
+                denominator = c + d*u
+                row = np.argmax(np.abs(denominator))
+                if abs(denominator[row]) < 1e-12:
+                    if np.max(np.abs(a+b*u)) < 1e-10:
+                        raise ValueError('degenerate_sampled_face: nonisolated bilinear intersection')
+                    continue
+                v = -(a[row]+b[row]*u)/denominator[row]
+                if not -1e-10 <= v <= 1+1e-10:
+                    continue
+                if np.max(np.abs(a+b*u+c*v+d*u*v)) > 1e-9:
+                    raise ValueError('unresolved_sampled_face: resultant root fails residual check')
+                jacobian = np.column_stack((b+d*v, c+d*u))
+                if abs(np.linalg.det(jacobian)) < 1e-10:
+                    raise ValueError('degenerate_sampled_face: tangential bilinear intersection')
+                if min(u, v, 1-u, 1-v) < 1e-10:
+                    raise ValueError('grid_edge_junction: sampled face root needs sided support')
+                point = np.zeros(3)
+                point[axis], point[other[0]], point[other[1]] = side, u, v
+                if not any(np.allclose(point, p, atol=1e-10, rtol=0) for p in face_roots):
+                    face_roots.append(point)
+            if len(face_roots) > 1:
+                raise ValueError('unsupported_sampled_junction: multiple roots on one face')
+            endpoints.extend(face_roots)
+    if not endpoints:
+        return None
+    if len(endpoints) != 2:
+        raise ValueError('unsupported_sampled_junction: need exactly two isolated boundary roots')
+    return np.array(endpoints)
+
+
 def plan_joint_representatives(coordinates, corners_xyz, fields, ownership, branches,
                                coefficients, affine, pairs, identities, edge_xyz, edge_normals, valid_edges,
-                               unsafe_warnings=None):
+                               unsafe_warnings=None, sampled_junctions=False, composite_controllers=None):
     """Establish joint cell constraints and shared primal-face evidence, not meshes."""
     tolerance = 1e-10
     junctions = {}
     face_evidence = {}
+    composite_controllers = {} if composite_controllers is None else composite_controllers
     for controller, target in sorted(pairs, key=lambda p: (identities[p[0]], identities[p[1]])):
         own = ownership[target]
         if np.all(own > 0) or np.all(own < 0):
             continue
-        if not (np.allclose(own, fields[controller], atol=tolerance, rtol=0)
+        if target not in composite_controllers and not (np.allclose(own, fields[controller], atol=tolerance, rtol=0)
                 or np.allclose(own, -fields[controller], atol=tolerance, rtol=0)):
             raise ValueError('unsupported_ownership: need signed eligible controller field')
         for cell in range(len(coordinates)):
             if not valid_edges[controller, cell].any() or not valid_edges[target, cell].any():
                 continue
+            if target in composite_controllers:
+                others = [c for c in composite_controllers[target] if c != controller]
+                if any(np.all(fields[c, cell] > 0) for c in others):
+                    continue
+                if any(not np.all(fields[c, cell] < 0) for c in others):
+                    raise ValueError('unsupported_composite_junction: competing controller in contact cell')
             if branches[controller][cell].max() > 0 or branches[target][cell].max() > 0:
                 raise ValueError('unsupported_junction_branches: contact requires one sampled branch per participant')
-            if not affine[controller][cell] or not affine[target][cell]:
+            nonaffine = not affine[controller][cell] or not affine[target][cell]
+            if nonaffine and not sampled_junctions:
                 raise ValueError('unsupported_junction_field: need cell-affine corner approximants for consistent junction-face evidence')
+            sampled_endpoints = sampled_face_segment(fields[[controller, target], cell]) if nonaffine else None
+            if nonaffine and sampled_endpoints is None:
+                continue
             normals = np.stack((coefficients[controller][cell, :3], coefficients[target][cell, :3]))
             rhs = -np.array([coefficients[controller][cell, 3], coefficients[target][cell, 3]])
             row_norms = np.linalg.norm(normals, axis=1)
@@ -130,13 +209,18 @@ def plan_joint_representatives(coordinates, corners_xyz, fields, ownership, bran
             rhs = rhs / row_norms
             direction = np.cross(*normals)
             length = np.linalg.norm(direction)
-            if length < tolerance:
+            if length < tolerance and not nonaffine:
                 if np.linalg.matrix_rank(np.column_stack((normals, rhs)), tol=tolerance) == 1:
                     raise ValueError('coincident_interfaces: no unique junction line')
                 continue
-            direction /= length
-            point = np.linalg.lstsq(normals, rhs, rcond=None)[0]
-            lo, hi = -np.inf, np.inf
+            if nonaffine:
+                point = sampled_endpoints[0]
+                direction = sampled_endpoints[1] - point
+                lo, hi = 0., 1.
+            else:
+                direction /= length
+                point = np.linalg.lstsq(normals, rhs, rcond=None)[0]
+                lo, hi = -np.inf, np.inf
             for a in range(3):
                 if abs(direction[a]) < tolerance:
                     if point[a] < -tolerance or point[a] > 1 + tolerance:

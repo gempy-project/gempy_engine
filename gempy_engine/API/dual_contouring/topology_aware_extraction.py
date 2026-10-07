@@ -21,7 +21,8 @@ from gempy_engine.modules.dual_contouring.topology_extraction import (
 def extract_topology_aware(axes, scalar_samples, surface_to_stack, surface_indices,
                            stack_relations, isovalues, *, ownership, gradient_samples,
                            faults_relations=None, fault_support=None, fault_slip=None,
-                           interior_samples=None, include_reference=False, unsafe_diagnostics=False):
+                           interior_samples=None, include_reference=False, unsafe_diagnostics=False,
+                           sampled_junctions=False):
     """Generate branch-aware Hermite/QEF vertices and shared dual seam incidence.
 
     Node samples/ownership: (S,nx,ny,nz); gradients add a last dimension of 3.
@@ -30,6 +31,8 @@ def extract_topology_aware(axes, scalar_samples, surface_to_stack, surface_indic
     cell-affine corner approximants, not exactly affine original geological fields.
     unsafe_diagnostics bypasses selected rejection guards to expose raw defects;
     it does not implement missing topology or make the output valid.
+    sampled_junctions opts into bounded chords joining isolated roots of shared
+    bilinear faces for nonaffine sampled cells; all seam incidence guards remain.
     """
     if BackendTensor.engine_backend is not AvailableBackends.numpy or BackendTensor.use_gpu:
         raise ValueError('unsupported_backend: explicit NumPy CPU experiment')
@@ -122,8 +125,9 @@ def extract_topology_aware(axes, scalar_samples, surface_to_stack, surface_indic
                           ((corner_fields.max(axis=2) < 0) & (centers >= 0))
         if hidden_crossing.any():
             raise ValueError('insufficient_interior_topology: center reveals topology absent from corner crossings')
-    # A mixed ownership mask needs a unique geological controller, not coincidence.
+    # Signed controllers are geological constraints, never inferred coincidences.
     selected_pairs = set()
+    composite_controllers = {}
     for target in range(n):
         own = corner_ownership[target]
         if np.any(own > 0) and not np.all(own > 0):
@@ -131,12 +135,17 @@ def extract_topology_aware(axes, scalar_samples, surface_to_stack, surface_indic
                        and (np.allclose(own, corner_fields[c], atol=1e-10, rtol=0)
                             or np.allclose(own, -corner_fields[c], atol=1e-10, rtol=0))]
             if len(matches) != 1:
-                raise ValueError('unsupported_ownership: require one eligible signed controller')
+                controllers = sorted({c for c, t in truncations if t == target and allowed[c, t]})
+                if not sampled_junctions or not controllers or not np.allclose(
+                        own, np.minimum.reduce([-corner_fields[c] for c in controllers]), atol=1e-10, rtol=0):
+                    raise ValueError('unsupported_ownership: require one eligible signed controller')
+                matches = [(c, target) for c in controllers]
+                composite_controllers[target] = controllers
             selected_pairs.update(matches)
     junctions, face_evidence = plan_joint_representatives(
         coordinates, corners_xyz, corner_fields, corner_ownership, branch_labels,
         coefficients, affine, selected_pairs, identities, edge_xyz, edge_normals, valid_edges,
-        unsafe_warnings,
+        unsafe_warnings, sampled_junctions=sampled_junctions, composite_controllers=composite_controllers,
     )
     plans = plan_dual_quads(coordinates, domain, valid_edges, branch_labels, edge_ownership, identities, junctions)
     if unsafe_diagnostics:
@@ -194,7 +203,11 @@ def extract_topology_aware(axes, scalar_samples, surface_to_stack, surface_indic
                   diagnostics={'algorithm': 'hermite_qef_dual_contouring', 'triangulation': 'production_quad_1_3',
                                'field_contract': 'sampled_affine_monotone_or_bilinear_extrusion', 'ambiguous_face_count': ambiguous_faces,
                                'hermite_normals': 'supplied_interpolated_not_forced_to_corner_fit',
-                               'junction_constraints': 'cell_affine_corner_approximant_seam_actual_hermite_qef',
+                                'junction_constraints': 'shared_bilinear_face_root_chord_actual_hermite_qef' if sampled_junctions else 'cell_affine_corner_approximant_seam_actual_hermite_qef',
+                                'sampled_junctions': sampled_junctions,
+                                'shared_face_count': sum(len(entries) == 2 for entries in face_evidence.values()),
+                                'shared_face_max_disagreement': max((float(np.max(np.abs(entries[0][1] - entries[1][1])))
+                                                                    for entries in face_evidence.values() if len(entries) == 2), default=0.),
                                'interior_topology': 'center_checked_not_topology_certified' if interior_samples is not None else 'sampled_boundary_only_not_interior_certified',
                                'center_approximant_max_residual': None if interior_samples is None else float(np.max(np.abs(interior_samples - expected))),
                                'junction_cell_count': len(junctions), 'post_reconciliation': False,
