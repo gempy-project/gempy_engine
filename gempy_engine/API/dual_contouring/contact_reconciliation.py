@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from ...modules.dual_contouring.contact_cells import finalize_cell_vertices, reconcile_cell_vertices
+from ...modules.dual_contouring.contact_cells import attach_fault_junctions, finalize_cell_vertices, reconcile_cell_vertices
 from ...modules.dual_contouring.contact_topology import build_contact_relations, contact_surface_roles, reconcile_cell_faces
 from ...modules.dual_contouring.weighted_qef_setup_multicore import find_and_inject_multi_surface_constraints_multicore
 
@@ -63,6 +63,12 @@ def reconcile_contact_meshes(all_meshes, cell_coordinates, surface_metadata, dat
         [mesh.vertices for mesh in all_meshes], vertices, contact_ids, faces, surface_ids, fault_pairs,
     )
     position_report.update(finalization_report)
+    if fault_pairs and truncation_pairs:
+        vertices, contact_ids, junction_report = attach_fault_junctions(
+            [mesh.vertices for mesh in all_meshes], vertices, contact_ids, faces, cell_coordinates,
+            surface_ids, allowed_pairs, fault_pairs, truncation_pairs,
+        )
+        position_report.update(junction_report)
     for index, mesh in enumerate(all_meshes):
         mesh.vertices, mesh.edges = vertices[index], faces[index]
         mesh.contact_report = dict(

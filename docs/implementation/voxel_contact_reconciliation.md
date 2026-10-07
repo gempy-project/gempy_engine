@@ -248,6 +248,9 @@ ordinary mean. Competing fault controllers or fault chains are diagnosed rather
 than averaged. Same-group exclusion also applies to competing fault targets;
 rejected snaps remain distinct. All actual directed fault-overlap target indices
 are retained for the existing all-three-indices triangle-removal rule.
+After topology and finalization, the narrowly supported junction-attachment pass
+below may copy an ordinary boundary endpoint to an existing anchor. This is not
+an ordinary mean or a change to fault eligibility.
 
 Triangle operations retain vertex indices, cell correspondence, and winding.
 Redundant target patches are removed only when all three distinct contact IDs
@@ -278,6 +281,7 @@ DEFAULT_BACKEND=numpy PYTHONPATH=. /home/leguark/.venv/2025/bin/pytest \
   tests/test_common/test_modules/test_contact_topology.py \
   tests/test_common/test_modules/test_contact_aware_integration.py \
   tests/test_common/test_modules/test_compound_contacts.py \
+  tests/test_common/test_modules/test_fault_junctions.py \
   tests/test_common/test_modules/test_contact_reconciliation.py \
   tests/test_common/test_modules/test_contact_reconciliation_integration.py \
   tests/test_common/test_modules/test_quad_triangulation.py \
@@ -342,31 +346,58 @@ every surface permutation, same-group isolation, and an adjacent directional
 fault anchor, in float32 and float64. This validates those constructed cases,
 not a universal guarantee against under-resolved geometric defects.
 
-Milestone verification: **396 focused regression tests passed**, including the
+Prior validation milestone: **396 focused regression tests passed**, including the
 new compound checks and existing legacy references, plus **all four production
 weighted-QEF tests** in `contact_aware`, including higher resolution. The twelve
 finalization benchmark cases passed when enabled and were skipped when disabled;
-three larger production-model benchmark cases passed. These results include the
-explicit known-gap characterization below, not acceptance of that junction.
+three larger production-model benchmark cases passed. That milestone included a
+fault-junction gap characterization, now replaced by connectivity acceptance.
 
-### Known Fault-Junction Gap
+### Supported Fault-Junction Attachment
 
-The compound milestone is **not closed**. In the extracted `fault_mixed` case,
-fault stack 0 controls stack 1 but not stack 2. Stack 1 truncates stack 2. At cell
-`(2, 2, 2)`, the fault anchor prevents the ordinary stack-1/stack-2 merge, leaving
-two unmatched internal stack-2 boundary edges:
+In the extracted `fault_mixed` case, fault stack 0 controls stack 1 but not stack
+2. Stack 1 truncates stack 2. At cell `(2, 2, 2)`, provisional grouping correctly
+rejects the ordinary merge into a fault set. Previously this left two unmatched
+internal stack-2 boundary edges:
 
 - `(1, 2, 2) -> (2, 2, 2)`
 - `(2, 2, 2) -> (3, 2, 2)`
 
-This is a contact defect, not a domain boundary. The explicit characterization
-test `test_characterization_fault_mixed_has_two_unmarked_junction_boundary_edges`
-records the gap and `fault_anchored` rejection; its passing result is **not**
-connectivity acceptance. Closing this junction requires an agreed fault-junction
-policy or a separate cell-local junction representation. Simply absorbing the
-unaffected stack into the anchored set would violate the current ban on ordinary
-merges into fault sets. No such change is made by this validation milestone.
-Volume assembly remains deferred until this conflict is resolved.
+`attach_fault_junctions` now closes this specific gap after face removal and
+ordinary membership finalization. The policy is a cell-local seam endpoint
+attachment, not broad absorption of an unaffected stack into a fault:
+
+- Only an unshared row on a surviving ordinary target boundary may attach, via an existing directed truncation relation.
+- The ordinary controller must already belong to a fault-anchored contact in the same integer cell.
+- A previously shared neighboring endpoint must establish an actual retained controller edge. Every already shared boundary neighbor must match such an edge in the same controller.
+- Targets participating on either side of the directed fault graph are excluded. No fault chain, new fault partner, overlap-removal target, QEF constraint or masking relation is introduced.
+- All ordinary cross-pairs in the extended contact must be allowed, and each contact still contains at most one member per stack. Competing candidates use original distance and stable surface IDs.
+- The endpoint copies the controller's finalized position and existing contact ID. Existing members and already shared target rows are never moved or regrouped.
+- Every incident target face must remain nondegenerate and correctly oriented relative to original extraction. Attachments creating duplicate fully shared patches are rejected.
+- Candidate edge evidence uses snapshot IDs, not newly accepted attachments, so this pass is not iterative transitive closure.
+
+Reports add `fault_junction_attachment_count`, `fault_junction_rejected_count`,
+`fault_junction_attachments`, and `fault_junction_rejections` when this pass runs.
+The original `fault_anchored` conflicts remain provisional-grouping diagnostics;
+the attachment records describe their narrowly supported endpoint resolution.
+Contact counts and surviving IDs remain stable because no new group is created.
+
+`test_fault_mixed_closes_junction_without_moving_fault_anchor` confirms one
+attachment closes both missing edges while retaining the original fault position.
+The mixed-fault case now participates in the same edge/connectivity acceptance
+matrix as ordinary contacts on both CPU backends and dtypes. Separate unit tests
+cover isolation, multiple allowed target stacks, absent/misdirected edge evidence,
+non-propagation, controller immutability, geometry and duplicate-patch rejection.
+These are fixture-level connectivity guarantees, not a claim that arbitrary
+under-resolved junctions are repaired. Rejected cases remain distinct and need
+refinement or a richer junction representation. Closed shells, extent capping,
+finite-fault corner cases and GPU validation remain deferred.
+
+Post-attachment verification: **420 focused regression tests passed**, including
+the mixed-fault edge acceptance matrix and twenty attachment unit cases. **All
+four production weighted-QEF tests passed** in `contact_aware`, including the
+higher-resolution case. Existing legacy reference and two-surface fault parity
+checks remain green. No full-repository or GPU run was performed.
 
 ### Performance Measurements
 
@@ -382,7 +413,7 @@ imports, preparation, copies, and execution, not stage-only allocation. Current
 `/proc` RSS and `ru_maxrss` differed in those workers; no allocation delta is
 inferred from them.
 
-The larger production unconformity benchmark (root `8^3`, two octree levels,
+Before the junction-attachment addition, the production unconformity benchmark (root `8^3`, two octree levels,
 4096 leaf cells) passed for `none`, `pretty`, and `contact_aware`. Five-round
 end-to-end medians were 2.198 s, 2.187 s, and 2.120 s respectively, with lifetime
 peak RSS around 806-809 MiB. The new mode retained 52 contact sets and 1555

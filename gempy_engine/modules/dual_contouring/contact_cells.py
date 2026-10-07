@@ -218,3 +218,107 @@ def finalize_cell_vertices(originals, vertices, contact_ids, faces, surface_ids,
             positions[surface][row] = mean
         report['contact_count'] += 1
     return positions, ids, report
+
+
+def attach_fault_junctions(originals, vertices, contact_ids, faces, cell_coordinates,
+                           surface_ids, allowed_pairs, fault_pairs, truncation_pairs):
+    """Attach supported ordinary seam endpoints without moving fault anchors.
+
+    Only previously unshared boundary rows can join an anchored contact. A
+    matching retained controller edge is required; snapshot IDs prevent new
+    attachments from becoming evidence for transitive junction propagation.
+    Fault relations, overlap-removal metadata and triangle indices stay intact.
+    """
+    positions = [array.copy() for array in vertices]
+    ids = [array.copy() for array in contact_ids]
+    report = dict(fault_junction_attachment_count=0, fault_junction_rejected_count=0,
+                  fault_junction_attachments=[], fault_junction_rejections=[])
+    if not fault_pairs or not truncation_pairs:
+        return positions, ids, report
+    fault_controllers = {controller for controller, _ in fault_pairs}
+    fault_participants = fault_controllers | {target for _, target in fault_pairs}
+    groups, lookups, edges, boundaries, patches = {}, [], [], [], []
+    for surface, (shared, triangles, cells) in enumerate(zip(contact_ids, faces, cell_coordinates)):
+        lookups.append({tuple(cell): row for row, cell in enumerate(cells)})
+        for row in np.flatnonzero(shared >= 0):
+            groups.setdefault(int(shared[row]), set()).add(surface)
+        unique, counts = np.unique(np.sort(np.concatenate([
+            triangles[:, [0, 1]], triangles[:, [1, 2]], triangles[:, [2, 0]],
+        ]), axis=1), axis=0, return_counts=True)
+        edges.append({tuple(edge) for edge in unique})
+        neighbors = {}
+        for a, b in unique[counts == 1]:
+            neighbors.setdefault(int(a), set()).add(int(b))
+            neighbors.setdefault(int(b), set()).add(int(a))
+        boundaries.append(neighbors)
+        keys = np.sort(shared[triangles], axis=1)
+        patches.append({tuple(key) for key in keys if key[0] >= 0 and key[0] < key[1] < key[2]})
+    anchored = {key for key, members in groups.items()
+                if any(a in members and b in members for a, b in fault_pairs)}
+    candidates = []
+    for controller, target in sorted(truncation_pairs, key=lambda pair: (surface_ids[pair[0]], surface_ids[pair[1]])):
+        if controller not in fault_participants or controller in fault_controllers:
+            continue
+        for row, neighbors in boundaries[target].items():
+            if contact_ids[target][row] >= 0:
+                continue
+            cell = tuple(cell_coordinates[target][row])
+            partner = lookups[controller].get(cell)
+            if partner is None:
+                continue
+            key = int(contact_ids[controller][partner])
+            if key not in anchored:
+                continue
+            shared_neighbors = [neighbor for neighbor in neighbors if contact_ids[target][neighbor] >= 0]
+            if not shared_neighbors:
+                continue
+            matching = []
+            for neighbor in shared_neighbors:
+                other = lookups[controller].get(tuple(cell_coordinates[target][neighbor]))
+                matching.append(other is not None and contact_ids[controller][other] == contact_ids[target][neighbor]
+                                and tuple(sorted((partner, other))) in edges[controller])
+            if not all(matching):
+                continue
+            delta = originals[target][row].astype(np.float64) - originals[controller][partner].astype(np.float64)
+            candidates.append((float(np.dot(delta, delta)), surface_ids[controller], surface_ids[target],
+                               cell, controller, target, row, partner, key))
+    for _, _, _, cell, controller, target, row, partner, key in sorted(candidates):
+        if ids[target][row] >= 0:
+            continue
+        members = groups[key]
+        reason = None
+        if target in fault_participants:
+            reason = 'fault_participant'
+        elif any(surface_ids[member][0] == surface_ids[target][0] for member in members):
+            reason = 'same_group'
+        elif not all(allowed_pairs[member, target] for member in members if member not in fault_controllers):
+            reason = 'disallowed_cross_pair'
+        incident = faces[target][np.any(faces[target] == row, axis=1)]
+        proposed_ids = ids[target][incident].copy()
+        proposed_ids[incident == row] = key
+        if reason is None and any(tuple(triple) in patches[owner]
+                                  for triple in np.sort(proposed_ids, axis=1)
+                                  for owner in range(len(patches)) if owner != target):
+            reason = 'duplicate_shared_patch'
+        if reason is None:
+            before = originals[target][incident].astype(np.float64)
+            after = positions[target][incident].astype(np.float64)
+            after[incident == row] = vertices[controller][partner]
+            n0 = np.cross(before[:, 1] - before[:, 0], before[:, 2] - before[:, 0])
+            n1 = np.cross(after[:, 1] - after[:, 0], after[:, 2] - after[:, 0])
+            dot = np.einsum('ij,ij->i', n0, n1)
+            if not np.all(np.isfinite(dot) & (dot > 0)):
+                reason = 'collapsed_or_inverted_face'
+        detail = dict(cell=cell, controller=surface_ids[controller], target=surface_ids[target])
+        if reason is not None:
+            report['fault_junction_rejected_count'] += 1
+            report['fault_junction_rejections'].append(dict(detail, reason=reason))
+            continue
+        positions[target][row] = vertices[controller][partner]
+        ids[target][row] = key
+        members.add(target)
+        patches[target].update(tuple(triple) for triple in np.sort(proposed_ids, axis=1)
+                               if triple[0] >= 0 and triple[0] < triple[1] < triple[2])
+        report['fault_junction_attachment_count'] += 1
+        report['fault_junction_attachments'].append(detail)
+    return positions, ids, report

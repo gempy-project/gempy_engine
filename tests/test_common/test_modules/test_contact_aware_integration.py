@@ -592,7 +592,7 @@ def _internal_boundary_gaps(extracted):
 
 @pytest.mark.parametrize("backend", [config.AvailableBackends.numpy, config.AvailableBackends.PYTORCH])
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
-@pytest.mark.parametrize("name", [name for name in REAL_CONTACT_CASES if name != "fault_mixed"])
+@pytest.mark.parametrize("name", REAL_CONTACT_CASES)
 def test_real_extraction_internal_boundary_has_actual_controller_edge(real_contact_meshes, name, dtype, backend):
     extracted = real_contact_meshes(name, dtype, backend)
     seam_count, gaps = _internal_boundary_gaps(extracted)
@@ -610,22 +610,23 @@ def test_real_extraction_internal_boundary_has_actual_controller_edge(real_conta
     assert seam_count == 0 if name == "three_way_junction" else seam_count > 0
 
 
-def test_characterization_fault_mixed_has_two_unmarked_junction_boundary_edges(real_contact_meshes):
-    """Known gap, NOT seam acceptance: a fault anchor blocks the ordinary junction."""
+def test_fault_mixed_closes_junction_without_moving_fault_anchor(real_contact_meshes):
     extracted = real_contact_meshes("fault_mixed")
     seam_count, gaps = _internal_boundary_gaps(extracted)
     assert seam_count == 5
-    assert gaps == [
-        (2, [[1, 2, 2], [2, 2, 2]], [1, -1], "unmarked internal boundary"),
-        (2, [[2, 2, 2], [3, 2, 2]], [-1, 8], "unmarked internal boundary"),
-    ]
+    assert not gaps
     meshes, cells = extracted[2:4]
     assert any(conflict["cell"] == (2, 2, 2) and conflict["reason"] == "fault_anchored"
                for conflict in meshes[0].contact_report["conflicts"])
     rows = [int(np.flatnonzero(np.all(coordinates == [2, 2, 2], axis=1))[0]) for coordinates in cells]
     assert meshes[1].contact_report["contact_ids"][rows[1]] >= 0
-    assert meshes[2].contact_report["contact_ids"][rows[2]] == -1
-    assert not np.array_equal(meshes[1].vertices[rows[1]], meshes[2].vertices[rows[2]])
+    assert len({mesh.contact_report['contact_ids'][row] for mesh, row in zip(meshes, rows)}) == 1
+    for mesh, row in zip(meshes, rows):
+        np.testing.assert_array_equal(mesh.vertices[row], _numpy(meshes[0].vertices_tensor)[rows[0]])
+    assert meshes[0].contact_report['fault_junction_attachment_count'] == 1
+    assert meshes[0].contact_report['fault_junction_rejected_count'] == 0
+    assert not extracted[1].stack_structure.faults_relations[0, 2]
+    assert len(meshes[0].contact_report['fault_overlap_vertices'][2]) == 0
 
 
 @pytest.mark.parametrize("hidden", [0, 1])
