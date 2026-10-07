@@ -1,5 +1,34 @@
 # Manual Contact-Aware Viewer
 
+## Limitations Gallery
+
+`contact_aware_limitations.py` shows six production-path panels: open interface
+boundaries, coarse/fine onlap compared with its exact analytic seam, coarse/fine
+same-group isolation, and real kriging faulted stratigraphy. Pink lines are
+per-interface boundary edges, including legitimate contact seams, not automatically
+cracks. White dots are shared contacts; cyan is the exact onlap intersection.
+The reported seam distances use unit-cube coordinates. The last panel labels
+unverified behavior instead of fabricating a finite-fault failure.
+
+```bash
+/home/leguark/.venv/2025/bin/python examples/contact_aware_limitations.py --gpu
+```
+
+Omit `--gpu` for NumPy CPU. CUDA mode uses PyTorch float64 without PyKeOps and
+checks the analytic field device and original mesh tensor devices; it never
+silently falls back to CPU. Contact reconciliation itself remains CPU/NumPy.
+PyVista's rendering GPU is independent of the engine compute backend; the VTK
+OpenGL renderer is reported after the window closes (or after offscreen rendering).
+This is a visual GPU smoke test, not full GPU parity, finite-fault validation,
+volume construction or a benchmark. It requires the same source checkout and
+development fixture dependencies described below.
+
+Press `H` for boundary/contact/seam overlays, `E` for triangle edges, `O` for
+opacity, or `R` to reset the active camera. Each viewport rotates independently.
+For an unattended screenshot, use `--off-screen --screenshot /tmp/opencode/contact_aware_limitations.png`.
+
+## Five-Case Smoke Viewer
+
 `contact_aware_smoke.py` is a standalone, manual-only smoke viewer, not a
 pytest test or CI job. `examples/` is explicitly excluded from pytest recursion
 in `pyproject.toml`. Run it from a source checkout with a development
