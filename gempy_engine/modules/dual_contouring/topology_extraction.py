@@ -329,9 +329,10 @@ def validate_joint_incidence(plans, junctions, face_evidence, coordinates, domai
         for plan in surface_plans:
             keys = plan['keys']
             for a, b in zip(keys, keys[1:] + keys[:1]):
-                if a[0] == b[0] == 'joint':
+                if a[0] == b[0] == 'joint' and a[1] == b[1]:
                     counts[tuple(sorted((a, b)))] += 1
-            if any(all(keys[i][0] == 'joint' for i in triangle)
+            if any(all(keys[i][0] == 'joint' for i in triangle) and
+                   len(set.intersection(*(set(keys[i][1]) for i in triangle))) > 1
                    for triangle in ((0, 1, 3), (2, 3, 1))):
                 raise ValueError('unsupported_shared_patch: quad split would emit a fully shared triangle')
         per_surface.append(counts)

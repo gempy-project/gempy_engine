@@ -23,6 +23,26 @@ def extract_topology_aware(axes, scalar_samples, surface_to_stack, surface_indic
                            faults_relations=None, fault_support=None, fault_slip=None,
                            interior_samples=None, include_reference=False, unsafe_diagnostics=False,
                            sampled_junctions=False):
+    """Extract bounded uniform erosion contacts; faults remain rejected by default.
+
+    See the private implementation's sampled-field contract. The separate Model7
+    adapter supplies explicit bank-conditioned separator incidence, not mixed
+    production fault samples through this ordinary entry point.
+    """
+    return _extract_topology_aware(
+        axes, scalar_samples, surface_to_stack, surface_indices, stack_relations, isovalues,
+        ownership=ownership, gradient_samples=gradient_samples, faults_relations=faults_relations,
+        fault_support=fault_support, fault_slip=fault_slip, interior_samples=interior_samples,
+        include_reference=include_reference, unsafe_diagnostics=unsafe_diagnostics,
+        sampled_junctions=sampled_junctions,
+    )
+
+
+def _extract_topology_aware(axes, scalar_samples, surface_to_stack, surface_indices,
+                           stack_relations, isovalues, *, ownership, gradient_samples,
+                           faults_relations=None, fault_support=None, fault_slip=None,
+                           interior_samples=None, include_reference=False, unsafe_diagnostics=False,
+                           sampled_junctions=False, separator_contacts=None):
     """Generate branch-aware Hermite/QEF vertices and shared dual seam incidence.
 
     Node samples/ownership: (S,nx,ny,nz); gradients add a last dimension of 3.
@@ -39,10 +59,12 @@ def extract_topology_aware(axes, scalar_samples, surface_to_stack, surface_indic
     allowed, faults, truncations = build_contact_relations(
         surface_to_stack, surface_indices, stack_relations, faults_relations, isovalues,
     )
-    if faults or (faults_relations is not None and np.asarray(faults_relations).any()) or \
+    if separator_contacts is None and (faults or (faults_relations is not None and np.asarray(faults_relations).any()) or \
             any(r is StackRelationType.FAULT for r in stack_relations) or \
-            fault_support is not None or fault_slip is not None:
+            fault_support is not None or fault_slip is not None):
         raise ValueError('unsupported_fault_extraction: no dual footprint/bank incidence adapter')
+    if separator_contacts is not None:
+        allowed, truncations = separator_contacts
     axes = tuple(np.asarray(a, dtype=float) for a in axes)
     if len(axes) != 3 or any(a.ndim != 1 or len(a) < 2 or not np.isfinite(a).all()
                              or np.any(np.diff(a) <= 0) for a in axes):

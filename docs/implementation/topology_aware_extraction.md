@@ -478,3 +478,152 @@ during verification. `--check-only` requires no viewer and prints the supported
 or rejected result explicitly. The new real-model/face-root tests pass alongside
 all existing 58 checks; the separate 420-test production regression command above
 also passes with this explicit CPU environment.
+
+## Actual Model7 Bank Experiment
+
+`examples/topology_aware_model7.py` implements the actual
+[g07_combination fault + unconformity](https://docs.gempy.org/examples/geometries/g07_combination.html)
+experiment using the separately supplied, unchanged
+`tests/fixtures/model7_combination.py`. All 102 surface points and eight
+orientations remain present. World extent is `[0,2500,0,1000,0,1000]`;
+the original three stacks remain `FAULT, ERODE, BASEMENT`, with directed
+fault dependencies `0 -> 1,2`. All four surfaces (`fault, rock3, rock2, rock1`)
+are represented. The existing real-model experiment and production solvers,
+defaults, configuration, fault meshes and overlap behavior are unchanged.
+
+### Genuine Bank Queries
+
+`API/dual_contouring/model7_bank_experiment.py` captures detached NumPy copies
+of the root-level production evaluator input, actual solved weights, and actual
+evaluation options. Root metadata is used because custom grids are evaluated at
+the root, not at the final adaptive octree level. Capture is a scoped
+`unittest.mock.patch` around the original evaluator, which still runs unchanged;
+it is process-local and **not thread-safe**, not a production API or dispatcher.
+
+`query_bank` reuses `_evaluate_sys_eq`. Only query coordinates and
+`FaultsData.fault_values_everywhere` change. Dependent query drift is exactly
+0 or 1; `fault_values_on_sp`, `fault_values_ref`, `fault_values_rest`, observations,
+and weights remain unchanged. Kernel construction consequently receives the
+forced query drift through `faults_j`, while retaining the original solve-side
+fault terms. These are genuine two-sided extensions of the faulted solved
+fields, not fields solved without faults, and no point is laterally displaced.
+Node Hermite gradients and surface isovalues come from the actual engine.
+No discontinuous assembled field is interpolated across the separator.
+
+The production segmentation is inspected and numerically verified, not assumed
+to be a Heaviside function. Model7 reverses unit IDs during activation, so after
+`_modify_faults_values_output` subtracts the minimum, its infinite-fault drift is
+the **descending** sigmoid of the fault scalar minus its isovalue: bank 0 is
+the positive-scalar side and bank 1 the negative-scalar side. The adapter checks
+this orientation against production samples. At `14^3`, 101 near-fault probes
+include 27 nonsaturated drift samples; shifted sigmoid parity error is
+`1.9082e-16`. The same-bank sampler matches production on 1493 bank-0 and 4700
+bank-1 saturated queries per dependent stack, with maximum scalar/gradient
+errors `4.5103e-14 / 1.1991e-13`. The two bank fields differ by
+`0.06521656063359901` and `0.05910903889915131`; the fault has not been disabled.
+
+### Pre-Emission Incidence
+
+`extract_bank_skin` supplies explicit directed separator/horizon contacts to a
+private uniform extraction helper. The ordinary `extract_topology_aware` entry
+point **still rejects faults by default**. The separator remains `FAULT`, never
+an erosion stack. Eligible fault and erosion edges are recorded separately.
+Horizon ownership is the retained bank half-space, intersected with the negative
+youngest-stack field for older horizons. Shared sampled face-root chords,
+branch-specific production Hermite QEFs, bounded joint QEFs and quad incidence
+are established and validated before triangle emission. There is no independent
+extract-and-snap, weld, clipping, marching extraction or post-repair.
+
+Each bank has its own tagged vertex/surface identities and its own fault skin.
+The two skins lie on the same infinite planar separator but have distinct
+bank-specific seam tessellations. They are **bank-side fault skins, not one
+conforming fault mesh**. Opposite-bank horizon IDs never merge. Same-stack
+horizons cannot share a joint representative. Incidence validation only counts
+a shared edge when both junction keys have the same participant pair; a triangle
+is a shared patch only if all three vertices share two participants, not merely
+because all three vertices happen to be junctions.
+
+### Verified Results
+
+The default uniform resolution is `14^3` cells (2744 cells, 3375 nodes).
+Actual center samples also check for sign crossings absent from corner evidence;
+this is not general interior-topology certification.
+
+| Metric | Bank 0 | Bank 1 |
+| --- | --- | --- |
+| Triangles: fault skin / rock3 / rock2 / rock1 | 442 / 78 / 156 / 182 | 442 / 234 / 676 / 878 |
+| Actual shared seam edges | 52 | 91 |
+| Joint cells | 56 | 98 |
+| Minimum total triangle angle | 16.06325 degrees | 1.70128 degrees |
+| Minimum contact triangle angle | 16.06325 degrees | 17.44673 degrees |
+| Maximum total aspect ratio | 3.76120 | 34.50345 |
+| Degenerate / duplicate triangles | 0 / 0 | 0 / 0 |
+| Bank-side / actual-engine winding violations | 0 / 0 | 0 / 0 |
+
+All actual shared edges equal planned seams. Each seam has two controller
+triangles and one target triangle; other surfaces have zero incidence.
+Noncontact geometry and oriented connectivity are exactly equal to independent
+same-bank production QEF reference results. The independent reference uses the
+same retained primal-edge support, not the assembled discontinuous field.
+Shared-face disagreement is zero. Original production triangle counts are
+`126 / 112 / 236 / 344`; tests compare **every production mesh vertex and face**
+against an uncaptured baseline, including the fault mesh, with exact equality.
+
+There is no triangle-quality improvement claim: bank 1 retains a 1.70128-degree
+noncontact triangle also present in the independent QEF reference. Actual older
+surface erosion residual is at most `2.3826e-9` scalar units, checked against an
+explicit `1e-8` tolerance. Sampled seam chords are not exact continuous-field
+intersection curves; center/corner approximation residual reaches `0.00864559`.
+
+### Scope And Rejections
+
+Support is deliberately bounded to one infinite planar fault affecting both
+Model7 stacks, uniform conforming cells, and the existing sampled branch/contact
+contract. Finite/nonplanar/multiple faults and adaptive extraction are rejected.
+There are open crop boundaries, no caps, no closed-volume/global watertightness
+claim, and no merging of the two fault skins into a single geological interface.
+Multiple competing actual contacts in one cell still require richer incidence
+than this one-pair-per-cell planner and are rejected, not overwritten.
+
+Resolution `16^3` remains honestly unsupported: bank 0 rejects
+`unsupported_shared_patch: quad split would emit a fully shared triangle`;
+bank 1 rejects `sample_aligned_interface: zero node needs a sided extraction rule`.
+The rejected viewer shows actual **production faulted Model7** on the left and
+geometric bank indicators on the right, not a successful fallback. Increasing
+resolution is not asserted to monotonically resolve these topology contracts.
+
+### Commands And Artifacts
+
+Run from the engine repository with the same CPU environment as above:
+
+```bash
+export CUDA_VISIBLE_DEVICES='' DEFAULT_BACKEND=numpy DEFAULT_PYKEOPS=False
+export DEFAULT_TENSOR_DTYPE=float64 DUAL_CONTOURING_VERTEX_OVERLAP=none PYTHONPATH=.
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+
+/home/leguark/.venv/2025/bin/python examples/topology_aware_model7.py --check-only --resolution 14
+/home/leguark/.venv/2025/bin/python examples/topology_aware_model7.py --off-screen --resolution 14 \
+  --screenshot /tmp/opencode/topology-model7.png
+/home/leguark/.venv/2025/bin/python examples/topology_aware_model7.py --off-screen --resolution 16 \
+  --screenshot /tmp/opencode/topology-model7-rejected16.png
+
+/home/leguark/.venv/2025/bin/pytest -q \
+  tests/test_common/test_modules/test_topology_model7.py \
+  tests/test_common/test_modules/test_topology_aware_extraction.py \
+  tests/test_common/test_modules/test_topology_real_models.py \
+  tests/test_common/test_modules/test_topology_failure_examples.py \
+  tests/test_common/test_modules/test_topology_finite_fault_characterization.py \
+  tests/test_common/test_modules/test_contact_topology.py
+```
+
+The screenshot parent is verified before output. Both screenshots have matching
+JSON reports. Successful panels use linked cameras, consistent surface colors,
+purple fault skins, white actual seams, and solid bank-0 versus edged bank-1
+indicators. Standalone/PyCharm runs explicitly select NumPy CPU float64 without
+KeOps and print the active backend. No interactive window was opened.
+
+Verification: 101 tests passed, including all 65 prior topology experiment tests,
+10 new focused Model7 tests and 26 contact-topology tests. The supplied fixture
+agent's file was not edited. Additional agent delegation was unavailable in this
+session because no subagent tool was exposed. No installations or commits were
+made.
