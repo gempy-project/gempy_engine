@@ -17,6 +17,7 @@ from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data import TensorsStructure
 from gempy_engine.core.data.dual_contouring_mesh import DualContouringMesh
+from gempy_engine.core.data.dual_contouring_data import DualContouringData
 from gempy_engine.core.data.engine_grid import EngineGrid
 from gempy_engine.core.data.generic_grid import GenericGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
@@ -31,6 +32,7 @@ from gempy_engine.core.data.regular_grid import RegularGrid
 from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from tests.fixtures.contact_cases import build_contact_case
+from gempy_engine.modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge
 
 
 dc = importlib.import_module("gempy_engine.API.dual_contouring.multi_scalar_dual_contouring")
@@ -100,6 +102,50 @@ def test_fault_qef_excludes_fault_to_fault_constraints(monkeypatch):
     inject.assert_called_once()
     assert inject.call_args.kwargs['allowed_partners_per_surface'] == [set(), {2}, {1}]
     assert fault_pairs == {(0, 1), (1, 2)}
+
+
+def test_onlap_discarded_contact_row_restores_substrate(extraction):
+    # Local window of the 64-cell smoke geometry, with full interior quad support.
+    cells = np.array(list(product(range(31, 36), range(8, 12), range(27, 34))))
+    offsets = np.array(list(product((0, 1), repeat=3)))
+    corners = ((cells[:, None, :] + offsets) / 64).reshape(-1, 3)
+    normals = [np.array([1., 0., -.25]), np.array([.25, 0., 1.])]
+    substrate = (corners @ normals[1]).reshape(-1, 8)
+    owned = [substrate > .6, substrate <= .6]
+    data, coordinates, ownership = [], [], []
+    for normal, level, mask in zip(normals, [.4, .6], owned):
+        selected = mask.any(axis=1)
+        xyz, edges = find_intersection_on_edge(corners, corners @ normal,
+                                               np.array([level]), masking=selected)
+        item = DualContouringData(
+            xyz_on_edge=xyz, valid_edges=edges, xyz_on_centers=(cells[selected] + .5) / 64,
+            dxdydz=(1 / 64,) * 3, n_surfaces_to_export=0, left_right_codes=cells[selected],
+            gradients=np.tile(normal, (len(xyz), 1)), tree_depth=3, base_number=(64, 64, 64),
+        )
+        data.append(item)
+        coordinates.append(item.left_right_codes[item.valid_voxels])
+        ownership.append(mask[selected][item.valid_voxels])
+    meshes = dc.compute_dual_contouring_v2(data, max_workers=1)
+    original = [mesh.vertices.copy() for mesh in meshes]
+    descriptor = _descriptor([1, 1], [StackRelationType.ONLAP, StackRelationType.BASEMENT])
+    contact_api.reconcile_contact_meshes(meshes, coordinates, [(0, 0, .4), (1, 0, .6)],
+                                         descriptor, ownership)
+    for z, supported in [(29, False), (30, True)]:
+        rows = [int(np.flatnonzero(np.all(points == [33, 9, z], axis=1))[0]) for points in coordinates]
+        assert bool(np.any(meshes[0].edges == rows[0])) == supported
+        if supported:
+            expected = (original[0][rows[0]] + original[1][rows[1]]) / 2
+            for mesh, row in zip(meshes, rows):
+                np.testing.assert_array_equal(mesh.vertices[row], expected)
+                assert mesh.contact_report['contact_ids'][row] >= 0
+        else:
+            for index, (mesh, row) in enumerate(zip(meshes, rows)):
+                np.testing.assert_array_equal(mesh.vertices[row], original[index][row])
+                assert mesh.contact_report['contact_ids'][row] == -1
+    assert meshes[0].contact_report['dissolved_contact_count'] > 0
+    for mesh in meshes:
+        shared = np.flatnonzero(mesh.contact_report['contact_ids'] >= 0)
+        assert np.all(np.isin(shared, mesh.edges))
 
 
 @pytest.fixture
@@ -252,7 +298,15 @@ def test_cell_contacts_use_original_means_and_preserve_caller_state(extraction, 
         assert np.issubdtype(_numpy(coordinates).dtype, np.integer)
     ids = [_assert_report(mesh) for mesh in meshes]
     common_ids = np.intersect1d(ids[0][ids[0] >= 0], ids[1][ids[1] >= 0])
-    assert len(common_ids) > 0, "Eligible shared cells include accepted coarse-resolution sticking"
+    if name == 'parallel_false_overlap':
+        # Coarse sticking removes the entire redundant target patch. With no
+        # surviving attachment, provisional members must not displace its owner.
+        assert len(common_ids) == 0
+        assert any(len(mesh.edges) == 0 for mesh in meshes)
+        assert meshes[0].contact_report['provisional_contact_count'] > 0
+        assert meshes[0].contact_report['dissolved_contact_count'] > 0
+    else:
+        assert len(common_ids) > 0
     for contact_id in common_ids:
         indices = [np.flatnonzero(v == contact_id) for v in ids]
         assert all(len(index) == 1 for index in indices)
@@ -306,7 +360,10 @@ def _synthetic_reconcile(positions, cells, metadata, descriptor, order=None, fac
     meshes = []
     for i in order:
         original = np.asarray(positions[i], dtype=float).reshape(-1, 3).copy()
-        triangles = np.empty((0, 3), dtype=int) if faces is None else np.asarray(faces[i], dtype=int).reshape(-1, 3)
+        # Repeated-index support faces isolate grouping from shared-patch removal;
+        # production extraction tests above exercise real triangle geometry.
+        triangles = (np.repeat(np.arange(len(original))[:, None], 3, axis=1) if faces is None
+                     else np.asarray(faces[i], dtype=int).reshape(-1, 3))
         mesh = DualContouringMesh(original.copy(), triangles.copy())
         mesh.vertices_tensor = original
         meshes.append(mesh)

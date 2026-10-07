@@ -77,6 +77,14 @@ not use sequential pairwise averaging: it leaves different final positions and
 can depend on traversal order. Preserve eligible-set membership and shared IDs
 alongside the positions for later topology/volume assembly.
 
+These sets are provisional until triangle handling finishes. For ordinary
+contacts, retain only members referenced by surviving triangles, then recompute
+the mean from their original positions. Restore unsupported members to their
+original positions and clear their IDs; restore the remaining member as well
+when a set becomes a singleton. Do not regroup competing horizons. Surviving
+IDs remain stable (and may contain gaps). Fault-anchored sets retain their
+directional assignments and overlap metadata, including discarded targets.
+
 ### Faults
 
 Use the working `pretty` fault behavior as the reference, not symmetric averaging:
@@ -144,6 +152,8 @@ API: pass sets and original vertex arrays
     -> module: compute shared positions and contact identities
 API: pass identities, relations, ownership and local connectivity
     -> module: determine local triangle changes
+API: pass retained faces, original positions and provisional contact groups
+    -> module: finalize supported ordinary memberships and original-position means
 API: assemble returned meshes and reports
 ```
 
@@ -217,6 +227,15 @@ unowned. Partial ownership preserves boundary support. Topology removes wholly
 unowned ordinary triangles even when the controlling null-space group exports
 no mesh. Fault interfaces are not lithological volume owners and must not be
 removed merely because their ownership mask is false.
+
+After triangle removal, `finalize_cell_vertices` prunes ordinary memberships
+without retained triangle support. This prevents an onlap overlap strip from
+leaving a second displaced substrate row after its target triangles disappear.
+Reports distinguish `provisional_contact_count`, final `contact_count`,
+`unsupported_contact_member_count`, and `dissolved_contact_count`. Position
+conflict diagnostics and topology reports still describe the provisional pass.
+The manual five-example PyVista viewer lives in `examples/contact_aware_smoke.py`,
+outside pytest/CI collection; see `examples/README.md` for invocation.
 
 New-mode QEF preparation includes only directed fault partners in both solve
 directions, excluding fault-fault constraints as in the working preparation.

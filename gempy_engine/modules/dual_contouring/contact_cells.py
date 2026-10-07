@@ -173,3 +173,48 @@ def reconcile_cell_vertices(
     report["contact_count"] = len(shared_sets)
     report["fault_overlap_vertices"] = [np.array(sorted(rows), dtype=np.int64) for rows in fault_overlap]
     return new_vertices, contact_ids, report
+
+
+def finalize_cell_vertices(originals, vertices, contact_ids, faces, surface_ids, fault_pairs=()):
+    """Prune ordinary contact memberships unsupported by retained triangles.
+
+    Keep provisional groups and surviving IDs: topology has already used them
+    to remove redundant patches. Never regroup competing horizons. Fault groups
+    retain their directional assignments, including discarded overlap targets.
+    """
+    positions = [array.copy() for array in vertices]
+    ids = [array.copy() for array in contact_ids]
+    groups = {}
+    active = []
+    for surface, (shared, triangles) in enumerate(zip(ids, faces)):
+        supported = np.zeros(len(shared), dtype=bool)
+        supported[np.asarray(triangles).ravel()] = True
+        active.append(supported)
+        for row in np.flatnonzero(shared >= 0):
+            groups.setdefault(int(shared[row]), []).append((surface, row))
+    report = dict(provisional_contact_count=len(groups), contact_count=0,
+                  unsupported_contact_member_count=0, dissolved_contact_count=0)
+    for members in groups.values():
+        surfaces = {surface for surface, _ in members}
+        if any(controller in surfaces and target in surfaces for controller, target in fault_pairs):
+            report['contact_count'] += 1
+            continue
+        retained = [(surface, row) for surface, row in members if active[surface][row]]
+        report['unsupported_contact_member_count'] += len(members) - len(retained)
+        if len(retained) == len(members):
+            report['contact_count'] += 1
+            continue
+        for surface, row in members:
+            if not active[surface][row] or len(retained) < 2:
+                positions[surface][row] = originals[surface][row]
+                ids[surface][row] = -1
+        if len(retained) < 2:
+            report['dissolved_contact_count'] += 1
+            continue
+        retained.sort(key=lambda member: surface_ids[member[0]])
+        original_positions = np.asarray([originals[surface][row] for surface, row in retained], dtype=np.float64)
+        mean = np.sum(original_positions / len(retained), axis=0)
+        for surface, row in retained:
+            positions[surface][row] = mean
+        report['contact_count'] += 1
+    return positions, ids, report
