@@ -1,12 +1,14 @@
 import copy
 import time
+from dataclasses import replace
 from typing import Optional, Any
 
 import numpy as np
 
 from ..dual_contouring.multi_scalar_dual_contouring import dual_contouring_multi_scalar
+from ..dual_contouring import multi_scalar_dual_contouring as dc_dispatch
 from ..interp_single.interp_features import interpolate_n_octree_levels
-from ...config import NOT_MAKE_INPUT_DEEP_COPY, AvailableBackends
+from ...config import NOT_MAKE_INPUT_DEEP_COPY, AvailableBackends, DualContouringOverlap, resolve_dual_contouring_overlap
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_mesh import DualContouringMesh
@@ -29,6 +31,21 @@ from ...modules.weights_cache.weights_cache_interface import WeightCache
 @gempy_profiler_decorator
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                   data_descriptor: InputDataDescriptor, *, geophysics_input: Optional[GeophysicsInput] = None) -> Solutions:
+    explicit_overlap = options.evaluation_options.mesh_extraction_overlap
+    default_overlap = dc_dispatch.DUAL_CONTOURING_VERTEX_OVERLAP
+    if explicit_overlap is not None or (isinstance(default_overlap, DualContouringOverlap) and
+                                      default_overlap & DualContouringOverlap.joint):
+        mode = resolve_dual_contouring_overlap(explicit_overlap, default_overlap)
+        if mode == DualContouringOverlap.joint and options.mesh_extraction:
+            stacks = copy.copy(data_descriptor.stack_structure)
+            if stacks.faults_input_data is not None:
+                stacks.faults_input_data = copy.deepcopy(stacks.faults_input_data)
+            data_descriptor = replace(data_descriptor, stack_structure=stacks)
+            # Fault preprocessing fills mutable buffers even when the full input
+            # copy is disabled or skipped to preserve a Torch autograd graph.
+            if interpolation_input._fault_values is not None:
+                interpolation_input = copy.copy(interpolation_input)
+                interpolation_input._fault_values = copy.deepcopy(interpolation_input._fault_values)
     # Octree progress and cache timestamps belong to this computation. Keeping
     # them on a shared options object lets concurrent requests change each
     # other's active octree level.

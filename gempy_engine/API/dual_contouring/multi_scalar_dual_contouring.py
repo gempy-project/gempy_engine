@@ -6,7 +6,7 @@ from typing import List, Any
 import numpy as np
 
 from ..interp_single.interp_features import interpolate_all_fields_no_octree
-from ...config import DUAL_CONTOURING_VERTEX_OVERLAP, DualContouringOverlap
+from ...config import DUAL_CONTOURING_VERTEX_OVERLAP, DualContouringOverlap, resolve_dual_contouring_overlap
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_data import DualContouringData
@@ -50,6 +50,12 @@ def dual_contouring_multi_scalar(
         List of dual contouring meshes for all processed scalar fields
     """
 
+    overlap_mode = resolve_dual_contouring_overlap(
+        options.evaluation_options.mesh_extraction_overlap, DUAL_CONTOURING_VERTEX_OVERLAP)
+    if overlap_mode == DualContouringOverlap.joint:
+        from .adaptive_joint_extraction import extract_joint_octree
+        return extract_joint_octree(data_descriptor, interpolation_input, options, octree_list)
+
     if interpolation_input.grid.octree_grid is None:
         raise ValueError("Octree grid must be defined to extract the mesh")
 
@@ -57,7 +63,7 @@ def dual_contouring_multi_scalar(
     all_meshes: List[DualContouringMesh] = []
     cap_enabled = MeshExtentCapping(options.evaluation_options.mesh_extraction_extent_capping) != MeshExtentCapping.NONE
 
-    match DUAL_CONTOURING_VERTEX_OVERLAP:
+    match overlap_mode:
         case DualContouringOverlap.none:
             contact_aware = False
             overlap_enabled = False
@@ -76,7 +82,7 @@ def dual_contouring_multi_scalar(
             contact_aware = False
             overlap_enabled = mode != DualContouringOverlap.none
         case _:
-            raise ValueError(f"Unsupported dual contouring overlap mode: {DUAL_CONTOURING_VERTEX_OVERLAP!r}")
+            raise ValueError(f"Unsupported dual contouring overlap mode: {overlap_mode!r}")
 
     if contact_aware:
         if len(octree_leaves.outputs) != data_descriptor.stack_structure.n_stacks:

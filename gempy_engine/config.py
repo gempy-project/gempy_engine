@@ -13,6 +13,7 @@ class DualContouringOverlap(Flag):
     pretty = auto()
     watertight = auto()
     contact_aware = auto()
+    joint = auto()
 
 # Define the paths for the .env files
 
@@ -50,3 +51,18 @@ def include_raw_scalar_fields() -> bool:
     return os.getenv('ONLY_LITH_SOLUTION', 'False') != 'True' or os.getenv(
         'SET_RAW_SCALAR_FIELDS_IN_SOLUTION', 'False'
     ) == 'True'
+
+
+def resolve_dual_contouring_overlap(value, default=None):
+    mode = (DUAL_CONTOURING_VERTEX_OVERLAP if default is None else default) if value is None else value
+    if isinstance(mode, str):
+        try:
+            mode = DualContouringOverlap[mode]
+        except KeyError as exc:
+            raise ValueError(f"Unsupported dual contouring overlap mode: {mode!r}") from exc
+    if not isinstance(mode, DualContouringOverlap):
+        raise ValueError(f"Unsupported dual contouring overlap mode: {mode!r}")
+    for exclusive in (DualContouringOverlap.joint, DualContouringOverlap.contact_aware):
+        if mode & exclusive and mode != exclusive:
+            raise ValueError(f"{exclusive.name} cannot be combined with other dual contouring overlap flags")
+    return mode
