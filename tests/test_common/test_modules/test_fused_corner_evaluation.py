@@ -68,3 +68,35 @@ def test_fused_corner_evaluation_uses_reduced_views(backend, monkeypatch):
         assert result._gx_field is None
         assert result._gy_field is None
         assert result._gz_field is None
+
+
+def test_flat_failure_captures_global_stack_and_grid_context(backend, monkeypatch):
+    t = BackendTensor.t
+    interp, options, descriptor = simple_model_interpolation_input_factory()
+    solver = _stack_ops.input_preprocess_v2(descriptor.tensors_structure, interp)
+    n = (solver.ori_internal.n_orientations_tiled + solver.sp_internal.n_points
+         + options.kernel_options.n_uni_eq + solver.fault_internal.n_faults)
+    solver.weights_x0 = t.ones(n)
+    options.evaluation_options.deduplicate_octree_corners = False
+    options.temp_interpolation_values.current_octree_level = 2
+    failure = RuntimeError('Incompatible values for attribute nj: 4 and 5.')
+
+    def fail(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr(symbolic, 'symbolic_evaluator_optimized_stacked', fail)
+    with pytest.raises(RuntimeError) as error:
+        _stack_ops._evaluate_optimized(
+            interpolation_inputs=[interp], options=options, solver_inputs=[solver],
+            stack_structure=descriptor.stack_structure, tensor_structs=[descriptor.tensors_structure],
+            stack_indices=[0], options_per_stack=[options],
+        )
+    message = str(error.value)
+    assert 'stack_indices=[0]' in message
+    assert "'stack_index': 0" in message
+    assert 'original_grid_shape' in message
+    assert 'reduced_grid_shape' in message
+    assert "'deduplicated': False" in message
+    assert "'octree_level': 2" in message
+    assert 'Incompatible values for attribute nj: 4 and 5.' in message
+    assert error.value.__cause__ is failure
