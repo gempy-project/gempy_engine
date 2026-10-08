@@ -67,11 +67,17 @@ def plan_adaptive_junctions(faces, tile_xyz, tile_fields, pairs, identities,
                       for c, sign in (controllers or {}).get(participant, []) if c not in pair}
         decisions = {}
         if additional:
-            for cell in range(len(origins)):
-                signed = np.array([sign*leaf_fields[c, cell] for c, sign in additional])
-                decisions[cell] = ('excluded' if np.any(np.all(signed < 0, axis=1)) else
-                                   'retained' if np.all(signed > 0) else 'competing')
-        for tile, face in enumerate(faces):
+            signed = np.array([sign*leaf_fields[c] for c, sign in additional])
+            excluded = np.any(np.all(signed < 0, axis=2), axis=0)
+            retained = np.all(signed > 0, axis=(0, 2))
+            decisions = dict(enumerate(np.where(excluded, 'excluded', np.where(
+                retained, 'retained', 'competing')).tolist()))
+        # face_pair_root returns None unless both participants change sign on
+        # the tile; nothing earlier in the loop can raise, so skip those tiles.
+        pair_fields = np.asarray(tile_fields[[controller, target]], dtype=float)
+        straddles = ~np.any((pair_fields.min(axis=2) > 0) | (pair_fields.max(axis=2) < 0), axis=0)
+        for tile in np.flatnonzero(straddles).tolist():
+            face = faces[tile]
             cells = tuple(c for c in face['cells'] if c is not None)
             if additional:
                 signed = np.array([sign*tile_fields[c, tile] for c, sign in additional])

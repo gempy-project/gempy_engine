@@ -45,19 +45,29 @@ def classify_cell_branches(values, valid_edges, unsafe_warnings=None):
                 face.append(int(np.flatnonzero(np.all(CORNERS == bit, axis=1))[0]))
             face_nodes.append(face)
     ambiguous_count = 0
-    for cell in range(len(values)):
-        if np.all(np.abs(values[cell]) < tolerance):
+    # Per-cell predicates, vectorized; the loop visits only cells that can raise
+    # or carry crossings, in the original order.
+    near_zero = np.abs(values) < tolerance
+    degenerate = near_zero.all(axis=1)
+    cubes = values.reshape(-1, 2, 2, 2)
+    extrusions = np.zeros(len(values), dtype=bool)
+    monotones = np.zeros(len(values), dtype=bool)
+    for a in range(3):
+        extrusions |= np.isclose(np.take(cubes, 0, axis=a + 1), np.take(cubes, 1, axis=a + 1),
+                                 atol=tolerance, rtol=0).all(axis=(1, 2))
+        steps = np.diff(cubes, axis=a + 1).reshape(len(values), -1)
+        monotones |= (steps > tolerance).all(axis=1) | (steps < -tolerance).all(axis=1)
+    crossed_cells = valid_edges.any(axis=1)
+    visit = degenerate | ~(affine | extrusions | monotones) | crossed_cells
+    for cell in np.flatnonzero(visit):
+        if degenerate[cell]:
             raise ValueError('degenerate_field: entire cell lies on the interface')
-        cube = values[cell].reshape(2, 2, 2)
-        extrusion = any(np.allclose(np.take(cube, 0, axis=a), np.take(cube, 1, axis=a),
-                                   atol=tolerance, rtol=0) for a in range(3))
-        monotone = any(np.all(np.diff(cube, axis=a) > tolerance) or
-                       np.all(np.diff(cube, axis=a) < -tolerance) for a in range(3))
-        if not affine[cell] and not extrusion and not monotone:
+        extrusion = extrusions[cell]
+        if not affine[cell] and not extrusion and not monotones[cell]:
             raise ValueError('insufficient_interior_topology: unresolved sampled cell; supply refinement or interior evidence')
-        if not valid_edges[cell].any():
+        if not crossed_cells[cell]:
             continue
-        if np.any(np.abs(values[cell]) < tolerance):
+        if near_zero[cell].any():
             raise ValueError('sample_aligned_interface: zero node needs a sided extraction rule')
         graph = {int(e): set() for e in np.flatnonzero(valid_edges[cell])}
         for nodes in face_nodes:

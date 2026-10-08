@@ -5,10 +5,42 @@ import numpy as np
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.stack_relation_type import StackRelationType as R
+from ...modules.dual_contouring.adaptive_cell_complex import build_adaptive_complex
 from ...modules.dual_contouring.adaptive_joint_topology import emit_adaptive_triangles
 from ...modules.dual_contouring.contact_topology import build_contact_relations
 from ...modules.dual_contouring.topology_extraction import CORNERS
 from .adaptive_joint_extraction import _collect_joint_leaves, _numpy
+
+
+class _BankFieldMemo:
+    """Deduplicated fixed-weight samples keyed by stack, effective bank and exact point.
+
+    Affected stacks depend on the queried bank; fault and unaffected stacks do
+    not, so one evaluation serves both banks. Each point is evaluated once.
+    """
+
+    def __init__(self, query, affected):
+        self._query, self._affected, self._stores = query, set(affected), {}
+
+    def __call__(self, points, stacks, bank):
+        unique, inverse = np.unique(points, axis=0, return_inverse=True)
+        keys = list(map(tuple, unique))
+        raw = np.empty((len(stacks), len(unique)))
+        gradients = np.empty((len(stacks), len(unique), 3))
+        for row, stack in enumerate(stacks):
+            effective = bank if stack in self._affected else None
+            index, values, normals = self._stores.setdefault((stack, effective), ({}, [], []))
+            missing = [i for i, key in enumerate(keys) if key not in index]
+            if missing:
+                v, g = self._query(unique[missing], bank=effective, stacks=(stack,))
+                index.update(zip((keys[i] for i in missing), range(len(index), len(index) + len(missing))))
+                values.append(np.asarray(v, dtype=np.float64)[0])
+                normals.append(np.asarray(g, dtype=np.float64)[0])
+            lookup = np.fromiter((index[key] for key in keys), dtype=np.int64, count=len(keys))
+            raw[row] = np.concatenate(values)[lookup]
+            gradients[row] = np.concatenate(normals)[lookup]
+        inverse = inverse.reshape(-1)
+        return raw[:, inverse], gradients[:, inverse]
 
 
 def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_list):
@@ -70,6 +102,9 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
     if (sampler["fault_stack"] != fault_stack or set(sampler["affected_stacks"]) != affected or
             set(sampler["unaffected_stacks"]) != unaffected):
         raise ValueError("unsupported_fault_metadata: sampler partition disagrees with directed matrix")
+    memo = _BankFieldMemo(sampler["query"], affected)
+    # Leaf geometry is bank-independent; every partition shares one complex.
+    cell_complex = build_adaptive_complex(origins, spans, domain_shape)
     spacing = (extent[1::2] - extent[::2]) / domain_shape
     xyz = extent[::2] + (origins[:, None, :] + spans[:, None, None] * CORNERS) * spacing
     pieces = []
@@ -81,14 +116,13 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
 
         def sample_fields(points, selected=selected, bank=bank, sign=sign):
             points = np.asarray(points, dtype=np.float64).reshape(-1, 3)
-            # Full-stack queries require a bank even when only independent rows
-            # are selected; those rows are identical for either bank.
-            raw, gradients = sampler["query"](points, bank=0 if bank == -1 else bank)
-            raw, gradients = np.asarray(raw, dtype=np.float64), np.asarray(gradients, dtype=np.float64)
-            if raw.shape != (stacks.n_stacks, len(points)) or gradients.shape != (stacks.n_stacks, len(points), 3):
+            needed = sorted(set(groups[selected].tolist()))
+            raw, gradients = memo(points, needed, None if bank == -1 else bank)
+            if raw.shape != (len(needed), len(points)) or gradients.shape != (len(needed), len(points), 3):
                 raise ValueError("invalid_fault_sampler: expected raw stack scalar/gradient arrays")
-            values = raw[groups[selected]].copy()
-            normals = gradients[groups[selected]].copy()
+            rows = np.searchsorted(needed, groups[selected])
+            values = raw[rows]
+            normals = gradients[rows]
             if bank != -1:
                 local = np.flatnonzero(groups[selected] == fault_stack)
                 values[local] = sign * (values[local] - levels[fault_stack][0])
@@ -112,7 +146,7 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
             result = extract_adaptive_topology(
                 origins, spans, domain_shape, extent, samples, groups[selected], indices[selected],
                 relations, levels, sample_fields=sample_fields, include_reference=False, defer_emission=True,
-                faults_relations=matrix, separator_contacts=separator_contacts)
+                faults_relations=matrix, separator_contacts=separator_contacts, cell_complex=cell_complex)
         else:
             # Removing an unrepresented fault label is safe only if it preserves
             # every ordinary dependency selected from the full original stacks.
@@ -123,7 +157,8 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
                 raise ValueError("unsupported_unaffected_dependencies: fault label cannot be safely omitted")
             result = extract_adaptive_topology(
                 origins, spans, domain_shape, extent, samples, groups[selected], indices[selected],
-                safe_relations, levels, sample_fields=sample_fields, include_reference=False, defer_emission=True)
+                safe_relations, levels, sample_fields=sample_fields, include_reference=False, defer_emission=True,
+                cell_complex=cell_complex)
         pieces.append((bank, selected, result))
 
     # A later bank or independent partition may reject otherwise valid geometry.

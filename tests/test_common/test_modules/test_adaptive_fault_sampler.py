@@ -150,6 +150,44 @@ def test_directed_subset_and_last_surface_grid(monkeypatch, numpy_backend):
     for invalid in (np.zeros(3), np.zeros((3, 2)), [[np.nan, 0, 0]]):
         with pytest.raises(ValueError, match='invalid_query_points'):
             sampler['query'](invalid, 0)
+    # Stack subsets keep row order; bank-independent stacks need no bank.
+    independent, independent_grad = sampler['query'](points, None, stacks=(1, 0))
+    np.testing.assert_allclose(independent, zero[[1, 0]], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(independent_grad, zero_grad[[1, 0]], rtol=1e-12, atol=1e-12)
+    affected, _ = sampler['query'](points, 1, stacks=(2,))
+    np.testing.assert_allclose(affected, one[2:], rtol=1e-12, atol=1e-12)
+    with pytest.raises(ValueError, match='invalid_bank'):
+        sampler['query'](points, None, stacks=(2,))
+    for invalid in ((), (3,), (-1,), (True,)):
+        with pytest.raises(ValueError, match='invalid_query_stacks'):
+            sampler['query'](points, 0, stacks=invalid)
+
+
+def test_bank_field_memo_evaluates_each_point_once_and_shares_independent_stacks():
+    from gempy_engine.API.dual_contouring.adaptive_fault_extraction import _BankFieldMemo
+    calls = []
+
+    def query(points, bank=None, stacks=None):
+        calls.append((len(points), bank, stacks))
+        (stack,) = stacks
+        offset = 0 if bank is None else 10 * (bank + 1)
+        raw = points.sum(axis=1) + 100 * stack + offset
+        return raw[None], np.repeat(points[None] + offset, 1, axis=0)
+
+    memo = _BankFieldMemo(query, affected=(1,))
+    points = np.array([[0., 0, 0], [1, 0, 0], [0., 0, 0], [0, 2, 0]])
+    raw, gradients = memo(points, [0, 1], 0)
+    assert calls == [(3, None, (0,)), (3, 0, (1,))]
+    np.testing.assert_array_equal(raw, [[0, 1, 0, 2], [110, 111, 110, 112]])
+    np.testing.assert_array_equal(gradients[1], points + 10)
+    calls.clear()
+    raw, _ = memo(points[::-1], [0, 1], 1)
+    # Fault stack 0 is cached across banks; affected stack 1 is bank-specific.
+    assert calls == [(3, 1, (1,))]
+    np.testing.assert_array_equal(raw, [[2, 0, 1, 0], [122, 120, 121, 120]])
+    calls.clear()
+    memo(np.array([[0., 0, 0], [5, 0, 0]]), [1], 1)
+    assert calls == [(1, 1, (1,))]
 
 
 def test_cache_mismatch_rejected_before_forcing_bank(monkeypatch, numpy_backend):

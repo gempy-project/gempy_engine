@@ -188,7 +188,12 @@ consistency against the cached payload before querying. Retained output weights
 therefore have a memory cost even when joint extraction is not selected.
 
 Fault leaf corners, tile values, minimal edges, crossings, and gradients all use
-that same bank sampler, not the original mixed-bank corner values. For bank 0 the
+that same bank sampler, not the original mixed-bank corner values. The fault
+adapter deduplicates sampler queries by stack, effective bank, and exact
+coordinate: every point is evaluated once per stack, affected stacks once per bank,
+and fault/unaffected stacks once for both banks (`query(points, bank, stacks)`
+accepts a stack subset; a bank is required only when an affected stack is
+selected). The leaf cell complex is built once and shared by every partition. For bank 0 the
 separator is `-(raw_fault - original_isovalue)`; for bank 1 it is
 `raw_fault - original_isovalue`, with actual gradients oriented by the same sign.
 Only the internally extracted separator level becomes zero. Original fault
@@ -510,8 +515,9 @@ The comparison screenshot and report are
 `/tmp/opencode/adaptive-joint-model7-comparison.png` and
 `/tmp/opencode/adaptive-joint-model7-comparison.json`.
 
-No new adaptive performance benchmark is included in this change. Historical
-uniform-extraction benchmark results do not describe the new `joint` mode.
+Matched solved-octree timings and the stage profile of the joint path are in
+[`model7_matched_benchmarks.md`](model7_matched_benchmarks.md). Historical
+uniform-extraction benchmark results do not describe the `joint` mode.
 
 ## Source Map
 

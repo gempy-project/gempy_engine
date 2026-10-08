@@ -19,7 +19,8 @@ from gempy_engine.modules.dual_contouring.adaptive_joint_topology import (
 def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_samples,
                               surface_to_stack, surface_indices, stack_relations, isovalues,
                               *, sample_fields, ownership=None, include_reference=False,
-                              faults_relations=None, separator_contacts=None, defer_emission=False):
+                              faults_relations=None, separator_contacts=None, defer_emission=False,
+                              cell_complex=None):
     """Extract balanced dyadic leaves using canonical tiles and minimal primal edges.
 
     ``sample_fields`` supplies raw fields (S,M) and actual gradients (S,M,3).
@@ -33,6 +34,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     ``defer_emission`` returns a fully validated ``_triangle_plan`` and
     ``_key_to_id`` with faces/affected_faces set to None for a caller-owned
     all-bank validation barrier. It cannot be combined with ``include_reference``.
+    ``cell_complex`` may supply the read-only ``build_adaptive_complex`` result
+    for these exact origins/spans/domain, so bank partitions share one build.
     """
     from gempy_engine.modules.dual_contouring.adaptive_cell_complex import build_adaptive_complex
 
@@ -98,7 +101,7 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                 and (controller_stack, float(isovalues[controller_stack][index])) not in represented_boundaries):
             raise ValueError('unsupported_missing_controller: represented target requires known ordinary boundary '
                              f'{controller_stack}/{index}')
-    complex_ = build_adaptive_complex(origins, spans, domain_shape)
+    complex_ = build_adaptive_complex(origins, spans, domain_shape) if cell_complex is None else cell_complex
     origins, spans = np.asarray(origins), np.asarray(spans)
     domain = np.asarray(domain_shape)
     bounds = np.asarray(extent, dtype=float)
@@ -119,29 +122,30 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         levels[separator] = 0.
     fields = samples-levels[:, None, None]
     faces, edges = complex_['faces'], complex_['edges']
-    tile_nodes = []
-    for face in faces:
-        other = [a for a in range(3) if a != face['axis']]
-        nodes = np.tile(face['origin'], (4, 1))
-        nodes[:, other] += np.array([[0, 0], [1, 0], [0, 1], [1, 1]])*face['span']
-        tile_nodes.append(nodes)
-    tile_xyz = bounds[::2]+np.asarray(tile_nodes)*spacing
-    edge_nodes = []
-    for edge in edges:
-        nodes = np.tile(edge['origin'], (2, 1))
-        nodes[1, edge['axis']] += edge['span']
-        edge_nodes.append(nodes)
-    minimal_xyz = bounds[::2]+np.asarray(edge_nodes)*spacing
-    cache = {}
+    # Tile nodes ordered 00, 10, 01, 11 in the two non-normal axes.
+    tile_nodes = np.repeat(np.array([f['origin'] for f in faces], dtype=np.int64).reshape(-1, 1, 3), 4, axis=1)
+    face_axes = np.array([f['axis'] for f in faces], dtype=np.int64)
+    face_spans = np.array([f['span'] for f in faces], dtype=np.int64)
+    for axis in range(3):
+        rows = face_axes == axis
+        other = [a for a in range(3) if a != axis]
+        tile_nodes[np.ix_(rows, range(4), other)] += (
+            np.array([[0, 0], [1, 0], [0, 1], [1, 1]])*face_spans[rows, None, None])
+    tile_xyz = bounds[::2]+tile_nodes*spacing
+    edge_nodes = np.repeat(np.array([e['origin'] for e in edges], dtype=np.int64).reshape(-1, 1, 3), 2, axis=1)
+    edge_nodes[np.arange(len(edges)), 1, [e['axis'] for e in edges]] += [e['span'] for e in edges]
+    minimal_xyz = bounds[::2]+edge_nodes*spacing
+    # Exact-coordinate cache: key -> column of the concatenated sample blocks.
+    cache, cached_raw, cached_gradients = {}, [], []
     separator_plane = None
 
     def query(points):
         points = np.asarray(points).reshape(-1, 3)
-        keys = [tuple(p) for p in points]
+        keys = list(map(tuple, points))
         missing = sorted(set(keys)-cache.keys())
         if missing:
             raw, gradients = sample_fields(np.asarray(missing))
-            raw, gradients = detached(raw), detached(gradients)
+            raw, gradients = np.array(detached(raw), copy=True), np.array(detached(gradients), copy=True)
             if raw.shape != (n, len(missing)) or gradients.shape != (n, len(missing), 3) or not (
                     np.isfinite(raw).all() and np.isfinite(gradients).all()):
                 raise ValueError('invalid_callback_samples: finite all-surface scalar/gradient arrays required')
@@ -151,10 +155,16 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                         and np.allclose(raw[separator], np.asarray(missing) @ slope + offset,
                                         atol=1e-10, rtol=0)):
                     raise ValueError('unsupported_separator_geometry: canonical field must be affine with constant actual gradients')
-            for i, key in enumerate(missing):
-                cache[key] = (raw[:, i].copy(), gradients[:, i].copy())
-        return (np.stack([cache[k][0] for k in keys], axis=1),
-                np.stack([cache[k][1] for k in keys], axis=1))
+            cache.update(zip(missing, range(len(cache), len(cache)+len(missing))))
+            cached_raw.append(raw)
+            cached_gradients.append(gradients)
+        columns = np.fromiter((cache[k] for k in keys), dtype=np.int64, count=len(keys))
+        if len(cached_raw) > 1:
+            cached_raw[:] = [np.concatenate(cached_raw, axis=1)]
+            cached_gradients[:] = [np.concatenate(cached_gradients, axis=1)]
+        if not cached_raw:
+            return np.empty((n, 0)), np.empty((n, 0, 3))
+        return cached_raw[0][:, columns], cached_gradients[0][:, columns]
 
     all_points = np.concatenate((xyz.reshape(-1, 3), tile_xyz.reshape(-1, 3), minimal_xyz.reshape(-1, 3)))
     query(all_points)

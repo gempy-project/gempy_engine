@@ -60,8 +60,9 @@ def generic_evaluator(
             if gz_field is not None:
                 gz_field[slice_array] = gz_chunk  # type: ignore
 
-        # Collect every five chunks and after the final chunk.
-        if (i + 1) % 5 == 0 or i == n_chunks - 1:
+        # Collect every five chunks and after the final chunk. A single chunk's
+        # temporaries are already freed, and a full collection scans the whole heap.
+        if n_chunks > 1 and ((i + 1) % 5 == 0 or i == n_chunks - 1):
             gc.collect()
         
     if n_chunks > 5:

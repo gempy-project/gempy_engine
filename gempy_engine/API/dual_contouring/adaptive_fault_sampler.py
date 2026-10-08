@@ -40,9 +40,10 @@ def _freeze_arrays(value):
 
 
 def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_list):
-    """Return raw ``query(points, bank) -> (S x M, S x M x 3)`` fields.
+    """Return raw ``query(points, bank, stacks) -> (S x M, S x M x 3)`` fields.
 
-    Full queries require bank 0 or 1 when any stack is affected. Only query
+    Queries touching an affected stack require bank 0 or 1; fault and
+    unaffected stacks are bank-independent. Only query
     coordinates and query fault drift change; solved SP/ref/rest drift does not.
     NumPy CPU float64 is supported. Unsupported contracts fail before emission.
     ``snapshots`` are detached inspection copies, never the query's private state.
@@ -166,15 +167,21 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
             raise ValueError('nonfinite_or_invalid_fault_query')
         return values, gradients
 
-    def query(points, bank=None):
+    def query(points, bank=None, stacks=None):
+        """Rows follow ``stacks`` (default: every stack in order)."""
         if backend != (BT.engine_backend, BT.dtype, BT.use_gpu, BT.use_pykeops, BT.COMPUTE_GRADS):
             raise RuntimeError('fault sampler backend changed after preparation')
-        if bank is not None and (not np.isscalar(bank) or bank not in (0, 1)) or affected and bank is None:
-            raise ValueError('invalid_bank: affected full queries require explicit 0 or 1')
+        stacks = tuple(range(n_stacks)) if stacks is None else tuple(stacks)
+        if not stacks or any(not isinstance(i, (int, np.integer)) or isinstance(i, bool)
+                             or not 0 <= i < n_stacks for i in stacks):
+            raise ValueError('invalid_query_stacks: nonempty in-bounds stack indices required')
+        if (bank is not None and (not np.isscalar(bank) or bank not in (0, 1))
+                or bank is None and any(i in affected for i in stacks)):
+            raise ValueError('invalid_bank: affected stack queries require explicit 0 or 1')
         points = np.array(points, dtype=np.float64, copy=True)
         if points.ndim != 2 or points.shape[1] != 3 or not np.isfinite(points).all():
             raise ValueError('invalid_query_points: finite (M, 3) coordinates required')
-        values, gradients = zip(*(evaluate_stack(i, points, bank) for i in range(n_stacks)))
+        values, gradients = zip(*(evaluate_stack(i, points, bank) for i in stacks))
         return np.stack(values), np.stack(gradients)
 
     # Verify the separator using actual fixed-weight scalar AND gradient kernels,

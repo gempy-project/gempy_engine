@@ -39,11 +39,13 @@ def _fault_case():
 def _mock_sampler(monkeypatch, descriptor, calls):
     module = ModuleType("gempy_engine.API.dual_contouring.adaptive_fault_sampler")
 
-    def query(points, bank=None):
+    def query(points, bank=None, stacks=None):
+        stacks = [0, 1, 2] if stacks is None else list(stacks)
+        assert bank in (0, 1) or 1 not in stacks
         calls.append((bank, np.asarray(points).copy()))
         raw = np.array([points[:, 0], points[:, 2] + (bank or 0) * .1, points[:, 1]])
         gradients = np.tile(np.eye(3)[[0, 2, 1]][:, None, :], (1, len(points), 1))
-        return raw, gradients
+        return raw[stacks], gradients[stacks]
 
     module.prepare_fault_bank_sampler = Mock(return_value=dict(
         fault_stack=0, affected_stacks=[1], unaffected_stacks=[2], query=query,
@@ -216,8 +218,8 @@ def _audit_fixed_queries(monkeypatch):
                 np.testing.assert_allclose(raw[stack, saturated],
                     output.exported_fields._scalar_field[:len(points)][saturated], rtol=1e-12, atol=1e-12)
 
-        def audited_query(points, bank=None):
-            result = query(points, bank=bank)
+        def audited_query(points, bank=None, stacks=None):
+            result = query(points, bank=bank, stacks=stacks)
             for (actual, weights, _), (before, previous_weights, _) in zip(sampler["snapshots"], snapshots):
                 np.testing.assert_array_equal(weights, previous_weights)
                 assert not weights.flags.writeable
