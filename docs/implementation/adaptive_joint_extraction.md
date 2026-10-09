@@ -564,6 +564,65 @@ since banks would split them.
 - `python examples/adaptive_joint_model7.py --closed-volumes` shows an exploded
   view.
 
+## Unit Tetrahedra
+
+`closed_volumes.tetrahedralize()` turns the closed-volume complex into one
+conforming tetrahedral mesh of all units, using TetGen (the optional `tetgen`
+package, `pip install tetgen`; TetGen is AGPL-3.0 licensed, so it is not a
+required dependency). The complex is already a valid TetGen input: each
+triangle is stored once, triangles touch only along shared edges and vertices,
+and the units on both sides are known.
+
+1. **Needle collapse** (`collapse_short_edges`, `collapse_ratio=0.2`, None
+   skips it). Edges shorter than 0.2 times the longest edge of a triangle they
+   bound are collapsed in the whole shared complex, so every shell stays
+   closed and conforming:
+   - a vertex inside one patch merges into a neighbour of that patch;
+   - a vertex on a feature line slides along it (seams, contours, fault
+     traces and box edges, i.e. edges not interior to one patch);
+   - junction and corner vertices never move.
+
+   A collapse must keep the link condition and must not fold or degenerate any
+   triangle. Afterwards the complex is re-audited: closed, positive, no
+   hanging nodes. Vertices move by at most the collapsed edge length. The
+   report records each unit's volume change.
+2. **Region seeds.** Each edge-connected piece of each unit shell gets a seed
+   just inside its largest triangle, checked with the generalised winding
+   number, because units can be disconnected (two on Model 7).
+3. **TetGen** runs with `pAQ`, plus `q{min_ratio}/{min_dihedral}` (default
+   1.5/10) when `quality=True`, `a{max_volume}` when given, and `Y` with
+   `keep_surface=True` (no Steiner points on the input triangles).
+   Self-intersecting input raises `closed_volume_self_intersection`, using
+   TetGen's exact predicates.
+4. **Checks.** Each tetrahedron's unit volumes must equal the shell volumes of
+   the meshed complex (`tetrahedral_volume_mismatch`), and every closed region
+   must have a seed (`unseeded_tetrahedral_region`).
+
+The result is a `UnitTetMesh` with `nodes`, positively oriented `tetrahedra`,
+`tet_units` (indices into `units`), `unit_volumes`, `boundary_faces` and
+`boundary_patches`. `boundary_patches` holds, for each tetrahedron face on an
+input triangle, that triangle's index in `surface`, the collapsed complex
+actually meshed, so faces map back to their kind and side units even after
+TetGen splits them.
+
+**Model 7 (natural, root 9):**
+- 293 needle edges are collapsed. The largest unit volume change is 4.8e-7,
+  about 2e-5 of the model volume. Surface triangles under 5 degrees drop from
+  219 to 6.
+- Meshing gives about 78k tetrahedra in about 1.1 s, with a median minimum
+  dihedral angle of 40 degrees. 0.6% are under 5 degrees, and fewer than 20
+  are under 1 degree. Those sit where all four nodes lie on the planar erosion
+  contact, filling micro-creases of the dual-contoured surface; removing them
+  needs surface smoothing.
+- Without the collapse, quality refinement took 40 s and produced 670k
+  tetrahedra on root 9, and failed inside TetGen on root 7 / minimum level 2.
+- With `keep_surface=True`: 0.3–0.6 s and about 33k tetrahedra, with worse
+  dihedral angles next to the surface.
+- `min_dihedral=15` took 97 s.
+
+`python examples/adaptive_joint_model7.py --tetrahedralize` shows the clipped
+mesh coloured by unit.
+
 ## `joint_contacts`: Joint Contacts With Pretty Fault Merge
 
 `mesh_extraction_overlap = "joint_contacts"` (or

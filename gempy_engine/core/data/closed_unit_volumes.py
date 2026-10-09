@@ -42,3 +42,44 @@ class ClosedUnitVolumes:
     @property
     def volumes(self):
         return dict(self.report.get('volumes', {}))
+
+    def collapse_short_edges(self, ratio=.2):
+        """A copy with needle edges collapsed, keeping features and closure (see ``collapse_short_edges``)."""
+        from ...modules.dual_contouring.closed_volume_cleanup import collapse_short_edges
+        return collapse_short_edges(self, ratio)
+
+    def tetrahedralize(self, **kwargs):
+        """One conforming tetrahedral mesh of all units (needs the optional ``tetgen``).
+
+        See ``tetrahedralize_closed_volumes`` for the options.
+        """
+        from ...modules.dual_contouring.closed_volume_tetmesh import tetrahedralize_closed_volumes
+        return tetrahedralize_closed_volumes(self, **kwargs)
+
+
+@dataclass
+class UnitTetMesh:
+    """Conforming tetrahedral mesh of closed unit volumes.
+
+    ``tet_units[i]`` indexes ``units`` for tetrahedron ``i`` (positively
+    oriented). ``boundary_faces`` are the faces lying on the closed-volume
+    triangles; ``boundary_patches`` gives, for each, the index of the source
+    triangle in ``surface.triangles`` (so its kind and side units), where
+    ``surface`` is the ``ClosedUnitVolumes`` actually meshed (after any
+    short-edge collapse).
+    """
+    nodes: np.ndarray
+    tetrahedra: np.ndarray
+    tet_units: np.ndarray
+    units: list
+    boundary_faces: np.ndarray
+    boundary_patches: np.ndarray
+    surface: 'ClosedUnitVolumes' = None
+    report: dict = field(default_factory=dict)
+
+    @property
+    def unit_volumes(self):
+        p = self.nodes[self.tetrahedra]
+        volumes = np.einsum('ij,ij->i', p[:, 1]-p[:, 0], np.cross(p[:, 2]-p[:, 0], p[:, 3]-p[:, 0]))/6
+        totals = np.bincount(self.tet_units, weights=volumes, minlength=len(self.units))
+        return {unit: float(v) for unit, v in zip(self.units, totals)}

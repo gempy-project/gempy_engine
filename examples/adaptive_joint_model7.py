@@ -10,7 +10,9 @@ coarse/fine CONTACT seams: the default has zero such seam edges.
 vertex merge (one fault mesh, horizons ending on fault vertices, no banks).
 --closed-volumes (joint only) also builds closed, outward unit shells per fault
 bank, with the extent rim at the boundary leaf size, and opens a viewer of the
-shells (--explode 0.35 pushes them apart).
+shells (--explode 0.35 pushes them apart). --tetrahedralize (needs the optional
+tetgen package) meshes the closed volumes into one conforming tetrahedral mesh
+and shows it clipped, coloured by unit.
 --compare shows ordinary smooth-fault none/pretty beside bank-conditioned joint
 skins and joint_contacts. These are different field semantics, not a
 like-for-like benchmark.
@@ -226,6 +228,27 @@ def render_closed_volumes(solution, off_screen=False, screenshot=None, explode=0
     plotter.show(screenshot=None if screenshot is None else str(screenshot))
 
 
+def render_tetrahedra(solution, off_screen=False, screenshot=None):
+    import pyvista as pv
+
+    mesh = solution.closed_volumes.tetrahedralize()
+    report = mesh.report
+    print(f'Tetrahedra: {len(mesh.tetrahedra)} over {len(mesh.nodes)} nodes, '
+          f'{report["collapse"]["collapsed_edges"]} needle edges collapsed, '
+          f'min dihedral {report["min_dihedral"]:.2f} deg', flush=True)
+    cells = np.column_stack((np.full(len(mesh.tetrahedra), 4), mesh.tetrahedra)).ravel()
+    grid = pv.UnstructuredGrid(cells, np.full(len(mesh.tetrahedra), pv.CellType.TETRA), mesh.nodes)
+    grid.cell_data['unit'] = mesh.tet_units
+    plotter = pv.Plotter(off_screen=off_screen, window_size=(1100, 800), title='Unit tetrahedra')
+    plotter.set_background('#17212b')
+    plotter.add_mesh(grid.clip(normal='y'), scalars='unit', categories=True, cmap='tab10', show_edges=True,
+                     edge_color='#333333', line_width=.3, scalar_bar_args=dict(title='unit'))
+    plotter.add_text('Conforming unit tetrahedra (clipped)', font_size=12, color='white')
+    plotter.add_axes()
+    plotter.view_isometric()
+    plotter.show(screenshot=None if screenshot is None else str(screenshot))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root-resolution', type=int, default=9)
@@ -236,6 +259,8 @@ def main():
     parser.add_argument('--compare', action='store_true', help='four production modes, fresh models')
     parser.add_argument('--closed-volumes', action='store_true', help='joint: closed unit shells per fault bank')
     parser.add_argument('--explode', type=float, default=0., help='--closed-volumes: push shells apart')
+    parser.add_argument('--tetrahedralize', action='store_true',
+                        help='--closed-volumes: conforming unit tetrahedra through TetGen')
     parser.add_argument('--off-screen', action='store_true')
     parser.add_argument('--screenshot', type=Path)
     parser.add_argument('--json', type=Path)
@@ -247,7 +272,7 @@ def main():
             parser.error(f'Output parent must already exist: {path.parent}')
 
     global CLOSED_VOLUMES
-    CLOSED_VOLUMES = args.closed_volumes
+    CLOSED_VOLUMES = args.closed_volumes or args.tetrahedralize
     from gempy_engine.config import AvailableBackends
     from gempy_engine.core.backend_tensor import BackendTensor
     BackendTensor._change_backend(AvailableBackends.numpy, use_gpu=False,
@@ -281,7 +306,9 @@ def main():
         args.json.write_text(text)
     if exit_code == 0 and not args.check_only:
         joint = [solution for report, solution in cases if report['mode'] == 'joint']
-        if args.closed_volumes and joint:
+        if args.tetrahedralize and joint:
+            render_tetrahedra(joint[0], args.off_screen, args.screenshot)
+        elif args.closed_volumes and joint:
             render_closed_volumes(joint[0], args.off_screen, args.screenshot, args.explode)
         else:
             render(cases, args.off_screen, args.screenshot)
