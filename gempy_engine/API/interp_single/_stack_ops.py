@@ -106,15 +106,24 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
             options_per_stack=chunk_options,
         )
     else:
-        chunk_eval_inputs, chunk_exported_fields = _evaluate_optimized(
-            interpolation_inputs=chunk_interpolation_inputs,
-            options=state.options,
-            solver_inputs=chunk_solver_inputs,
-            stack_structure=state.stack_structure,
-            tensor_structs=chunk_tensor_structs,
-            stack_indices=chunk,
-            options_per_stack=chunk_options,
-        )
+        # The fused evaluator takes kernel options and evaluation flags from its
+        # first stack and lays fault-drift rows out per block, so only stacks that
+        # agree on those are fused together. Results keep chunk order.
+        chunk_eval_inputs = [None] * len(chunk)
+        chunk_exported_fields = [None] * len(chunk)
+        for members in _fused_evaluation_groups(chunk_options, chunk_interpolation_inputs):
+            group_eval_inputs, group_exported_fields = _evaluate_optimized(
+                interpolation_inputs=[chunk_interpolation_inputs[i] for i in members],
+                options=state.options,
+                solver_inputs=[chunk_solver_inputs[i] for i in members],
+                stack_structure=state.stack_structure,
+                tensor_structs=[chunk_tensor_structs[i] for i in members],
+                stack_indices=[chunk[i] for i in members],
+                options_per_stack=[chunk_options[i] for i in members],
+            )
+            for i, eval_input, exported_fields in zip(members, group_eval_inputs, group_exported_fields):
+                chunk_eval_inputs[i] = eval_input
+                chunk_exported_fields[i] = exported_fields
 
     for idx, i in enumerate(chunk):
         state.eval_inputs[i] = chunk_eval_inputs[idx]
@@ -243,6 +252,23 @@ def _evaluate(interpolation_inputs: list[InterpolationInput], options: Interpola
         exported_fields_per_stack.append(exported_fields)
         # endregion
     return eval_inputs, exported_fields_per_stack
+
+
+def _fused_evaluation_groups(options_per_stack: list[InterpolationOptions],
+                             interpolation_inputs: list[InterpolationInput]) -> list[list[int]]:
+    """Chunk positions that one fused PyKeOps evaluation can serve exactly.
+
+    The stacked kernel uses its first stack's kernel options and scalar/gradient
+    flags for every block, and needs every block to carry the same number of
+    fault-drift rows. Groups keep first-appearance order; members keep chunk order.
+    """
+    groups: dict[tuple, list[int]] = {}
+    for idx, (options_i, interpolation_input) in enumerate(zip(options_per_stack, interpolation_inputs)):
+        evaluation = micro_evaluation_options(options_i, interpolation_input).evaluation_options
+        key = (repr(options_i.kernel_options), evaluation.compute_scalar, evaluation.compute_scalar_gradient,
+               interpolation_input.fault_values.n_faults)
+        groups.setdefault(key, []).append(idx)
+    return list(groups.values())
 
 
 def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,

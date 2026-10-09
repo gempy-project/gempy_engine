@@ -154,8 +154,18 @@ scalar kernel marked fault-drift rows as the trailing rows of the whole stacked
 covariance, so in every stacked chunk only the last faulted stack kept its fault
 drift. With `GEMPY_FLAT_STACKS=True` and KeOps, Model 7 stack 1 was off by up to
 0.065 (13% of its range). `_build_stacked_kernel_data` now builds a per-block
-fault-drift selector. FLAT + KeOps then matches per-stack KeOps exactly, as
-checked in `tests/test_common/test_modules/test_stacked_keops_fault_drift.py`.
+fault-drift selector.
+
+FLAT chunks group stacks only by resolved fault dependencies. A chunk could
+therefore mix stacks with different fault counts, which PR #108's checks now
+reject: on a two-fault model, FLAT + KeOps raised. It could also mix different
+per-stack kernel options, which were silently replaced by the first stack's: a
+stack with its own range was off by 0.12. `process_chunk` now fuses only stacks
+that share kernel options, scalar/gradient flags and fault-row count
+(`_fused_evaluation_groups`). FLAT + KeOps then matches non-FLAT exactly on
+Model 7, the graben (dependent and independent faults) and a synthetic
+two-fault model with per-stack options, as checked in
+`tests/test_common/test_modules/test_flat_keops_stacking.py`.
 Raw results are kept at
 `/home/leguark/Projects/gempy_project/benchmark_results/model7-backends-leaderboard-2026-10-09-v3-stacked.json`.
 
