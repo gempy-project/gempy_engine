@@ -81,7 +81,7 @@ Supported production settings are deliberately narrow:
 
 | Setting | Joint contract |
 | --- | --- |
-| Backend | Ordinary paths: NumPy or PyTorch, CPU, `float64`; production `FAULT` paths: NumPy CPU `float64` only, without KeOps |
+| Backend | NumPy or PyTorch (CPU or CUDA, with or without KeOps), `float64`; all paths, including production `FAULT` banks |
 | Masking | `MeshExtractionMaskingOptions.INTERSECT` only |
 | Extent capping | `MeshExtentCapping.NONE` only |
 | Faults | Exactly one infinite independent planar fault with verified production field and banks; finite, multiple, dependent, and nonplanar faults unsupported |
@@ -91,10 +91,15 @@ Supported production settings are deliberately narrow:
 | Fault micro/external callbacks | Micro correction, external interpolation callbacks, and externally supplied input fault values unsupported |
 
 Fault dispatch checks fault relations, fault-bank inputs, and input fault values,
-not only the presence of a `FAULT` stack label. CUDA and `float32` are rejected
-rather than silently converted to a supported production backend. PyTorch
-production QEFs may be used on CPU, but geometry and topology are detached NumPy
-arrays; the extracted mesh is not differentiable.
+not only the presence of a `FAULT` stack label. `float32` and Torch autograd are
+rejected rather than silently converted. Field queries run on the active device
+(CUDA included); crossing and QEF tensors live on that device, while topology,
+incidence and validation are host NumPy. The extracted mesh is not
+differentiable. On Model 7 and a fault-free production plane, Torch CPU and CUDA
+give the same faces, vertex keys and bank labels as NumPy, with vertices within
+the production NumPy/Torch field difference (up to about 1e-4, `pretty`
+included). Production KeOps evaluation differs from dense kernels, so KeOps meshes
+can differ slightly in every mode.
 
 ### Fault Scope
 
@@ -481,6 +486,17 @@ Gradients are evaluated only for the crossing surface: at its edge crossings
 and at the endpoints of edges it crosses. Vertex ownership checks are
 scalar-only. On Model 7 this makes extraction cost the same as `pretty`.
 
+**Batched, stacked queries.** The core sends its targeted queries as two batches:
+every surface's crossing and crossed-edge endpoint gradients together, then both
+vertex scalar checks together. With KeOps, the drift sampler's `query_batch`
+merges the points of all requests sharing a (stack, kind). It evaluates every
+fault scalar needed for the drift in one pass, then all remaining stacks in
+stacked block-sparse reductions, the same evaluator FLAT stacks use (one per
+kind; stacks are grouped by kernel options and drift-row count). On Model 7 this
+replaces about 21 KeOps calls with 2 batches. Dense backends answer each request
+separately, because merged batches only cross the evaluator chunk size and gain
+nothing.
+
 **Fault merge (core `fault_merge` contract).** Each represented fault surface
 maps to exactly the surfaces it affects. In leaves where fault *f* has a vertex
 and an affected surface crosses, that surface *borrows* the fault vertex by
@@ -510,8 +526,8 @@ There are no bank labels (`joint_bank_ids` and `joint_face_bank_ids` are
 **Backends.** `joint_contacts` with faults runs on NumPy and on Torch, on CPU
 or CUDA, with or without KeOps (float64, no autograd). Field queries run on the
 active device and return host arrays; topology, QEF assembly inputs and
-validation stay on the host. Banked `joint`, and `joint_contacts` on fault-free
-models (which is `joint`), remain NumPy/Torch CPU only. On Model 7, Torch
+validation stay on the host. Banked `joint` and the fault-free paths run on the
+same backends. On Model 7, Torch
 CPU/CUDA give the same faces and vertex keys as NumPy, with vertices within the
 production NumPy/Torch field difference (about 3e-5). Production KeOps
 evaluation differs from dense kernels by up to 1e-4 on Model 7's largest stack

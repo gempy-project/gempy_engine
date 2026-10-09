@@ -234,15 +234,19 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
     levels = [_numpy(output.scalar_field_at_sp).astype(np.float64).reshape(-1).copy()
               for output in octree_list[0].outputs]
     sampler = prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree_list)
-    def field_query(points, surfaces, gradients):
-        # Only the requested surfaces' stacks, each unique point once.
-        points = np.asarray(points, dtype=np.float64).reshape(-1, 3)
-        unique, inverse = np.unique(points, axis=0, return_inverse=True)
-        stacks_needed = sorted(set(groups[surfaces].tolist()))
-        raw, normals = sampler["query"](unique, stacks=stacks_needed, gradients=gradients)
-        rows = np.searchsorted(stacks_needed, groups[surfaces])
-        inverse = inverse.reshape(-1)
-        return raw[rows][:, inverse], (normals[rows][:, inverse] if gradients else None)
+    def field_query(requests):
+        # One stacked sampler batch: only the requested surfaces' stacks, each
+        # request's unique points once.
+        prepared = []
+        for points, surfaces, kind in requests:
+            unique, inverse = np.unique(np.asarray(points, dtype=np.float64).reshape(-1, 3), axis=0,
+                                        return_inverse=True)
+            stacks_needed = sorted(set(groups[surfaces].tolist()))
+            prepared.append((unique, stacks_needed, kind, np.searchsorted(stacks_needed, groups[surfaces]),
+                             inverse.reshape(-1)))
+        answers = sampler["query_batch"]([(unique, stacks_needed, kind)
+                                          for unique, stacks_needed, kind, _, _ in prepared])
+        return [answer[rows][:, inverse] for answer, (_, _, _, rows, inverse) in zip(answers, prepared)]
 
     def sample_fields(points):
         raise ValueError("unexpected_full_field_query: joint_contacts uses targeted field queries")

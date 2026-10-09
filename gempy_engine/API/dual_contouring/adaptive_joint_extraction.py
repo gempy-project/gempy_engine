@@ -92,7 +92,7 @@ def _collect_joint_leaves(octree_list, n_stacks):
             np.concatenate(samples, axis=1), metadata)
 
 
-def _check_joint_options(descriptor, options, allow_gpu=False):
+def _check_joint_options(descriptor, options):
     evaluation = options.evaluation_options
     if MeshExtentCapping(evaluation.mesh_extraction_extent_capping) != MeshExtentCapping.NONE:
         raise ValueError("joint extent capping is unsupported")
@@ -102,8 +102,6 @@ def _check_joint_options(descriptor, options, allow_gpu=False):
     relations = stacks.masking_descriptor
     if StackRelationType.NULL_SPACE in relations:
         raise NotImplementedError("joint null-space stacks are unsupported")
-    if BT.use_gpu and not allow_gpu:
-        raise NotImplementedError("joint requires a CPU backend; CUDA fallback is disabled")
     if BT.dtype != "float64":
         raise NotImplementedError("joint requires float64 production fields")
 
@@ -123,7 +121,7 @@ def extract_joint_contacts_octree(descriptor, interpolation_input, options, octr
     """
     if not _has_faults(descriptor, interpolation_input):
         return extract_joint_octree(descriptor, interpolation_input, options, octree_list)
-    _check_joint_options(descriptor, options, allow_gpu=True)
+    _check_joint_options(descriptor, options)
     from .adaptive_fault_extraction import extract_fault_merge_octree
     return extract_fault_merge_octree(descriptor, interpolation_input, options, octree_list)
 

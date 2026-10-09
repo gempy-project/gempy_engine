@@ -393,13 +393,18 @@ def test_fault_metadata_types_and_lengths_rejected_before_preprocessing(monkeypa
     assert inputs._fault_values is (data if case == 'input_duck_type' else None)
 
 
-def test_torch_fault_backend_rejected_explicitly(numpy_backend):
+@pytest.mark.parametrize('prepare', ['prepare_fault_bank_sampler', 'prepare_fault_drift_sampler'])
+def test_torch_autograd_fault_backend_rejected_explicitly(numpy_backend, prepare):
     pytest.importorskip('torch')
     inputs, options, descriptor = model7_combination_factory()
     BT._change_backend(engine_backend=AvailableBackends.PYTORCH, use_gpu=False,
-                       use_pykeops=False, dtype='float64', grads=False)
-    with pytest.raises(NotImplementedError, match='unsupported_fault_backend'):
-        sampler_api.prepare_fault_bank_sampler(descriptor, inputs, options, [])
+                       use_pykeops=False, dtype='float64', grads=True)
+    try:
+        with pytest.raises(NotImplementedError, match='unsupported_fault_backend'):
+            getattr(sampler_api, prepare)(descriptor, inputs, options, [])
+    finally:
+        BT._change_backend(engine_backend=AvailableBackends.numpy, use_gpu=False,
+                           use_pykeops=False, dtype='float64', grads=False)
 
 
 def test_production_drift_sampler_reproduces_production_fields(monkeypatch, numpy_backend):

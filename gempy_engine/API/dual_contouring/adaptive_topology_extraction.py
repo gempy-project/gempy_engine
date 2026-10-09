@@ -45,20 +45,21 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     shared: participants keep unshared vertices without ownership certification
     (pretty-style fallback, counted, never silent). Faults are not ownership
     controllers.
-    ``field_query(points, surfaces, gradients) -> (values, gradients or None)``
-    optionally replaces ``sample_fields`` queries with targeted ones: tile and
-    minimal-edge node values come from the supplied leaf corners (shared nodes
-    must agree within tolerance), gradients are evaluated only for the crossing
-    surface, and vertex checks are scalar-only. Not with separator contacts.
+    ``field_query([(points, surfaces, 'scalar'|'gradient'), ...])`` optionally
+    replaces ``sample_fields`` with batched targeted queries, returning per
+    request (S, M) scalars or (S, M, 3) gradients: tile and minimal-edge node
+    values come from the supplied leaf corners (shared nodes must agree within
+    tolerance), gradients are evaluated only for the crossing surface (one batch
+    for crossings and crossed-edge endpoints), and vertex checks are one
+    scalar-only batch. Not with separator contacts.
     """
     from gempy_engine.modules.dual_contouring.adaptive_cell_complex import build_adaptive_complex
 
     if defer_emission and include_reference:
         raise ValueError('unsupported_deferred_reference: defer_emission and include_reference are incompatible')
-    # CUDA only for targeted field queries; topology itself is host NumPy.
-    if (BT.use_gpu and field_query is None) or BT.dtype != 'float64' or BT.engine_backend not in (
-            AvailableBackends.numpy, AvailableBackends.PYTORCH):
-        raise ValueError('unsupported_backend: NumPy/Torch CPU float64 only (CUDA with field_query)')
+    # Topology is host NumPy; Torch tensors for crossings/QEFs live on the active device.
+    if BT.dtype != 'float64' or BT.engine_backend not in (AvailableBackends.numpy, AvailableBackends.PYTORCH):
+        raise ValueError('unsupported_backend: NumPy/Torch float64 only')
 
     def detached(a):
         return a.detach().cpu().numpy() if hasattr(a, 'detach') else np.asarray(a)
@@ -208,26 +209,27 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         raise ValueError('invalid_field_query_contract: exclusive with separator contacts and ownership')
     queried = [0]
 
-    def fields_at(points, surfaces, gradients):
-        points = np.asarray(points, dtype=float).reshape(-1, 3)
-        if not len(points):
-            return np.empty((len(surfaces), 0)), np.empty((len(surfaces), 0, 3)) if gradients else None
-        values, normals = field_query(points, list(surfaces), gradients)
-        values = np.array(detached(values), dtype=float, copy=True)
-        if values.shape != (len(surfaces), len(points)) or not np.isfinite(values).all():
-            raise ValueError('invalid_callback_samples: finite requested-surface scalars required')
-        if gradients:
-            normals = np.array(detached(normals), dtype=float, copy=True)
-            if normals.shape != (len(surfaces), len(points), 3) or not np.isfinite(normals).all():
-                raise ValueError('invalid_callback_samples: finite requested-surface gradients required')
-        queried[0] += len(points)
-        return values, normals
-
-    def surface_gradients(points, s):
-        return query(points)[1][s] if field_query is None else fields_at(points, [s], True)[1][0]
-
-    def surface_scalars(points):
-        return query(points)[0] if field_query is None else fields_at(points, range(n), False)[0]
+    def fields_batch(requests):
+        """Validated batched targeted queries; empty requests are answered locally."""
+        requests = [(np.asarray(points, dtype=float).reshape(-1, 3), list(surfaces), kind)
+                    for points, surfaces, kind in requests]
+        live = [i for i, (points, _, _) in enumerate(requests) if len(points)]
+        answers = field_query([requests[i] for i in live]) if live else []
+        if len(answers) != len(live):
+            raise ValueError('invalid_callback_samples: one result per request required')
+        results = []
+        for points, surfaces, kind in requests:
+            shape = (len(surfaces), len(points)) + ((3,) if kind == 'gradient' else ())
+            results.append(np.empty(shape))
+        for i, answer in zip(live, answers):
+            points, surfaces, kind = requests[i]
+            answer = np.array(detached(answer), dtype=float, copy=True)
+            shape = (len(surfaces), len(points)) + ((3,) if kind == 'gradient' else ())
+            if answer.shape != shape or not np.isfinite(answer).all():
+                raise ValueError(f'invalid_callback_samples: finite requested-surface {kind}s required')
+            results[i] = answer
+            queried[0] += len(points)
+        return results
 
     if field_query is not None:
         # Every tile and minimal-edge node is a leaf corner: reuse the supplied
@@ -255,13 +257,9 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
 
         tile_fields = lattice_fields(tile_nodes).reshape(n, len(faces), 4)
         edge_fields = lattice_fields(edge_nodes).reshape(n, len(edges), 2)
-        # Endpoint gradients orient ring triangles only on edges a surface crosses.
+        # Endpoint gradients orient ring triangles only on edges a surface
+        # crosses; they are queried with the crossing normals in one batch.
         endpoint_gradients = np.zeros((n, len(edges), 2, 3))
-        for s in range(n):
-            crossed = np.flatnonzero(edge_fields[s, :, 0]*edge_fields[s, :, 1] < 0)
-            if len(crossed):
-                endpoint_gradients[s, crossed] = fields_at(
-                    minimal_xyz[crossed].reshape(-1, 3), [s], True)[1][0].reshape(-1, 2, 3)
     else:
         all_points = np.concatenate((xyz.reshape(-1, 3), tile_xyz.reshape(-1, 3), minimal_xyz.reshape(-1, 3)))
         query(all_points)
@@ -376,12 +374,24 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     regular = {}
     weighted_fault_cells = set()
 
-    def regular_key(s, cell):
-        return ('regular', (identities[s],), tuple(map(int, origins[cell])), int(spans[cell]), 0)
+    leaf_origins = list(map(tuple, origins.astype(np.int64).tolist()))
+    leaf_spans = spans.astype(np.int64).tolist()
 
+    def regular_key(s, cell):
+        return ('regular', (identities[s],), leaf_origins[cell], leaf_spans[cell], 0)
+
+    if field_query is None:
+        for s in range(n):
+            if flags[s].any():
+                normals[s][flags[s]] = query(edge_xyz[s][flags[s]])[1][s]
+    else:
+        crossed_edges = [np.flatnonzero(edge_fields[s, :, 0]*edge_fields[s, :, 1] < 0) for s in range(n)]
+        answers = fields_batch([(edge_xyz[s][flags[s]], [s], 'gradient') for s in range(n)] +
+                               [(minimal_xyz[crossed_edges[s]].reshape(-1, 3), [s], 'gradient') for s in range(n)])
+        for s in range(n):
+            normals[s][flags[s]] = answers[s][0]
+            endpoint_gradients[s, crossed_edges[s]] = answers[n+s][0].reshape(-1, 2, 3)
     for s in range(n):
-        if flags[s].any():
-            normals[s][flags[s]] = surface_gradients(edge_xyz[s][flags[s]], s)
         if np.any(np.linalg.norm(normals[s][solved[s]], axis=1) < 1e-12):
             raise ValueError('degenerate_hermite_normal: actual crossing gradient vanishes')
     for s in range(n):
@@ -455,29 +465,42 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     plans = [[] for _ in range(n)]
     fault_identities = {identities[c] for c in (fault_merge or {})}
     filtered_triangles = 0
-    for e, edge in enumerate(edges):
-        for s in range(n):
-            f = edge_fields[s, e]
-            if np.any(np.abs(f) < 1e-10):
-                raise ValueError('sample_aligned_interface: minimal edge endpoint lies on surface')
-            if f[0]*f[1] >= 0:
-                continue
-            fraction = f[0]/(f[0]-f[1])
-            retained = True
-            for c, sign in controllers[s]:
-                decision = sign*((1-fraction)*edge_fields[c, e, 0]+fraction*edge_fields[c, e, 1])
-                if abs(decision) < 1e-10:
-                    raise ValueError('grid_edge_junction: geological ownership is aligned')
-                retained &= decision > 0
-            if not retained or any(c is None for c in edge['cells']):
-                continue
-            cells = edge['cells']
-            if any(counts[s, c] != 1 for c in cells):
-                raise ValueError('unsupported_hanging_branch: crossing lacks original leaf branch')
+    # Vectorised per-(edge, surface) decisions; errors keep the edge-major,
+    # surface-minor order and per-pair check order of the original sweep.
+    start_fields, end_fields = edge_fields[:, :, 0], edge_fields[:, :, 1]
+    aligned = np.any(np.abs(edge_fields) < 1e-10, axis=2)
+    crossing = ~aligned & (start_fields*end_fields < 0)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        fraction = np.where(crossing, start_fields/(start_fields-end_fields), 0.)
+    junction_aligned = np.zeros_like(crossing)
+    retained = crossing.copy()
+    for t in range(n):
+        for c, sign in controllers[t]:
+            decision = sign*((1-fraction[t])*start_fields[c]+fraction[t]*end_fields[c])
+            junction_aligned[t] |= crossing[t] & (np.abs(decision) < 1e-10)
+            retained[t] &= decision > 0
+    edge_cells = np.array([[-1 if c is None else c for c in edge['cells']] for edge in edges],
+                          dtype=np.int64).reshape(-1, 4)
+    interior = np.all(edge_cells >= 0, axis=1)
+    selected = retained & ~junction_aligned & interior[None, :]
+    hanging = np.zeros_like(selected)
+    for t in range(n):
+        hanging[t] = selected[t] & np.any(counts[t][np.maximum(edge_cells, 0)] != 1, axis=1)
+    errors = ((aligned, 'sample_aligned_interface: minimal edge endpoint lies on surface'),
+              (junction_aligned, 'grid_edge_junction: geological ownership is aligned'),
+              (hanging, 'unsupported_hanging_branch: crossing lacks original leaf branch'))
+    failing = np.flatnonzero(np.any([mask.T for mask, _ in errors], axis=0).reshape(-1))
+    if len(failing):
+        e, t = divmod(int(failing[0]), n)
+        raise ValueError(next(message for mask, message in errors if mask[t, e]))
+    normals_at_crossing = ((1-fraction)[:, :, None]*endpoint_gradients[:, :, 0]
+                           + fraction[:, :, None]*endpoint_gradients[:, :, 1])
+    for s in range(n):
+        for e in np.flatnonzero(selected[s]).tolist():
+            cells = edges[e]['cells']
             regular_keys = collapse_ring([regular_key(s, c) for c in cells])
             keys = collapse_ring([vertex_key(s, c) for c in cells])
-            normal = ((1-fraction)*endpoint_gradients[s, e, 0]+fraction*endpoint_gradients[s, e, 1])
-            row = dict(keys=keys, regular_keys=regular_keys, normal=normal, edge=e)
+            row = dict(keys=keys, regular_keys=regular_keys, normal=normals_at_crossing[s, e], edge=e)
             if any((s, c) in borrowed for c in cells):
                 # Production diagonals, minus triangles lying wholly on fault vertices.
                 for triangle in ring_triangles(keys):
@@ -499,13 +522,19 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     triangles = plan_adaptive_triangles(plans, positions)
     used_regular = sorted({k for rows in triangles for row in rows for k in row['keys'] if k[0] == 'regular'})
     vertex_fields = {}
-    if used_regular:
-        raw = surface_scalars([positions[k] for k in used_regular])
-        vertex_fields = dict(zip(used_regular, (raw-levels[:, None]).T))
-    if junctions:
-        joint_keys = [j['key'] for j in junctions.values()]
-        raw = surface_scalars([positions[k] for k in joint_keys])
-        vertex_fields.update(zip(joint_keys, (raw-levels[:, None]).T))
+    joint_keys = [j['key'] for j in junctions.values()]
+    if field_query is None:
+        if used_regular:
+            raw, _ = query([positions[k] for k in used_regular])
+            vertex_fields = dict(zip(used_regular, (raw-levels[:, None]).T))
+        if junctions:
+            raw, _ = query([positions[k] for k in joint_keys])
+            vertex_fields.update(zip(joint_keys, (raw-levels[:, None]).T))
+    else:
+        regular_raw, joint_raw = fields_batch([([positions[k] for k in used_regular], range(n), 'scalar'),
+                                               ([positions[k] for k in joint_keys], range(n), 'scalar')])
+        vertex_fields = dict(zip(used_regular, (regular_raw-levels[:, None]).T))
+        vertex_fields.update(zip(joint_keys, (joint_raw-levels[:, None]).T))
     # Ownership is not certified for borrowed fault vertices nor in fallback
     # leaves, where pretty-style unshared vertices replace a joint junction.
     exempt = ([{k for row in rows for k in row['keys'] if k[0] == 'regular' and (

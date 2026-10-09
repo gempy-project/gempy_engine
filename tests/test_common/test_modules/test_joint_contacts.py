@@ -157,11 +157,14 @@ def _targeted(kwargs, log=None):
     """field_query built from the analytic callback; full queries forbidden."""
     full = kwargs['sample_fields']
 
-    def field_query(points, surfaces, gradients):
-        if log is not None:
-            log.append((len(points), tuple(surfaces), gradients))
-        values, normals = full(points)
-        return values[surfaces], (normals[surfaces] if gradients else None)
+    def field_query(requests):
+        answers = []
+        for points, surfaces, kind in requests:
+            if log is not None:
+                log.append((len(points), tuple(surfaces), kind == 'gradient'))
+            values, normals = full(points)
+            answers.append(normals[surfaces] if kind == 'gradient' else values[surfaces])
+        return answers
 
     def forbidden(points):
         raise AssertionError('full sample_fields query in field_query mode')
@@ -414,37 +417,95 @@ def _torch_backend(kind):
 
 def _host_meshes(meshes):
     host = lambda a: a.detach().cpu().numpy() if hasattr(a, 'detach') else np.asarray(a)
-    return [(host(m.vertices), host(m.edges), list(m.joint_vertex_keys)) for m in meshes]
+    return [(host(m.vertices), host(m.edges), list(m.joint_vertex_keys),
+             None if m.joint_face_bank_ids is None else host(m.joint_face_bank_ids)) for m in meshes]
 
 
+def _restore_numpy(torch):
+    BT._change_backend(AvailableBackends.numpy, use_gpu=False, use_pykeops=False, dtype='float64', grads=False)
+    torch.set_default_device('cpu')
+
+
+@pytest.mark.parametrize('mode', ['joint_contacts', 'joint'])
 @pytest.mark.parametrize('kind', ['torch_cpu', 'torch_gpu', 'keops_gpu'])
-def test_model7_on_torch_backends(monkeypatch, kind):
+def test_model7_on_torch_backends(monkeypatch, kind, mode):
     from gempy_engine.API.model.model_api import compute_model
 
-    reference = _host_meshes(compute_model(*_model7(7, 2, 2, 'joint_contacts')).dc_meshes)
+    reference = _host_meshes(compute_model(*_model7(7, 2, 2, mode)).dc_meshes)
     torch = _torch_backend(kind)
+    sampler_module = importlib.import_module('gempy_engine.API.dual_contouring.adaptive_fault_sampler')
+    prepare_name = 'prepare_fault_drift_sampler' if mode == 'joint_contacts' else 'prepare_fault_bank_sampler'
+    prepared = []
     try:
-        prepared = _audit_no_solves(monkeypatch)
-        meshes = compute_model(*_model7(7, 2, 2, 'joint_contacts')).dc_meshes
-        report = meshes[0].contact_report
+        if mode == 'joint_contacts':
+            prepared = _audit_no_solves(monkeypatch)
+        else:
+            original = getattr(sampler_module, prepare_name)
+            monkeypatch.setattr(sampler_module, prepare_name, lambda *a: prepared.append(original(*a)) or prepared[-1])
+        meshes = compute_model(*_model7(7, 2, 2, mode)).dc_meshes
     finally:
-        BT._change_backend(AvailableBackends.numpy, use_gpu=False, use_pykeops=False, dtype='float64', grads=False)
-        torch.set_default_device('cpu')
+        _restore_numpy(torch)
     assert len(prepared) == 1
-    assert report['sampler']['backend'].startswith('PYTORCH_' + ('cpu' if kind == 'torch_cpu' else 'cuda'))
+    sampler_backend = prepared[0]['diagnostics']['backend']
+    assert sampler_backend.startswith('PYTORCH_' + ('cpu' if kind == 'torch_cpu' else 'cuda'))
     result = _host_meshes(meshes)
+    if mode == 'joint' and kind != 'keops_gpu':
+        for (_, _, _, banks0), (_, _, _, banks1) in zip(reference, result):
+            np.testing.assert_array_equal(banks0, banks1)
     if kind == 'keops_gpu':
+        if mode == 'joint':
+            assert all(len(faces) for _, faces, _, _ in result)
+            return
         # Production KeOps evaluation itself differs from dense kernels (~1e-4 on
         # Model 7), so only the joint_contacts invariants are asserted.
         fault_keys = set(result[0][2])
-        for vertices, faces, keys in result[1:]:
+        for vertices, faces, keys, _ in result[1:]:
             borrowed = np.array([key in fault_keys for key in keys])
             assert borrowed.any() and not borrowed[faces].all(axis=1).any()
         return
-    for (v0, f0, k0), (v1, f1, k1) in zip(reference, result):
+    for (v0, f0, k0, _), (v1, f1, k1, _) in zip(reference, result):
         assert k0 == k1
         np.testing.assert_array_equal(f0, f1)
         # Same tolerance as production NumPy/Torch field differences on Model 7.
         np.testing.assert_allclose(v0, v1, rtol=0, atol=1e-4)
+
+@pytest.mark.parametrize('kind', ['torch_cpu', 'torch_gpu', 'keops_gpu'])
+@pytest.mark.parametrize('mode', ['joint', 'joint_contacts'])
+def test_fault_free_production_plane_on_torch_backends(kind, mode):
+    """The ordinary (fault-free) joint adapter on every backend."""
+    from gempy_engine.API.model.model_api import compute_model
+    from gempy_engine.core.data import TensorsStructure
+    from gempy_engine.core.data.engine_grid import EngineGrid
+    from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+    from gempy_engine.core.data.interpolation_input import InterpolationInput
+    from gempy_engine.core.data.kernel_classes.orientations import Orientations
+    from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
+    from gempy_engine.core.data.options import InterpolationOptions
+    from gempy_engine.core.data.regular_grid import RegularGrid
+    from gempy_engine.core.data.stacks_structure import StacksStructure
+
+    def run():
+        stacks = StacksStructure(np.array([3]), np.array([1]), np.array([1]), [R.BASEMENT])
+        descriptor = InputDataDescriptor(TensorsStructure(np.array([3])), stacks)
+        grid = EngineGrid(octree_grid=RegularGrid([0., 1., 0., 1., 0., 1.], [4, 4, 4]))
+        inputs = InterpolationInput(SurfacePoints(np.array([[.1, .1, .37], [.9, .1, .37], [.1, .9, .37]])),
+                                    Orientations(np.array([[.5, .5, .37]]), np.array([[0., 0., 1.]])), grid)
+        options = InterpolationOptions.from_args(range=2., c_o=1.)
+        options.evaluation_options.number_octree_levels = 2
+        options.evaluation_options.number_octree_levels_surface = 2
+        options.evaluation_options.mesh_extraction_overlap = mode
+        return _host_meshes(compute_model(inputs, options, descriptor).dc_meshes)
+
+    reference = run()
+    torch = _torch_backend(kind)
+    try:
+        result = run()
+    finally:
+        _restore_numpy(torch)
+    for (v0, f0, k0, _), (v1, f1, k1, _) in zip(reference, result):
+        assert k0 == k1
+        np.testing.assert_array_equal(f0, f1)
+        # Production NumPy and Torch fields differ by ~1e-4 here (pretty included).
+        np.testing.assert_allclose(v0, v1, rtol=0, atol=2e-4)
 
 # endregion

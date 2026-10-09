@@ -196,22 +196,25 @@ def validate_adaptive_incidence(plans, junctions, evidence, spans):
 
 def plan_adaptive_triangles(plans, positions):
     """Validate geometry and establish production winding on symbolic triangles."""
-    triangles = []
-    for rows in plans:
-        surface_triangles = []
-        for row in rows:
-            for keys in ring_triangles(row['keys']):
-                a, b, c = (positions[k] for k in keys)
-                normal = np.cross(b-a, c-a)
-                if np.linalg.norm(normal) < 1e-12:
-                    raise ValueError('degenerate_dual_face: adaptive triangle has zero area')
-                dot = normal @ row['normal']
-                if abs(dot) < 1e-12:
-                    raise ValueError('unresolved_dual_winding: degenerate Hermite orientation')
-                if dot < 0:
-                    keys = (keys[0], keys[2], keys[1])
-                surface_triangles.append(dict(keys=keys, normal=row['normal']))
-        triangles.append(surface_triangles)
+    # Same checks, order and winding rule as a per-triangle loop, evaluated in bulk.
+    flat = [(surface, keys, row['normal']) for surface, rows in enumerate(plans)
+            for row in rows for keys in ring_triangles(row['keys'])]
+    triangles = [[] for _ in plans]
+    if not flat:
+        return triangles
+    corners = np.array([[positions[k] for k in keys] for _, keys, _ in flat], dtype=float)
+    hermite = np.array([normal for _, _, normal in flat], dtype=float)
+    normals = np.cross(corners[:, 1]-corners[:, 0], corners[:, 2]-corners[:, 0])
+    degenerate = np.linalg.norm(normals, axis=1) < 1e-12
+    dots = np.einsum('ij,ij->i', normals, hermite)
+    unresolved = np.abs(dots) < 1e-12
+    failing = np.flatnonzero(degenerate | unresolved)
+    if len(failing):
+        if degenerate[failing[0]]:
+            raise ValueError('degenerate_dual_face: adaptive triangle has zero area')
+        raise ValueError('unresolved_dual_winding: degenerate Hermite orientation')
+    for (surface, keys, normal), flip in zip(flat, (dots < 0).tolist()):
+        triangles[surface].append(dict(keys=(keys[0], keys[2], keys[1]) if flip else keys, normal=normal))
     return triangles
 
 

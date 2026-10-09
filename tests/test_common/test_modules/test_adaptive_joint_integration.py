@@ -155,7 +155,7 @@ def test_large_offset_isovalue_difference_rejected():
         adapter._collect_joint_leaves(levels, 1)
 
 
-@pytest.mark.parametrize("guard", ["cap", "mask", "null", "cuda", "float32"])
+@pytest.mark.parametrize("guard", ["cap", "mask", "null", "float32"])  # CUDA is supported (test_joint_contacts)
 def test_joint_guards(monkeypatch, guard):
     descriptor, inputs, options, levels = _case()
     if guard == "cap":
@@ -164,8 +164,6 @@ def test_joint_guards(monkeypatch, guard):
         options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
     elif guard == "null":
         descriptor.stack_structure.masking_descriptor[0] = StackRelationType.NULL_SPACE
-    elif guard == "cuda":
-        monkeypatch.setattr(BT, "use_gpu", True)
     else:
         monkeypatch.setattr(BT, "dtype", "float32")
     original_grid = inputs.grid

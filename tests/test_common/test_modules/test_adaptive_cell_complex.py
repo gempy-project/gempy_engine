@@ -173,3 +173,99 @@ def test_large_sparse_domain_and_exact_integer_probes():
     assert len(result['faces']) == 16
     assert len(result['edges']) == 28
     assert all(edge['span'] == width for edge in result['edges'])
+
+
+# region Vectorised builder equals the pure-Python reference
+
+from gempy_engine.modules.dual_contouring.adaptive_cell_complex import _build_adaptive_complex_reference
+
+
+def _outcome(builder, origins, spans, domain):
+    try:
+        return 'ok', builder(origins, spans, domain)
+    except ValueError as error:
+        return 'error', str(error)
+
+
+def _random_octree(rng, root_width=4):
+    """Random refinement of a root grid; unbalanced trees are kept on purpose."""
+    roots = rng.integers(1, 4, size=3)
+    pending = [(np.array(origin) * root_width, root_width) for origin in product(*(range(r) for r in roots))]
+    origins, spans = [], []
+    while pending:
+        origin, width = pending.pop()
+        if width > 1 and rng.random() < .45:
+            half = width // 2
+            pending.extend((origin + half * np.array(offset), half) for offset in product((0, 1), repeat=3))
+        else:
+            origins.append(origin)
+            spans.append(width)
+    order = rng.permutation(len(spans))
+    return np.array(origins)[order], np.array(spans)[order], tuple(int(r) * root_width for r in roots)
+
+
+@pytest.mark.parametrize('seed', range(200))
+def test_vectorised_matches_reference_on_random_octrees(seed):
+    origins, spans, domain = _random_octree(np.random.default_rng(seed))
+    assert _outcome(build_adaptive_complex, origins, spans, domain) == \
+        _outcome(_build_adaptive_complex_reference, origins, spans, domain)
+
+
+@pytest.mark.parametrize('case', [
+    lambda: (*_uniform((3, 2, 2)), (3, 2, 2)),
+    lambda: _mixed(),
+    lambda: ([(0, 0, 0)], [1], (2, 1, 1)),
+    lambda: ([(0, 0, 0), (0, 0, 0)], [2, 1], (3, 3, 3)),
+    lambda: ([(1, 0, 0)], [2], (4, 2, 2)),
+    lambda: ([(0, 0, 0), (2, 0, 0), (2, 0, 0)], [2, 2, 2], (4, 2, 2)),
+])
+def test_vectorised_matches_reference_on_fixtures_and_errors(case):
+    origins, spans, domain = case()
+    origins, spans = np.asarray(origins), np.asarray(spans)
+    assert _outcome(build_adaptive_complex, origins, spans, domain) == \
+        _outcome(_build_adaptive_complex_reference, origins, spans, domain)
+
+
+def test_vectorised_matches_reference_on_model7_leaves():
+    from gempy_engine.config import AvailableBackends
+    from gempy_engine.core.backend_tensor import BackendTensor as BT
+
+    saved = dict(engine_backend=BT.engine_backend, use_gpu=BT.use_gpu, use_pykeops=BT.use_pykeops,
+                 dtype=BT.dtype, grads=BT.COMPUTE_GRADS)
+    BT._change_backend(AvailableBackends.numpy, use_gpu=False, use_pykeops=False, dtype='float64', grads=False)
+    try:
+        _model7_equivalence()
+    finally:
+        BT._change_backend(**saved)
+
+
+def _model7_equivalence():
+    import gempy_engine.API.model.model_api as api
+    from gempy_engine.API.dual_contouring.adaptive_joint_extraction import _collect_joint_leaves
+    from gempy_engine.core.data.regular_grid import RegularGrid
+    from tests.fixtures.model7_combination import model7_combination_factory
+
+    inputs, options, descriptor = model7_combination_factory(number_octree_levels=2, mesh_extraction=True)
+    inputs.grid.octree_grid = RegularGrid(np.asarray(inputs.grid.octree_grid.orthogonal_extent).copy(), [9] * 3)
+    evaluation = options.evaluation_options
+    evaluation.number_octree_levels = 2
+    evaluation.number_octree_levels_surface = 2
+    evaluation.octree_min_level = 0
+    evaluation.mesh_extraction_overlap = 'none'
+    leaves = {}
+
+    def capture(data_descriptor=None, interpolation_input=None, options=None, octree_list=None):
+        leaves['value'] = _collect_joint_leaves(octree_list, len(octree_list[0].outputs))[:3]
+        return []
+
+    original = api.dual_contouring_multi_scalar
+    api.dual_contouring_multi_scalar = capture
+    try:
+        api.compute_model(inputs, options, descriptor)
+    finally:
+        api.dual_contouring_multi_scalar = original
+    origins, spans, domain = leaves['value']
+    assert len(set(spans.tolist())) == 2  # natural mixed coarse/fine leaves
+    assert build_adaptive_complex(origins, spans, domain) == _build_adaptive_complex_reference(origins, spans, domain)
+
+# endregion

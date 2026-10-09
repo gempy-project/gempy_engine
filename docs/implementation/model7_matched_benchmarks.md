@@ -93,6 +93,72 @@ slightly in every mode (see the backend note in `adaptive_joint_extraction.md`).
 Raw results are kept at
 `/home/leguark/Projects/gempy_project/benchmark_results/model7-backends-2026-10-08.json`.
 
+### Vectorised cell complex (2026-10-09)
+
+`build_adaptive_complex` is now vectorised. It uses per-level lattice codes with
+`searchsorted` point location, a sweep of the original edges done with
+`lexsort`/`reduceat`, and record construction with automatic GC paused. The
+pure-Python version remains as `_build_adaptive_complex_reference`: it is the test
+oracle (200 random octrees, the fixtures, and Model 7 leaves give identical
+records or identical errors) and the exact fallback when lattice codes could
+overflow int64. On Model 7 leaves it takes 31 ms instead of 162-183 ms (natural
+9/2/0) and 26 ms instead of 115-121 ms (7/2/2). Meshes are bitwise unchanged.
+
+Stage timers (no profiler) inside one `joint_contacts` extraction on CUDA +
+KeOps: 565 ms in total; the core's own per-edge planning code 199 ms, field
+queries 175 ms, triangle planning 54 ms, branch classification 32 ms, cell
+complex 28 ms, sampler preparation 28 ms. The per-edge, per-surface Python loop
+in `extract_adaptive_topology` is now the largest host cost.
+
+| Backend | joint_contacts extraction | joint_contacts total |
+|---|---:|---:|
+| NumPy | 1.546 → 1.466 | 3.943 → 4.133 |
+| Torch CPU | 0.784 → 0.709 | 1.780 → 1.731 |
+| Torch CUDA | 0.575 → 0.510 | 1.312 → 1.293 |
+| Torch CUDA + KeOps | 0.662 → 0.623 | 0.725 → 0.698 |
+
+These end-to-end runs vary by roughly ±10% between sessions: unchanged `pretty`
+on NumPy moved from 1.763 to 1.973 s between the two runs. Raw results are kept at
+`/home/leguark/Projects/gempy_project/benchmark_results/model7-backends-2026-10-09-vectorised-complex.json`.
+
+### Leaderboard after vectorised planning and GPU banked joint (2026-10-09)
+
+Vectorised per-edge planning and triangle planning cut the core's own Python on
+CUDA + KeOps from 199 + 54 ms to about 80 + 15 ms. Banked `joint` now runs on
+Torch CPU, CUDA and KeOps. Extraction medians (full computation in brackets). The
+NumPy row is the matched protocol; the other rows are end-to-end backend runs.
+The machine was partly loaded by other applications during these runs (load
+average 10-16), so treat differences under about 10% as noise.
+
+| Mode | NumPy (matched) | Torch CPU | Torch CUDA | CUDA + KeOps |
+|---|---:|---:|---:|---:|
+| none | 1.572 (3.944) | 0.561 (1.671) | 0.317 (1.085) | 0.094 (0.155) |
+| pretty | 1.576 (3.951) | 0.582 (2.035) | 0.319 (1.066) | 0.106 (0.169) |
+| joint_contacts | 1.307 (3.680) | 0.564 (1.751) | 0.327 (1.085) | 0.363 (0.423) |
+| joint | 3.340 (5.717) | 2.030 (3.204) | 1.356 (2.105) | 1.255 (1.314) |
+
+Raw results are kept at
+`/home/leguark/Projects/gempy_project/benchmark_results/model7-*-leaderboard-2026-10-09-v2.json`.
+
+### Stacked KeOps queries and the FLAT fault-drift fix (2026-10-09)
+
+`joint_contacts` now sends its targeted queries as 2 batches, evaluated with
+KeOps through the stacked block-sparse evaluator FLAT uses. On CUDA + KeOps its
+field queries drop from about 175 ms (about 21 calls) to about 45 ms. End to end,
+KeOps `joint_contacts` extraction goes from 0.363 to 0.274 s (total from 0.423
+to 0.348 s). Other modes and backends are unchanged within noise (the machine
+load average was 5-10).
+
+Making this exact uncovered a production bug in that stacked evaluator. The
+scalar kernel marked fault-drift rows as the trailing rows of the whole stacked
+covariance, so in every stacked chunk only the last faulted stack kept its fault
+drift. With `GEMPY_FLAT_STACKS=True` and KeOps, Model 7 stack 1 was off by up to
+0.065 (13% of its range). `_build_stacked_kernel_data` now builds a per-block
+fault-drift selector. FLAT + KeOps then matches per-stack KeOps exactly, as
+checked in `tests/test_common/test_modules/test_stacked_keops_fault_drift.py`.
+Raw results are kept at
+`/home/leguark/Projects/gempy_project/benchmark_results/model7-backends-leaderboard-2026-10-09-v3-stacked.json`.
+
 ## Joint Optimization Profile
 
 A `cProfile` of one joint extraction (same configuration, single run) attributed

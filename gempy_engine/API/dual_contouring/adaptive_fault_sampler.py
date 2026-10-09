@@ -14,6 +14,7 @@ import numpy as np
 from ..interp_single._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output
 from ..interp_single._interp_single_feature import input_preprocess
 from ..interp_single._interp_scalar_field import _evaluate_sys_eq
+from ...modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor as BT
 from ...core.data import TensorsStructure
@@ -50,13 +51,6 @@ def _check_drift_backend():
     if (BT.engine_backend not in (AvailableBackends.numpy, AvailableBackends.PYTORCH) or BT.COMPUTE_GRADS
             or np.dtype(str(BT.dtype)) != np.dtype('float64')):
         raise NotImplementedError('unsupported_fault_backend: float64 NumPy or Torch without autograd required')
-
-
-def _check_backend():
-    if (BT.engine_backend is not AvailableBackends.numpy or BT.use_gpu or
-            BT.use_pykeops or BT.COMPUTE_GRADS or np.dtype(BT.dtype) != np.dtype('float64') or
-            pykeops_solver_requested()):
-        raise NotImplementedError('unsupported_fault_backend: NumPy CPU float64 without KeOps required')
 
 
 def _fault_matrix(stacks):
@@ -178,10 +172,11 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
     Queries touching an affected stack require bank 0 or 1; fault and
     unaffected stacks are bank-independent. Only query
     coordinates and query fault drift change; solved SP/ref/rest drift does not.
-    NumPy CPU float64 is supported. Unsupported contracts fail before emission.
+    NumPy and Torch (CPU or CUDA, optionally KeOps) float64 are supported: queries
+    take and return host NumPy arrays. Unsupported contracts fail before emission.
     ``snapshots`` are detached inspection copies, never the query's private state.
     """
-    _check_backend()
+    _check_drift_backend()
     stacks = descriptor.stack_structure
     n_stacks = stacks.n_stacks
     faults = [i for i, relation in enumerate(stacks.masking_descriptor)
@@ -198,23 +193,30 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
     unaffected = tuple(i for i in range(n_stacks) if i != fault_stack and i not in affected)
     fault_inputs = _check_fixed_query_contract(stacks, interpolation_input, octree_list)
     last = octree_list[-1]
-    if np.asarray(last.outputs[fault_stack].scalar_field_at_sp).size != 1:
+    if _host(last.outputs[fault_stack].scalar_field_at_sp).size != 1:
         raise ValueError('unsupported_fault_surfaces: one separator required')
 
     snapshots, fingerprints, private_input, grid_size = _fixed_weight_snapshots(
         descriptor, interpolation_input, options, octree_list, (fault_stack,), fault_inputs)
     backend = (BT.engine_backend, BT.dtype, BT.use_gpu, BT.use_pykeops, BT.COMPUTE_GRADS)
+    on_device = BT.engine_backend is not AvailableBackends.numpy
+
+    def device(values):
+        return BT.t.array(np.ascontiguousarray(values), dtype=BT.dtype_obj) if on_device else values
+
+    # Frozen host weights stay the inspected snapshot; evaluation uses a device copy.
+    device_weights = [device(weights) for _, weights, _ in snapshots]
 
     def evaluate_stack(stack_index, points, bank=None):
-        original, weights, stack_options = snapshots[stack_index]
+        original, _, stack_options = snapshots[stack_index]
         view = copy.copy(original)
-        view.xyz_to_interpolate = points
+        view.xyz_to_interpolate = device(points)
         if stack_index in affected:
             view.fault_internal = copy.copy(original.fault_internal)
-            view.fault_internal.fault_values_everywhere = np.full((1, len(points)), bank, dtype=np.float64)
-        fields = _evaluate_sys_eq(view, weights, stack_options)
-        values = np.array(fields._scalar_field, copy=True)
-        gradients = np.stack((fields._gx_field, fields._gy_field, fields._gz_field), axis=-1)
+            view.fault_internal.fault_values_everywhere = device(np.full((1, len(points)), bank, dtype=np.float64))
+        fields = _evaluate_sys_eq(view, device_weights[stack_index], stack_options)
+        values = np.array(_host(fields._scalar_field), dtype=np.float64, copy=True)
+        gradients = np.stack([_host(g) for g in (fields._gx_field, fields._gy_field, fields._gz_field)], axis=-1)
         if values.shape != (len(points),) or gradients.shape != (len(points), 3) or not (
                 np.isfinite(values).all() and np.isfinite(gradients).all()):
             raise ValueError('nonfinite_or_invalid_fault_query')
@@ -239,8 +241,8 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
 
     # Verify the separator using actual fixed-weight scalar AND gradient kernels,
     # including off-observation domain probes, not just an observation-plane fit.
-    root_points = np.asarray(octree_list[0].grid.values)
-    extent = np.asarray(octree_list[0].grid.octree_grid.orthogonal_extent).reshape(3, 2)
+    root_points = _host(octree_list[0].grid.values)
+    extent = _host(octree_list[0].grid.octree_grid.orthogonal_extent).reshape(3, 2)
     probes = np.array(list(product(*[np.linspace(a, b, 3) for a, b in extent])))
     check_points = np.concatenate((root_points, probes))
     scalar, gradients = evaluate_stack(fault_stack, check_points)
@@ -260,10 +262,10 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
     drift_ranges = []
     for level in (octree_list[0], last):
         output = level.outputs[fault_stack].scalar_fields
-        level_xyz = np.concatenate((output.grid.values, private_input.all_surface_points.sp_coords))
-        drift = np.asarray(_modify_faults_values_output(FaultsData(), output, level_xyz))[0]
-        scalar_field = np.asarray(output.exported_fields._scalar_field)
-        isovalue = float(np.asarray(output.scalar_field_at_sp).reshape(-1)[0])
+        level_xyz = np.concatenate((_host(output.grid.values), _host(private_input.all_surface_points.sp_coords)))
+        drift = _host(_modify_faults_values_output(FaultsData(), output, level_xyz))[0]
+        scalar_field = _host(output.exported_fields._scalar_field)
+        isovalue = float(_host(output.scalar_field_at_sp).reshape(-1)[0])
         separator = scalar_field[:output.grid.len_all_grids] - isovalue
         grid_drift = drift[:output.grid.len_all_grids]
         away = np.abs(separator) > 1e-10
@@ -277,7 +279,8 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
     _freeze_arrays(inspection)
     return dict(fault_stack=fault_stack, affected_stacks=affected, unaffected_stacks=unaffected,
                 query=query, snapshots=inspection,
-                diagnostics=dict(backend='numpy_cpu_float64', fixed_weights=True,
+                diagnostics=dict(backend=f"{BT.engine_backend.name}_{'cuda' if BT.use_gpu else 'cpu'}_float64"
+                                         f"{'_keops' if BT.use_pykeops else ''}", fixed_weights=True,
                                  weight_provenance='independent_production_output_snapshot',
                                  cache_fingerprints=tuple(fingerprints), plane=tuple(plane),
                                  plane_scalar_max_error=scalar_error, plane_gradient_max_error=gradient_error,
@@ -417,9 +420,138 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
             normals.append(g)
         return np.stack(values), (np.stack(normals) if gradients else None)
 
+    # Stacked KeOps evaluation (as in FLAT stacks): one block-sparse reduction per
+    # kind for stacks with identical kernel options and drift-row counts.
+    kind_options = {kind: [] for kind in ('scalar', 'gradient')}
+    for _, _, stack_options in snapshots:
+        for kind, flags in (('scalar', (True, False)), ('gradient', (False, True))):
+            stacked = copy.deepcopy(stack_options)
+            stacked.evaluation_options.compute_scalar, stacked.evaluation_options.compute_scalar_gradient = flags
+            kind_options[kind].append(stacked)
+
+    def evaluate_many(items, kind):
+        """[(stack, points, drift_rows)] -> scalars (M,) or gradients (M, 3) per item."""
+        results = [None]*len(items)
+        pending = list(range(len(items)))
+        if BT.use_pykeops:
+            groups = {}
+            for i in pending:
+                stack, points, rows = items[i]
+                signature = (repr(snapshots[stack][2].kernel_options), 0 if rows is None else len(rows))
+                groups.setdefault(signature, []).append(i)
+            pending = []
+            for members in groups.values():
+                if len(members) < 2:
+                    pending.extend(members)
+                    continue
+                views = []
+                for i in members:
+                    stack, points, rows = items[i]
+                    view = copy.copy(snapshots[stack][0])
+                    view.xyz_to_interpolate = device(points)
+                    if rows is not None:
+                        view.fault_internal = copy.copy(snapshots[stack][0].fault_internal)
+                        view.fault_internal.fault_values_everywhere = device(rows)
+                    views.append(view)
+                fields = symbolic_evaluator_optimized_stacked(
+                    views, [device_weights[items[i][0]] for i in members],
+                    [kind_options[kind][items[i][0]] for i in members])
+                for i, field in zip(members, fields):
+                    if kind == 'scalar':
+                        value = np.array(_host(field._scalar_field), dtype=np.float64).reshape(-1)
+                    else:
+                        value = np.stack([np.asarray(_host(g), dtype=np.float64).reshape(-1)
+                                          for g in (field._gx_field, field._gy_field, field._gz_field)], axis=-1)
+                    if len(value) != len(items[i][1]) or not np.isfinite(value).all():
+                        raise ValueError('nonfinite_or_invalid_fault_query')
+                    results[i] = value
+        for i in pending:
+            stack, points, rows = items[i]
+            values, gradients = evaluate_stack(stack, points, rows, gradients=kind == 'gradient')
+            results[i] = values if kind == 'scalar' else gradients
+        return results
+
+    def query_batch(requests):
+        """Evaluate ``[(points, stacks, 'scalar'|'gradient')]`` together.
+
+        Returns, per request, rows following its ``stacks``: (S, M) scalars or
+        (S, M, 3) gradients. With KeOps, points of all requests sharing a
+        (stack, kind) are merged and evaluated in stacked block-sparse reductions;
+        fault scalars for the drift are evaluated first, once per fault for every
+        point that needs them. Dense backends evaluate each request separately.
+        """
+        if backend != (BT.engine_backend, BT.dtype, BT.use_gpu, BT.use_pykeops, BT.COMPUTE_GRADS):
+            raise RuntimeError('fault sampler backend changed after preparation')
+        groups = {}  # (stack, kind) -> [(request, row, points)]
+        for r, (points, stacks, kind) in enumerate(requests):
+            stacks = tuple(stacks)
+            if kind not in ('scalar', 'gradient'):
+                raise ValueError("invalid_query_kind: 'scalar' or 'gradient' required")
+            if not stacks or any(not isinstance(i, (int, np.integer)) or isinstance(i, bool)
+                                 or not 0 <= i < n_stacks for i in stacks):
+                raise ValueError('invalid_query_stacks: nonempty in-bounds stack indices required')
+            points = np.array(points, dtype=np.float64, copy=True)
+            if points.ndim != 2 or points.shape[1] != 3 or not np.isfinite(points).all():
+                raise ValueError('invalid_query_points: finite (M, 3) coordinates required')
+            for row, stack in enumerate(stacks):
+                groups.setdefault((int(stack), kind), []).append((r, row, points))
+        if not BT.use_pykeops:
+            # Dense evaluators gain nothing from merging (larger merged batches only
+            # cross the evaluator chunk size); answer each request on its own.
+            answers = []
+            for points, stacks, kind in requests:
+                values, gradients = query(points, stacks=stacks, gradients=kind == 'gradient')
+                answers.append(values if kind == 'scalar' else gradients)
+            return answers
+        merged = {key: np.concatenate([p for _, _, p in members]) for key, members in groups.items()}
+        # Phase 1: every fault scalar needed, by drift or by request, in one pass.
+        fault_parts = {f: [] for f in faults}
+        for (stack, kind), points in merged.items():
+            for f in affected_by[stack]:
+                fault_parts[f].append(((stack, kind), points))
+            if stack in faults and kind == 'scalar':
+                fault_parts[stack].append(((stack, kind), points))
+        fault_items = [(f, np.concatenate([p for _, p in parts])) for f, parts in fault_parts.items() if parts]
+        fault_scalars = dict(zip([f for f, _ in fault_items],
+                                 evaluate_many([(f, pts, None) for f, pts in fault_items], 'scalar')))
+        fault_slices = {}
+        for f, parts in fault_parts.items():
+            offset = 0
+            for key, points in parts:
+                fault_slices[(f, key)] = slice(offset, offset+len(points))
+                offset += len(points)
+        # Phase 2: all remaining (stack, kind) groups, stacked per kind.
+        evaluated = {}
+        for kind in ('scalar', 'gradient'):
+            keys = [key for key in merged if key[1] == kind and not (key[0] in faults and kind == 'scalar')]
+            items = []
+            for stack, _ in keys:
+                rows = None
+                if affected_by[stack]:
+                    rows = np.stack([drift(f, fault_scalars[f][fault_slices[(f, (stack, kind))]])
+                                     for f in affected_by[stack]])
+                items.append((stack, merged[(stack, kind)], rows))
+            evaluated.update(zip(keys, evaluate_many(items, kind)))
+        for f in faults:
+            if (f, 'scalar') in merged:
+                evaluated[(f, 'scalar')] = fault_scalars[f][fault_slices[(f, (f, 'scalar'))]]
+        results = []
+        for points, stacks, kind in requests:
+            n_points = len(np.asarray(points).reshape(-1, 3))
+            shape = (len(tuple(stacks)), n_points) + ((3,) if kind == 'gradient' else ())
+            results.append(np.empty(shape))
+        offsets = {key: 0 for key in groups}
+        for key, members in groups.items():
+            for r, row, points in members:
+                start = offsets[key]
+                results[r][row] = evaluated[key][start:start+len(points)]
+                offsets[key] = start+len(points)
+        return results
+
     inspection = copy.deepcopy(snapshots)
     _freeze_arrays(inspection)
-    return dict(fault_stacks=faults, affected_by=affected_by, query=query, snapshots=inspection,
+    return dict(fault_stacks=faults, affected_by=affected_by, query=query, query_batch=query_batch,
+                snapshots=inspection,
                 diagnostics=dict(backend=f"{BT.engine_backend.name}_{'cuda' if BT.use_gpu else 'cpu'}_float64"
                                          f"{'_keops' if BT.use_pykeops else ''}", fixed_weights=True,
                                  weight_provenance='independent_production_output_snapshot',
