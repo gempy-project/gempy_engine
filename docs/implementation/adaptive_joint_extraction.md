@@ -455,6 +455,92 @@ for mesh in solutions.dc_meshes:
     print(mesh.exported_surface_index, len(mesh.edges), mesh.joint_face_bank_ids)
 ```
 
+## `joint_contacts`: Joint Contacts With Pretty Fault Merge
+
+`mesh_extraction_overlap = "joint_contacts"` (or
+`DUAL_CONTOURING_VERTEX_OVERLAP=joint_contacts`) keeps `joint`'s adaptive leaves,
+shared erosion/onlap junctions and validate-before-emit planning, but handles
+faults with `pretty`'s rule instead of fault banks. Without faults it dispatches
+to exactly `joint`.
+
+**Fields.** A single extraction uses the production fields, including the smooth
+fault drift. Leaf corners come from the octree; new points (crossings, vertex
+checks) come from `prepare_fault_drift_sampler`, which evaluates the fixed
+production weights and rebuilds the production drift at each query point:
+each fault scalar is soft-segmented with the production ids, edges and
+`sigmoid_slope`, then shifted by the frozen production reference minimum. The
+rule is verified against the production drift on the full reference grid before
+any query. Crossings are classified strictly, as in banked `joint`.
+
+**Targeted queries.** The adapter passes the core a `field_query(points,
+surfaces, gradients)` callback instead of full `sample_fields` queries (a full
+query raises). Tile and minimal-edge node values come from the production leaf
+corners; every such node is a leaf corner, and leaves sharing a node must agree
+within the field tolerance and in sign (`inconsistent_corner_samples`).
+Gradients are evaluated only for the crossing surface: at its edge crossings
+and at the endpoints of edges it crosses. Vertex ownership checks are
+scalar-only. On Model 7 this makes extraction cost the same as `pretty`.
+
+**Fault merge (core `fault_merge` contract).** Each represented fault surface
+maps to exactly the surfaces it affects. In leaves where fault *f* has a vertex
+and an affected surface crosses, that surface *borrows* the fault vertex by
+identity (`regular(f, leaf)` key), so the meeting is exact by construction, not
+welded. Its own discarded geometry there is neither solved nor validated. The
+fault's QEF in those leaves receives the borrowing surfaces' Hermite rows with
+`pretty`'s cross-surface weight (10), which moves the vertex onto the fault and
+horizon intersection. Rings containing borrowed vertices use the production
+diagonals; triangles made only of fault vertices are dropped (`pretty`'s `all`
+rule). Faults are never ownership controllers.
+
+**Fallback near faults.** A contact junction whose leaf lies in the fallback
+region (borrowed leaves of any surface plus the leaves sharing an edge with
+them) is not shared: both participants keep their own regular vertices, with
+no ownership certification there. This is deterministic, not a retry after a
+failure. The ring is needed because a kept seam's controller triangles reach the
+leaves adjacent to it, where the target's field jumps across the fault.
+`fault_overridden_junction_cells` and `fallback_region_leaf_count` report it.
+
+**Output.** One mesh per original surface. Each fault is one conforming mesh.
+There are no bank labels (`joint_bank_ids` and `joint_face_bank_ids` are
+`None`). `joint_vertex_ids`, `joint_vertex_keys` and `joint_seam_edges` keep
+`joint`'s meaning. `contact_report` adds `fault_cell_count`,
+`borrowed_vertex_count`, `filtered_fault_triangle_count`,
+`weighted_fault_vertex_count` and the sampler's drift-rebuild error.
+
+**Backends.** `joint_contacts` with faults runs on NumPy and on Torch, on CPU
+or CUDA, with or without KeOps (float64, no autograd). Field queries run on the
+active device and return host arrays; topology, QEF assembly inputs and
+validation stay on the host. Banked `joint`, and `joint_contacts` on fault-free
+models (which is `joint`), remain NumPy/Torch CPU only. On Model 7, Torch
+CPU/CUDA give the same faces and vertex keys as NumPy, with vertices within the
+production NumPy/Torch field difference (about 3e-5). Production KeOps
+evaluation differs from dense kernels by up to 1e-4 on Model 7's largest stack
+(identical solved weights), which moves a few vertices and changes triangle
+counts in every mode, `pretty` included.
+
+**Scope.** Any number of independent infinite faults (no fault offsets another
+fault). The graben fixture with two independent faults is tested. Rejections:
+- `unsupported_multi_fault_cell`: a leaf would borrow from two faults. The
+  graben at three octree levels hits this.
+- Finite faults, fault-to-fault relations, external interpolation or
+  segmentation functions, micro corrections, null space, capping, masking other
+  than INTERSECT, float32, and Torch autograd (`COMPUTE_GRADS`).
+- Every other `joint` guard still applies; Model 7 root 7 with minimum level 0
+  still rejects with `unsupported_hanging_branch`.
+
+**What it is not.** The horizon and fault contact is as good as `pretty`'s:
+horizons end on shared fault vertices, but near the fault they follow the
+smooth production drift and are smeared like `pretty`. There are no closed
+volumes per fault block; use banked `joint` for that.
+
+**Model 7.**
+- Natural root 9 (414 fault leaves): 262 borrowed vertices, 390 dropped all-fault
+  triangles, 85 shared contact seams and no junction fallback. The fault mesh has
+  748 triangles, as in `pretty`.
+- Fully refined root 7 / minimum level 2: every fault vertex a horizon uses
+  matches `pretty`'s fault vertex to 1e-9. Here the fallback ring gives up 14
+  junction leaves (52 seams instead of the 65 shared without it).
+
 ## Errors and Verification
 
 Unsupported configurations and insufficient geometric evidence raise
@@ -530,6 +616,10 @@ uniform-extraction benchmark results do not describe the `joint` mode.
   dispatch and unchanged legacy-mode dispatch.
 - `gempy_engine/API/dual_contouring/adaptive_joint_extraction.py`: production
   guards, mixed-leaf reconstruction, fixed-weight callbacks, and local compaction.
+- `gempy_engine/API/dual_contouring/adaptive_fault_extraction.py`: banked fault
+  extraction and `extract_fault_merge_octree` (`joint_contacts`).
+- `tests/test_common/test_modules/test_joint_contacts.py`: `joint_contacts` core
+  contract, fallback, two-fault, Model 7 and graben coverage.
 - `gempy_engine/API/dual_contouring/adaptive_fault_sampler.py`: verified planar
   production field, immutable actual-weight provenance, and fixed-drift bank queries.
 - `gempy_engine/API/dual_contouring/adaptive_fault_extraction.py`: directed fault

@@ -43,6 +43,8 @@ def _prepare(monkeypatch, *, levels=2, surface_levels=2, relation=None, inside=N
             data_descriptor, interpolation_input, options, octree_list)
         prepared['root_sampler'] = sampler_api.prepare_fault_bank_sampler(
             data_descriptor, interpolation_input, options, octree_list[:1])
+        prepared['drift_sampler'] = sampler_api.prepare_fault_drift_sampler(
+            data_descriptor, interpolation_input, options, octree_list)
         prepared['levels'] = copy.deepcopy(octree_list)
         prepared['input_grid_size'] = interpolation_input.grid.len_all_grids
         if inside is not None:
@@ -398,3 +400,41 @@ def test_torch_fault_backend_rejected_explicitly(numpy_backend):
                        use_pykeops=False, dtype='float64', grads=False)
     with pytest.raises(NotImplementedError, match='unsupported_fault_backend'):
         sampler_api.prepare_fault_bank_sampler(descriptor, inputs, options, [])
+
+
+def test_production_drift_sampler_reproduces_production_fields(monkeypatch, numpy_backend):
+    prepared, _ = _prepare(monkeypatch)
+    sampler = prepared['drift_sampler']
+    assert sampler['fault_stacks'] == (0,)
+    assert sampler['affected_by'] == {0: (), 1: (0,), 2: (0,)}
+    assert max(sampler['diagnostics']['drift_rebuild_max_error']) <= 1e-10
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError('query must not solve or access the cache')
+
+    scalar_api = importlib.import_module('gempy_engine.API.interp_single._interp_scalar_field')
+    cache_api = importlib.import_module('gempy_engine.modules.weights_cache.weights_cache_interface')
+    monkeypatch.setattr(sampler_api, 'resolve_weight_cache', forbidden)
+    monkeypatch.setattr(scalar_api, 'compute_weights', forbidden)
+    monkeypatch.setattr(cache_api.WeightCache, 'load_weights', forbidden)
+    # Every grid point of every level, including the mixed-drift ones next to the fault.
+    for level in prepared['levels']:
+        points = level.grid.values
+        values, gradients = sampler['query'](points)
+        assert values.shape == (3, len(points)) and gradients.shape == (3, len(points), 3)
+        for index, output in enumerate(level.outputs):
+            fields = output.exported_fields
+            np.testing.assert_allclose(values[index], fields._scalar_field[:len(points)], rtol=1e-12, atol=1e-12)
+            for axis, field in enumerate((fields._gx_field, fields._gy_field, fields._gz_field)):
+                np.testing.assert_allclose(gradients[index, :, axis], field[:len(points)], rtol=1e-12, atol=1e-12)
+    scalars, no_gradients = sampler['query'](points, stacks=(2, 1), gradients=False)
+    assert no_gradients is None
+    np.testing.assert_allclose(scalars, values[[2, 1]], rtol=1e-12, atol=1e-12)
+    subset, subset_grad = sampler['query'](points, stacks=(2, 0))
+    np.testing.assert_array_equal(subset, values[[2, 0]])
+    np.testing.assert_array_equal(subset_grad, gradients[[2, 0]])
+    for invalid in ((), (3,), (True,)):
+        with pytest.raises(ValueError, match='invalid_query_stacks'):
+            sampler['query'](points, stacks=invalid)
+    with pytest.raises(ValueError, match='invalid_query_points'):
+        sampler['query'](np.zeros(3))

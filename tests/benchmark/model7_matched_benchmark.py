@@ -27,7 +27,7 @@ from collections import Counter
 from unittest.mock import patch
 
 
-MODES = ('joint', 'none', 'pretty')
+MODES = ('joint', 'none', 'pretty', 'joint_contacts')
 ORDERS = tuple(itertools.permutations(MODES))
 
 
@@ -239,6 +239,15 @@ def main(argv=None):
                                      if mode == 'joint' else None))
             output = dict(surfaces=surfaces, vertices=sum(s['vertices'] for s in surfaces),
                           triangles=sum(s['triangles'] for s in surfaces))
+            if mode == 'joint_contacts':
+                _, seams, _ = joint_seams(meshes)
+                contact = meshes[0].contact_report
+                output.update(seam_edges=len(seams),
+                              coarsefine_seam_edge_count=int(contact['coarsefine_seam_edge_count']),
+                              borrowed_vertex_count=contact['borrowed_vertex_count'],
+                              fault_overridden_junction_cells=len(contact['fault_overridden_junction_cells']),
+                              no_uniform_fallback=contact['no_uniform_fallback'],
+                              no_post_reconciliation=contact['no_post_reconciliation'])
             if mode == 'joint':
                 _, seams, banks = joint_seams(meshes)
                 contact = meshes[0].contact_report
@@ -256,6 +265,9 @@ def main(argv=None):
                     np.testing.assert_array_equal(mesh.edges, expected.edges)
                     if mode == 'joint':
                         for field in ('joint_vertex_ids', 'joint_face_bank_ids', 'joint_bank_ids', 'joint_seam_edges'):
+                            np.testing.assert_array_equal(getattr(mesh, field), getattr(expected, field))
+                    if mode == 'joint_contacts':
+                        for field in ('joint_vertex_ids', 'joint_seam_edges'):
                             np.testing.assert_array_equal(getattr(mesh, field), getattr(expected, field))
             if round_index is None:
                 return output
@@ -399,7 +411,9 @@ def main(argv=None):
             results[scope]['ratios'] = {
                 f'{numerator}_over_{denominator}': results[scope][numerator]['median_seconds'] /
                 results[scope][denominator]['median_seconds']
-                for numerator, denominator in (('joint', 'none'), ('joint', 'pretty'), ('pretty', 'none'))}
+                for numerator, denominator in (('joint', 'none'), ('joint', 'pretty'), ('pretty', 'none'),
+                                               ('joint_contacts', 'none'), ('joint_contacts', 'pretty'),
+                                               ('joint_contacts', 'joint'))}
 
         with open('/proc/cpuinfo', encoding='ascii') as stream:
             cpu_name = next((line.split(':', 1)[1].strip() for line in stream
@@ -432,12 +446,14 @@ def main(argv=None):
             numerical_thread_pools=numerical_pools, pyvista_imported=False,
             orders=[dict(round=i, warmup=i < args.warmups, modes=list(ORDERS[i % len(ORDERS)]))
                     for i in range(args.warmups + args.repeats)],
-            order_note='Six deterministic permutations cycle; nine default rounds are not perfectly position-balanced.',
+            order_note=f'{len(ORDERS)} deterministic mode permutations cycle; default rounds are not position-balanced.',
             thread_note='Numerical library threads pinned to one. No concurrent benchmark calls. '
                         'Production pretty uses an unconditional default-worker QEF ThreadPoolExecutor.',
             semantics=dict(joint='All mixed-level leaves; bank-conditioned fault skins/shared seams.',
                            none='Final-level cells only; ordinary smooth-fault fields.',
-                           pretty='Final-level cells only; ordinary smooth-fault fields plus overlap QEF/averaging.'),
+                           pretty='Final-level cells only; ordinary smooth-fault fields plus overlap QEF/averaging.',
+                           joint_contacts='All mixed-level leaves; production smooth-fault fields; joint contact '
+                                          'seams; one fault mesh whose vertices affected horizons borrow.'),
             parity_note='Within-mode oriented triangles/IDs exact, vertices allclose rtol=atol=1e-5; '
                         'byte digests additionally required stable. No cross-mode mesh equivalence asserted.',
             timing_note='Extraction production call only, including all field/gradient queries. '

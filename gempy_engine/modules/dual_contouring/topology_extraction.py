@@ -20,12 +20,14 @@ INCIDENT_OFFSETS = np.array([
 CORNERS = np.array(list(product((0, 1), repeat=3)))
 
 
-def classify_cell_branches(values, valid_edges, unsafe_warnings=None):
+def classify_cell_branches(values, valid_edges, unsafe_warnings=None, skip=None):
     """Classify sampled boundary contours without prescribing Hermite normals.
 
     Affine approximants, bilinear extrusions and single-branch strictly monotone
     sampled cells have supported connectivity. Other interiors need more data.
     Face saddle ties are rejected deterministically, never arbitrarily joined.
+    ``skip`` marks cells whose geometry the caller discards; they are neither
+    checked nor labelled (count zero).
     """
     tolerance = 1e-10
     design = np.column_stack((CORNERS, np.ones(8)))
@@ -59,6 +61,8 @@ def classify_cell_branches(values, valid_edges, unsafe_warnings=None):
         monotones |= (steps > tolerance).all(axis=1) | (steps < -tolerance).all(axis=1)
     crossed_cells = valid_edges.any(axis=1)
     visit = degenerate | ~(affine | extrusions | monotones) | crossed_cells
+    if skip is not None:
+        visit &= ~np.asarray(skip, dtype=bool)
     for cell in np.flatnonzero(visit):
         if degenerate[cell]:
             raise ValueError('degenerate_field: entire cell lies on the interface')

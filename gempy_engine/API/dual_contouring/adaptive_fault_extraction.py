@@ -209,3 +209,68 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
         mesh.joint_seam_edges = seam_edges.copy()
         meshes.append(mesh)
     return meshes
+
+
+def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_list):
+    """``joint_contacts``: one ordinary extraction where affected surfaces borrow fault vertices.
+
+    Fields are the production ones (smooth-fault drift), corners from the octree
+    and new points from the fixed-weight production-drift sampler. Returns one
+    mesh per original surface and one conforming mesh per fault; no banks.
+    """
+    from .adaptive_fault_sampler import prepare_fault_drift_sampler
+    from .adaptive_topology_extraction import extract_adaptive_topology
+
+    stacks = descriptor.stack_structure
+    relations = stacks.masking_descriptor
+    matrix = (np.zeros((stacks.n_stacks, stacks.n_stacks), dtype=bool)
+              if stacks.faults_relations is None else _numpy(stacks.faults_relations))
+    if matrix.shape != (stacks.n_stacks, stacks.n_stacks) or not np.isin(matrix, (False, True)).all():
+        raise ValueError("unsupported_fault_metadata: invalid directed fault matrix")
+    matrix = matrix.astype(bool)
+    origins, spans, domain_shape, extent, samples, metadata = _collect_joint_leaves(octree_list, stacks.n_stacks)
+    groups = np.array([m[0] for m in metadata], dtype=np.int64)
+    indices = np.array([m[1] for m in metadata], dtype=np.int64)
+    levels = [_numpy(output.scalar_field_at_sp).astype(np.float64).reshape(-1).copy()
+              for output in octree_list[0].outputs]
+    sampler = prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree_list)
+    def field_query(points, surfaces, gradients):
+        # Only the requested surfaces' stacks, each unique point once.
+        points = np.asarray(points, dtype=np.float64).reshape(-1, 3)
+        unique, inverse = np.unique(points, axis=0, return_inverse=True)
+        stacks_needed = sorted(set(groups[surfaces].tolist()))
+        raw, normals = sampler["query"](unique, stacks=stacks_needed, gradients=gradients)
+        rows = np.searchsorted(stacks_needed, groups[surfaces])
+        inverse = inverse.reshape(-1)
+        return raw[rows][:, inverse], (normals[rows][:, inverse] if gradients else None)
+
+    def sample_fields(points):
+        raise ValueError("unexpected_full_field_query: joint_contacts uses targeted field queries")
+
+    _, fault_pairs, _ = build_contact_relations(groups, indices, relations, matrix, levels)
+    fault_merge = {int(i): set() for i, g in enumerate(groups) if relations[g] is R.FAULT}
+    for c, t in fault_pairs:
+        if c not in fault_merge:
+            raise ValueError("unsupported_fault_metadata: fault relation from a non-fault stack")
+        fault_merge[c].add(int(t))
+    result = extract_adaptive_topology(
+        origins, spans, domain_shape, extent, samples, groups, indices, relations, levels,
+        sample_fields=sample_fields, field_query=field_query, faults_relations=matrix, fault_merge=fault_merge,
+        cell_complex=build_adaptive_complex(origins, spans, domain_shape))
+    report = dict(result["diagnostics"], interface="pretty_fault_vertex_merge_single_fault_mesh",
+                  sampler=sampler.get("diagnostics", {}), no_uniform_fallback=True,
+                  no_post_reconciliation=True)
+    vertices = np.asarray(result["vertices"], dtype=np.float64).reshape(-1, 3)
+    meshes = []
+    for exported, (stack, surface, isovalue) in enumerate(metadata):
+        faces = np.asarray(result["faces"][exported], dtype=np.int64).reshape(-1, 3)
+        ids, inverse = np.unique(faces, return_inverse=True)
+        mesh = DualContouringMesh(
+            vertices=vertices[ids].copy(), edges=inverse.reshape(-1, 3), stack_index=stack,
+            surface_index=surface, exported_surface_index=exported, isovalue=isovalue,
+            contact_report=report)
+        mesh.joint_vertex_ids = ids
+        mesh.joint_vertex_keys = [result["vertex_keys"][i] for i in ids]
+        mesh.joint_seam_edges = np.asarray(result["seam_edges"], dtype=np.int64).copy()
+        meshes.append(mesh)
+    return meshes

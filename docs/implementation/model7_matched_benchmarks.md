@@ -37,6 +37,62 @@ and 3.441-3.471 for `joint`; full computation 3.579-3.726, 3.593-3.752, and
 collection change below. The p95 is a linearly interpolated percentile of seven
 samples, not a robust tail estimate. The run took 187 seconds (baseline 557).
 
+## Four Modes, Including `joint_contacts`
+
+The same command (same host and settings) with `joint_contacts` added, after
+its targeted field queries (see below). All four modes recorded three cache hits
+and zero solves.
+
+| Scope | Mode | Median | p95 |
+|---|---|---:|---:|
+| Extraction | none | 1.489 | 1.495 |
+| Extraction | pretty | 1.479 | 1.496 |
+| Extraction | joint | 3.514 | 3.537 |
+| Extraction | joint_contacts | 1.493 | 1.502 |
+| Full computation | none | 3.652 | 3.678 |
+| Full computation | pretty | 3.664 | 3.700 |
+| Full computation | joint | 5.756 | 5.866 |
+| Full computation | joint_contacts | 3.685 | 4.061 |
+
+`joint_contacts` costs 1.01x `pretty` for extraction and full computation, and
+0.43x `joint` for extraction. It returns 2494 vertices, 4400 triangles and 85
+shared contact seams: one fault mesh and no bank skins, so the output is not
+equivalent to the other modes.
+
+The first `joint_contacts` version took 2.55 s to extract. It queried every leaf
+corner and all stacks at every point, with gradients everywhere, through the
+generic `sample_fields` contract. The targeted `field_query` contract removes
+the corner re-evaluation, evaluates gradients only for the crossing surface
+(and only at the endpoints of edges it crosses), and checks vertices with
+scalars only. Geometry is unchanged: identical faces and vertex keys, and
+vertices within 2e-13. Raw results are kept at
+`/home/leguark/Projects/gempy_project/benchmark_results/model7-matched-results-2026-10-08-4modes-reduced.json`.
+
+## Backends: NumPy, Torch CPU, CUDA and KeOps
+
+`tests/benchmark/model7_backend_benchmark.py` runs each backend in a fresh
+process: full `compute_model` runs on the same Model 7 configuration, two
+warm-ups and seven repeats, with CUDA-synchronised timers around the extraction
+dispatcher. It is an end-to-end comparison, not the matched solved-octree
+protocol above, and NumPy threads are not pinned. GPU: RTX 2070 SUPER (Turing;
+its float64 rate is low).
+
+| Backend | pretty extraction | joint_contacts extraction | pretty total | joint_contacts total |
+|---|---:|---:|---:|---:|
+| NumPy | 1.763 | 1.546 | 4.161 | 3.943 |
+| Torch CPU | 0.754 | 0.784 | 2.536 | 1.780 |
+| Torch CUDA | 0.327 | 0.575 | 1.130 | 1.312 |
+| Torch CUDA + KeOps | 0.105 | 0.662 | 0.168 | 0.725 |
+
+Banked `joint` rejects every Torch backend by design (3.813 s extraction on
+NumPy). On CUDA, field queries stop dominating `joint_contacts`: a KeOps profile
+puts them at about a quarter of extraction. Most of the rest is host-side
+topology, chiefly the pure-Python leaf cell complex construction, then triangle
+planning and key bookkeeping, which no device accelerates. KeOps meshes differ
+slightly in every mode (see the backend note in `adaptive_joint_extraction.md`).
+Raw results are kept at
+`/home/leguark/Projects/gempy_project/benchmark_results/model7-backends-2026-10-08.json`.
+
 ## Joint Optimization Profile
 
 A `cProfile` of one joint extraction (same configuration, single run) attributed

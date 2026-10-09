@@ -92,8 +92,7 @@ def _collect_joint_leaves(octree_list, n_stacks):
             np.concatenate(samples, axis=1), metadata)
 
 
-def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
-    """Query private fixed solves; cokriging with COMPUTE_GRADS=True is unsupported."""
+def _check_joint_options(descriptor, options, allow_gpu=False):
     evaluation = options.evaluation_options
     if MeshExtentCapping(evaluation.mesh_extraction_extent_capping) != MeshExtentCapping.NONE:
         raise ValueError("joint extent capping is unsupported")
@@ -103,14 +102,38 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
     relations = stacks.masking_descriptor
     if StackRelationType.NULL_SPACE in relations:
         raise NotImplementedError("joint null-space stacks are unsupported")
-    if BT.use_gpu:
+    if BT.use_gpu and not allow_gpu:
         raise NotImplementedError("joint requires a CPU backend; CUDA fallback is disabled")
     if BT.dtype != "float64":
         raise NotImplementedError("joint requires float64 production fields")
-    if (StackRelationType.FAULT in relations or
+
+
+def _has_faults(descriptor, interpolation_input):
+    stacks = descriptor.stack_structure
+    return (StackRelationType.FAULT in stacks.masking_descriptor or
             (stacks.faults_relations is not None and np.any(_numpy(stacks.faults_relations))) or
             (stacks.faults_input_data is not None and any(bank is not None for bank in stacks.faults_input_data)) or
-            interpolation_input._fault_values is not None):
+            interpolation_input._fault_values is not None)
+
+
+def extract_joint_contacts_octree(descriptor, interpolation_input, options, octree_list):
+    """Joint erosion/onlap contacts with pretty's fault vertex merge; no fault banks.
+
+    Without faults this is exactly ``joint``.
+    """
+    if not _has_faults(descriptor, interpolation_input):
+        return extract_joint_octree(descriptor, interpolation_input, options, octree_list)
+    _check_joint_options(descriptor, options, allow_gpu=True)
+    from .adaptive_fault_extraction import extract_fault_merge_octree
+    return extract_fault_merge_octree(descriptor, interpolation_input, options, octree_list)
+
+
+def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
+    """Query private fixed solves; cokriging with COMPUTE_GRADS=True is unsupported."""
+    _check_joint_options(descriptor, options)
+    stacks = descriptor.stack_structure
+    relations = stacks.masking_descriptor
+    if _has_faults(descriptor, interpolation_input):
         from .adaptive_fault_extraction import extract_fault_joint_octree
         return extract_fault_joint_octree(descriptor, interpolation_input, options, octree_list)
     origins, spans, domain_shape, extent, samples, metadata = _collect_joint_leaves(

@@ -34,9 +34,9 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
     explicit_overlap = options.evaluation_options.mesh_extraction_overlap
     default_overlap = dc_dispatch.DUAL_CONTOURING_VERTEX_OVERLAP
     if explicit_overlap is not None or (isinstance(default_overlap, DualContouringOverlap) and
-                                      default_overlap & DualContouringOverlap.joint):
+                                      default_overlap & (DualContouringOverlap.joint | DualContouringOverlap.joint_contacts)):
         mode = resolve_dual_contouring_overlap(explicit_overlap, default_overlap)
-        if mode == DualContouringOverlap.joint and options.mesh_extraction:
+        if mode in (DualContouringOverlap.joint, DualContouringOverlap.joint_contacts) and options.mesh_extraction:
             stacks = copy.copy(data_descriptor.stack_structure)
             if stacks.faults_input_data is not None:
                 stacks.faults_input_data = copy.deepcopy(stacks.faults_input_data)

@@ -55,6 +55,9 @@ def dual_contouring_multi_scalar(
     if overlap_mode == DualContouringOverlap.joint:
         from .adaptive_joint_extraction import extract_joint_octree
         return extract_joint_octree(data_descriptor, interpolation_input, options, octree_list)
+    if overlap_mode == DualContouringOverlap.joint_contacts:
+        from .adaptive_joint_extraction import extract_joint_contacts_octree
+        return extract_joint_contacts_octree(data_descriptor, interpolation_input, options, octree_list)
 
     if interpolation_input.grid.octree_grid is None:
         raise ValueError("Octree grid must be defined to extract the mesh")

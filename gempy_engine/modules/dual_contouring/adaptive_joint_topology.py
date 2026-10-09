@@ -58,8 +58,13 @@ def face_pair_root(values):
 
 def plan_adaptive_junctions(faces, tile_xyz, tile_fields, pairs, identities,
                             origins, spans, counts, edge_xyz, edge_normals, flags,
-                            *, controllers=None, leaf_fields=None):
-    """One pair per leaf, with exactly two canonical shared boundary roots."""
+                            *, controllers=None, leaf_fields=None, overridden=None):
+    """One pair per leaf, with exactly two canonical shared boundary roots.
+
+    ``overridden`` maps surfaces to leaves whose vertex is replaced by a fault
+    vertex. A junction needing such a leaf is not planned there; those leaves
+    are returned as a third value, and their evidence is dropped.
+    """
     evidence, leaf_roots = [], {}
     for pair in sorted(pairs):
         controller, target = pair
@@ -76,9 +81,12 @@ def plan_adaptive_junctions(faces, tile_xyz, tile_fields, pairs, identities,
         # the tile; nothing earlier in the loop can raise, so skip those tiles.
         pair_fields = np.asarray(tile_fields[[controller, target]], dtype=float)
         straddles = ~np.any((pair_fields.min(axis=2) > 0) | (pair_fields.max(axis=2) < 0), axis=0)
+        skipped = set().union(*(overridden.get(p, ()) for p in pair)) if overridden else set()
         for tile in np.flatnonzero(straddles).tolist():
             face = faces[tile]
             cells = tuple(c for c in face['cells'] if c is not None)
+            if skipped and all(c in skipped for c in cells):
+                continue
             if additional:
                 signed = np.array([sign*tile_fields[c, tile] for c, sign in additional])
                 tile_decision = ('excluded' if np.any(np.all(signed < 0, axis=1)) else
@@ -100,8 +108,11 @@ def plan_adaptive_junctions(faces, tile_xyz, tile_fields, pairs, identities,
             evidence.append(dict(tile=tile, pair=pair, cells=cells, point=point))
             for cell in cells:
                 leaf_roots.setdefault(cell, {}).setdefault(pair, []).append(point)
-    junctions = {}
+    junctions, fallback = {}, set()
     for cell, candidates in sorted(leaf_roots.items()):
+        if overridden and any(cell in overridden.get(s, ()) for pair in candidates for s in pair):
+            fallback.add(cell)
+            continue
         if len(candidates) != 1:
             raise ValueError('unsupported_multiway_junction: competing contact pairs in leaf')
         pair, roots = next(iter(candidates.items()))
@@ -124,7 +135,10 @@ def plan_adaptive_junctions(faces, tile_xyz, tile_fields, pairs, identities,
         key = ('joint', tuple(sorted(identities[s] for s in pair)),
                tuple(map(int, origins[cell])), int(spans[cell]), 0)
         junctions[cell] = dict(key=key, pair=pair, position=point+parameter*direction)
-    return junctions, evidence
+    if overridden is None:
+        return junctions, evidence
+    evidence = [item for item in evidence if not any(c in fallback for c in item['cells'])]
+    return junctions, evidence, fallback
 
 
 def collapse_ring(keys):
@@ -201,8 +215,13 @@ def plan_adaptive_triangles(plans, positions):
     return triangles
 
 
-def validate_adaptive_geometry(triangles, seams, junctions, positions, vertex_fields, field_tolerances, controllers):
-    """Reject oriented seam folds, one-sided patches and unowned ordinary QEFs."""
+def validate_adaptive_geometry(triangles, seams, junctions, positions, vertex_fields, field_tolerances, controllers,
+                               exempt=None):
+    """Reject oriented seam folds, one-sided patches and unowned ordinary QEFs.
+
+    ``exempt`` lists, per surface, borrowed fault vertices excluded from that
+    surface's ownership check (they are the fault's own geometry).
+    """
     seam_pairs = {j['key']: j['pair'] for j in junctions.values()}
     incidence = [{} for _ in triangles]
     for surface, rows in enumerate(triangles):
@@ -237,7 +256,7 @@ def validate_adaptive_geometry(triangles, seams, junctions, positions, vertex_fi
     # A participating equality is approximated by the root chord, but all other
     # controllers must retain the actual joint representative as well as QEFs.
     for surface, rows in enumerate(triangles):
-        for key in {k for row in rows for k in row['keys']}:
+        for key in {k for row in rows for k in row['keys']} - (exempt[surface] if exempt else set()):
             for controller, sign in controllers[surface]:
                 if key[0] == 'joint' and controller in seam_pairs[key]:
                     continue

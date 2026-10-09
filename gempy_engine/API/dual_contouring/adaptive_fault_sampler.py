@@ -20,6 +20,7 @@ from ...core.data import TensorsStructure
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.stack_relation_type import StackRelationType
+from ...modules.activator._soft_segment import soft_segment_unbounded
 from ...modules.solver.interpolation_solver import pykeops_solver_requested
 from ...modules.weights_cache.weight_cache_policy import resolve_weight_cache, WeightCacheRoute
 
@@ -39,37 +40,37 @@ def _freeze_arrays(value):
             _freeze_arrays(item)
 
 
-def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_list):
-    """Return raw ``query(points, bank, stacks) -> (S x M, S x M x 3)`` fields.
+def _host(values):
+    """NumPy view/copy of a NumPy array or a (possibly CUDA) Torch tensor."""
+    return BT.t.to_numpy(values) if hasattr(values, 'detach') else np.asarray(values)
 
-    Queries touching an affected stack require bank 0 or 1; fault and
-    unaffected stacks are bank-independent. Only query
-    coordinates and query fault drift change; solved SP/ref/rest drift does not.
-    NumPy CPU float64 is supported. Unsupported contracts fail before emission.
-    ``snapshots`` are detached inspection copies, never the query's private state.
-    """
+
+def _check_drift_backend():
+    """NumPy, or Torch on CPU or CUDA, optionally with KeOps; float64, no autograd."""
+    if (BT.engine_backend not in (AvailableBackends.numpy, AvailableBackends.PYTORCH) or BT.COMPUTE_GRADS
+            or np.dtype(str(BT.dtype)) != np.dtype('float64')):
+        raise NotImplementedError('unsupported_fault_backend: float64 NumPy or Torch without autograd required')
+
+
+def _check_backend():
     if (BT.engine_backend is not AvailableBackends.numpy or BT.use_gpu or
             BT.use_pykeops or BT.COMPUTE_GRADS or np.dtype(BT.dtype) != np.dtype('float64') or
             pykeops_solver_requested()):
         raise NotImplementedError('unsupported_fault_backend: NumPy CPU float64 without KeOps required')
-    stacks = descriptor.stack_structure
+
+
+def _fault_matrix(stacks):
     n_stacks = stacks.n_stacks
-    faults = [i for i, relation in enumerate(stacks.masking_descriptor)
-              if relation is StackRelationType.FAULT]
-    if len(faults) != 1:
-        raise ValueError('unsupported_fault_count: exactly one independent fault required')
-    fault_stack = faults[0]
     matrix = (np.zeros((n_stacks, n_stacks), dtype=bool) if stacks.faults_relations is None
               else np.asarray(stacks.faults_relations))
     if matrix.shape != (n_stacks, n_stacks) or not np.isin(matrix, (False, True)).all():
         raise ValueError('unsupported_fault_relations: directed boolean matrix required')
-    matrix = matrix.astype(bool)
-    other_rows = matrix.copy()
-    other_rows[fault_stack] = False
-    if other_rows.any() or matrix[:, fault_stack].any():
-        raise ValueError('unsupported_fault_relations: only independent fault -> affected edges allowed')
-    affected = tuple(int(i) for i in np.flatnonzero(matrix[fault_stack]))
-    unaffected = tuple(i for i in range(n_stacks) if i != fault_stack and i not in affected)
+    return matrix.astype(bool)
+
+
+def _check_fixed_query_contract(stacks, interpolation_input, octree_list):
+    """Shared fixed-weight query preconditions; returns per-stack fault inputs."""
+    n_stacks = stacks.n_stacks
     if stacks.faults_input_data is not None and (
             not isinstance(stacks.faults_input_data, (list, tuple)) or
             len(stacks.faults_input_data) != n_stacks):
@@ -96,30 +97,41 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
         raise ValueError('invalid_fault_octree_outputs')
     if any(level.grid.octree_grid is None for level in octree_list):
         raise ValueError('invalid_fault_octree_grid')
-    last = octree_list[-1]
-    if np.asarray(last.outputs[fault_stack].scalar_field_at_sp).size != 1:
-        raise ValueError('unsupported_fault_surfaces: one separator required')
+    return fault_inputs
 
+
+def _fixed_weight_snapshots(descriptor, interpolation_input, options, octree_list, fault_stacks, fault_inputs):
+    """Frozen (solver_input, weights, options) per stack, validated against the live cache.
+
+    Production fault drift for every stack in ``fault_stacks`` is rebuilt on the
+    last surface level's reference grid, exactly as the production solve saw it.
+    """
+    stacks = descriptor.stack_structure
+    n_stacks = stacks.n_stacks
+    last = octree_list[-1]
     private_stacks = copy.deepcopy(stacks)
     private_stacks.faults_input_data = copy.deepcopy(fault_inputs)
     private_descriptor = replace(descriptor, stack_structure=private_stacks)
     private_input = copy.deepcopy(interpolation_input)
     # The input may already hold a deeper volume grid. Solve references belong
     # to the last *surface* output's full production grid, including all SPs.
-    private_input.set_temp_grid(copy.deepcopy(last.outputs[fault_stack].grid))
+    private_input.set_temp_grid(copy.deepcopy(last.outputs[fault_stacks[0]].grid))
     grid_size = private_input.grid.len_all_grids
-    xyz = np.concatenate((private_input.grid.values, private_input.all_surface_points.sp_coords))
-    fault_output = last.outputs[fault_stack].scalar_fields
-    if fault_output.values_on_all_xyz.shape != (1, len(xyz)):
-        raise ValueError('invalid_fault_production_reference_layout')
+    xyz = np.concatenate((_host(private_input.grid.values), _host(private_input.all_surface_points.sp_coords)))
     block = np.zeros((n_stacks, len(xyz)), dtype=np.float64)
-    block[fault_stack] = _modify_faults_values_output(FaultsData(), fault_output, xyz)
+    for fault_stack in fault_stacks:
+        fault_output = last.outputs[fault_stack].scalar_fields
+        if tuple(fault_output.values_on_all_xyz.shape) != (1, len(xyz)):
+            raise ValueError('invalid_fault_production_reference_layout')
+        block[fault_stack] = _host(_modify_faults_values_output(FaultsData(), fault_output, xyz))
+    # The solver sees the drift block in the active backend, as production does.
+    backend_block = block if BT.engine_backend is AvailableBackends.numpy else BT.t.array(block, dtype=BT.dtype_obj)
     snapshots = []
     fingerprints = []
     for stack_index in range(n_stacks):
         private_stacks.stack_number = stack_index
         subset = InterpolationInput.from_interpolation_input_subset(private_input, private_stacks)
-        subset.fault_values = _grab_stack_fault_data(block, subset, private_stacks, grid_size)
+        subset.fault_values = _grab_stack_fault_data(backend_block, subset, private_stacks, grid_size)
         shape = TensorsStructure.from_tensor_structure_subset(private_descriptor, stack_index)
         solver_input = input_preprocess(shape, subset)
         overrides = private_stacks.interpolation_options_per_stack
@@ -128,15 +140,23 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
         if stack_options.number_dimensions != 3:
             raise NotImplementedError('unsupported_fault_dimensions')
         # Validate the actual unforced solve fingerprint before any bank change.
-        decision = resolve_weight_cache(stack_options, stack_index, False, solver_input)
+        decision = resolve_weight_cache(stack_options, stack_index, pykeops_solver_requested(), solver_input)
         if decision.route is not WeightCacheRoute.CACHED:
             raise ValueError(f'fault fixed production weights fingerprint mismatch for stack {stack_index}; no solve allowed')
         actual_weights = getattr(last.outputs[stack_index], 'weights', None)
         if actual_weights is None:
             raise ValueError(f'missing production weight provenance for stack {stack_index}; no solve allowed')
-        if not isinstance(actual_weights, np.ndarray) or np.shares_memory(actual_weights, decision.weights):
+        # NumPy outputs hold a read-only copy, Torch outputs an independent clone.
+        if isinstance(actual_weights, np.ndarray):
+            aliased = isinstance(decision.weights, np.ndarray) and np.shares_memory(actual_weights, decision.weights)
+        elif hasattr(actual_weights, 'data_ptr'):
+            aliased = hasattr(decision.weights, 'data_ptr') and actual_weights.data_ptr() == decision.weights.data_ptr()
+        else:
+            aliased = True
+        if aliased:
             raise ValueError(f'unsupported production weight provenance for stack {stack_index}: independent snapshot required')
-        cached_weights = np.asarray(decision.weights)
+        actual_weights = _host(actual_weights)
+        cached_weights = _host(decision.weights)
         if (cached_weights.dtype != actual_weights.dtype or
                 not np.isfinite(actual_weights).all() or
                 not np.array_equal(cached_weights, actual_weights)):
@@ -149,7 +169,40 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
         weights.flags.writeable = False
         snapshots.append((solver_input, weights, stack_options))
         fingerprints.append(decision.fingerprint)
-    snapshots = tuple(snapshots)
+    return tuple(snapshots), fingerprints, private_input, grid_size
+
+
+def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_list):
+    """Return raw ``query(points, bank, stacks) -> (S x M, S x M x 3)`` fields.
+
+    Queries touching an affected stack require bank 0 or 1; fault and
+    unaffected stacks are bank-independent. Only query
+    coordinates and query fault drift change; solved SP/ref/rest drift does not.
+    NumPy CPU float64 is supported. Unsupported contracts fail before emission.
+    ``snapshots`` are detached inspection copies, never the query's private state.
+    """
+    _check_backend()
+    stacks = descriptor.stack_structure
+    n_stacks = stacks.n_stacks
+    faults = [i for i, relation in enumerate(stacks.masking_descriptor)
+              if relation is StackRelationType.FAULT]
+    if len(faults) != 1:
+        raise ValueError('unsupported_fault_count: exactly one independent fault required')
+    fault_stack = faults[0]
+    matrix = _fault_matrix(stacks)
+    other_rows = matrix.copy()
+    other_rows[fault_stack] = False
+    if other_rows.any() or matrix[:, fault_stack].any():
+        raise ValueError('unsupported_fault_relations: only independent fault -> affected edges allowed')
+    affected = tuple(int(i) for i in np.flatnonzero(matrix[fault_stack]))
+    unaffected = tuple(i for i in range(n_stacks) if i != fault_stack and i not in affected)
+    fault_inputs = _check_fixed_query_contract(stacks, interpolation_input, octree_list)
+    last = octree_list[-1]
+    if np.asarray(last.outputs[fault_stack].scalar_field_at_sp).size != 1:
+        raise ValueError('unsupported_fault_surfaces: one separator required')
+
+    snapshots, fingerprints, private_input, grid_size = _fixed_weight_snapshots(
+        descriptor, interpolation_input, options, octree_list, (fault_stack,), fault_inputs)
     backend = (BT.engine_backend, BT.dtype, BT.use_gpu, BT.use_pykeops, BT.COMPUTE_GRADS)
 
     def evaluate_stack(stack_index, points, bank=None):
@@ -230,5 +283,147 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
                                  plane_scalar_max_error=scalar_error, plane_gradient_max_error=gradient_error,
                                  plane_gradient_alignment_error=alignment_error,
                                  production_drift_ranges=tuple(drift_ranges), bank_zero_side='positive',
+                                 reference_grid_size=grid_size, surface_level=len(octree_list) - 1,
+                                 field_contract='raw_stack_values_and_actual_kernel_gradients'))
+
+
+def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree_list):
+    """Return raw ``query(points, stacks) -> (S x M, S x M x 3)`` with production fault drift.
+
+    Unlike the bank sampler, affected stacks see the drift the production solve
+    would assign at each query point: every independent infinite fault's scalar
+    is evaluated with its fixed weights, soft-segmented with the production ids,
+    edges and slope, and shifted by the frozen production reference minimum.
+    The rule is verified against the production drift on the full reference
+    grid before any query. Fault stacks themselves are drift-independent.
+    Runs on NumPy or Torch (CPU or CUDA, optionally KeOps): queries take and
+    return host NumPy arrays; evaluation happens on the active device.
+    """
+    _check_drift_backend()
+    stacks = descriptor.stack_structure
+    n_stacks = stacks.n_stacks
+    faults = tuple(i for i, relation in enumerate(stacks.masking_descriptor)
+                   if relation is StackRelationType.FAULT)
+    if not faults:
+        raise ValueError('unsupported_fault_count: at least one fault required')
+    matrix = _fault_matrix(stacks)
+    non_faults = [i for i in range(n_stacks) if i not in faults]
+    if matrix[non_faults].any() or matrix[:, list(faults)].any():
+        raise ValueError('unsupported_fault_relations: only independent fault -> affected edges allowed')
+    if stacks.segmentation_function is not None:
+        raise NotImplementedError('unsupported_fault_segmentation_function: production slope must be a constant')
+    fault_inputs = _check_fixed_query_contract(stacks, interpolation_input, octree_list)
+    last = octree_list[-1]
+    for fault_stack in faults:
+        if _host(last.outputs[fault_stack].scalar_field_at_sp).size != 1:
+            raise ValueError('unsupported_fault_surfaces: one fault surface per fault stack required')
+    snapshots, fingerprints, private_input, grid_size = _fixed_weight_snapshots(
+        descriptor, interpolation_input, options, octree_list, faults, fault_inputs)
+    affected_by = {s: tuple(int(f) for f in np.flatnonzero(matrix[:, s])) for s in range(n_stacks)}
+    backend = (BT.engine_backend, BT.dtype, BT.use_gpu, BT.use_pykeops, BT.COMPUTE_GRADS)
+    on_device = BT.engine_backend is not AvailableBackends.numpy
+
+    def device(values):
+        return BT.t.array(np.ascontiguousarray(values), dtype=BT.dtype_obj) if on_device else values
+
+    # Frozen host weights stay the inspected snapshot; evaluation uses a device copy.
+    device_weights = [device(weights) for _, weights, _ in snapshots]
+    scalar_options = []
+    for _, _, stack_options in snapshots:
+        scalar_only = copy.deepcopy(stack_options)
+        scalar_only.evaluation_options.compute_scalar_gradient = False
+        scalar_options.append(scalar_only)
+
+    def evaluate_stack(stack_index, points, drift_rows=None, gradients=True):
+        original, _, stack_options = snapshots[stack_index]
+        if not gradients:
+            stack_options = scalar_options[stack_index]
+        view = copy.copy(original)
+        view.xyz_to_interpolate = device(points)
+        if drift_rows is not None:
+            view.fault_internal = copy.copy(original.fault_internal)
+            view.fault_internal.fault_values_everywhere = device(drift_rows)
+        fields = _evaluate_sys_eq(view, device_weights[stack_index], stack_options)
+        values = np.array(_host(fields._scalar_field), dtype=np.float64, copy=True)
+        if values.shape != (len(points),) or not np.isfinite(values).all():
+            raise ValueError('nonfinite_or_invalid_fault_query')
+        if not gradients:
+            return values, None
+        result = np.stack([_host(g) for g in (fields._gx_field, fields._gy_field, fields._gz_field)], axis=-1)
+        if result.shape != (len(points), 3) or not np.isfinite(result).all():
+            raise ValueError('nonfinite_or_invalid_fault_query')
+        return values, result
+
+    # Production drift rule, per fault: segmentation of its fixed-weight scalar.
+    rules = {}
+    probe_stacks = copy.deepcopy(stacks)
+    for fault_stack in faults:
+        probe_stacks.stack_number = fault_stack
+        ids = np.array(InterpolationInput.from_interpolation_input_subset(
+            private_input, probe_stacks).unit_values)
+        output = last.outputs[fault_stack].scalar_fields
+        edges = np.array(_host(output.exported_fields.scalar_field_at_surface_points), dtype=np.float64)
+        slope = snapshots[fault_stack][2].sigmoid_slope
+        minima = []
+        for level in octree_list:
+            level_output = level.outputs[fault_stack].scalar_fields
+            block = _host(level_output.values_on_all_xyz)
+            reference = level_output.exported_fields._macro_reference_size or block.shape[1]
+            minima.append(float(block[:, :reference].min()))
+        if not np.allclose(minima, minima[-1], rtol=0, atol=1e-12):
+            raise ValueError('unsupported_fault_drift_reference: production drift shift differs between octree levels')
+        ids.flags.writeable = edges.flags.writeable = False
+        rules[fault_stack] = (ids, edges, slope, minima[-1])
+
+    def drift(fault_stack, scalar):
+        ids, edges, slope, minimum = rules[fault_stack]
+        values = soft_segment_unbounded(Z=device(scalar), edges=device(edges), ids=ids, sigmoid_slope=slope)
+        return np.asarray(_host(values), dtype=np.float64).reshape(-1) - minimum
+
+    reference_xyz = np.concatenate((_host(private_input.grid.values), _host(private_input.all_surface_points.sp_coords)))
+    drift_errors = []
+    for fault_stack in faults:
+        output = last.outputs[fault_stack].scalar_fields
+        expected = _host(_modify_faults_values_output(FaultsData(), output, reference_xyz)).reshape(-1)
+        rebuilt = drift(fault_stack, evaluate_stack(fault_stack, reference_xyz)[0])
+        error = float(np.max(np.abs(rebuilt - expected)))
+        if not np.isfinite(error) or error > 1e-10:
+            raise ValueError(f'unverified_fault_drift: rebuilt production drift differs for fault stack {fault_stack}')
+        drift_errors.append(error)
+
+    def query(points, stacks=None, gradients=True):
+        """Rows follow ``stacks`` (default: every stack in order); gradients are None if not requested."""
+        if backend != (BT.engine_backend, BT.dtype, BT.use_gpu, BT.use_pykeops, BT.COMPUTE_GRADS):
+            raise RuntimeError('fault sampler backend changed after preparation')
+        stacks = tuple(range(n_stacks)) if stacks is None else tuple(stacks)
+        if not stacks or any(not isinstance(i, (int, np.integer)) or isinstance(i, bool)
+                             or not 0 <= i < n_stacks for i in stacks):
+            raise ValueError('invalid_query_stacks: nonempty in-bounds stack indices required')
+        points = np.array(points, dtype=np.float64, copy=True)
+        if points.ndim != 2 or points.shape[1] != 3 or not np.isfinite(points).all():
+            raise ValueError('invalid_query_points: finite (M, 3) coordinates required')
+        needed = sorted({f for s in stacks for f in affected_by[s]} | {s for s in stacks if s in faults})
+        # Drift needs only fault scalars; fault gradients only when a fault row is requested.
+        fault_fields = {f: evaluate_stack(f, points, gradients=gradients and f in stacks) for f in needed}
+        values, normals = [], []
+        for s in stacks:
+            if s in fault_fields:
+                v, g = fault_fields[s]
+            else:
+                rows = (np.stack([drift(f, fault_fields[f][0]) for f in affected_by[s]])
+                        if affected_by[s] else None)
+                v, g = evaluate_stack(s, points, rows, gradients)
+            values.append(v)
+            normals.append(g)
+        return np.stack(values), (np.stack(normals) if gradients else None)
+
+    inspection = copy.deepcopy(snapshots)
+    _freeze_arrays(inspection)
+    return dict(fault_stacks=faults, affected_by=affected_by, query=query, snapshots=inspection,
+                diagnostics=dict(backend=f"{BT.engine_backend.name}_{'cuda' if BT.use_gpu else 'cpu'}_float64"
+                                         f"{'_keops' if BT.use_pykeops else ''}", fixed_weights=True,
+                                 weight_provenance='independent_production_output_snapshot',
+                                 cache_fingerprints=tuple(fingerprints), drift='production_soft_segmentation',
+                                 drift_rebuild_max_error=tuple(drift_errors),
                                  reference_grid_size=grid_size, surface_level=len(octree_list) - 1,
                                  field_contract='raw_stack_values_and_actual_kernel_gradients'))
