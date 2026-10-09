@@ -12,9 +12,11 @@ class ClosedUnitVolumes:
     Every triangle separates ``unit_sides[i] = (negative-side unit, positive-side
     unit)`` with respect to its winding normal; units are ``(partition, stack,
     interval)`` (partition = fault bank, or 0 without faults) and ``OUTSIDE``.
-    ``patch_kinds`` is 'interface', 'fault_skin' or 'extent'. ``shell(unit)``
-    returns that unit's triangles oriented outward. ``vertex_keys`` are the
-    canonical identities (partition-namespaced, never welded across banks).
+    ``patch_kinds`` is 'interface', 'fault_skin' or 'extent'; with a fault, the
+    'fault_skin' triangles are one shared interface between bank-0 and bank-1
+    units. ``shell(unit)`` returns that unit's triangles oriented outward.
+    ``vertex_keys`` are the canonical identities (partition-namespaced; shared
+    fault vertices keep their bank-0 key, crossings are ('fault_crossing', i)).
     """
     vertices: np.ndarray
     triangles: np.ndarray

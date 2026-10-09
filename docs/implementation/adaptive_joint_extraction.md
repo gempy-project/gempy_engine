@@ -477,8 +477,8 @@ triangle separates two units, recorded in `unit_sides`:
   evaluated at the triangle centroid with the surface's own field forced just
   below and just above its level, so a mesh offset from the isosurface cannot
   mislabel a side.
-- **Fault-skin patches** are each bank's separator. The bank side is a unit; the
-  positive side is OUTSIDE, because the two banks' skins remain unwelded.
+- **Fault-skin patches** form one shared fault interface (see below). Each
+  triangle separates a bank-0 unit from a bank-1 unit.
 - **Extent patches** cover the model box inside the partition.
 
 **Finest rim.** The extent rim is the finest lattice of the six box faces, at
@@ -513,10 +513,34 @@ its exact region volume, the box or the box cut by the planar fault (computed
 with a convex hull). Otherwise extraction raises `closed_volume_audit_failed`.
 This is not a self-intersection proof.
 
+**Shared fault interface.** Each bank first builds its own fault skin, bounded
+by its own seams and rim junctions, so on its own one bank's vertices would hang
+on the other bank's skin edges (80 such nodes on Model 7). Before the audit,
+`merge_fault_skins` (`shared_fault_interface.py`) replaces both skins with one
+triangulation in the coordinates of the fault plane:
+1. Bank 0's skin is the starting triangulation.
+2. Bank 1's skin vertices that other patches attach to are inserted.
+   Coincident ones are welded, and points on an edge split it.
+3. Bank 1's constraint edges are recovered by edge flips: seams, the rim
+   contour, and edges between different units. Any crossings with bank 0's
+   constraints are inserted first.
+4. The remaining edges are flipped to constrained Delaunay.
+5. Each triangle takes the unit of each bank it lies in, wound along the fault
+   normal.
+
+Horizon and cap triangles whose edges gained vertices are split along them.
+Nothing moves, so volumes are unchanged. The audit then also requires zero
+geometric hanging nodes (`count_hanging_nodes`) over the whole complex. A fault
+skin that is not a graph over the fault plane, or bank constraints that cross
+without a shared vertex, raise `unsupported_shared_fault`. The per-surface
+`dc_meshes` keep their two bank-side fault skins. Only `closed_volumes` carries
+the shared interface.
+
 **Output.** Per-surface meshes now reach the extent, through the strip and fan
 triangles. `solutions.closed_volumes` (also `mesh.closed_volumes`) is a
 `ClosedUnitVolumes` with `vertices`, `triangles`, `unit_sides`, `patch_kinds`,
-`vertex_keys` (bank-namespaced), `units`, `volumes`, a `report` and
+`vertex_keys` (bank-namespaced, plus `('fault_crossing', i)` for constraint
+crossings on the shared fault), `units`, `volumes`, a `report` and
 `shell(unit)`. Stacks the fault does not cut are rejected for closed volumes,
 since banks would split them.
 
@@ -524,8 +548,12 @@ since banks would split them.
 - Natural root 9 and fully refined root 7 / minimum level 2 both give 8 units
   (4 per bank). All shells close, and each bank's volumes sum to its exact
   region volume within about 1e-17.
-- CUDA gives the same vertex keys and triangles as NumPy, with volumes within
-  the production NumPy/Torch field difference.
+- With the shared fault, the whole complex has zero hanging nodes (the two bank
+  skins alone had 80). The merge takes about 0.3 s.
+- CUDA gives the same vertex keys, horizon and cap triangles as NumPy, with
+  volumes within the production NumPy/Torch field difference. The fault
+  interface is a Delaunay triangulation, so NumPy and CUDA may resolve
+  near-cocircular vertices differently there.
 - The closure adds about 1.2 s to extraction (NumPy or CUDA + KeOps on this
   machine). About 0.5 s is field evaluation, which is not yet stacked.
 - `python examples/adaptive_joint_model7.py --closed-volumes` shows an exploded

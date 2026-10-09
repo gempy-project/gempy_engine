@@ -10,7 +10,7 @@ from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor as BT
 from gempy_engine.core.data.stack_relation_type import StackRelationType as R
 from gempy_engine.modules.dual_contouring.adaptive_closed_volumes import (
-    OUTSIDE, audit_shells, build_closed_volumes, classify_units,
+    OUTSIDE, audit_shells, build_closed_volumes, classify_units, count_hanging_nodes,
 )
 from gempy_engine.modules.dual_contouring.topology_extraction import CORNERS
 
@@ -177,6 +177,12 @@ def test_model7_banked_unit_shells(case):
         np.prod(np.diff(np.asarray(solution.octrees_output[0].grid.octree_grid.orthogonal_extent).reshape(3, 2))),
         rel=1e-12)
     assert set(volumes.patch_kinds) == {'interface', 'fault_skin', 'extent'}
+    # One shared fault interface: no hanging nodes anywhere, and every fault
+    # triangle separates a bank-0 unit from a bank-1 unit.
+    assert report['hanging_nodes'] == 0
+    assert count_hanging_nodes(volumes.vertices, volumes.triangles) == 0
+    fault_sides = [sides for sides, kind in zip(volumes.unit_sides, volumes.patch_kinds) if kind == 'fault_skin']
+    assert fault_sides and all(sorted(u[0] for u in sides) == [0, 1] for sides in fault_sides)
     # Every unit shell is closed by itself, read back through the public API.
     for unit in volumes.units:
         vertices, faces = volumes.shell(unit)
@@ -188,6 +194,55 @@ def test_model7_banked_unit_shells(case):
     for mesh in solution.dc_meshes:
         on_rim = np.isclose(mesh.vertices[:, None], extent[None, :, 0]) | np.isclose(mesh.vertices[:, None], extent[None, :, 1])
         assert on_rim.any()
+
+
+def _square_skin(seam_axis, seam, units, bank_above):
+    """A unit-square fault skin in z=0 split by a seam line, as one bank's patches."""
+    lo, hi = ('lo', seam_axis), ('hi', seam_axis)
+    points = {('c', 0): (0, 0), ('c', 1): (1, 0), ('c', 2): (1, 1), ('c', 3): (0, 1)}
+    points[lo] = (seam, 0) if seam_axis == 0 else (0, seam)
+    points[hi] = (seam, 1) if seam_axis == 0 else (1, seam)
+    if seam_axis == 0:
+        halves = [[('c', 0), lo, hi, ('c', 3)], [lo, ('c', 1), ('c', 2), hi]]
+    else:
+        halves = [[('c', 0), ('c', 1), hi, lo], [lo, hi, ('c', 2), ('c', 3)]]
+    patches = []
+    for quad, unit in zip(halves, units):
+        for tri in ((quad[0], quad[1], quad[2]), (quad[0], quad[2], quad[3])):
+            patches.append((tri, 'fault_skin', OUTSIDE, unit) if bank_above else (tri, 'fault_skin', unit, OUTSIDE))
+    positions = {k: np.array([x, y, 0.]) for k, (x, y) in points.items()}
+    return positions, patches
+
+
+def test_shared_fault_interface_conforms_crossing_seams():
+    from gempy_engine.modules.dual_contouring.shared_fault_interface import merge_fault_skins
+
+    below = _square_skin(0, .4, [(0, 1, 0), (0, 1, 1)], bank_above=False)
+    above = _square_skin(1, .6, [(1, 1, 0), (1, 1, 1)], bank_above=True)
+    # A bank-0 horizon triangle standing on its seam; bank 1's seam crosses it.
+    below[0][('h', 0)] = np.array([.4, .5, -1.])
+    below[1].append(((('lo', 0), ('hi', 0), ('h', 0)), 'interface', (0, 1, 0), (0, 1, 1)))
+    parts = {b: dict(positions=positions, patches=patches) for b, (positions, patches) in enumerate((below, above))}
+    patches, positions, report = merge_fault_skins(parts, [0, 0, 1.])
+    assert report['constraint_crossings'] == 1 and report['split_triangles'] == 1
+    fault = [p for p in patches if p[1] == 'fault_skin']
+    area = 0.
+    for keys, _, negative, positive in fault:
+        a, b, c = (positions[k] for k in keys)
+        normal = np.cross(b-a, c-a)
+        assert normal[2] > 0  # wound along the fault normal
+        area += normal[2]/2
+        centroid = (a+b+c)/3
+        assert negative == (0, 1, int(centroid[0] > .4)) and positive == (1, 1, int(centroid[1] > .6))
+    assert area == pytest.approx(1.)
+    keys = sorted({k for p in patches for k in p[0]}, key=repr)
+    ids = {k: i for i, k in enumerate(keys)}
+    assert count_hanging_nodes(np.array([positions[k] for k in keys]),
+                               np.array([[ids[k] for k in p[0]] for p in patches])) == 0
+    # The standing triangle is split at the crossing, keeping its area.
+    standing = [p[0] for p in patches if p[1] == 'interface']
+    areas = [np.linalg.norm(np.cross(positions[b]-positions[a], positions[c]-positions[a]))/2 for a, b, c in standing]
+    assert len(standing) == 2 and min(areas) > 0 and sum(areas) == pytest.approx(.5)
 
 
 def test_model7_option_off_meshes_are_contained():
@@ -263,9 +318,17 @@ def test_model7_closed_volumes_on_cuda_match_numpy():
     finally:
         BT._change_backend(AvailableBackends.numpy, use_gpu=False, use_pykeops=False, dtype='float64', grads=False)
         torch.set_default_device('cpu')
-    assert gpu.report['all_closed']
-    assert gpu.units == reference.units and gpu.vertex_keys == reference.vertex_keys
-    np.testing.assert_array_equal(gpu.triangles, reference.triangles)
+    assert gpu.report['all_closed'] and gpu.report['hanging_nodes'] == 0
+    assert gpu.units == reference.units and set(gpu.vertex_keys) == set(reference.vertex_keys)
+
+    def keyed(volumes, fault):
+        return {tuple(volumes.vertex_keys[i] for i in tri) for tri, kind in zip(volumes.triangles.tolist(),
+                                                                                volumes.patch_kinds)
+                if (kind == 'fault_skin') == fault}
+    # Same keyed horizons and caps. The shared fault interface is a geometric
+    # (Delaunay) triangulation, so near-cocircular choices may differ.
+    assert keyed(gpu, False) == keyed(reference, False)
+    assert len(keyed(gpu, True)) == len(keyed(reference, True))
     for unit, volume in reference.volumes.items():
         # Same topology; production NumPy and Torch fields differ slightly
         # (~3e-5 in vertices), so compare against the whole model volume.

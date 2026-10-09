@@ -435,7 +435,8 @@ def _triangulate_convex(keys, positions):
     plain fan would create zero-area triangles whose long edge passes through
     them (geometric hanging nodes). Ears are clipped only at strictly convex
     corners, the first in ring order, so the result depends on topology rather
-    than on round-off; collinear points always end up as vertices.
+    than on round-off; collinear points always end up as vertices. Ears whose
+    diagonal would pass through another vertex are skipped as well.
     """
     ring = list(keys)
     xyz = {k: np.asarray(positions[k], dtype=float) for k in ring}
@@ -449,9 +450,13 @@ def _triangulate_convex(keys, positions):
         best = None
         for i in range(len(ring)):
             u, v, w = xyz[ring[i-1]], xyz[ring[i]], xyz[ring[(i+1) % len(ring)]]
-            if np.cross(v-u, w-v) @ normal > 1e-9*scale**2*np.linalg.norm(normal):
-                best = i  # strictly convex corner; collinear ones are skipped
-                break
+            if np.cross(v-u, w-v) @ normal <= 1e-9*scale**2*np.linalg.norm(normal):
+                continue  # collinear corner
+            others = [xyz[k] for j, k in enumerate(ring) if j not in ((i-1) % len(ring), i, (i+1) % len(ring))]
+            if others and _on_segment(np.array(others), u, w, 1e-9*scale).any():
+                continue  # the diagonal would pass through another vertex
+            best = i
+            break
         if best is None:
             raise ValueError('degenerate_rim_region: no strictly convex corner left')
         triangles.append((ring[best-1], ring[best], ring[(best+1) % len(ring)]))
@@ -460,6 +465,14 @@ def _triangulate_convex(keys, positions):
     if np.linalg.norm(np.cross(v-u, w-u)) > 1e-12*scale**2:
         triangles.append(tuple(ring))
     return triangles
+
+
+def _on_segment(points, p, q, tolerance):
+    d = q-p
+    length = np.linalg.norm(d)
+    along = (points-p) @ d/length
+    distance = np.linalg.norm(np.cross(points-p, d), axis=1)/length
+    return (distance < tolerance) & (along > -tolerance) & (along < length+tolerance)
 
 
 def audit_shells(shells, positions):
@@ -484,3 +497,32 @@ def audit_shells(shells, positions):
     report['all_closed'] = all(report['closed'].values()) and not any(report['degenerate'].values())
     report['all_positive'] = all(v > 0 for v in report['volumes'].values())
     return report
+
+
+def count_hanging_nodes(vertices, triangles, tolerance=1e-9):
+    """Vertices lying strictly inside an edge they are not an endpoint of (geometric T-junctions).
+
+    ``tolerance`` is relative to the bounding-box diagonal.
+    """
+    from scipy.spatial import cKDTree
+
+    vertices = np.asarray(vertices, dtype=float).reshape(-1, 3)
+    triangles = np.asarray(triangles, dtype=np.int64).reshape(-1, 3)
+    if not len(triangles):
+        return 0
+    edges = np.unique(np.sort(np.concatenate((triangles[:, [0, 1]], triangles[:, [1, 2]],
+                                              triangles[:, [2, 0]])), axis=1), axis=0)
+    eps = tolerance*max(np.linalg.norm(np.ptp(vertices, axis=0)), 1e-300)
+    tree = cKDTree(vertices)
+    p, q = vertices[edges[:, 0]], vertices[edges[:, 1]]
+    lengths = np.linalg.norm(q-p, axis=1)
+    near = tree.query_ball_point((p+q)/2, lengths/2+eps)
+    rows = np.repeat(np.arange(len(edges)), [len(n) for n in near])
+    candidates = np.fromiter((k for n in near for k in n), dtype=np.int64, count=len(rows))
+    keep = (candidates != edges[rows, 0]) & (candidates != edges[rows, 1]) & (lengths[rows] > eps)
+    rows, candidates = rows[keep], candidates[keep]
+    direction = (q-p)[rows]/lengths[rows, None]
+    offset = vertices[candidates]-p[rows]
+    along = np.einsum('ij,ij->i', offset, direction)
+    distance = np.linalg.norm(np.cross(offset, direction), axis=1)
+    return int(np.sum((distance < eps) & (along > eps) & (along < lengths[rows]-eps)))

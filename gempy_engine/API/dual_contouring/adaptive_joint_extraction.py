@@ -279,10 +279,14 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
 
 
 def _check_closed_audit(part, partition):
-    audit = part["report"]
-    if not (audit["all_closed"] and audit["all_positive"] and audit["volumes_sum_to_region"]):
-        raise ValueError("closed_volume_audit_failed: partition {} closed={} positive={} volume_error={:.3e}".format(
-            partition, audit["all_closed"], audit["all_positive"], audit["volume_error"]))
+    """Raise unless shells close, have positive volumes and (when known) fill their region."""
+    audit = part.get("report", part)
+    fills = audit.get("volumes_sum_to_region", True)
+    hanging = audit.get("hanging_nodes", 0)
+    if not (audit["all_closed"] and audit["all_positive"] and fills and not hanging):
+        raise ValueError("closed_volume_audit_failed: partition {} closed={} positive={} volume_error={:.3e} "
+                         "hanging_nodes={}".format(partition, audit["all_closed"], audit["all_positive"],
+                                                   audit.get("volume_error", 0.), hanging))
 
 
 def _emit_with_closure(result, part, emit_adaptive_triangles=None):
@@ -301,30 +305,39 @@ def _emit_with_closure(result, part, emit_adaptive_triangles=None):
     result["faces"], result["affected_faces"] = emit_adaptive_triangles(plan, key_to_id)
 
 
-def _assemble_closed_volumes(parts):
-    """One shared, bank-namespaced complex holding every bank's unit shells."""
+def _assemble_closed_volumes(parts, fault_normal=None):
+    """One shared complex holding every partition's unit shells.
+
+    Keys are partition-namespaced. With ``fault_normal`` (two fault banks), the
+    banks' fault skins are replaced by one conforming shared fault interface.
+    """
     from ...core.data.closed_unit_volumes import ClosedUnitVolumes
+    from ...modules.dual_contouring.adaptive_closed_volumes import OUTSIDE, audit_shells, count_hanging_nodes
 
-    keys, triangles, sides, kinds = {}, [], [], []
-    positions = {}
-    for bank, part in parts.items():
-        for tri_keys, kind, negative, positive in part["patches"]:
-            ids = []
-            for key in tri_keys:
-                namespaced = (bank, key)
-                if namespaced not in keys:
-                    keys[namespaced] = len(keys)
-                    positions[namespaced] = part["positions"][key]
-                ids.append(keys[namespaced])
-            triangles.append(ids)
-            sides.append((negative, positive))
-            kinds.append(kind)
-    vertex_keys = sorted(keys, key=keys.get)
     report = dict(banks={bank: part["report"] for bank, part in parts.items()},
-                  volumes={u: v for part in parts.values() for u, v in part["report"]["volumes"].items()},
-                  all_closed=all(part["report"]["all_closed"] for part in parts.values()),
                   region_volumes={bank: part["report"]["region_volume"] for bank, part in parts.items()})
-    return ClosedUnitVolumes(vertices=np.asarray([positions[k] for k in vertex_keys]).reshape(-1, 3),
-                             triangles=np.asarray(triangles, dtype=np.int64).reshape(-1, 3), unit_sides=sides,
+    if fault_normal is not None:
+        from ...modules.dual_contouring.shared_fault_interface import merge_fault_skins
+        patches, positions, report["shared_fault"] = merge_fault_skins(parts, fault_normal)
+    else:
+        positions = {(bank, k): xyz for bank, part in parts.items() for k, xyz in part["positions"].items()}
+        patches = [(tuple((bank, k) for k in keys), kind, negative, positive)
+                   for bank, part in parts.items() for keys, kind, negative, positive in part["patches"]]
+    keys, triangles, sides, kinds = {}, [], [], []
+    shells = {}
+    for tri_keys, kind, negative, positive in patches:
+        triangles.append([keys.setdefault(key, len(keys)) for key in tri_keys])
+        sides.append((negative, positive))
+        kinds.append(kind)
+        if negative != OUTSIDE:
+            shells.setdefault(negative, []).append(tri_keys)
+        if positive != OUTSIDE:
+            shells.setdefault(positive, []).append((tri_keys[0], tri_keys[2], tri_keys[1]))
+    vertex_keys = sorted(keys, key=keys.get)
+    vertices = np.asarray([positions[k] for k in vertex_keys], dtype=float).reshape(-1, 3)
+    triangles = np.asarray(triangles, dtype=np.int64).reshape(-1, 3)
+    audit = audit_shells(shells, positions)
+    report.update(volumes=audit["volumes"], all_closed=audit["all_closed"], all_positive=audit["all_positive"],
+                  open_edges=audit["open_edges"], hanging_nodes=count_hanging_nodes(vertices, triangles))
+    return ClosedUnitVolumes(vertices=vertices, triangles=triangles, unit_sides=sides,
                              patch_kinds=kinds, vertex_keys=vertex_keys, report=report)
-

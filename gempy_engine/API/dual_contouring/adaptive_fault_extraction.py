@@ -186,6 +186,8 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
                 region_volume=_bank_region_volume(extent, plane, levels[fault_stack][0], sign))
             _check_closed_audit(part, bank)
             closed_parts[bank] = part
+        volumes = _assemble_closed_volumes(closed_parts, fault_normal=plane[:3])
+        _check_closed_audit(volumes.report, "shared fault")
 
     # A later bank or independent partition may reject otherwise valid geometry.
     # Allocate no triangles until every partition has passed all validations.
@@ -234,7 +236,6 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
         mesh.joint_seam_edges = seam_edges.copy()
         meshes.append(mesh)
     if closed_parts:
-        volumes = _assemble_closed_volumes(closed_parts)
         report["closed_volumes"] = dict(volumes.report, units=len(volumes.units))
         for mesh in meshes:
             mesh.closed_volumes = volumes
