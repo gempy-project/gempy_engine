@@ -275,11 +275,30 @@ def _evaluate_optimized(interpolation_inputs: list[InterpolationInput], options:
         inverses.append(inverse)
 
     # Call the stacked evaluator (single PyKeOps call with block-sparse ranges)
-    exported_fields_list: list[ExportedFields] = symbolic_evaluator_optimized_stacked(
-        eval_inputs=reduced_inputs,
-        weights_list=weights_list,
-        options_list=options_list,
-    )
+    try:
+        exported_fields_list: list[ExportedFields] = symbolic_evaluator_optimized_stacked(
+            eval_inputs=reduced_inputs,
+            weights_list=weights_list,
+            options_list=options_list,
+        )
+    except Exception as exc:
+        try:
+            groups = []
+            for idx, global_i in enumerate(stack_indices):
+                groups.append({
+                    'group': idx,
+                    'stack_index': global_i,
+                    'solver_input_id': hex(id(solver_inputs[idx])),
+                    'original_grid_shape': tuple(eval_inputs[idx].xyz_to_interpolate.shape),
+                    'reduced_grid_shape': tuple(reduced_inputs[idx].xyz_to_interpolate.shape),
+                    'deduplicated': inverses[idx] is not None,
+                    'inverse_shape': tuple(inverses[idx].shape) if inverses[idx] is not None else None,
+                    'octree_level': options_list[idx].temp_interpolation_values.current_octree_level,
+                })
+            context = f"groups={groups}"
+        except Exception as diagnostic_exc:
+            context = f"Group diagnostic collection failed: {diagnostic_exc}"
+        raise RuntimeError(f"FLAT chunk stack_indices={stack_indices}; {context}\n{exc}") from exc
 
     for idx, exported_fields in enumerate(exported_fields_list):
         if inverses[idx] is not None:
