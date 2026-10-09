@@ -55,6 +55,9 @@ def dual_contouring_multi_scalar(
     if overlap_mode == DualContouringOverlap.joint:
         from .adaptive_joint_extraction import extract_joint_octree
         return extract_joint_octree(data_descriptor, interpolation_input, options, octree_list)
+    if (getattr(options.evaluation_options, "mesh_extraction_closed_volumes", False)
+            and overlap_mode not in (DualContouringOverlap.joint, DualContouringOverlap.joint_contacts)):
+        raise ValueError("unsupported_closed_volumes: closed unit volumes require a joint extraction mode")
     if overlap_mode == DualContouringOverlap.joint_contacts:
         from .adaptive_joint_extraction import extract_joint_contacts_octree
         return extract_joint_contacts_octree(data_descriptor, interpolation_input, options, octree_list)

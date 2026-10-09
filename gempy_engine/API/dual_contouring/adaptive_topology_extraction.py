@@ -21,7 +21,7 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                               surface_to_stack, surface_indices, stack_relations, isovalues,
                               *, sample_fields, ownership=None, include_reference=False,
                               faults_relations=None, separator_contacts=None, defer_emission=False,
-                              cell_complex=None, fault_merge=None, field_query=None):
+                              cell_complex=None, fault_merge=None, field_query=None, closure=False):
     """Extract balanced dyadic leaves using canonical tiles and minimal primal edges.
 
     ``sample_fields`` supplies raw fields (S,M) and actual gradients (S,M,3).
@@ -52,6 +52,10 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     tolerance), gradients are evaluated only for the crossing surface (one batch
     for crossings and crossed-edge endpoints), and vertex checks are one
     scalar-only batch. Not with separator contacts.
+    ``closure=True`` additionally returns ``result['closure']``: the retained
+    crossings of minimal edges lying in an extent face (whose dual faces need
+    rim vertices), the vertex key of every surface at every boundary leaf, and
+    the oriented key-based triangle plan, for the closed-volume builder.
     """
     from gempy_engine.modules.dual_contouring.adaptive_cell_complex import build_adaptive_complex
 
@@ -486,6 +490,12 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     hanging = np.zeros_like(selected)
     for t in range(n):
         hanging[t] = selected[t] & np.any(counts[t][np.maximum(edge_cells, 0)] != 1, axis=1)
+    # Minimal edges lying in an extent face (two exterior quadrants): their dual
+    # faces close against the rim when a closed-volume build is requested.
+    in_face = np.sum(edge_cells < 0, axis=1) == 2
+    rim_rows = retained & ~junction_aligned & in_face[None, :] if closure else np.zeros_like(selected)
+    for t in range(n):
+        hanging[t] |= rim_rows[t] & np.any((counts[t][np.maximum(edge_cells, 0)] != 1) & (edge_cells >= 0), axis=1)
     errors = ((aligned, 'sample_aligned_interface: minimal edge endpoint lies on surface'),
               (junction_aligned, 'grid_edge_junction: geological ownership is aligned'),
               (hanging, 'unsupported_hanging_branch: crossing lacks original leaf branch'))
@@ -555,6 +565,22 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                                     interior_topology='sampled_boundary_only_not_interior_certified'))
     if defer_emission:
         result.update(_triangle_plan=triangles, _key_to_id=ids)
+    if closure:
+        boundary = np.flatnonzero(np.any(origins == 0, axis=1) | np.any(origins+spans[:, None] == domain, axis=1))
+        boundary_keys = {}
+        for s in range(n):
+            for cell in boundary.tolist():
+                key = vertex_key(s, cell)
+                if key in positions:
+                    boundary_keys[(s, cell)] = key
+        rows = []
+        for s in range(n):
+            for e in np.flatnonzero(rim_rows[s]).tolist():
+                cells = [c for c in edges[e]['cells'] if c is not None]
+                rows.append(dict(surface=s, edge=e, keys=tuple(vertex_key(s, c) for c in cells)))
+        result['closure'] = dict(rows=rows, boundary_keys=boundary_keys, triangles=triangles, positions=positions,
+                                 edges=edges, identities=identities, levels=levels, domain=domain,
+                                 bounds=bounds, spacing=spacing, origins=origins, spans=spans)
     if include_reference:
         reference_keys = sorted(regular)
         reference_vertices = np.asarray([regular[k] for k in reference_keys]).reshape(-1, 3)

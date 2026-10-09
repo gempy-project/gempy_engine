@@ -6,10 +6,12 @@ from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.stack_relation_type import StackRelationType as R
 from ...modules.dual_contouring.adaptive_cell_complex import build_adaptive_complex
+from ...modules.dual_contouring.adaptive_closed_volumes import build_closed_volumes
 from ...modules.dual_contouring.adaptive_joint_topology import emit_adaptive_triangles
 from ...modules.dual_contouring.contact_topology import build_contact_relations
 from ...modules.dual_contouring.topology_extraction import CORNERS
-from .adaptive_joint_extraction import _collect_joint_leaves, _numpy
+from .adaptive_joint_extraction import (_collect_joint_leaves, _numpy, _check_closed_audit, _emit_with_closure,
+                                        _assemble_closed_volumes)
 
 
 class _BankFieldMemo:
@@ -98,6 +100,9 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
     from .adaptive_fault_sampler import prepare_fault_bank_sampler
     from .adaptive_topology_extraction import extract_adaptive_topology
 
+    closed = bool(getattr(options.evaluation_options, "mesh_extraction_closed_volumes", False))
+    if closed and unaffected:
+        raise ValueError("unsupported_closed_volumes: stacks unaffected by the fault are not split into banks")
     sampler = prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_list)
     if (sampler["fault_stack"] != fault_stack or set(sampler["affected_stacks"]) != affected or
             set(sampler["unaffected_stacks"]) != unaffected):
@@ -146,7 +151,8 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
             result = extract_adaptive_topology(
                 origins, spans, domain_shape, extent, samples, groups[selected], indices[selected],
                 relations, levels, sample_fields=sample_fields, include_reference=False, defer_emission=True,
-                faults_relations=matrix, separator_contacts=separator_contacts, cell_complex=cell_complex)
+                faults_relations=matrix, separator_contacts=separator_contacts, cell_complex=cell_complex,
+                closure=closed)
         else:
             # Removing an unrepresented fault label is safe only if it preserves
             # every ordinary dependency selected from the full original stacks.
@@ -161,11 +167,30 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
                 cell_complex=cell_complex)
         pieces.append((bank, selected, result))
 
+    closed_parts = {}
+    if closed:
+        # Closed unit shells per bank, validated before any bank emits.
+        plane = np.asarray(sampler["diagnostics"]["plane"], dtype=float)
+        stack_levels = [np.asarray(level, dtype=float) for level in levels]
+        all_stacks = list(range(stacks.n_stacks))
+        for bank, selected, result in pieces:
+            sign = -1 if bank == 0 else 1
+            separator = int(np.flatnonzero(groups[selected] == fault_stack)[0])
+
+            def sample_stacks(points, bank=bank):
+                return memo(np.asarray(points, dtype=np.float64).reshape(-1, 3), all_stacks, bank)
+
+            part = build_closed_volumes(
+                result.pop("closure"), sample_stacks=sample_stacks, relations=relations,
+                stack_isovalues=stack_levels, separator=(separator, sign), partition=bank,
+                region_volume=_bank_region_volume(extent, plane, levels[fault_stack][0], sign))
+            _check_closed_audit(part, bank)
+            closed_parts[bank] = part
+
     # A later bank or independent partition may reject otherwise valid geometry.
     # Allocate no triangles until every partition has passed all validations.
-    for _, _, result in pieces:
-        result["faces"], result["affected_faces"] = emit_adaptive_triangles(
-            result.pop("_triangle_plan"), result.pop("_key_to_id"))
+    for bank, _, result in pieces:
+        _emit_with_closure(result, closed_parts.get(bank), emit_adaptive_triangles)
 
     # Numeric IDs and canonical keys share the same disjoint bank namespaces.
     seams, offset = [], 0
@@ -208,7 +233,29 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
         mesh.joint_vertex_keys = keys
         mesh.joint_seam_edges = seam_edges.copy()
         meshes.append(mesh)
+    if closed_parts:
+        volumes = _assemble_closed_volumes(closed_parts)
+        report["closed_volumes"] = dict(volumes.report, units=len(volumes.units))
+        for mesh in meshes:
+            mesh.closed_volumes = volumes
     return meshes
+
+
+def _bank_region_volume(extent, plane, isovalue, sign):
+    """Exact volume of box ∩ {sign * (fault scalar - isovalue) <= 0} (planar fault)."""
+    from itertools import product
+    from scipy.spatial import ConvexHull
+
+    corners = np.array(list(product(*extent.reshape(3, 2))))
+    values = sign*(corners @ plane[:3] + plane[3] - isovalue)
+    points = [corners[values <= 0]]
+    for a, b in [(i, j) for i in range(8) for j in range(i+1, 8)
+                 if np.count_nonzero(corners[i] != corners[j]) == 1]:
+        if values[a]*values[b] < 0:
+            t = values[a]/(values[a]-values[b])
+            points.append((corners[a]+t*(corners[b]-corners[a]))[None])
+    points = np.concatenate(points)
+    return float(ConvexHull(points).volume) if len(points) >= 4 else 0.
 
 
 def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_list):

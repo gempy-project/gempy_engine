@@ -46,6 +46,7 @@ class EvaluationOptions:
     mesh_extraction: bool = True
     mesh_extraction_extent_capping: MeshExtentCapping = MeshExtentCapping.NONE
     mesh_extraction_masking_options: MeshExtractionMaskingOptions = MeshExtractionMaskingOptions.INTERSECT
+    mesh_extraction_closed_volumes: bool = False  #: Joint modes only: also build closed unit shells.
     mesh_extraction_fancy: Annotated[bool, deprecated("Old extraction method not in use anymore")] = True
 
     evaluation_chunk_size: int = 500_000

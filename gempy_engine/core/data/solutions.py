@@ -26,6 +26,11 @@ class Solutions:
     
     block_solution_type: RawArraysSolution.BlockSolutionType 
 
+    @property
+    def closed_volumes(self):
+        """Closed unit shells from joint extraction with ``mesh_extraction_closed_volumes``."""
+        return getattr(self.dc_meshes[0], 'closed_volumes', None) if self.dc_meshes else None
+
     def __init__(self, octrees_output: List[OctreeLevel], dc_meshes: List[DualContouringMesh] = None, fw_gravity: np.ndarray = None,
                  fw_magnetics: np.ndarray = None,
                  block_solution_type: RawArraysSolution.BlockSolutionType = RawArraysSolution.BlockSolutionType.OCTREE):

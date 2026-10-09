@@ -122,6 +122,8 @@ def extract_joint_contacts_octree(descriptor, interpolation_input, options, octr
     if not _has_faults(descriptor, interpolation_input):
         return extract_joint_octree(descriptor, interpolation_input, options, octree_list)
     _check_joint_options(descriptor, options)
+    if getattr(options.evaluation_options, "mesh_extraction_closed_volumes", False):
+        raise NotImplementedError("unsupported_closed_volumes: joint_contacts with faults (use banked joint)")
     from .adaptive_fault_extraction import extract_fault_merge_octree
     return extract_fault_merge_octree(descriptor, interpolation_input, options, octree_list)
 
@@ -234,10 +236,26 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
             query_input.set_temp_grid(previous_grid)
 
     from .adaptive_topology_extraction import extract_adaptive_topology
+    closed = bool(getattr(options.evaluation_options, "mesh_extraction_closed_volumes", False))
     result = extract_adaptive_topology(
         origins, spans, domain_shape, extent, samples, surface_to_stack, surface_indices,
-        relations, isovalues, sample_fields=sample_fields, ownership=None, include_reference=False
+        relations, isovalues, sample_fields=sample_fields, ownership=None, include_reference=False,
+        **(dict(defer_emission=True, closure=True) if closed else {})
     )
+    part = None
+    if closed:
+        from ...modules.dual_contouring.adaptive_closed_volumes import build_closed_volumes
+        first_row = [int(np.flatnonzero(surface_to_stack == g)[0]) for g in range(stacks.n_stacks)]
+
+        def sample_stacks(points):
+            values, gradients = sample_fields(points)
+            return np.asarray(values)[first_row], np.asarray(gradients)[first_row]
+
+        part = build_closed_volumes(result.pop("closure"), sample_stacks=sample_stacks, relations=relations,
+                                    stack_isovalues=isovalues, partition=0,
+                                    region_volume=float(np.prod(extent[1::2]-extent[::2])))
+        _check_closed_audit(part, 0)
+        _emit_with_closure(result, part)
     vertices = np.asarray(result["vertices"], dtype=np.float64)
     meshes = []
     for index, (stack_index, surface_index, isovalue) in enumerate(metadata):
@@ -253,4 +271,60 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
         mesh.joint_vertex_keys = [result["vertex_keys"][i] for i in ids]
         mesh.joint_seam_edges = np.asarray(result["seam_edges"], dtype=np.int64).copy()
         meshes.append(mesh)
+    if part is not None:
+        volumes = _assemble_closed_volumes({0: part})
+        for mesh in meshes:
+            mesh.closed_volumes = volumes
     return meshes
+
+
+def _check_closed_audit(part, partition):
+    audit = part["report"]
+    if not (audit["all_closed"] and audit["all_positive"] and audit["volumes_sum_to_region"]):
+        raise ValueError("closed_volume_audit_failed: partition {} closed={} positive={} volume_error={:.3e}".format(
+            partition, audit["all_closed"], audit["all_positive"], audit["volume_error"]))
+
+
+def _emit_with_closure(result, part, emit_adaptive_triangles=None):
+    """Emit a deferred plan; with closed volumes, strips and fans join each surface."""
+    if emit_adaptive_triangles is None:
+        from ...modules.dual_contouring.adaptive_joint_topology import emit_adaptive_triangles
+
+    plan, key_to_id = result.pop("_triangle_plan"), result.pop("_key_to_id")
+    if part is not None:
+        new_keys = sorted({k for rows in part["surface_triangles"] for tri in rows for k in tri} - set(key_to_id))
+        result["vertices"] = np.concatenate((np.asarray(result["vertices"]).reshape(-1, 3),
+                                             np.asarray([part["positions"][k] for k in new_keys]).reshape(-1, 3)))
+        result["vertex_keys"] = list(result["vertex_keys"]) + new_keys
+        key_to_id = {**key_to_id, **{k: len(key_to_id)+i for i, k in enumerate(new_keys)}}
+        plan = [list(rows)+[dict(keys=tri) for tri in extra] for rows, extra in zip(plan, part["surface_triangles"])]
+    result["faces"], result["affected_faces"] = emit_adaptive_triangles(plan, key_to_id)
+
+
+def _assemble_closed_volumes(parts):
+    """One shared, bank-namespaced complex holding every bank's unit shells."""
+    from ...core.data.closed_unit_volumes import ClosedUnitVolumes
+
+    keys, triangles, sides, kinds = {}, [], [], []
+    positions = {}
+    for bank, part in parts.items():
+        for tri_keys, kind, negative, positive in part["patches"]:
+            ids = []
+            for key in tri_keys:
+                namespaced = (bank, key)
+                if namespaced not in keys:
+                    keys[namespaced] = len(keys)
+                    positions[namespaced] = part["positions"][key]
+                ids.append(keys[namespaced])
+            triangles.append(ids)
+            sides.append((negative, positive))
+            kinds.append(kind)
+    vertex_keys = sorted(keys, key=keys.get)
+    report = dict(banks={bank: part["report"] for bank, part in parts.items()},
+                  volumes={u: v for part in parts.values() for u, v in part["report"]["volumes"].items()},
+                  all_closed=all(part["report"]["all_closed"] for part in parts.values()),
+                  region_volumes={bank: part["report"]["region_volume"] for bank, part in parts.items()})
+    return ClosedUnitVolumes(vertices=np.asarray([positions[k] for k in vertex_keys]).reshape(-1, 3),
+                             triangles=np.asarray(triangles, dtype=np.int64).reshape(-1, 3), unit_sides=sides,
+                             patch_kinds=kinds, vertex_keys=vertex_keys, report=report)
+

@@ -8,6 +8,9 @@ No uniform fallback or mesh repair is attempted. Mixed leaves do not imply
 coarse/fine CONTACT seams: the default has zero such seam edges.
 --mode joint_contacts uses joint erosion/onlap contacts with pretty's fault
 vertex merge (one fault mesh, horizons ending on fault vertices, no banks).
+--closed-volumes (joint only) also builds closed, outward unit shells per fault
+bank, with the extent rim at the finest leaf size, and opens a viewer of the
+shells (--explode 0.35 pushes them apart).
 --compare shows ordinary smooth-fault none/pretty beside bank-conditioned joint
 skins and joint_contacts. These are different field semantics, not a
 like-for-like benchmark.
@@ -29,6 +32,9 @@ def _host(values):
     return values.detach().cpu().numpy() if hasattr(values, 'detach') else np.asarray(values)
 
 
+CLOSED_VOLUMES = False
+
+
 def make_model(root_resolution, depth, min_level, mode):
     from gempy_engine.core.data.regular_grid import RegularGrid
     from tests.fixtures.model7_combination import model7_combination_factory
@@ -42,6 +48,7 @@ def make_model(root_resolution, depth, min_level, mode):
     evaluation.number_octree_levels_surface = depth
     evaluation.octree_min_level = min_level
     evaluation.mesh_extraction_overlap = mode
+    evaluation.mesh_extraction_closed_volumes = CLOSED_VOLUMES and mode == 'joint'
     return inputs, options, descriptor
 
 
@@ -139,7 +146,14 @@ def run_case(root_resolution=9, depth=2, min_level=0, mode='joint'):
                       no_uniform_fallback=contact['no_uniform_fallback'],
                       no_post_reconciliation=contact['no_post_reconciliation'],
                       cross_bank_id_joins=contact['cross_bank_id_joins'])
-    elif mode == 'joint_contacts':
+    volumes = getattr(meshes[0], 'closed_volumes', None)
+    if volumes is not None:
+        report['closed_volumes'] = dict(
+            units=[list(map(int, unit)) for unit in volumes.units], all_closed=volumes.report['all_closed'],
+            volumes={str(list(map(int, unit))): volume for unit, volume in volumes.volumes.items()},
+            bank_region_volumes={str(bank): volume for bank, volume in volumes.report['region_volumes'].items()},
+            triangles=len(volumes.triangles))
+    if mode == 'joint_contacts':
         _, edges, _ = joint_seams(meshes)
         contact = meshes[0].contact_report
         report.update(interface=contact['interface'], seam_edges=len(edges),
@@ -192,6 +206,26 @@ def render(cases, off_screen=False, screenshot=None):
     plotter.show(screenshot=None if screenshot is None else str(screenshot))
 
 
+def render_closed_volumes(solution, off_screen=False, screenshot=None, explode=0.):
+    import pyvista as pv
+
+    volumes = solution.closed_volumes
+    plotter = pv.Plotter(off_screen=off_screen, window_size=(1100, 800), title='Closed unit volumes')
+    plotter.set_background('#17212b')
+    colors = ['#e69f00', '#56b4e9', '#009e73', '#f0e442', '#0072b2', '#d55e00', '#cc79a7', '#999999']
+    centre = volumes.vertices.mean(axis=0)
+    for i, unit in enumerate(volumes.units):
+        vertices, faces = volumes.shell(unit)
+        shift = explode*(vertices[np.unique(faces)].mean(axis=0) - centre)
+        plotter.add_mesh(pv.PolyData(vertices + shift, np.column_stack((np.full(len(faces), 3), faces)).ravel()),
+                         color=colors[i % len(colors)], show_edges=True, edge_color='#333333', line_width=.3)
+    plotter.add_text('Closed unit shells per fault bank' + (' (exploded)' if explode else ''),
+                     font_size=12, color='white')
+    plotter.add_axes()
+    plotter.view_isometric()
+    plotter.show(screenshot=None if screenshot is None else str(screenshot))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root-resolution', type=int, default=9)
@@ -200,6 +234,8 @@ def main():
     parser.add_argument('--check-only', action='store_true', help='validate without importing PyVista')
     parser.add_argument('--mode', choices=('joint', 'joint_contacts'), default='joint')
     parser.add_argument('--compare', action='store_true', help='four production modes, fresh models')
+    parser.add_argument('--closed-volumes', action='store_true', help='joint: closed unit shells per fault bank')
+    parser.add_argument('--explode', type=float, default=0., help='--closed-volumes: push shells apart')
     parser.add_argument('--off-screen', action='store_true')
     parser.add_argument('--screenshot', type=Path)
     parser.add_argument('--json', type=Path)
@@ -210,6 +246,8 @@ def main():
         if path is not None and not path.parent.is_dir():
             parser.error(f'Output parent must already exist: {path.parent}')
 
+    global CLOSED_VOLUMES
+    CLOSED_VOLUMES = args.closed_volumes
     from gempy_engine.config import AvailableBackends
     from gempy_engine.core.backend_tensor import BackendTensor
     BackendTensor._change_backend(AvailableBackends.numpy, use_gpu=False,
@@ -242,7 +280,11 @@ def main():
     if args.json is not None:
         args.json.write_text(text)
     if exit_code == 0 and not args.check_only:
-        render(cases, args.off_screen, args.screenshot)
+        joint = [solution for report, solution in cases if report['mode'] == 'joint']
+        if args.closed_volumes and joint:
+            render_closed_volumes(joint[0], args.off_screen, args.screenshot, args.explode)
+        else:
+            render(cases, args.off_screen, args.screenshot)
     return exit_code
 
 

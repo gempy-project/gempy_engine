@@ -264,10 +264,10 @@ partition passes can any triangle index array be emitted. A later-bank or
 unaffected-partition rejection cannot leave an earlier bank already emitted.
 Ordinary extraction retains its existing validation-before-emission path.
 
-Physical crop boundaries do not receive caps. Minimal-edge rings with exterior
-quadrants are not emitted as complete dual faces. Shared contact seams therefore
-do not imply closed lithological volumes, globally watertight shells, or a
-general-purpose manifold guarantee.
+By default, physical crop boundaries do not receive caps. Minimal-edge rings
+with exterior quadrants are not emitted as complete dual faces, so shared contact
+seams alone do not imply closed lithological volumes. The opt-in
+`mesh_extraction_closed_volumes` (see "Closed Unit Volumes" below) closes them.
 
 ## Mesh Identity
 
@@ -459,6 +459,77 @@ assert len(solutions.dc_meshes) == 4
 for mesh in solutions.dc_meshes:
     print(mesh.exported_surface_index, len(mesh.edges), mesh.joint_face_bank_ids)
 ```
+
+## Closed Unit Volumes
+
+`evaluation_options.mesh_extraction_closed_volumes = True` makes `joint` also
+build closed, outward-oriented shells per geological unit, from one shared
+triangle complex. It is supported for banked `joint` (one infinite planar fault)
+and for fault-free `joint`. `joint_contacts` and the non-joint modes reject it
+(`unsupported_closed_volumes`). With the option off, output is bitwise unchanged.
+
+**Units and patches.** A unit is `(partition, stack, interval)`; the partition
+is the fault bank, or 0 without faults. Units are assigned exactly as production
+lithology masking does (erosion/onlap components, onlap chains), via
+`classify_units`, which is tested against production `squeezed_mask_array`. Every
+triangle separates two units, recorded in `unit_sides`:
+- **Interface patches** are the extracted surface meshes. Their side units are
+  evaluated at the triangle centroid with the surface's own field forced just
+  below and just above its level, so a mesh offset from the isosurface cannot
+  mislabel a side.
+- **Fault-skin patches** are each bank's separator. The bank side is a unit; the
+  positive side is OUTSIDE, because the two banks' skins remain unwelded.
+- **Extent patches** cover the model box inside the partition.
+
+**Finest rim.** The extent rim is the finest lattice of the six box faces, at
+the size of the finest octree leaf, even where boundary leaves are coarse. Each
+finest square is split into two triangles and clipped exactly by every surface's
+piecewise-linear interpolant. Rim vertices are lattice nodes, edge crossings and
+contour intersections (contacts reaching the extent), keyed canonically, so
+faces and triangles share them without welding. Rim regions take their unit from
+linearly interpolated stack values, consistently with the clipping.
+
+**Closing surfaces against the rim.**
+- A retained crossing of a minimal edge lying in an extent face becomes a strip
+  triangle: its two boundary-leaf vertices plus the rim crossing on that edge's
+  crossed finest segment.
+- Each rim interface segment becomes a fan triangle to the vertex of the
+  boundary leaf whose face tile contains it. Coarse tiles therefore fan several
+  finest rim segments to one leaf vertex.
+- Strip and fan side units come from the rim regions they touch, so they always
+  agree with the caps.
+- New triangles are wound along the surface's actual gradient, like the core.
+- Rejections:
+  - `unsupported_rim_branches`: a rim contour in a leaf without a vertex for that
+    surface, several branches in one leaf, or a boundary edge whose finest
+    crossing count differs from the leaf's;
+  - `inconsistent_rim_contour`, `degenerate_rim_junction`,
+    `unresolved_rim_winding`, `sample_aligned_rim`.
+
+**Audit.** Before anything is emitted (inside banked joint's all-bank barrier),
+every unit shell must close: each edge exactly twice, in opposite directions.
+Every volume must be positive, and the unit volumes of a partition must sum to
+its exact region volume, the box or the box cut by the planar fault (computed
+with a convex hull). Otherwise extraction raises `closed_volume_audit_failed`.
+This is not a self-intersection proof.
+
+**Output.** Per-surface meshes now reach the extent, through the strip and fan
+triangles. `solutions.closed_volumes` (also `mesh.closed_volumes`) is a
+`ClosedUnitVolumes` with `vertices`, `triangles`, `unit_sides`, `patch_kinds`,
+`vertex_keys` (bank-namespaced), `units`, `volumes`, a `report` and
+`shell(unit)`. Stacks the fault does not cut are rejected for closed volumes,
+since banks would split them.
+
+**Model 7.**
+- Natural root 9 and fully refined root 7 / minimum level 2 both give 8 units
+  (4 per bank). All shells close, and each bank's volumes sum to its exact
+  region volume within about 1e-17.
+- CUDA gives the same vertex keys and triangles as NumPy, with volumes within
+  the production NumPy/Torch field difference.
+- The closure adds about 1.2 s to extraction (NumPy or CUDA + KeOps on this
+  machine). About 0.5 s is field evaluation, which is not yet stacked.
+- `python examples/adaptive_joint_model7.py --closed-volumes` shows an exploded
+  view.
 
 ## `joint_contacts`: Joint Contacts With Pretty Fault Merge
 
