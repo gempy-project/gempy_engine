@@ -1,4 +1,4 @@
-"""Closed unit volumes from joint extraction: finest rim lattice, shared shells."""
+"""Closed unit volumes from joint extraction: adaptive rim, shared shells, shared fault."""
 
 from itertools import product
 
@@ -96,6 +96,13 @@ def test_synthetic_unit_shells_close(case, mixed):
             assert report['volumes'][unit] == pytest.approx(volume, rel=1e-9)
     if mixed:
         assert report['fan_triangles'] > 0  # coarse rim tiles close through fans
+        # The rim follows the boundary leaves: coarse squares, with centre stars
+        # where finer neighbours put nodes on their sides (9^3 - 7^3 finest nodes).
+        assert report['rim_nodes'] < 9**3 - 7**3
+    keys = sorted({k for patch in part['patches'] for k in patch[0]}, key=repr)
+    ids = {k: i for i, k in enumerate(keys)}
+    assert count_hanging_nodes(np.array([part['positions'][k] for k in keys]),
+                               np.array([[ids[k] for k in patch[0]] for patch in part['patches']])) == 0
 
 
 def test_curved_volume_converges_to_analytic():

@@ -481,27 +481,32 @@ triangle separates two units, recorded in `unit_sides`:
   triangle separates a bank-0 unit from a bank-1 unit.
 - **Extent patches** cover the model box inside the partition.
 
-**Finest rim.** The extent rim is the finest lattice of the six box faces, at
-the size of the finest octree leaf, even where boundary leaves are coarse. Each
-finest square is split into two triangles and clipped exactly by every surface's
-piecewise-linear interpolant. Rim vertices are lattice nodes, edge crossings and
-contour intersections (contacts reaching the extent), keyed canonically, so
-faces and triangles share them without welding. Rim regions take their unit from
-linearly interpolated stack values, consistently with the clipping.
+**Rim.** The extent rim is tiled by the boundary leaves' own face squares, so the
+rim matches the octree resolution there. A square that holds corners of smaller
+neighbouring squares on its sides (on its face or across a box edge) gets a
+centre node and a star of triangles, one per side segment, so no rim node
+hangs. Other squares are split into two triangles. Every rim node is a leaf
+corner, except the centres of such squares. Each rim triangle is clipped exactly
+by every surface's piecewise-linear interpolant. Rim vertices are nodes, edge
+crossings and contour intersections (contacts reaching the extent), keyed
+canonically, so faces and triangles share them without welding. Rim regions
+take their unit from linearly interpolated stack values, consistently with the
+clipping. The clipped regions of each box face are then flipped to constrained
+Delaunay, keeping unit boundaries and the face border as constraints
+(`_delaunay_caps`).
 
 **Closing surfaces against the rim.**
 - A retained crossing of a minimal edge lying in an extent face becomes a strip
   triangle: its two boundary-leaf vertices plus the rim crossing on that edge's
-  crossed finest segment.
+  crossed rim segment.
 - Each rim interface segment becomes a fan triangle to the vertex of the
-  boundary leaf whose face tile contains it. Coarse tiles therefore fan several
-  finest rim segments to one leaf vertex.
+  boundary leaf whose face tile contains it.
 - Strip and fan side units come from the rim regions they touch, so they always
   agree with the caps.
 - New triangles are wound along the surface's actual gradient, like the core.
 - Rejections:
   - `unsupported_rim_branches`: a rim contour in a leaf without a vertex for that
-    surface, several branches in one leaf, or a boundary edge whose finest
+    surface, several branches in one leaf, or a boundary edge whose rim
     crossing count differs from the leaf's;
   - `inconsistent_rim_contour`, `degenerate_rim_junction`,
     `unresolved_rim_winding`, `sample_aligned_rim`.

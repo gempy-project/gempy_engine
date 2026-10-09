@@ -1,8 +1,9 @@
 """Closed unit volumes for adaptive joint extraction.
 
-The extent rim is the finest lattice of the six box faces, each finest square
-split into two triangles and clipped exactly by every surface's piecewise-linear
-interpolant. Rim vertices are lattice nodes, edge crossings and contour
+The extent rim is tiled by the boundary leaves' own face squares (a centre
+star where smaller neighbours put nodes on a square's sides), and each rim
+triangle is clipped exactly by every surface's piecewise-linear interpolant.
+Rim vertices are lattice nodes, edge crossings and contour
 intersections, all keyed canonically, so faces, triangles and partitions share
 them without welding. Surfaces close against the rim through strips (the dual
 faces of boundary minimal edges) and fans (a boundary leaf's vertex to its rim
@@ -76,55 +77,65 @@ def classify_units(stack_values, relations, stack_isovalues):
 
 # region Rim lattice
 
-def _rim_lattice(domain):
-    """Finest nodes of the box surface and two triangles per finest face square."""
-    domain = [int(v) for v in domain]
+def _rim_tiles(origins, spans, domain):
+    """Rim triangles at the size of the boundary leaves.
+
+    Each boundary leaf's face tile is one square. Coordinates are doubled
+    integers so tile centres stay exact. A tile whose sides hold corners of
+    smaller neighbouring tiles (on its face or across a box edge) gets a centre
+    node and a star of triangles, one per side segment, so no node hangs on its
+    sides. Other tiles are split into two triangles. Returns node index, doubled
+    coordinates, triangles, the boundary leaf of each triangle and outward
+    normals.
+    """
+    domain = np.asarray(domain, dtype=np.int64)
+    tiles = []
+    for cell, (origin, span) in enumerate(zip(np.asarray(origins).tolist(), np.asarray(spans).tolist())):
+        for axis in range(3):
+            u, v = [a for a in range(3) if a != axis]
+            for side, touches in ((0, origin[axis] == 0), (1, origin[axis]+span == domain[axis])):
+                if touches:
+                    tiles.append((axis, side, u, v, origin, span, cell))
     index, coords = {}, []
 
     def node(point):
-        point = tuple(point)
+        point = tuple(int(c) for c in point)
         if point not in index:
             index[point] = len(coords)
             coords.append(point)
         return index[point]
 
-    triangles, squares, normals = [], [], []
-    for axis in range(3):
-        u, v = [a for a in range(3) if a != axis]
-        for side in (0, 1):
-            outward = np.zeros(3)
-            outward[axis] = 1. if side else -1.
-            for i in range(domain[u]):
-                for j in range(domain[v]):
-                    corner = {}
-                    for du in (0, 1):
-                        for dv in (0, 1):
-                            point = [0, 0, 0]
-                            point[axis] = side*domain[axis]
-                            point[u], point[v] = i+du, j+dv
-                            corner[du, dv] = node(point)
-                    for tri in ((corner[0, 0], corner[1, 0], corner[1, 1]),
-                                (corner[0, 0], corner[1, 1], corner[0, 1])):
-                        triangles.append(tri)
-                        squares.append((axis, side, i, j))
-                        normals.append(outward)
-    return index, np.asarray(coords, dtype=np.int64), np.asarray(triangles, dtype=np.int64), squares, \
+    def corner(axis, side, u, v, origin, du, dv, span):
+        point = [0, 0, 0]
+        point[axis] = 2*side*domain[axis]
+        point[u], point[v] = 2*(origin[u]+du*span), 2*(origin[v]+dv*span)
+        return tuple(point)
+
+    for axis, side, u, v, origin, span, _ in tiles:
+        for du in (0, 1):
+            for dv in (0, 1):
+                node(corner(axis, side, u, v, origin, du, dv, span))
+    triangles, leaves, normals = [], [], []
+    for axis, side, u, v, origin, span, cell in tiles:
+        outward = np.zeros(3)
+        outward[axis] = 1. if side else -1.
+        ring = []
+        for (du0, dv0), (du1, dv1) in (((0, 0), (1, 0)), ((1, 0), (1, 1)), ((1, 1), (0, 1)), ((0, 1), (0, 0))):
+            a = np.array(corner(axis, side, u, v, origin, du0, dv0, span))
+            b = np.array(corner(axis, side, u, v, origin, du1, dv1, span))
+            step = (b-a)//(2*span)
+            ring.extend(index[p] for p in (tuple((a+2*k*step).tolist()) for k in range(span)) if p in index)
+        if len(ring) == 4:
+            c00, c10, c11, c01 = ring
+            star = [(c00, c10, c11), (c00, c11, c01)]
+        else:
+            centre = node(corner(axis, side, u, v, origin, .5, .5, span))
+            star = [(centre, ring[i], ring[(i+1) % len(ring)]) for i in range(len(ring))]
+        triangles.extend(star)
+        leaves.extend([cell]*len(star))
+        normals.extend([outward]*len(star))
+    return index, np.asarray(coords, dtype=np.int64), np.asarray(triangles, dtype=np.int64), leaves, \
         np.asarray(normals)
-
-
-def _boundary_leaf_map(origins, spans, domain):
-    """Finest face square -> the boundary leaf whose face tile covers it."""
-    leaf_of = {}
-    for cell, (origin, span) in enumerate(zip(origins.tolist(), spans.tolist())):
-        for axis in range(3):
-            u, v = [a for a in range(3) if a != axis]
-            for side, touches in ((0, origin[axis] == 0), (1, origin[axis]+span == domain[axis])):
-                if not touches:
-                    continue
-                for i in range(origin[u], origin[u]+span):
-                    for j in range(origin[v], origin[v]+span):
-                        leaf_of[(axis, side, i, j)] = cell
-    return leaf_of
 
 # endregion
 
@@ -157,13 +168,13 @@ def build_closed_volumes(closure, *, sample_stacks, relations, stack_isovalues, 
         return signs[:, None]*(np.asarray(stack_values)[surface_stacks]-raw_levels[:, None])
 
     # region Rim samples and clipping
-    index, coords, triangles, squares, outward = _rim_lattice(domain)
-    node_xyz = bounds[::2]+coords*spacing
+    index, coords, triangles, tri_leaves, outward = _rim_tiles(closure['origins'], closure['spans'], domain)
+    node_xyz = bounds[::2]+coords*spacing/2
     node_stacks, _ = sample_stacks(node_xyz)
     node_stacks = np.asarray(node_stacks, dtype=float)
     node_fields = surface_fields(node_stacks)
     if np.any(np.abs(node_fields) < 1e-10):
-        raise ValueError('sample_aligned_rim: a finest rim node lies on a surface')
+        raise ValueError('sample_aligned_rim: a rim node lies on a surface')
     node_signs = node_fields > 0
 
     positions = {}
@@ -209,7 +220,7 @@ def build_closed_volumes(closure, *, sample_stacks, relations, stack_isovalues, 
     # endregion
 
     # region Caps and interface contour edges
-    caps, cap_units = [], []
+    caps, cap_units, cap_faces = [], [], []
     contour_sides = defaultdict(list)
     for r_index, ((t_index, piece), unit) in enumerate(zip(regions, region_units)):
         keys = [key for key, _, _ in piece]
@@ -225,6 +236,8 @@ def build_closed_volumes(closure, *, sample_stacks, relations, stack_isovalues, 
                 tri_keys = (tri_keys[0], tri_keys[2], tri_keys[1])
             caps.append(tri_keys)
             cap_units.append(unit)
+            cap_faces.append(tuple(outward[t_index].tolist()))
+    caps, cap_units = _delaunay_caps(caps, cap_units, cap_faces, positions)
     # The two sides of a rim contour edge are labelled exactly by its regions;
     # fans and strips touching the rim take their units from here, so they
     # always agree with the caps they close against.
@@ -247,13 +260,12 @@ def build_closed_volumes(closure, *, sample_stacks, relations, stack_isovalues, 
     # endregion
 
     # region Strips and fans to boundary leaves
-    leaf_of = _boundary_leaf_map(closure['origins'], closure['spans'], domain)
     boundary_keys = closure['boundary_keys']
     surface_triangles = [[] for _ in range(n)]
     components = defaultdict(list)
     rim_sides = [[] for _ in range(n)]
     for s, t_index, p, q, side_units in interfaces:
-        leaf = leaf_of[squares[t_index]]
+        leaf = tri_leaves[t_index]
         vertex = boundary_keys.get((s, leaf))
         if vertex is None:
             raise ValueError('unsupported_rim_branches: rim contour crosses a boundary leaf without a vertex')
@@ -269,10 +281,11 @@ def build_closed_volumes(closure, *, sample_stacks, relations, stack_isovalues, 
         start = np.asarray(edge['origin'], dtype=np.int64)
         step = np.zeros(3, dtype=np.int64)
         step[edge['axis']] = 1
-        nodes = [index[tuple((start+k*step).tolist())] for k in range(edge['span']+1)]
+        nodes = [index[p] for p in (tuple((2*(start+k*step)).tolist()) for k in range(edge['span']+1))
+                 if p in index]
         crossed = [(a, b) for a, b in zip(nodes, nodes[1:]) if node_signs[s, a] != node_signs[s, b]]
         if len(crossed) != 1:
-            raise ValueError('unsupported_rim_branches: boundary edge crossing differs on the finest rim')
+            raise ValueError('unsupported_rim_branches: boundary edge crossing differs on the rim')
         key, _, _ = crossing_key(s, *crossed[0])
         if len(crossing_sides.get(key, ())) != 1:
             raise ValueError('unsupported_rim_branches: boundary crossing is not one rim interface')
@@ -465,6 +478,37 @@ def _triangulate_convex(keys, positions):
     if np.linalg.norm(np.cross(v-u, w-u)) > 1e-12*scale**2:
         triangles.append(tuple(ring))
     return triangles
+
+
+def _delaunay_caps(caps, units, faces, positions):
+    """Re-triangulate each box face's caps to constrained Delaunay.
+
+    Only edges between caps of the same unit flip: unit boundaries (where fans
+    and strips attach) and the face border stay, so closure is unchanged.
+    """
+    from .planar_triangulation import PlaneTriangulation
+
+    groups = defaultdict(list)
+    for tri, unit, face in zip(caps, units, faces):
+        groups[face].append((tri, unit))
+    out_caps, out_units = [], []
+    for face in sorted(groups):
+        normal = np.asarray(face, dtype=float)
+        keys = sorted({k for tri, _ in groups[face] for k in tri}, key=repr)
+        xyz = np.array([positions[k] for k in keys])
+        plane = PlaneTriangulation(normal, 1e-9*max(np.ptp(xyz, axis=0).max(), 1e-300))
+        ids = {k: plane.add_vertex(positions[k], k) for k in keys}
+        for tri, unit in groups[face]:
+            plane.add_triangle(*(ids[k] for k in tri), orient=True, label=unit)
+        plane.make_delaunay()
+        for tri, unit in plane.labelled_triangles():
+            tri = tuple(plane.keys[v] for v in tri)
+            a, b, c = (positions[k] for k in tri)
+            if np.cross(b-a, c-a) @ normal < 0:
+                tri = (tri[0], tri[2], tri[1])
+            out_caps.append(tri)
+            out_units.append(unit)
+    return out_caps, out_units
 
 
 def _on_segment(points, p, q, tolerance):

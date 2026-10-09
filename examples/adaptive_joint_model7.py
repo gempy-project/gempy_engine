@@ -9,7 +9,7 @@ coarse/fine CONTACT seams: the default has zero such seam edges.
 --mode joint_contacts uses joint erosion/onlap contacts with pretty's fault
 vertex merge (one fault mesh, horizons ending on fault vertices, no banks).
 --closed-volumes (joint only) also builds closed, outward unit shells per fault
-bank, with the extent rim at the finest leaf size, and opens a viewer of the
+bank, with the extent rim at the boundary leaf size, and opens a viewer of the
 shells (--explode 0.35 pushes them apart).
 --compare shows ordinary smooth-fault none/pretty beside bank-conditioned joint
 skins and joint_contacts. These are different field semantics, not a
