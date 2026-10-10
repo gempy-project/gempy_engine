@@ -1,4 +1,6 @@
 from gempy_engine.API.model.model_api import compute_model
+from gempy_engine.API.model.field_evaluation import FieldEvaluator, evaluate_fields, prepare_field_evaluator
+from gempy_engine.modules.activator.unit_classification import classify_units
 from datetime import datetime
 
 try:
