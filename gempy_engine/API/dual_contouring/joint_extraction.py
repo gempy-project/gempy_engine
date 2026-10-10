@@ -128,7 +128,7 @@ def extract_joint_contacts_octree(descriptor, interpolation_input, options, octr
 
 
 def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
-    """Fault-free joint extraction from private fixed-weight queries.
+    """Joint extraction from private fixed-weight queries; with one planar fault, per fault bank.
 
     Weights are the outputs' actual production solve; cokriging with
     COMPUTE_GRADS=True is unsupported.
@@ -137,8 +137,8 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
     stacks = descriptor.stack_structure
     relations = stacks.masking_descriptor
     if _has_faults(descriptor, interpolation_input):
-        raise NotImplementedError("unsupported_fault_extraction: joint with faults needs fault banks; "
-                                  "use joint_contacts")
+        from .joint_fault_banks import extract_fault_joint_octree
+        return extract_fault_joint_octree(descriptor, interpolation_input, options, octree_list)
     origins, spans, domain_shape, extent, samples, metadata = _collect_joint_leaves(
         octree_list, stacks.n_stacks
     )

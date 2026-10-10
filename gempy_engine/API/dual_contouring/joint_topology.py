@@ -21,6 +21,9 @@ from ...modules.dual_contouring.joint_field_queries import ExactPointCache, Targ
 from ...modules.dual_contouring.joint_lattice import (field_tolerances, lattice_frame, leaf_corner_nodes,
                                                       lookup_node_fields, minimal_edge_nodes, shared_node_fields,
                                                       tile_nodes)
+from ...modules.dual_contouring.joint_separator import (authorize_fault_pairs, check_separator_contract,
+                                                        check_separator_samples, fit_separator_plane,
+                                                        separator_controllers)
 from ...modules.dual_contouring.joint_ownership import (borrowed_hermite_rows, borrowed_leaves,
                                                         check_composite_controllers, check_missing_controllers,
                                                         contact_pairs, controllers_from_ownership,
@@ -35,7 +38,8 @@ from ...modules.dual_contouring.weighted_qef_setup_multicore import DEFAULT_CROS
 def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_samples,
                               surface_to_stack, surface_indices, stack_relations, isovalues,
                               *, sample_fields, ownership=None, include_reference=False,
-                              faults_relations=None, cell_complex=None, fault_merge=None, field_query=None):
+                              faults_relations=None, separator_contacts=None, defer_emission=False,
+                              cell_complex=None, fault_merge=None, field_query=None):
     """Extract balanced dyadic leaves using canonical tiles and minimal primal edges.
 
     ``sample_fields`` supplies raw fields (S,M) and actual gradients (S,M,3).
@@ -43,8 +47,14 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     negatives); it is never interpolated independently at hanging edges. Original
     Hermite rows and ordinary production QEF regularization remain untouched.
     A composite controller dict must exactly match derived ordinary ownership.
+    ``separator_contacts`` adds only explicitly authorized directed fault pairs;
+    its separator is already bank-normalized (positive excluded, level zero),
+    with correspondingly oriented actual gradients. Stack metadata stays original.
+    ``defer_emission`` returns a fully validated ``_triangle_plan`` and
+    ``_key_to_id`` with faces/affected_faces set to None for a caller-owned
+    all-bank validation barrier. It cannot be combined with ``include_reference``.
     ``cell_complex`` may supply the read-only ``build_adaptive_complex`` result
-    for these exact origins/spans/domain.
+    for these exact origins/spans/domain, so bank partitions share one build.
     ``fault_merge`` maps each represented fault surface to exactly the surfaces it
     affects (pretty's fault rule, as key substitution): in leaves where the fault
     has a vertex, an affected surface uses the fault's vertex identity, its
@@ -61,8 +71,10 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     values come from the supplied leaf corners (shared nodes must agree within
     tolerance), gradients are evaluated only for the crossing surface (one batch
     for crossings and crossed-edge endpoints), and vertex checks are one
-    scalar-only batch.
+    scalar-only batch. Not with separator contacts.
     """
+    if defer_emission and include_reference:
+        raise ValueError('unsupported_deferred_reference: defer_emission and include_reference are incompatible')
     # Topology is host NumPy; Torch tensors for crossings/QEFs live on the active device.
     if BT.dtype != 'float64' or BT.engine_backend not in (AvailableBackends.numpy, AvailableBackends.PYTORCH):
         raise ValueError('unsupported_backend: NumPy/Torch float64 only')
@@ -70,14 +82,18 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     # region Contracts and controllers
     allowed, faults, truncations = build_contact_relations(
         surface_to_stack, surface_indices, stack_relations, faults_relations, isovalues)
-    if fault_merge is None and (faults or any(r is R.FAULT for r in stack_relations)
+    if separator_contacts is None and fault_merge is None and (faults or any(r is R.FAULT for r in stack_relations)
                                 or (faults_relations is not None and np.asarray(faults_relations).any())):
         raise ValueError('unsupported_fault_extraction: adaptive bank incidence unavailable')
     merge_targets = {}
     if fault_merge is not None:
-        if ownership is not None:
+        if separator_contacts is not None or ownership is not None:
             raise ValueError('invalid_fault_merge_contract: exclusive with separator contacts and ownership')
         merge_targets = fault_merge_targets(fault_merge, surface_to_stack, stack_relations, faults)
+    separator, bank = None, None
+    if separator_contacts is not None:
+        separator, bank = check_separator_contract(separator_contacts, surface_to_stack, stack_relations, faults)
+        allowed = authorize_fault_pairs(allowed, faults)
     full_identities = [(g, s) for g, values in enumerate(isovalues) for s in range(len(values))]
     _, _, full_truncations = build_contact_relations(
         np.array([g for g, _ in full_identities], dtype=int),
@@ -100,14 +116,22 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     if samples.shape != (n, leaves, 8) or not np.isfinite(samples).all():
         raise ValueError('invalid_samples: finite (S,N,8) raw corners required')
     levels = np.array([isovalues[g][s] for g, s in identities])
+    if separator is not None:
+        levels[separator] = 0.
     fields = samples-levels[:, None, None]
     faces, edges = complex_['faces'], complex_['edges']
     tiles, edge_nodes = tile_nodes(faces), minimal_edge_nodes(edges)
     tile_xyz, minimal_xyz = bounds[::2]+tiles*spacing, bounds[::2]+edge_nodes*spacing
     tolerances = field_tolerances(samples, levels)
-    if field_query is not None and ownership is not None:
+    if field_query is not None and (separator_contacts is not None or ownership is not None):
         raise ValueError('invalid_field_query_contract: exclusive with separator contacts and ownership')
-    query = ExactPointCache(sample_fields, n)
+    plane = []
+
+    def on_separator_plane(points, raw, gradients):
+        if plane:
+            check_separator_samples(points, raw[separator], gradients[separator], plane[0])
+
+    query = ExactPointCache(sample_fields, n, on_separator_plane if separator is not None else None)
     batch = TargetedFieldBatch(field_query)
     if field_query is not None:
         # Every tile and minimal-edge node is a leaf corner: reuse the supplied
@@ -119,7 +143,10 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         # crosses; they are queried with the crossing normals in one batch.
         endpoint_gradients = np.zeros((n, len(edges), 2, 3))
     else:
-        query(np.concatenate((xyz.reshape(-1, 3), tile_xyz.reshape(-1, 3), minimal_xyz.reshape(-1, 3))))
+        all_points = np.concatenate((xyz.reshape(-1, 3), tile_xyz.reshape(-1, 3), minimal_xyz.reshape(-1, 3)))
+        raw, gradients = query(all_points)
+        if separator is not None:
+            plane.append(fit_separator_plane(all_points, raw[separator], gradients[separator]))
         canonical, _ = query(xyz)
         if np.any(np.abs(canonical.reshape(samples.shape)-levels[:, None, None]-fields) > tolerances[:, None, None]):
             raise ValueError('inconsistent_corner_samples: callback disagrees with raw original corners')
@@ -128,7 +155,12 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         edge_fields = edge_fields.reshape(n, len(edges), 2)-levels[:, None, None]
         endpoint_gradients = endpoint_gradients.reshape(n, len(edges), 2, 3)
     controllers = ordinary_controllers(identities, truncations)
-    if isinstance(ownership, dict):
+    if separator is not None:
+        controllers = separator_controllers(controllers, faults)
+        check_composite_controllers(separator_contacts['controllers'], controllers)
+        if ownership is not None:
+            raise ValueError('unsupported_ownership: separator contract supplies composite ownership')
+    elif isinstance(ownership, dict):
         check_composite_controllers(ownership, controllers)
     elif ownership is not None:
         controllers = controllers_from_ownership(_detached(ownership), fields, truncations)
@@ -139,7 +171,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     stricts = (fields[:, :, EDGE_START]*fields[:, :, EDGE_END]) < 0
     merged, multi_fault, borrowed = borrowed_leaves(merge_targets, stricts)
     flags, counts, edge_xyz = _surface_crossings(xyz, samples, levels, stricts, merged, multi_fault, fields,
-                                                 strict=fault_merge is not None)
+                                                 strict=separator is not None or fault_merge is not None,
+                                                 reject_aligned=separator is not None)
     # A surface never solves its own QEF in borrowed leaves; there its Hermite
     # rows only constrain the fault vertex it borrows (pretty's weighted rule).
     solved = flags & ~merged[:, :, None]
@@ -249,7 +282,7 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                for rows in triangles] if fault_region else None)
     validate_adaptive_geometry(triangles, seams, junctions, positions, vertex_fields, tolerances, controllers,
                                exempt=exempt)
-    output_faces, affected = emit_adaptive_triangles(triangles, ids)
+    output_faces, affected = (None, None) if defer_emission else emit_adaptive_triangles(triangles, ids)
     # endregion
 
     result = dict(vertices=vertices, faces=output_faces, vertex_keys=keys,
@@ -262,6 +295,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                                    sampled_point_count=len(query)+batch.sampled, canonical_face_tile_count=len(faces),
                                    minimal_edge_count=len(edges), finite_faults='unsupported',
                                    interior_topology='sampled_boundary_only_not_interior_certified'))
+    if defer_emission:
+        result.update(_triangle_plan=triangles, _key_to_id=ids)
     if include_reference:
         reference_keys = sorted(regular)
         reference_plans = [[dict(row, keys=row['regular_keys']) for row in rows] for rows in plans]
@@ -281,6 +316,11 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
             cross_surface_weight=DEFAULT_CROSS_SURFACE_WEIGHT,
             fault_overridden_junction_cells=sorted(int(c) for c in fallback),
             fallback_region_leaf_count=len(fallback_leaves))
+    if separator is not None:
+        result['bank'] = bank
+        result['diagnostics'].update(bank=bank, separator_contact=separator,
+                                     contact_type='explicit_fault_separator', separator_geometry='planar',
+                                     strict_crossings=True, crossing_contract='strict_scalar_sides')
     return result
 
 
@@ -296,15 +336,18 @@ def _tensor(a, boolean=False):
     return np.asarray(a, dtype=bool if boolean else np.float64)
 
 
-def _surface_crossings(xyz, samples, levels, stricts, merged, multi_fault, fields, *, strict):
+def _surface_crossings(xyz, samples, levels, stricts, merged, multi_fault, fields, *, strict, reject_aligned=False):
     """Production edge crossings per surface, checked against strict sides, plus branch counts.
 
     Leaves whose geometry a surface discards (borrowed or multi-fault) are
-    neither checked nor classified (count one).
+    neither checked nor classified (count one). ``reject_aligned`` rejects any
+    original corner on a surface (bank geometry has no sided rule for it).
     """
     n, leaves = stricts.shape[:2]
     flags, edge_xyz, counts = [], [], []
     for s in range(n):
+        if reject_aligned and np.any(np.abs(fields[s]) < 1e-10):
+            raise ValueError('sample_aligned_interface: original corner lies on surface')
         crossings, production_flags = find_intersection_on_edge(
             _tensor(xyz.reshape(-1, 3)), _tensor(samples[s].reshape(-1)), _tensor(levels[s:s+1]),
             **({'strict_crossings': True} if strict else {}))

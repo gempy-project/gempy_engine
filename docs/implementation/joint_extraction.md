@@ -6,7 +6,8 @@ emitted, so meshes that meet at an erosion/onlap contact share the same vertex
 by identity. This is not post-extraction vertex welding, contact
 reconciliation, or a closed-volume mesher. `pretty` remains the default.
 
-- `joint`: ordinary erosion/onlap contacts. Fault-free models only.
+- `joint`: ordinary erosion/onlap contacts; with one verified infinite planar
+  fault, each fault bank is extracted separately (exact fault, two fault skins).
 - `joint_contacts`: `joint`'s contacts plus `pretty`'s fault rule (horizons
   borrow the fault's vertices). Without faults it is exactly `joint`.
 
@@ -40,7 +41,7 @@ extraction disabled, the mode has no effect.
 | Backend | NumPy or PyTorch (CPU or CUDA, with or without KeOps), `float64`, no autograd |
 | Masking | `MeshExtractionMaskingOptions.INTERSECT` only |
 | Extent capping | `MeshExtentCapping.NONE` only |
-| Faults | `joint`: none. `joint_contacts`: any number of independent infinite faults (no fault offsets another fault) |
+| Faults | `joint`: none, or exactly one independent infinite planar fault (banks). `joint_contacts`: any number of independent infinite faults (no fault offsets another fault) |
 | Null-space stacks | Unsupported |
 | Field callbacks | Actual finite raw scalar values and gradients for every exported surface |
 | With faults | No micro correction, external interpolation or segmentation functions, or external fault values |
@@ -120,6 +121,40 @@ ownership controllers.
 - Each fault is one conforming mesh. Near faults horizons follow the smooth
   production drift, as in `pretty`.
 
+## Fault Banks (`joint` With One Planar Fault)
+
+`joint` with a fault splits the model at the fault instead of following the
+smooth production drift. `prepare_fault_bank_sampler` evaluates the fixed
+production weights with the affected stacks' fault drift forced to one side:
+**bank 0 is the positive fault-potential side, bank 1 the negative side**.
+Before any query it verifies, with the actual fixed-weight scalar and gradient
+kernels at root points and off-observation probes, that the fault is planar with
+constant aligned gradients, and that the production drift spans 0/1 with bank 0
+on the positive side.
+
+- One `FAULT` stack with one surface; its directed `faults_relations` row has at
+  least one affected stack, nothing points into it, no other stack has fault
+  edges. Finite, multiple, dependent and nonplanar faults are rejected.
+- Affected stacks and the fault are extracted once per bank; unaffected stacks
+  once, with bank `-1`. Affected/unaffected truncations are rejected.
+- In each bank the fault is a **separator** (`separator_contacts`): its field is
+  `sign * (raw - level)` with the excluded side positive and level zero, and it
+  owns the affected surfaces as a controller. Its samples must stay on the fitted
+  plane (`modules/dual_contouring/joint_separator.py`). Crossings are strict;
+  any original corner on a surface is rejected.
+- Leaf corners, tiles, minimal edges and crossings all use the bank sampler
+  (`_BankFieldMemo` evaluates each point once per stack and effective bank).
+  The cell complex is built once for all partitions.
+- **Global deferred-emission barrier**: every partition is fully validated
+  (`defer_emission=True`) before any triangle array is allocated.
+
+The fault mesh holds **two bank-side skins, not one conforming fault mesh**.
+Keys and IDs are bank-namespaced, so coincident opposite-bank vertices are never
+joined. `mesh.joint_bank_ids` / `mesh.joint_face_bank_ids` label each vertex and
+triangle (`0`, `1`, or `-1`); they are `None` for every other mode. The report's
+`interface` is `bank_side_fault_skin_not_single_conforming_fault_mesh`, with
+per-bank diagnostics under `banks`.
+
 ## Mesh Identity
 
 One `DualContouringMesh` per exported surface, compacted to the vertices its
@@ -132,6 +167,7 @@ faces use:
 | `mesh.joint_vertex_keys` | Symbolic key per local row (`regular` or `joint`, identities, leaf origin, span) |
 | `mesh.joint_seam_edges` | All seam endpoint pairs in **extraction-wide** IDs |
 | `mesh.contact_report` | Extraction-wide diagnostics (`sampled_point_count`, `borrowed_vertex_count`, `sampler`, ...) |
+| `mesh.joint_bank_ids`, `mesh.joint_face_bank_ids` | Banked `joint` only: bank per vertex / triangle |
 
 Equal IDs across meshes identify shared vertices with equal coordinates. Map
 seams through `joint_vertex_ids`; do not index `mesh.vertices` with them.
@@ -142,6 +178,8 @@ seams through `joint_vertex_ids`; do not index `mesh.vertices` with them.
   vertices, no junction fallback.
 - Fully refined root 7 / minimum level 2: every fault vertex a horizon uses
   matches `pretty`'s fault vertex to 1e-9.
+- Banked `joint`, natural root 9: triangles 1496/544/1384/1878 per surface;
+  fully refined root 7: 884/312/832/1060.
 - Root 7 / minimum level 0 rejects with `unsupported_hanging_branch`.
 - Torch CPU/CUDA give the same faces and keys as NumPy, vertices within about
   1e-4. KeOps evaluation itself differs from dense kernels by up to 1e-4, which
@@ -157,6 +195,8 @@ another module.
 | `API/dual_contouring/joint_extraction.py` | Production bridge: leaf reconstruction, guards, `joint` / `joint_contacts` entry points, mesh compaction |
 | `API/dual_contouring/joint_topology.py` | `extract_adaptive_topology`: sampling, QEFs, calls into the modules below |
 | `API/dual_contouring/fault_drift_sampler.py` | Fixed-weight queries with production fault drift (`query`, `query_batch`) |
+| `API/dual_contouring/joint_fault_banks.py` | Banked `joint`: partitions, bank normalization, deferred emission, assembly |
+| `API/dual_contouring/fault_bank_sampler.py` | Fixed-weight queries per fault bank, planar fault verification |
 | `API/dual_contouring/fixed_weight_snapshots.py` | Production weight provenance, frozen solver inputs, shared contract checks |
 | `modules/dual_contouring/joint_cell_complex.py` | Canonical tiles and minimal edges of a balanced leaf complex |
 | `modules/dual_contouring/joint_cell_branches.py` | Corner/edge numbering, sampled branch classification |
@@ -164,11 +204,13 @@ another module.
 | `modules/dual_contouring/joint_lattice.py` | Lattice nodes, tolerances, shared corner lookup |
 | `modules/dual_contouring/joint_ownership.py` | Controllers, fault-vertex borrowing, fallback region |
 | `modules/dual_contouring/joint_edge_decisions.py` | Retained / aligned / hanging edge decisions |
+| `modules/dual_contouring/joint_separator.py` | Separator contract, authorized pairs, plane fit, bank normalization |
 | `modules/dual_contouring/joint_field_queries.py` | Exact-point cache and validated targeted batches |
 | `modules/dual_contouring/joint_triangle_plan.py` | Junctions, edge rows, incidence and geometry validation, emission |
 
 Tests: `test_joint_cell_complex.py`, `test_joint_topology.py`,
 `test_joint_integration.py`, `test_joint_contacts.py`,
-`test_fault_drift_sampler.py`, `test_joint_modules.py` in
+`test_fault_drift_sampler.py`, `test_fault_bank_sampler.py`,
+`test_joint_fault_topology.py`, `test_joint_fault_banks.py`, `test_joint_modules.py` in
 `tests/test_common/test_modules/`. Benchmark:
 `tests/benchmark/model7_backend_benchmark.py`.
