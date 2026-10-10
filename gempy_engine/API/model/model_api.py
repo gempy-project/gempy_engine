@@ -1,12 +1,14 @@
 import copy
 import time
+from dataclasses import replace
 from typing import Optional, Any
 
 import numpy as np
 
 from ..dual_contouring.multi_scalar_dual_contouring import dual_contouring_multi_scalar
+from ..dual_contouring import multi_scalar_dual_contouring as dc_dispatch
 from ..interp_single.interp_features import interpolate_n_octree_levels
-from ...config import NOT_MAKE_INPUT_DEEP_COPY, AvailableBackends
+from ...config import NOT_MAKE_INPUT_DEEP_COPY, AvailableBackends, DualContouringOverlap, resolve_dual_contouring_overlap
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.dual_contouring_mesh import DualContouringMesh
@@ -29,6 +31,10 @@ from ...modules.weights_cache.weights_cache_interface import WeightCache
 @gempy_profiler_decorator
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
                   data_descriptor: InputDataDescriptor, *, geophysics_input: Optional[GeophysicsInput] = None) -> Solutions:
+    if options.mesh_extraction and resolve_dual_contouring_overlap(
+            options.evaluation_options.mesh_extraction_overlap, dc_dispatch.DUAL_CONTOURING_VERTEX_OVERLAP
+    ) in (DualContouringOverlap.joint, DualContouringOverlap.joint_contacts):
+        interpolation_input, data_descriptor = _isolate_fault_buffers(interpolation_input, data_descriptor)
     # Octree progress and cache timestamps belong to this computation. Keeping
     # them on a shared options object lets concurrent requests change each
     # other's active octree level.
@@ -271,3 +277,19 @@ def _validate_nugget(nugget, expected_size: int, name: str, allow_negative: bool
         raise GemPyEngineInputError(f"Validation Error: {name} nugget values must be finite.")
     if not allow_negative and (values < 0).any():
         raise GemPyEngineInputError(f"Validation Error: {name} nugget values must be non-negative.")
+
+
+def _isolate_fault_buffers(interpolation_input: InterpolationInput, data_descriptor: InputDataDescriptor):
+    """Private fault buffers for joint extraction, which re-reads them after the solve.
+
+    Fault preprocessing fills mutable buffers even when the full input copy is
+    disabled or skipped to preserve a Torch autograd graph.
+    """
+    stacks = copy.copy(data_descriptor.stack_structure)
+    if stacks.faults_input_data is not None:
+        stacks.faults_input_data = copy.deepcopy(stacks.faults_input_data)
+    data_descriptor = replace(data_descriptor, stack_structure=stacks)
+    if interpolation_input._fault_values is not None:
+        interpolation_input = copy.copy(interpolation_input)
+        interpolation_input._fault_values = copy.deepcopy(interpolation_input._fault_values)
+    return interpolation_input, data_descriptor
