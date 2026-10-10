@@ -153,6 +153,12 @@ def test_fault_merge_contract_is_exact(contract, match):
         core.extract_adaptive_topology(*args, **kwargs)
 
 
+def test_fault_merge_excludes_separator_contract():
+    args, kwargs = merge_case()
+    kwargs['separator_contacts'] = dict(separator=0, bank=0, fault_pairs={(0, 1)}, controllers={0: [], 1: [(0, -1)]})
+    with pytest.raises(ValueError, match='invalid_fault_merge_contract'):
+        core.extract_adaptive_topology(*args, **kwargs)
+
 def _targeted(kwargs, log=None):
     """field_query built from the analytic callback; full queries forbidden."""
     full = kwargs['sample_fields']
@@ -200,6 +206,14 @@ def test_targeted_queries_reject_disagreeing_shared_nodes():
     with pytest.raises(ValueError, match='inconsistent_corner_samples'):
         core.extract_adaptive_topology(*args, **_targeted(kwargs))
 
+
+def test_targeted_queries_exclude_separator_contract():
+    args, kwargs = merge_case()
+    kwargs = _targeted(kwargs)
+    kwargs.pop('fault_merge')
+    kwargs['separator_contacts'] = dict(separator=0, bank=0, fault_pairs={(0, 1)}, controllers={0: [], 1: [(0, -1)]})
+    with pytest.raises(ValueError, match='invalid_field_query_contract'):
+        core.extract_adaptive_topology(*args, **kwargs)
 
 # endregion
 
@@ -317,6 +331,7 @@ def test_model7_natural_adaptive(monkeypatch):
     meshes = compute_model(*_model7(9, 2, 0, 'joint_contacts')).dc_meshes
     assert len(prepared) == 1
     assert [(m.stack_index, m.surface_index) for m in meshes] == [(0, 0), (1, 0), (2, 0), (2, 1)]
+    assert all(m.joint_bank_ids is None and m.joint_face_bank_ids is None for m in meshes)
     report = meshes[0].contact_report
     assert report['interface'] == 'pretty_fault_vertex_merge_single_fault_mesh'
     assert report['fault_cell_count'] == {0: 414}
@@ -419,6 +434,7 @@ def _restore_numpy(torch):
 
 @pytest.mark.parametrize('kind', ['torch_cpu', 'torch_gpu', 'keops_gpu'])
 def test_model7_on_torch_backends(monkeypatch, kind):
+    """joint_contacts with faults; banked joint is covered by test_model7_banked_joint_on_torch_backends."""
     from gempy_engine.API.model.model_api import compute_model
 
     reference = _host_meshes(compute_model(*_model7(7, 2, 2, 'joint_contacts')).dc_meshes)
@@ -446,6 +462,33 @@ def test_model7_on_torch_backends(monkeypatch, kind):
         # Same tolerance as production NumPy/Torch field differences on Model 7.
         np.testing.assert_allclose(v0, v1, rtol=0, atol=1e-4)
 
+
+
+@pytest.mark.parametrize('kind', ['torch_cpu', 'torch_gpu', 'keops_gpu'])
+def test_model7_banked_joint_on_torch_backends(monkeypatch, kind):
+    from gempy_engine.API.model.model_api import compute_model
+
+    host = lambda a: a.detach().cpu().numpy() if hasattr(a, 'detach') else np.asarray(a)
+    reference = compute_model(*_model7(7, 2, 2, 'joint')).dc_meshes
+    torch = _torch_backend(kind)
+    banks = importlib.import_module('gempy_engine.API.dual_contouring.joint_fault_banks')
+    original = banks.prepare_fault_bank_sampler
+    prepared = []
+    monkeypatch.setattr(banks, 'prepare_fault_bank_sampler', lambda *a: prepared.append(original(*a)) or prepared[-1])
+    try:
+        meshes = compute_model(*_model7(7, 2, 2, 'joint')).dc_meshes
+    finally:
+        _restore_numpy(torch)
+    assert len(prepared) == 1
+    assert prepared[0]['diagnostics']['backend'].startswith('PYTORCH_' + ('cpu' if kind == 'torch_cpu' else 'cuda'))
+    if kind == 'keops_gpu':
+        assert all(len(m.edges) for m in meshes)
+        return
+    for a, b in zip(reference, meshes):
+        np.testing.assert_array_equal(host(a.joint_face_bank_ids), host(b.joint_face_bank_ids))
+        assert list(a.joint_vertex_keys) == list(b.joint_vertex_keys)
+        np.testing.assert_array_equal(host(a.edges), host(b.edges))
+        np.testing.assert_allclose(host(a.vertices), host(b.vertices), rtol=0, atol=1e-4)
 
 @pytest.mark.parametrize('kind', ['torch_cpu', 'torch_gpu', 'keops_gpu'])
 @pytest.mark.parametrize('mode', ['joint', 'joint_contacts'])
