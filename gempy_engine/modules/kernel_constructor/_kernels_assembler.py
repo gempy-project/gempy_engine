@@ -96,7 +96,9 @@ def create_scalar_kernel(
         j_size = ki.ref_fault.faults_j.shape[1]
         fault_n = ki.ref_fault.n_faults_i
 
-        selector_components = _structs.DriftMatrixSelector(
+        # Stacked (block-diagonal) kernels carry a per-block selector; the
+        # trailing-rows rule below only holds for a single field.
+        selector_components = getattr(ki, 'fault_drift_selector', None) or _structs.DriftMatrixSelector(
             x_size=cov_size,
             y_size=j_size,
             n_drift_eq=fault_n,
