@@ -37,6 +37,12 @@ def interpolate_feature_with_cokrig(interpolation_input: InterpolationInput,
     xyz = solver_input.xyz_to_interpolate
 
     weights = compute_weights(solver_input, stack_number, options)
+    # Retain actual evaluation provenance independently of mutable cache storage.
+    if isinstance(weights, np.ndarray):
+        solved_weights = weights.copy()
+        solved_weights.flags.writeable = False
+    else:
+        solved_weights = weights.clone()  # Preserve the Torch autograd graph.
     exported_fields: ExportedFields = _evaluate_sys_eq(solver_input, weights,
                                                        micro_evaluation_options(options, interpolation_input), grid=grid)
     fit_micro_fields(interpolation_input, exported_fields, options,
@@ -56,6 +62,7 @@ def interpolate_feature_with_cokrig(interpolation_input: InterpolationInput,
     # region segmentation
 
     output = _segment(exported_fields, external_segment_funct, grid, interpolation_input, options, xyz)
+    output.weights = solved_weights
     return output
 
 

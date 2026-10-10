@@ -12,6 +12,8 @@ class DualContouringOverlap(Flag):
     none = auto()
     pretty = auto()
     watertight = auto()
+    joint = auto()
+    joint_contacts = auto()  # joint erosion/onlap contacts, pretty-style fault merge
 
 # Define the paths for the .env files
 
@@ -49,3 +51,19 @@ def include_raw_scalar_fields() -> bool:
     return os.getenv('ONLY_LITH_SOLUTION', 'False') != 'True' or os.getenv(
         'SET_RAW_SCALAR_FIELDS_IN_SOLUTION', 'False'
     ) == 'True'
+
+
+def resolve_dual_contouring_overlap(value, default=None):
+    """Overlap mode from an option value (name, flag or None for the default); joint modes are exclusive."""
+    mode = (DUAL_CONTOURING_VERTEX_OVERLAP if default is None else default) if value is None else value
+    if isinstance(mode, str):
+        try:
+            mode = DualContouringOverlap[mode]
+        except KeyError as exc:
+            raise ValueError(f"Unsupported dual contouring overlap mode: {mode!r}") from exc
+    if not isinstance(mode, DualContouringOverlap):
+        raise ValueError(f"Unsupported dual contouring overlap mode: {mode!r}")
+    for exclusive in (DualContouringOverlap.joint, DualContouringOverlap.joint_contacts):
+        if mode & exclusive and mode != exclusive:
+            raise ValueError(f"{exclusive.name} cannot be combined with other dual contouring overlap flags")
+    return mode
