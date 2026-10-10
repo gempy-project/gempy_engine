@@ -32,15 +32,16 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
     The rule is verified against the production drift on the full reference
     grid before any query. Fault stacks themselves are drift-independent.
     Runs on NumPy or Torch (CPU or CUDA, optionally KeOps): queries take and
-    return host NumPy arrays; evaluation happens on the active device.
+    return host NumPy arrays; evaluation happens on the active device. Without
+    faults every stack is a plain fixed-weight evaluation.
+    ``query_sides(points, stacks, sides)`` instead fixes each fault's drift to
+    the plateau of one side per point (see its docstring).
     """
     check_fixed_weight_backend()
     stacks = descriptor.stack_structure
     n_stacks = stacks.n_stacks
     faults = tuple(i for i, relation in enumerate(stacks.masking_descriptor)
                    if relation is StackRelationType.FAULT)
-    if not faults:
-        raise ValueError('unsupported_fault_count: at least one fault required')
     matrix = fault_matrix(stacks)
     non_faults = [i for i in range(n_stacks) if i not in faults]
     if matrix[non_faults].any() or matrix[:, list(faults)].any():
@@ -280,10 +281,48 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                 offsets[key] = start+len(points)
         return results
 
+    # Drift plateaus far on either side of each fault (production drift saturates there).
+    plateaus = {}
+    for f in faults:
+        edges = rules[f][1]
+        far = 1e3*(1+float(np.max(np.abs(edges))))
+        negative, positive = drift(f, np.array([float(edges.min())-far, float(edges.max())+far]))
+        plateaus[f] = (float(negative), float(positive))
+
+    def query_sides(points, stacks, sides):
+        """Raw scalars of ``stacks`` (S, M) with every fault drift fixed to one side.
+
+        ``sides`` (len(fault_stacks), M) holds +1 for the positive and -1 for the
+        negative fault-potential side of each point's fault block: affected
+        stacks see the drift plateau of that side instead of the soft step, so
+        each block's field is smooth up to and across its faults.
+        """
+        if backend != (BT.engine_backend, BT.dtype, BT.use_gpu, BT.use_pykeops, BT.COMPUTE_GRADS):
+            raise RuntimeError('fault sampler backend changed after preparation')
+        stacks = tuple(stacks)
+        if not stacks or any(not isinstance(i, (int, np.integer)) or isinstance(i, bool)
+                             or not 0 <= i < n_stacks for i in stacks):
+            raise ValueError('invalid_query_stacks: nonempty in-bounds stack indices required')
+        points = np.array(points, dtype=np.float64, copy=True)
+        if points.ndim != 2 or points.shape[1] != 3 or not np.isfinite(points).all():
+            raise ValueError('invalid_query_points: finite (M, 3) coordinates required')
+        sides = np.asarray(sides)
+        if sides.shape != (len(faults), len(points)) or not np.isin(sides, (-1, 1)).all():
+            raise ValueError('invalid_fault_sides: +1 or -1 per fault and point required')
+        if not len(points):
+            return np.empty((len(stacks), 0))
+        items = []
+        for s in stacks:
+            rows = None
+            if affected_by[s]:
+                rows = np.stack([np.where(sides[faults.index(f)] > 0, *plateaus[f][::-1]) for f in affected_by[s]])
+            items.append((int(s), points, rows))
+        return np.stack(evaluate_many(items, 'scalar'))
+
     inspection = copy.deepcopy(snapshots)
     freeze_arrays(inspection)
     return dict(fault_stacks=faults, affected_by=affected_by, query=query, query_batch=query_batch,
-                snapshots=inspection,
+                query_sides=query_sides, drift_plateaus=plateaus, snapshots=inspection,
                 diagnostics=dict(backend=f"{BT.engine_backend.name}_{'cuda' if BT.use_gpu else 'cpu'}_float64"
                                          f"{'_keops' if BT.use_pykeops else ''}", fixed_weights=True,
                                  weight_provenance='independent_production_output_snapshot',
