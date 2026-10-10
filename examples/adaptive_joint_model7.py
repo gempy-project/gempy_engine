@@ -228,7 +228,7 @@ def render_closed_volumes(solution, off_screen=False, screenshot=None, explode=0
     plotter.show(screenshot=None if screenshot is None else str(screenshot))
 
 
-def render_tetrahedra(solution, off_screen=False, screenshot=None):
+def render_tetrahedra(solution, off_screen=False, screenshot=None, explode=0., inset=0.):
     import pyvista as pv
 
     mesh = solution.closed_volumes.tetrahedralize()
@@ -241,9 +241,30 @@ def render_tetrahedra(solution, off_screen=False, screenshot=None):
     grid.cell_data['unit'] = mesh.tet_units
     plotter = pv.Plotter(off_screen=off_screen, window_size=(1100, 800), title='Unit tetrahedra')
     plotter.set_background('#17212b')
-    plotter.add_mesh(grid.clip(normal='y'), scalars='unit', categories=True, cmap='tab10', show_edges=True,
-                     edge_color='#333333', line_width=.3, scalar_bar_args=dict(title='unit'))
-    plotter.add_text('Conforming unit tetrahedra (clipped)', font_size=12, color='white')
+    style = dict(show_edges=True, edge_color='#333333', line_width=.3)
+    if explode:
+        # Each unit pushed away from the model centre; whole units, not clipped.
+        colors = ['#e69f00', '#56b4e9', '#009e73', '#f0e442', '#0072b2', '#d55e00', '#cc79a7', '#999999']
+        centre = mesh.nodes.mean(axis=0)
+        for i in range(len(mesh.units)):
+            part = grid.extract_cells(np.flatnonzero(mesh.tet_units == i))
+            shift = explode*(np.asarray(part.center) - centre)
+            plotter.add_mesh(part.translate(shift, inplace=False), color=colors[i % len(colors)], **style)
+        title = 'Conforming unit tetrahedra (exploded)'
+    elif inset:
+        # Whole tetrahedra whose centroid lies in a box shrunk on every side.
+        low, high = mesh.nodes.min(axis=0), mesh.nodes.max(axis=0)
+        margin = inset*(high-low)
+        centroids = mesh.nodes[mesh.tetrahedra].mean(axis=1)
+        keep = np.all((centroids > low+margin) & (centroids < high-margin), axis=1)
+        plotter.add_mesh(grid.extract_cells(np.flatnonzero(keep)), scalars='unit', categories=True, cmap='tab10',
+                         scalar_bar_args=dict(title='unit'), **style)
+        title = 'Conforming unit tetrahedra (inset on every side)'
+    else:
+        plotter.add_mesh(grid.clip(normal='y', crinkle=True), scalars='unit', categories=True, cmap='tab10',
+                         scalar_bar_args=dict(title='unit'), **style)
+        title = 'Conforming unit tetrahedra (clipped)'
+    plotter.add_text(title, font_size=12, color='white')
     plotter.add_axes()
     plotter.view_isometric()
     plotter.show(screenshot=None if screenshot is None else str(screenshot))
@@ -258,7 +279,9 @@ def main():
     parser.add_argument('--mode', choices=('joint', 'joint_contacts'), default='joint')
     parser.add_argument('--compare', action='store_true', help='four production modes, fresh models')
     parser.add_argument('--closed-volumes', action='store_true', help='joint: closed unit shells per fault bank')
-    parser.add_argument('--explode', type=float, default=0., help='--closed-volumes: push shells apart')
+    parser.add_argument('--explode', type=float, default=0., help='--closed-volumes/--tetrahedralize: push units apart')
+    parser.add_argument('--inset', type=float, default=0.,
+                        help='--tetrahedralize: drop whole tetrahedra within this fraction of every side')
     parser.add_argument('--tetrahedralize', action='store_true',
                         help='--closed-volumes: conforming unit tetrahedra through TetGen')
     parser.add_argument('--off-screen', action='store_true')
@@ -307,7 +330,7 @@ def main():
     if exit_code == 0 and not args.check_only:
         joint = [solution for report, solution in cases if report['mode'] == 'joint']
         if args.tetrahedralize and joint:
-            render_tetrahedra(joint[0], args.off_screen, args.screenshot)
+            render_tetrahedra(joint[0], args.off_screen, args.screenshot, args.explode, args.inset)
         elif args.closed_volumes and joint:
             render_closed_volumes(joint[0], args.off_screen, args.screenshot, args.explode)
         else:
