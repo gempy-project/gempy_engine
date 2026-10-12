@@ -17,6 +17,7 @@ class DualContouringMesh:
     exported_surface_index: Optional[int] = None
     isovalue: Optional[float] = None
     inside_convention: Optional[str] = None
+    contact_report: Optional[dict] = None
 
     def __repr__(self):
         return f"DualContouringMesh({self.vertices.shape[0]} vertices, {self.edges.shape[0]} edges)"

@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Annotated
 
 from typing_extensions import deprecated
+from ....config import DualContouringOverlap
 
 
 
@@ -54,6 +55,7 @@ class EvaluationOptions:
     compute_scalar_gradient: bool = False
     
     verbose: bool = False
+    mesh_extraction_overlap: str | DualContouringOverlap | None = None  #: None uses DUAL_CONTOURING_VERTEX_OVERLAP.
 
     @property
     def number_octree_levels(self):
