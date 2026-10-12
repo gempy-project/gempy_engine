@@ -199,3 +199,46 @@ def test_targeted_batch_validates_shapes_and_counts_points():
         TargetedFieldBatch(lambda requests: [np.zeros(1)])([(np.zeros((2, 3)), [0], 'scalar')])
 
 # endregion
+
+
+# region joint_separator
+
+def test_separator_contract_and_controllers():
+    from gempy_engine.modules.dual_contouring.joint_separator import (authorize_fault_pairs, check_separator_contract,
+                                                                      separator_controllers)
+    relations = [R.FAULT, R.BASEMENT]
+    contract = dict(separator=0, bank=1, fault_pairs={(0, 1)}, controllers={0: [], 1: [(0, -1)]})
+    assert check_separator_contract(contract, [0, 1], relations, {(0, 1)}) == (0, 1)
+    for bad, match in ((dict(contract, bank=2), 'invalid_separator_contract'),
+                       (dict(contract, fault_pairs={(1, 0)}), 'unauthorized_fault_pairs'),
+                       ({k: v for k, v in contract.items() if k != 'controllers'}, 'invalid_separator_contract')):
+        with pytest.raises(ValueError, match=match):
+            check_separator_contract(bad, [0, 1], relations, {(0, 1)})
+    with pytest.raises(ValueError, match='invalid_separator_contract'):
+        check_separator_contract(contract, [0, 1], [R.ERODE, R.BASEMENT], {(0, 1)})
+    allowed = authorize_fault_pairs(np.zeros((2, 2), dtype=bool), {(0, 1)})
+    assert allowed[0, 1] and allowed[1, 0]
+    assert separator_controllers({0: [], 1: []}, {(0, 1)}) == {0: [], 1: [(0, -1)]}
+
+
+def test_separator_plane_fit_and_bank_normalization():
+    from gempy_engine.modules.dual_contouring.joint_separator import (bank_normalized, check_separator_samples,
+                                                                      fit_separator_plane)
+    points = np.random.default_rng(1).uniform(size=(20, 3))
+    normal = np.array([1., .2, 0.])
+    raw, gradients = points @ normal - .3, np.tile(normal, (20, 1))
+    plane = fit_separator_plane(points, raw, gradients)
+    np.testing.assert_allclose(plane[1], normal, atol=1e-12)
+    check_separator_samples(points[:3], raw[:3], gradients[:3], plane)
+    with pytest.raises(ValueError, match='unsupported_separator_geometry'):
+        check_separator_samples(points[:3], raw[:3] + .1, gradients[:3], plane)
+    with pytest.raises(ValueError, match='unsupported_separator_geometry'):
+        fit_separator_plane(points, raw + points[:, 0]**2, gradients)
+    with pytest.raises(ValueError, match='unsupported_separator_orientation'):
+        fit_separator_plane(points, raw, -gradients)
+    values, normals = bank_normalized(np.stack([raw, raw]), np.stack([gradients, gradients]), [0], -1, .5)
+    np.testing.assert_allclose(values[0], .5 - raw)
+    np.testing.assert_allclose(normals[0], -gradients)
+    np.testing.assert_array_equal(values[1], raw)
+
+# endregion

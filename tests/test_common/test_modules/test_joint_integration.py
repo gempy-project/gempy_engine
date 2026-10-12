@@ -173,11 +173,14 @@ def test_joint_guards(monkeypatch, guard):
     assert descriptor.stack_structure.stack_number == -1
 
 
-def test_joint_with_faults_is_unsupported_without_banks():
+def test_joint_fault_dispatch_uses_supported_bridge(monkeypatch):
     descriptor, inputs, options, levels = _case()
     descriptor.stack_structure.masking_descriptor[0] = StackRelationType.FAULT
-    with pytest.raises(NotImplementedError, match="unsupported_fault_extraction"):
-        adapter.extract_joint_octree(descriptor, inputs, options, levels)
+    bridge = importlib.import_module("gempy_engine.API.dual_contouring.joint_fault_banks")
+    extract = Mock(return_value=["supported_fault_bridge"])
+    monkeypatch.setattr(bridge, "extract_fault_joint_octree", extract)
+    assert adapter.extract_joint_octree(descriptor, inputs, options, levels) == ["supported_fault_bridge"]
+    extract.assert_called_once_with(descriptor, inputs, options, levels)
 
 
 @pytest.mark.parametrize("fail_query", [False, True])

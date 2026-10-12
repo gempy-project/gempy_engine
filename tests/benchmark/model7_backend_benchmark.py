@@ -22,7 +22,7 @@ import sys
 import time
 
 BACKENDS = ('numpy', 'torch_cpu', 'torch_gpu', 'keops_gpu')
-MODES = ('none', 'pretty', 'joint_contacts')
+MODES = ('none', 'pretty', 'joint', 'joint_contacts')
 
 
 def worker(backend, args):
