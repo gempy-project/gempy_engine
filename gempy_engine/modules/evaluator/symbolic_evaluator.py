@@ -604,4 +604,31 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInp
     stacked.nugget_scalar = kernel_data_list[0].nugget_scalar
     stacked.nugget_grad = kernel_data_list[0].nugget_grad
 
+    # The scalar kernel locates fault-drift rows as the trailing rows of the
+    # covariance. In a stacked kernel that would only mark the last block, so
+    # every block's own trailing fault rows are marked explicitly here.
+    if stacked.ref_fault is not None:
+        stacked.fault_drift_selector = _stacked_fault_drift_selector(kernel_data_list)
+
     return stacked
+
+
+def _stacked_fault_drift_selector(kernel_data_list: list[KernelInput]):
+    from ..kernel_constructor._structs import DriftMatrixSelector
+
+    def raw(value):
+        return value.variables[0] if hasattr(value, 'variables') else value
+
+    blocks = []
+    for kd in kernel_data_list:
+        if kd.ref_fault is None:
+            raise ValueError('Stacked fault drift requires fault rows in every stacked field')
+        rows = raw(kd.ref_fault.faults_i).shape[0]
+        columns = raw(kd.ref_fault.faults_j).shape[1]
+        n_faults = kd.ref_fault.n_faults_i
+        blocks.append(DriftMatrixSelector(x_size=rows, y_size=columns, n_drift_eq=n_faults,
+                                          drift_start_post_x=rows - n_faults, drift_start_post_y=columns))
+    selector = DriftMatrixSelector.__new__(DriftMatrixSelector)
+    selector.sel_ui = BackendTensor.t.concatenate([block.sel_ui for block in blocks], axis=0)
+    selector.sel_vj = BackendTensor.t.concatenate([block.sel_vj for block in blocks], axis=1)
+    return selector
