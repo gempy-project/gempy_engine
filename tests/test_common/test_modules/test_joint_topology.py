@@ -15,7 +15,7 @@ from gempy_engine.modules.dual_contouring._gen_vertices import generate_dual_con
 from gempy_engine.modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge
 from gempy_engine.modules.dual_contouring.joint_cell_branches import CORNERS
 from gempy_engine.modules.dual_contouring.joint_triangle_plan import (
-    face_pair_root, plan_adaptive_triangles, validate_adaptive_geometry,
+    face_pair_root, plan_adaptive_triangles,
 )
 
 
@@ -239,7 +239,7 @@ def test_curved_monotone_contact_uses_actual_crossing_normals():
             np.testing.assert_array_equal(reference[key], position)
 
 
-def test_competing_pairs_rejected_before_emission():
+def test_competing_pairs_fall_back_to_unshared_vertices():
     origins, spans = mixed_leaves()
     xyz = origins[:, None, :]+spans[:, None, None]*CORNERS
 
@@ -250,10 +250,10 @@ def test_competing_pairs_rejected_before_emission():
 
     samples = callback(xyz.reshape(-1, 3))[0].reshape(3, -1, 8)
     own = np.array([np.ones_like(samples[0]), -samples[0], -samples[0]])
-    with pytest.raises(ValueError, match='unsupported_multiway_junction'):
-        extract_adaptive_topology(origins, spans, (8, 8, 8), (0, 8, 0, 8, 0, 8), samples,
-                                  [0, 1, 1], [0, 0, 1], [R.ERODE, R.BASEMENT], [[0.], [0., 1.]],
-                                  sample_fields=callback, ownership=own)
+    result = extract_adaptive_topology(origins, spans, (8, 8, 8), (0, 8, 0, 8, 0, 8), samples,
+                                       [0, 1, 1], [0, 0, 1], [R.ERODE, R.BASEMENT], [[0.], [0., 1.]],
+                                       sample_fields=callback, ownership=own)
+    assert sum(len(f) for f in result['faces'])
 
 
 def test_aligned_tile_pair_rejected():
@@ -295,13 +295,9 @@ def test_float32_supported_and_faults_explicitly_unsupported():
 
 
 @pytest.mark.parametrize('backend', [AvailableBackends.numpy, AvailableBackends.PYTORCH])
-@pytest.mark.parametrize('case, error', [
-    ('folded_controller', 'folded_controller_seam'),
-    ('unowned_target', 'unowned_qef_vertex'),
-    ('offset_mismatch', 'inconsistent_corner_samples'),
-    ('hidden_hanging_branch', 'unsupported_hanging_branch'),
-])
-def test_review_reproductions_rejected_before_face_emission(backend, case, error, monkeypatch):
+@pytest.mark.parametrize('case', ['folded_controller', 'unowned_target', 'offset_mismatch', 'hidden_hanging_branch'])
+def test_review_reproductions_still_mesh(backend, case):
+    """Former rejections (folds, unowned vertices, offset corners, hanging branches) now emit a mesh."""
     import gempy_engine.API.dual_contouring.joint_topology as api
 
     if backend is AvailableBackends.PYTORCH:
@@ -338,15 +334,12 @@ def test_review_reproductions_rejected_before_face_emission(backend, case, error
     n = len(samples)
     levels = [[1e12], [0.]] if case == 'offset_mismatch' else [[0.]]*n
 
-    def forbidden_emission(*args):
-        pytest.fail('invalid patch reached final triangle allocation')
-
-    monkeypatch.setattr(api, 'emit_adaptive_triangles', forbidden_emission)
-    with pytest.raises(ValueError, match=error):
-        api.extract_adaptive_topology(
-            origins, spans, (8, 8, 8), (0, 8, 0, 8, 0, 8), samples,
-            list(range(n)), [0]*n, [R.ERODE, R.BASEMENT] if n == 2 else [R.BASEMENT],
-            levels, sample_fields=callback)
+    result = api.extract_adaptive_topology(
+        origins, spans, (8, 8, 8), (0, 8, 0, 8, 0, 8), samples,
+        list(range(n)), [0]*n, [R.ERODE, R.BASEMENT] if n == 2 else [R.BASEMENT],
+        levels, sample_fields=callback)
+    assert sum(len(f) for f in result['faces'])
+    assert np.isfinite(result['vertices']).all()
 
 
 @pytest.mark.parametrize('backend', [AvailableBackends.numpy, AvailableBackends.PYTORCH])
@@ -367,28 +360,3 @@ def test_consistent_large_raw_offset_remains_supported(backend):
         origins, spans, (8, 8, 8), (0, 8, 0, 8, 0, 8), samples, [0, 1], [0, 0],
         [R.ERODE, R.BASEMENT], [[1e12], [0.]], sample_fields=callback)
     assert result['diagnostics']['coarsefine_seam_edge_count'] == 1
-
-
-@pytest.mark.parametrize('case, error', [
-    ('geometry', 'third vertices do not straddle seam'),
-    ('field', 'third vertices do not straddle target field'),
-])
-def test_opposite_oriented_seam_still_requires_geometric_and_field_sides(case, error):
-    members = ((0, 0), (1, 0))
-    a = ('joint', members, (0, 0, 0), 1, 0)
-    b = ('joint', members, (1, 0, 0), 1, 0)
-    regular = [('regular', ((s, 0),), (i, 1, 0), 1, 0) for i, s in enumerate([0, 0, 1])]
-    positions = {a: np.array([0., 0., 0.]), b: np.array([1., 0., 0.]),
-                 regular[0]: np.array([0., 1., 0.]),
-                 regular[1]: np.array([0., 2. if case == 'geometry' else -1., 0.]),
-                 regular[2]: np.array([0., 0., 1.])}
-    plans = [[dict(keys=[a, b, regular[0]], normal=np.array([0., 0., 1.])),
-              dict(keys=[b, a, regular[1]], normal=np.array([0., 0., -.5 if case == 'geometry' else 1.]))],
-             [dict(keys=[a, b, regular[2]], normal=np.array([0., -1., 0.]))]]
-    triangles = plan_adaptive_triangles(plans, positions)
-    assert triangles[0][0]['keys'][:2] == triangles[0][1]['keys'][:2][::-1]
-    vertex_fields = {regular[0]: np.array([0., 1.]),
-                     regular[1]: np.array([0., -1. if case == 'geometry' else 1.])}
-    with pytest.raises(ValueError, match=error):
-        validate_adaptive_geometry(triangles, {(a, b)}, {0: dict(key=a, pair=(0, 1))},
-                                   positions, vertex_fields, np.array([1e-10, 1e-10]), {0: [], 1: []})

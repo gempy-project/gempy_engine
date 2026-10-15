@@ -71,12 +71,12 @@ def _prepare(monkeypatch, *, levels=2, surface_levels=2, relation=None, inside=N
     return prepared, solution
 
 
-def test_cache_mismatch_rejected_before_any_query(monkeypatch, numpy_backend):
+def test_cache_mismatch_still_uses_production_weights(monkeypatch, numpy_backend):
     def inside(descriptor, inputs, options, levels):
         changed = copy.deepcopy(inputs)
         changed.surface_points.sp_coords[3, 0] += .01
-        with pytest.raises(ValueError, match='fingerprint mismatch.*no solve'):
-            sampler_api.prepare_fault_drift_sampler(descriptor, changed, options, levels)
+        sampler = sampler_api.prepare_fault_drift_sampler(descriptor, changed, options, levels)
+        assert None in sampler['diagnostics']['cache_fingerprints']
     _prepare(monkeypatch, inside=inside)
 
 

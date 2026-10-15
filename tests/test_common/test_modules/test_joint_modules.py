@@ -9,9 +9,9 @@ from gempy_engine.modules.dual_contouring.joint_cell_complex import build_adapti
 from gempy_engine.modules.dual_contouring.joint_contact_relations import build_contact_relations
 from gempy_engine.modules.dual_contouring.joint_edge_decisions import crossing_normals, edge_crossing_decisions
 from gempy_engine.modules.dual_contouring.joint_field_queries import ExactPointCache, TargetedFieldBatch
-from gempy_engine.modules.dual_contouring.joint_lattice import (field_tolerances, lattice_frame, leaf_corner_nodes,
-                                                                lookup_node_fields, minimal_edge_nodes,
-                                                                shared_node_fields, tile_nodes)
+from gempy_engine.modules.dual_contouring.joint_lattice import (lattice_frame, leaf_corner_nodes, lookup_node_fields,
+                                                                minimal_edge_nodes, shared_node_fields,
+                                                                snap_straddling_nodes, tile_nodes)
 from gempy_engine.modules.dual_contouring.joint_ownership import (borrowed_hermite_rows, borrowed_leaves,
                                                                   check_composite_controllers,
                                                                   check_missing_controllers, contact_pairs,
@@ -46,17 +46,22 @@ def test_shared_node_lookup_and_disagreement():
     origins, spans, domain = _uniform()
     corners = leaf_corner_nodes(origins, spans, CORNERS)
     fields = corners[..., 2][None].astype(float)-.5
-    tolerances = field_tolerances(fields+.5, np.array([.5]))
-    lattice = shared_node_fields(corners, fields, domain, tolerances)
+    lattice = shared_node_fields(corners, fields, domain)
     np.testing.assert_array_equal(lookup_node_fields(np.array([[0, 0, 2], [1, 1, 0]]), *lattice)[0], [1.5, -.5])
     coarse = leaf_corner_nodes(np.zeros((1, 3), dtype=int), np.array([2]), CORNERS)
-    coarse_lattice = shared_node_fields(coarse, np.ones((1, 1, 8)), domain, tolerances)
+    coarse_lattice = shared_node_fields(coarse, np.ones((1, 1, 8)), domain)
     with pytest.raises(ValueError, match='unsupported_adaptive_node'):
         lookup_node_fields(np.array([[1, 1, 1]]), *coarse_lattice)
-    broken = fields.copy()
-    broken[0, 0, 7] += 1e-6
-    with pytest.raises(ValueError, match='inconsistent_corner_samples'):
-        shared_node_fields(corners, broken, domain, tolerances)
+    # Leaves disagreeing on a node's side all take the node's first sample.
+    node = tuple(corners[0, 7])
+    sharing = np.all(corners == node, axis=-1)
+    assert sharing.sum() > 1
+    samples = fields + .5
+    samples[0][sharing] = .5 + 1e-6
+    samples[0, 0, 7] = .5 - 1e-6
+    snapped = snap_straddling_nodes(corners, samples, np.array([.5]), domain)
+    assert len(set(snapped[0][sharing].tolist())) == 1
+    np.testing.assert_array_equal(snapped[0][~sharing], samples[0][~sharing])
 
 
 def test_lattice_frame_rejects_invalid_extent():
@@ -140,12 +145,11 @@ def test_edge_decisions_keep_owned_interior_crossings():
     np.testing.assert_allclose(crossing_normals(fraction, gradients)[0, :, 2], [2., 1.])
     exterior = np.array([[0, 1, -1, -1], [0, 1, 2, 3]])
     assert not edge_crossing_decisions(edge_fields, {0: [], 1: []}, exterior, counts)[0][0, 0]
-    with pytest.raises(ValueError, match='unsupported_hanging_branch'):
-        edge_crossing_decisions(edge_fields, {0: [], 1: []}, edge_cells, np.full((2, 4), 2))
+    # Hanging branches and aligned endpoints emit no face.
+    assert not edge_crossing_decisions(edge_fields, {0: [], 1: []}, edge_cells, np.full((2, 4), 2))[0].any()
     aligned = edge_fields.copy()
     aligned[0, 0, 0] = 0.
-    with pytest.raises(ValueError, match='sample_aligned_interface'):
-        edge_crossing_decisions(aligned, {0: [], 1: []}, edge_cells, counts)
+    assert not edge_crossing_decisions(aligned, {0: [], 1: []}, edge_cells, counts)[0][0, 0]
 
 
 def test_edge_rows_split_borrowed_rings_and_drop_all_fault_triangles():

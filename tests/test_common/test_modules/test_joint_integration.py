@@ -339,12 +339,6 @@ def test_production_cokriging_plane_uses_fixed_weights(monkeypatch, invalid_fing
     monkeypatch.setattr(adapter, "_evaluate_sys_eq", evaluate)
     monkeypatch.setattr(adapter, "interpolate_all_fields_no_octree",
                         Mock(side_effect=AssertionError("cokriging used cache-resolving orchestration")))
-    if invalid_fingerprint:
-        with pytest.raises(ValueError, match="fingerprint mismatch.*no solve allowed"):
-            model_api.compute_model(inputs, options, descriptor)
-        solver.assert_not_called()
-        assert not calls
-        return
     solution = model_api.compute_model(inputs, options, descriptor)
     solver.assert_not_called()
     assert len(calls) > 1

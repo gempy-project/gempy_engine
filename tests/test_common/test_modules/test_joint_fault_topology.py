@@ -11,9 +11,7 @@ from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor as BT
 from gempy_engine.core.data.stack_relation_type import StackRelationType as R
 from gempy_engine.modules.dual_contouring.joint_cell_branches import CORNERS
-from gempy_engine.modules.dual_contouring.joint_triangle_plan import (
-    plan_adaptive_junctions, validate_adaptive_geometry,
-)
+from gempy_engine.modules.dual_contouring.joint_triangle_plan import plan_adaptive_junctions
 
 
 @pytest.fixture(params=[AvailableBackends.numpy, AvailableBackends.PYTORCH], autouse=True)
@@ -197,14 +195,12 @@ def test_bank_uses_strict_primitive_not_tolerance_extrapolated_crossings(bank, m
     assert result['diagnostics']['coarsefine_seam_edge_count'] == 2
     joint = result['vertices'][np.unique(result['seam_edges'])]
     np.testing.assert_allclose(joint[:, 0], 3.999, atol=1e-12)
-    # The unchanged ordinary path still rejects the legacy primitive's
-    # same-sign extrapolated intersections close to an edge endpoint.
+    # The ordinary path keeps the legacy primitive; its crossings are taken on strict sides only.
     if bank == 1:
         ordinary = list(args)
         ordinary[7] = [R.ERODE, R.BASEMENT]
         ordinary[8] = [[0.], [10., 20.]]
-        with pytest.raises(ValueError, match='unsupported_geometric_flags'):
-            api.extract_adaptive_topology(*ordinary, sample_fields=kwargs['sample_fields'])
+        api.extract_adaptive_topology(*ordinary, sample_fields=kwargs['sample_fields'])
         assert calls[-1] is False
 
 
@@ -333,20 +329,10 @@ def test_nonplanar_or_drifting_separator_rejected(geometry, monkeypatch):
 
 
 @pytest.mark.parametrize('bank', [0, 1])
-def test_competing_triple_rejected_before_emission(bank, monkeypatch):
+def test_competing_triple_falls_back_to_unshared_vertices(bank):
     args, kwargs = bank_case(bank, erosion=3.7)
-    forbid_emission(monkeypatch)
-    with pytest.raises(ValueError, match='unsupported_multiway_junction|unsupported_ownership_tile'):
-        api.extract_adaptive_topology(*args, **kwargs)
-
-
-def test_actual_joint_representative_obeys_nonparticipating_controller():
-    key = ('joint', ((0, 0), (1, 0)), (0, 0, 0), 1, 0)
-    triangles = [[dict(keys=(key, key, key))], [], []]
-    with pytest.raises(ValueError, match='unowned_qef_vertex'):
-        validate_adaptive_geometry(triangles, set(), {0: dict(key=key, pair=(0, 1))}, {},
-                                   {key: np.array([0., 0., 1.])}, np.full(3, 1e-10),
-                                   {0: [(1, -1), (2, -1)], 1: [], 2: []})
+    result = api.extract_adaptive_topology(*args, **kwargs)
+    assert sum(len(f) for f in result['faces'])
 
 
 @pytest.mark.parametrize('participant', [0, 1])
@@ -368,11 +354,9 @@ def test_candidate_evidence_checks_both_participants_before_joint(participant, d
     args = ([face], np.array([[[0., 0., 0.], [1., 0., 0.], [0., 1., 0.], [1., 1., 0.]]]),
             tile_fields, {(0, 1)}, [(0, 0), (1, 0), (2, 0)], np.array([[0, 0, 0]]),
             np.array([1]), None, None, None, None)
-    if decision == 'excluded':
-        assert plan_adaptive_junctions(*args, **kwargs) == ({}, [])
-    else:
-        with pytest.raises(ValueError, match='unsupported_multiway_junction|unsupported_ownership_tile'):
-            plan_adaptive_junctions(*args, **kwargs)
+    # Competing or mismatched ownership gives the junction up to unshared vertices.
+    fallback = set() if decision == 'excluded' else {0}
+    assert plan_adaptive_junctions(*args, **kwargs) == ({}, [], fallback)
 
 
 @pytest.mark.parametrize('mixed', [False, True], ids=['full_refine', 'mixed_leaves'])

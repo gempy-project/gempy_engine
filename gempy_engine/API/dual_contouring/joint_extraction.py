@@ -12,6 +12,7 @@ from .joint_topology import extract_adaptive_topology
 from ..interp_single.interp_features import interpolate_all_fields_no_octree
 from ..interp_single._interp_single_feature import input_preprocess, interpolate_feature_with_external_function
 from ..interp_single._interp_scalar_field import _evaluate_sys_eq
+from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor as BT
 from ...core.data import TensorsStructure
 from ...core.data.dual_contouring_mesh import DualContouringMesh
@@ -179,6 +180,9 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
         shape = TensorsStructure.from_tensor_structure_subset(query_descriptor, stack_index)
         weights, _ = production_weights(stack_options, stack_index, input_preprocess(shape, subset),
                                         octree_list[-1].outputs[stack_index].weights, 'joint')
+        if isinstance(weights, np.ndarray) and BT.engine_backend is not AvailableBackends.numpy:
+            # Flat stacks keep host weights; evaluators (KeOps) need them on the device.
+            weights = BT.t.array(np.ascontiguousarray(weights), dtype=BT.dtype_obj)
         fixed_weights[stack_index] = weights
         query_input.weights[stack_index] = weights
 

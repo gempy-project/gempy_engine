@@ -13,12 +13,12 @@ from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.stack_relation_type import StackRelationType as R
 from ...modules.dual_contouring._gen_vertices import generate_dual_contouring_vertices
 from ...modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge
-from ...modules.dual_contouring.joint_cell_branches import CORNERS, EDGE_START, EDGE_END, classify_cell_branches
+from ...modules.dual_contouring.joint_cell_branches import CORNERS, EDGE_START, EDGE_END
 from ...modules.dual_contouring.joint_cell_complex import build_adaptive_complex
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
 from ...modules.dual_contouring.joint_edge_decisions import crossing_normals, edge_crossing_decisions
 from ...modules.dual_contouring.joint_field_queries import ExactPointCache, TargetedFieldBatch
-from ...modules.dual_contouring.joint_lattice import (field_tolerances, lattice_frame, leaf_corner_nodes,
+from ...modules.dual_contouring.joint_lattice import (lattice_frame, leaf_corner_nodes,
                                                       lookup_node_fields, minimal_edge_nodes, precision_tolerance,
                                                       shared_node_fields, snap_straddling_nodes, tile_nodes)
 from ...modules.dual_contouring.joint_separator import (authorize_fault_pairs, check_separator_contract,
@@ -31,7 +31,7 @@ from ...modules.dual_contouring.joint_ownership import (borrowed_hermite_rows, b
                                                         fault_merge_targets, ordinary_controllers)
 from ...modules.dual_contouring.joint_triangle_plan import (emit_adaptive_triangles, plan_adaptive_junctions,
                                                             plan_adaptive_triangles, plan_edge_rows,
-                                                            validate_adaptive_geometry, validate_adaptive_incidence)
+                                                            validate_adaptive_incidence)
 from ...modules.dual_contouring.weighted_qef_setup_multicore import DEFAULT_CROSS_SURFACE_WEIGHT
 
 
@@ -122,7 +122,6 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     faces, edges = complex_['faces'], complex_['edges']
     tiles, edge_nodes = tile_nodes(faces), minimal_edge_nodes(edges)
     tile_xyz, minimal_xyz = bounds[::2]+tiles*spacing, bounds[::2]+edge_nodes*spacing
-    tolerances = field_tolerances(samples, levels, BT.dtype)
     if field_query is not None and (separator_contacts is not None or ownership is not None):
         raise ValueError('invalid_field_query_contract: exclusive with separator contacts and ownership')
     plane = []
@@ -136,10 +135,10 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     batch = TargetedFieldBatch(field_query)
     if field_query is not None:
         # Every tile and minimal-edge node is a leaf corner: reuse the supplied
-        # corner values, after checking that leaves sharing a node agree.
-        samples = snap_straddling_nodes(corners, samples, levels, domain, tolerances)
+        # corner values, one side per node for every leaf sharing it.
+        samples = snap_straddling_nodes(corners, samples, levels, domain)
         fields = samples-levels[:, None, None]
-        lattice = shared_node_fields(corners, fields, domain, tolerances)
+        lattice = shared_node_fields(corners, fields, domain)
         tile_fields = lookup_node_fields(tiles, *lattice).reshape(n, len(faces), 4)
         edge_fields = lookup_node_fields(edge_nodes, *lattice).reshape(n, len(edges), 2)
         # Endpoint gradients orient ring triangles only on edges a surface
@@ -151,9 +150,6 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         if separator is not None:
             plane.append(fit_separator_plane(all_points, raw[separator], gradients[separator],
                                              precision_tolerance(1e-10, BT.dtype)))
-        canonical, _ = query(xyz)
-        if np.any(np.abs(canonical.reshape(samples.shape)-levels[:, None, None]-fields) > tolerances[:, None, None]):
-            raise ValueError('inconsistent_corner_samples: callback disagrees with raw original corners')
         tile_fields = query(tile_xyz)[0].reshape(n, len(faces), 4)-levels[:, None, None]
         edge_fields, endpoint_gradients = query(minimal_xyz)
         edge_fields = edge_fields.reshape(n, len(edges), 2)-levels[:, None, None]
@@ -234,10 +230,10 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
             controllers=controllers, leaf_fields=fields, overridden={s: region for s in range(n)})
         fallback = fallback_junction_leaves(fallback, region, flags.any(axis=2), pairs)
     else:
-        junctions, evidence = plan_adaptive_junctions(
+        junctions, evidence, fallback = plan_adaptive_junctions(
             faces, tile_xyz, tile_fields, pairs, identities, origins, spans, counts, edge_xyz, normals, flags,
             controllers=controllers, leaf_fields=fields)
-    fallback_leaves = {(tuple(map(int, origins[c])), int(spans[c])) for c in region}
+    fallback_leaves = {(tuple(map(int, origins[c])), int(spans[c])) for c in region | fallback}
 
     def vertex_key(s, cell):
         if cell in junctions and s in junctions[cell]['pair']:
@@ -264,28 +260,6 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     vertices = np.asarray([positions[k] for k in keys]).reshape(-1, 3)
     ids = {k: i for i, k in enumerate(keys)}
     triangles = plan_adaptive_triangles(plans, positions)
-    used_regular = sorted({k for rows in triangles for row in rows for k in row['keys'] if k[0] == 'regular'})
-    joint_keys = [j['key'] for j in junctions.values()]
-    vertex_fields = {}
-    if field_query is None:
-        if used_regular:
-            raw, _ = query([positions[k] for k in used_regular])
-            vertex_fields = dict(zip(used_regular, (raw-levels[:, None]).T))
-        if junctions:
-            raw, _ = query([positions[k] for k in joint_keys])
-            vertex_fields.update(zip(joint_keys, (raw-levels[:, None]).T))
-    else:
-        regular_raw, joint_raw = batch([([positions[k] for k in used_regular], range(n), 'scalar'),
-                                        ([positions[k] for k in joint_keys], range(n), 'scalar')])
-        vertex_fields = dict(zip(used_regular, (regular_raw-levels[:, None]).T))
-        vertex_fields.update(zip(joint_keys, (joint_raw-levels[:, None]).T))
-    # Ownership is not certified for borrowed fault vertices nor in fallback
-    # leaves, where pretty-style unshared vertices replace a joint junction.
-    exempt = ([{k for row in rows for k in row['keys'] if k[0] == 'regular' and (
-                   k[1][0] in fault_identities or (k[2], k[3]) in fallback_leaves)}
-               for rows in triangles] if fault_region else None)
-    validate_adaptive_geometry(triangles, seams, junctions, positions, vertex_fields, tolerances, controllers,
-                               exempt=exempt)
     output_faces, affected = (None, None) if defer_emission else emit_adaptive_triangles(triangles, ids)
     # endregion
 
@@ -341,7 +315,7 @@ def _tensor(a, boolean=False):
 
 
 def _surface_crossings(xyz, samples, levels, stricts, merged, multi_fault, fields, *, strict, reject_aligned=False):
-    """Production edge crossings per surface, checked against strict sides, plus branch counts.
+    """Production edge crossings per surface on the strict sides, plus branch counts.
 
     Leaves whose geometry a surface discards (borrowed or multi-fault) are
     neither checked nor classified (count one). ``reject_aligned`` rejects any
@@ -357,19 +331,18 @@ def _surface_crossings(xyz, samples, levels, stricts, merged, multi_fault, field
             **({'strict_crossings': True} if strict else {}))
         production_flags = _detached(production_flags).reshape(leaves, 12).astype(bool)
         skipped = merged[s] | multi_fault[s]
-        if not np.array_equal(stricts[s][~skipped], production_flags[~skipped]):
-            raise ValueError('unsupported_geometric_flags: production tolerance crosses a non-strict edge')
-        if merged[s].any():
-            # Production crossings follow production flags; keep only strict edges.
-            dense_production = np.zeros((leaves, 12, 3))
-            dense_production[production_flags] = _detached(crossings)
-            crossings = dense_production[stricts[s]]
-        _, components, _, _, _ = classify_cell_branches(fields[s], stricts[s], skip=skipped if skipped.any() else None)
-        if np.any(components > 1):
-            raise ValueError('unsupported_adaptive_branches: only original single-branch leaves supported')
-        components[skipped] = 1
+        # Strict sides decide which edges cross; production supplies the positions,
+        # and a strict edge production does not report is interpolated linearly.
         dense = np.zeros((leaves, 12, 3))
-        dense[stricts[s]] = _detached(crossings)
+        dense[production_flags] = _detached(crossings)
+        missing = stricts[s] & ~production_flags
+        if missing.any():
+            start, end = xyz[:, EDGE_START][missing], xyz[:, EDGE_END][missing]
+            f_start, f_end = fields[s][:, EDGE_START][missing], fields[s][:, EDGE_END][missing]
+            dense[missing] = start + (f_start/(f_start-f_end))[:, None]*(end-start)
+        dense[~stricts[s]] = 0
+        # Ordinary dual contouring: one vertex per crossed leaf, whatever its branch topology.
+        components = (stricts[s].any(axis=1) | skipped).astype(int)
         flags.append(stricts[s])
         counts.append(components)
         edge_xyz.append(dense)

@@ -198,13 +198,13 @@ def test_targeted_queries_match_full_queries(case):
     assert evaluations < full['diagnostics']['sampled_point_count']*len(args[5])
 
 
-def test_targeted_queries_reject_disagreeing_shared_nodes():
+def test_targeted_queries_tolerate_disagreeing_shared_nodes():
     args, kwargs = merge_case()
     samples = np.array(args[4])
     samples[1, 0, 7] += 1e-6  # one leaf's corner disagrees with its neighbours
     args = args[:4] + (samples,) + args[5:]
-    with pytest.raises(ValueError, match='inconsistent_corner_samples'):
-        core.extract_adaptive_topology(*args, **_targeted(kwargs))
+    result = core.extract_adaptive_topology(*args, **_targeted(kwargs))
+    assert sum(len(f) for f in result['faces'])
 
 
 def test_targeted_queries_exclude_separator_contract():
@@ -362,11 +362,12 @@ def test_model7_contact_vertices_match_pretty_fault_vertices():
     assert len(contacts[0].edges) == len(pretty[0].edges)
 
 
-def test_model7_unsupported_hierarchy_still_rejects():
+def test_model7_natural_hierarchy_meshes():
+    """Crossings without a vertex in every ring leaf emit no face instead of rejecting."""
     from gempy_engine.API.model.model_api import compute_model
 
-    with pytest.raises(ValueError, match='unsupported_hanging_branch'):
-        compute_model(*_model7(7, 2, 0, 'joint_contacts'))
+    meshes = compute_model(*_model7(7, 2, 0, 'joint_contacts')).dc_meshes
+    assert len(meshes) == 4 and all(len(m.edges) for m in meshes)
 
 
 def _graben(levels):

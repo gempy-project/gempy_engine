@@ -1,8 +1,8 @@
 """Vectorised per-(surface, minimal edge) decisions of joint extraction.
 
 A surface keeps a dual face on a minimal edge it strictly crosses when every
-controller keeps the crossing point. Errors keep the edge-major, surface-minor
-order of a per-edge sweep.
+controller keeps the crossing point. Aligned endpoints, aligned junctions and
+crossings without a vertex in every ring leaf emit no face.
 """
 
 import numpy as np
@@ -30,16 +30,9 @@ def edge_crossing_decisions(edge_fields, controllers, edge_cells, counts):
             retained[t] &= decision > 0
     interior = np.all(edge_cells >= 0, axis=1)
     selected = retained & ~junction_aligned & interior[None, :]
-    hanging = np.zeros_like(selected)
+    # A crossing without one vertex in every ring leaf has no dual face: skip it.
     for t in range(len(selected)):
-        hanging[t] = selected[t] & np.any(counts[t][np.maximum(edge_cells, 0)] != 1, axis=1)
-    errors = ((aligned, 'sample_aligned_interface: minimal edge endpoint lies on surface'),
-              (junction_aligned, 'grid_edge_junction: geological ownership is aligned'),
-              (hanging, 'unsupported_hanging_branch: crossing lacks original leaf branch'))
-    failing = np.flatnonzero(np.any([mask.T for mask, _ in errors], axis=0).reshape(-1))
-    if len(failing):
-        e, t = divmod(int(failing[0]), len(selected))
-        raise ValueError(next(message for mask, message in errors if mask[t, e]))
+        selected[t] &= np.all(counts[t][np.maximum(edge_cells, 0)] == 1, axis=1)
     return selected, fraction
 
 

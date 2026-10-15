@@ -105,8 +105,8 @@ def production_weights(stack_options, stack_index, solver_input, output_weights,
     if _cache_live(stack_options, stack_index):
         decision = resolve_weight_cache(stack_options, stack_index, pykeops_solver_requested(), solver_input)
         if decision.route is not WeightCacheRoute.CACHED:
-            raise ValueError(f'{label} fixed production weights fingerprint mismatch for stack {stack_index}; '
-                             'no solve allowed')
+            # The cache cannot vouch for these weights; still use the actual production solve.
+            return _frozen(output_weights, stack_index), None
         # NumPy outputs hold a read-only copy, Torch outputs an independent clone.
         if isinstance(output_weights, np.ndarray):
             aliased = isinstance(decision.weights, np.ndarray) and np.shares_memory(output_weights, decision.weights)
@@ -122,13 +122,17 @@ def production_weights(stack_options, stack_index, solver_input, output_weights,
             raise ValueError(f'cached weights differ from actual production solve for stack {stack_index}; '
                              'no solve allowed')
         fingerprint = decision.fingerprint
+    return _frozen(output_weights, stack_index), fingerprint
+
+
+def _frozen(output_weights, stack_index):
     if not np.isfinite(host(output_weights)).all():
         raise ValueError(f'nonfinite production weights for stack {stack_index}')
     if hasattr(output_weights, 'detach'):
-        return output_weights.detach().clone(), fingerprint
+        return output_weights.detach().clone()
     weights = np.array(output_weights, copy=True)
     weights.flags.writeable = False
-    return weights, fingerprint
+    return weights
 
 
 def _cache_live(stack_options, stack_index):

@@ -49,19 +49,6 @@ def precision_tolerance(tolerance, dtype=np.float64):
     return tolerance if eps <= np.finfo(np.float64).eps else max(tolerance, 2**14*eps)
 
 
-def field_tolerances(samples, levels, dtype=np.float64):
-    """Per-surface agreement tolerance: relative to the field range plus a few raw ULPs.
-
-    ``dtype`` is the precision the fields were produced in (host values are float64).
-    """
-    fields = samples-levels[:, None, None]
-    scales = np.ptp(fields, axis=(1, 2))
-    # Permit a few representable raw-value ULPs, not a relative raw-offset error.
-    raw, levels = np.asarray(samples, dtype=dtype), np.asarray(levels, dtype=dtype)
-    roundoff = 4*np.maximum(np.max(np.abs(np.spacing(raw)), axis=(1, 2)), np.abs(np.spacing(levels)))
-    return precision_tolerance(1e-10, dtype)*(1+scales)+roundoff.astype(float)
-
-
 def _node_codes(corners, domain_shape):
     stride = np.asarray(domain_shape).astype(np.int64)+1
     weights = np.array([stride[1]*stride[2], stride[2], 1])
@@ -69,38 +56,30 @@ def _node_codes(corners, domain_shape):
     return np.unique(codes, return_index=True, return_inverse=True), weights
 
 
-def snap_straddling_nodes(corners, samples, levels, domain_shape, tolerances):
-    """Raw samples where leaves sharing a node agree within tolerance but straddle a surface.
+def snap_straddling_nodes(corners, samples, levels, domain_shape):
+    """Raw samples where leaves sharing a node straddle a surface take one value.
 
-    Low-precision fields can put a node within roundoff of a surface. Such
-    corners take the node's first sample (the ``shared_node_fields`` value), so
-    every leaf sees one side; all other samples are returned unchanged.
+    Leaves evaluating a node separately (other octree level, low precision)
+    can put it on both sides of a surface. Such corners take the node's first
+    sample (the ``shared_node_fields`` value), so every leaf sees one side;
+    all other samples are returned unchanged.
     """
     n = len(samples)
     (_, first, inverse), _ = _node_codes(corners, domain_shape)
     flat = samples.reshape(n, -1)
     canonical = flat[:, first][:, inverse.reshape(-1)]
     fields, canonical_fields = flat-levels[:, None], canonical-levels[:, None]
-    straddle = (fields*canonical_fields < 0) & (np.abs(fields-canonical_fields) <= tolerances[:, None])
+    straddle = fields*canonical_fields < 0
     return np.where(straddle, canonical, flat).reshape(samples.shape)
 
 
-def shared_node_fields(corners, fields, domain_shape, tolerances):
-    """One field value per distinct leaf-corner node; leaves sharing a node must agree.
+def shared_node_fields(corners, fields, domain_shape):
+    """One field value per distinct leaf-corner node: the first leaf's.
 
     Returns ``(codes, node_fields, weights)`` for ``lookup_node_fields``.
     """
-    n = len(fields)
-    (unique, first, inverse), weights = _node_codes(corners, domain_shape)
-    flat = fields.reshape(n, -1)
-    low = np.full((n, len(unique)), np.inf)
-    high = np.full((n, len(unique)), -np.inf)
-    for s in range(n):
-        np.minimum.at(low[s], inverse.reshape(-1), flat[s])
-        np.maximum.at(high[s], inverse.reshape(-1), flat[s])
-    if np.any(high-low > tolerances[:, None]) or np.any((low < 0) & (high > 0)):
-        raise ValueError('inconsistent_corner_samples: leaves sharing a lattice node disagree')
-    return unique, flat[:, first], weights
+    (unique, first, _), weights = _node_codes(corners, domain_shape)
+    return unique, fields.reshape(len(fields), -1)[:, first], weights
 
 
 def lookup_node_fields(nodes, codes, node_fields, weights):

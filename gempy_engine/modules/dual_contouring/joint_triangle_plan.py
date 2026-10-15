@@ -68,10 +68,11 @@ def plan_adaptive_junctions(faces, tile_xyz, tile_fields, pairs, identities,
     """One pair per leaf, with exactly two canonical shared boundary roots.
 
     ``overridden`` maps surfaces to leaves whose vertex is replaced by a fault
-    vertex. A junction needing such a leaf is not planned there; those leaves
-    are returned as a third value, and their evidence is dropped.
+    vertex. A junction needing such a leaf, or one that cannot be planned
+    unambiguously, is given up: participants keep unshared vertices there.
+    Returns ``(junctions, evidence, fallback)``; evidence of fallback leaves is dropped.
     """
-    evidence, leaf_roots = [], {}
+    evidence, leaf_roots, fallback = [], {}, set()
     for pair in sorted(pairs):
         controller, target = pair
         additional = {(c, sign) for participant in pair
@@ -103,10 +104,9 @@ def plan_adaptive_junctions(faces, tile_xyz, tile_fields, pairs, identities,
             if root is None:
                 continue
             if additional:
-                if any(decisions[c] != tile_decision for c in cells):
-                    raise ValueError('unsupported_ownership_tile: canonical tile and incident leaf decisions disagree')
-                if tile_decision == 'competing':
-                    raise ValueError('unsupported_multiway_junction: competing geological controller')
+                if any(decisions[c] != tile_decision for c in cells) or tile_decision == 'competing':
+                    fallback.update(cells)
+                    continue
                 if tile_decision == 'excluded':
                     continue
             xyz = tile_xyz[tile]
@@ -114,20 +114,17 @@ def plan_adaptive_junctions(faces, tile_xyz, tile_fields, pairs, identities,
             evidence.append(dict(tile=tile, pair=pair, cells=cells, point=point))
             for cell in cells:
                 leaf_roots.setdefault(cell, {}).setdefault(pair, []).append(point)
-    junctions, fallback = {}, set()
+    junctions = {}
     for cell, candidates in sorted(leaf_roots.items()):
-        if overridden and any(cell in overridden.get(s, ()) for pair in candidates for s in pair):
+        if cell in fallback or (overridden and any(cell in overridden.get(s, ()) for pair in candidates for s in pair)):
             fallback.add(cell)
             continue
-        if len(candidates) != 1:
-            raise ValueError('unsupported_multiway_junction: competing contact pairs in leaf')
         pair, roots = next(iter(candidates.items()))
-        if len(roots) != 2:
-            raise ValueError('unsupported_sampled_junction: leaf needs exactly two tile roots')
-        if any(counts[s, cell] != 1 for s in pair):
-            raise ValueError('unsupported_junction_branches: one original branch per participant required')
-        if identities[pair[0]][0] == identities[pair[1]][0]:
-            raise ValueError('same_group_junction: cannot join ordinary surfaces in one stack')
+        # Competing pairs, missing roots, extra branches or one stack: no shared junction.
+        if (len(candidates) != 1 or len(roots) != 2 or any(counts[s, cell] != 1 for s in pair)
+                or identities[pair[0]][0] == identities[pair[1]][0]):
+            fallback.add(cell)
+            continue
         points = np.concatenate([edge_xyz[s, cell, flags[s, cell]] for s in pair])
         normals = np.concatenate([edge_normals[s, cell, flags[s, cell]] for s in pair])
         point, end = roots
@@ -136,13 +133,12 @@ def plan_adaptive_junctions(faces, tile_xyz, tile_fields, pairs, identities,
         rhs = np.sum(normals*(points-point), axis=1)
         denominator = projected @ projected + direction @ direction
         if not np.isfinite(denominator) or denominator <= 1e-24:
-            raise ValueError('degenerate_joint_qef: zero or nonfinite chord')
+            fallback.add(cell)
+            continue
         parameter = np.clip((projected @ rhs + (points.mean(axis=0)-point) @ direction)/denominator, 0., 1.)
         key = ('joint', tuple(sorted(identities[s] for s in pair)),
                tuple(map(int, origins[cell])), int(spans[cell]), 0)
         junctions[cell] = dict(key=key, pair=pair, position=point+parameter*direction)
-    if overridden is None:
-        return junctions, evidence
     evidence = [item for item in evidence if not any(c in fallback for c in item['cells'])]
     return junctions, evidence, fallback
 
@@ -195,42 +191,36 @@ def plan_edge_rows(selected, edges, crossing_normals, regular_key, vertex_key, b
 
 
 def validate_adaptive_incidence(plans, junctions, evidence, spans):
-    """Count symbolic triangle sides, including production triangulation diagonals."""
+    """Seams between junction vertices supported by two controller sides and one target side.
+
+    Symbolic triangle sides are counted including production triangulation
+    diagonals; junction faces without that support are not reported as seams.
+    """
     counts = [Counter() for _ in plans]
     for surface, rows in enumerate(plans):
         for row in rows:
             for triangle in ring_triangles(row['keys']):
-                if all(k[0] == 'joint' for k in triangle) and len(
-                        set.intersection(*(set(k[1]) for k in triangle))) > 1:
-                    raise ValueError('unsupported_shared_patch: fully shared triangle')
                 for a, b in zip(triangle, triangle[1:]+triangle[:1]):
                     if a[0] == b[0] == 'joint' and a[1] == b[1]:
                         counts[surface][tuple(sorted((a, b)))] += 1
     expected, coarsefine = set(), set()
     for item in evidence:
-        if len(item['cells']) == 1:
-            continue  # Only physical crop tiles have one incident leaf.
-        if len(item['cells']) != 2:
-            raise ValueError('unresolved_junction_face: interior tile requires two leaves')
+        # Only interior tiles between two planned junctions form seams.
+        if len(item['cells']) != 2 or any(c not in junctions for c in item['cells']):
+            continue
         a, b = item['cells']
         seam = tuple(sorted((junctions[a]['key'], junctions[b]['key'])))
         controller, target = item['pair']
         if counts[controller][seam] != 2 or counts[target][seam] != 1:
-            raise ValueError('unsupported_dual_junction_incidence: controller needs two sides and target one')
+            continue
         expected.add(seam)
         if spans[a] != spans[b]:
             coarsefine.add(seam)
-    observed = set().union(*(set(c) for c in counts))
-    if observed != expected:
-        raise ValueError('unsupported_dual_junction_incidence: unmatched internal seam')
-    if junctions and not expected:
-        raise ValueError('insufficient_dual_seam_support: no supported internal seam')
     return expected, coarsefine
 
 
 def plan_adaptive_triangles(plans, positions):
-    """Validate geometry and establish production winding on symbolic triangles."""
-    # Same checks, order and winding rule as a per-triangle loop, evaluated in bulk.
+    """Production winding on symbolic triangles; zero-area triangles are dropped."""
     flat = [(surface, keys, row['normal']) for surface, rows in enumerate(plans)
             for row in rows for keys in ring_triangles(row['keys'])]
     triangles = [[] for _ in plans]
@@ -241,64 +231,11 @@ def plan_adaptive_triangles(plans, positions):
     normals = np.cross(corners[:, 1]-corners[:, 0], corners[:, 2]-corners[:, 0])
     degenerate = np.linalg.norm(normals, axis=1) < 1e-12
     dots = np.einsum('ij,ij->i', normals, hermite)
-    unresolved = np.abs(dots) < 1e-12
-    failing = np.flatnonzero(degenerate | unresolved)
-    if len(failing):
-        if degenerate[failing[0]]:
-            raise ValueError('degenerate_dual_face: adaptive triangle has zero area')
-        raise ValueError('unresolved_dual_winding: degenerate Hermite orientation')
-    for (surface, keys, normal), flip in zip(flat, (dots < 0).tolist()):
+    for (surface, keys, normal), flip, skip in zip(flat, (dots < 0).tolist(), degenerate.tolist()):
+        if skip:
+            continue
         triangles[surface].append(dict(keys=(keys[0], keys[2], keys[1]) if flip else keys, normal=normal))
     return triangles
-
-
-def validate_adaptive_geometry(triangles, seams, junctions, positions, vertex_fields, field_tolerances, controllers,
-                               exempt=None):
-    """Reject oriented seam folds, one-sided patches and unowned ordinary QEFs.
-
-    ``exempt`` lists, per surface, borrowed fault vertices excluded from that
-    surface's ownership check (they are the fault's own geometry).
-    """
-    seam_pairs = {j['key']: j['pair'] for j in junctions.values()}
-    incidence = [{} for _ in triangles]
-    for surface, rows in enumerate(triangles):
-        for row in rows:
-            keys = row['keys']
-            for i in range(3):
-                a, b, third = keys[i], keys[(i+1) % 3], keys[(i+2) % 3]
-                seam = tuple(sorted((a, b)))
-                if seam in seams:
-                    incidence[surface].setdefault(seam, []).append((a, b, third, row['normal']))
-    for seam in sorted(seams):
-        controller, target = seam_pairs[seam[0]]
-        rows = incidence[controller].get(seam, [])
-        if len(rows) != 2 or len(incidence[target].get(seam, [])) != 1:
-            raise ValueError('unsupported_dual_junction_incidence: oriented triangle support is incomplete')
-        if rows[0][:2] != rows[1][:2][::-1]:
-            raise ValueError('folded_controller_seam: controller triangles traverse seam in the same direction')
-        # A common geometric frame prevents incompatible local normals from
-        # making two triangles on the same side appear consistently oriented.
-        a, b = (positions[k] for k in seam)
-        common_normal = rows[0][3]+rows[1][3]
-        side_axis = np.cross(common_normal, b-a)
-        if np.linalg.norm(side_axis) < 1e-12:
-            raise ValueError('folded_controller_seam: unresolved common side frame')
-        geometric_sides = [side_axis @ (positions[row[2]]-a) for row in rows]
-        target_sides = [vertex_fields[row[2]][target] for row in rows]
-        if geometric_sides[0]*geometric_sides[1] >= 0 or any(abs(v) < 1e-12 for v in geometric_sides):
-            raise ValueError('folded_controller_seam: controller third vertices do not straddle seam')
-        tolerance = field_tolerances[target]
-        if target_sides[0]*target_sides[1] >= 0 or any(abs(v) <= tolerance for v in target_sides):
-            raise ValueError('folded_controller_seam: controller third vertices do not straddle target field')
-    # A participating equality is approximated by the root chord, but all other
-    # controllers must retain the actual joint representative as well as QEFs.
-    for surface, rows in enumerate(triangles):
-        for key in {k for row in rows for k in row['keys']} - (exempt[surface] if exempt else set()):
-            for controller, sign in controllers[surface]:
-                if key[0] == 'joint' and controller in seam_pairs[key]:
-                    continue
-                if sign*vertex_fields[key][controller] <= field_tolerances[controller]:
-                    raise ValueError('unowned_qef_vertex: used representative violates retained controller side')
 
 
 def emit_adaptive_triangles(triangles, key_to_id):

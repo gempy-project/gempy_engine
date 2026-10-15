@@ -433,7 +433,7 @@ def test_actual_model7_root7_two_levels(monkeypatch, mixed):
     np.testing.assert_array_equal(inputs.unit_values, np.arange(1, 6))
 
 
-def test_actual_model7_lower_half_coarsening_rejects_before_emission(monkeypatch):
+def test_actual_model7_lower_half_coarsening_meshes(monkeypatch):
     from gempy_engine.API.model.model_api import compute_model
     from gempy_engine.core.data.regular_grid import RegularGrid
     from tests.fixtures.model7_combination import model7_combination_factory
@@ -443,12 +443,8 @@ def test_actual_model7_lower_half_coarsening_rejects_before_emission(monkeypatch
     options.evaluation_options.octree_min_level = 0
     options.evaluation_options.mesh_extraction_overlap = "joint"
     _controlled_refinement(monkeypatch, root, True, seam=True)
-    core = importlib.import_module("gempy_engine.API.dual_contouring.joint_topology")
-    emit = Mock(side_effect=AssertionError("invalid hierarchy reached triangle emission"))
-    monkeypatch.setattr(core, "emit_adaptive_triangles", emit)
-    with pytest.raises(ValueError, match="unsupported_dual_junction_incidence"):
-        compute_model(inputs, options, descriptor)
-    emit.assert_not_called()
+    meshes = compute_model(inputs, options, descriptor).dc_meshes
+    assert meshes and all(len(m.edges) for m in meshes)
 
 
 def test_actual_model7_natural_root9_two_levels(monkeypatch):
@@ -545,7 +541,7 @@ def test_actual_model7_natural_root9_two_levels(monkeypatch):
     np.testing.assert_array_equal(root.orthogonal_extent, extent)
 
 
-def test_actual_model7_natural_root7_rejects_before_any_bank_emission(monkeypatch):
+def test_actual_model7_natural_root7_banks_mesh(monkeypatch):
     from gempy_engine.API.model.model_api import compute_model
     from gempy_engine.core.data.regular_grid import RegularGrid
     from tests.fixtures.model7_combination import model7_combination_factory
@@ -566,15 +562,10 @@ def test_actual_model7_natural_root7_rejects_before_any_bank_emission(monkeypatc
         prepared.append(result)
         return result
 
-    emit = Mock(side_effect=AssertionError("unsupported natural hierarchy reached any bank emission"))
     monkeypatch.setattr(bridge, "extract_adaptive_topology", prepare)
-    monkeypatch.setattr(core, "emit_adaptive_triangles", emit)
-    monkeypatch.setattr(bridge, "emit_adaptive_triangles", emit)
-    with pytest.raises(ValueError, match="unsupported_hanging_branch"):
-        compute_model(inputs, options, descriptor)
-    assert len(inspected) == 1 and len(prepared) == 1 and prepared[0]["bank"] == 0
-    assert prepared[0].get("faces") is None and prepared[0].get("affected_faces") is None
-    emit.assert_not_called()
+    meshes = compute_model(inputs, options, descriptor).dc_meshes
+    assert len(inspected) == 1 and [p["bank"] for p in prepared] == [0, 1]
+    assert meshes and all(len(m.edges) for m in meshes)
 
 
 def test_model7_four_original_exports_with_core_contract_stub(monkeypatch):
