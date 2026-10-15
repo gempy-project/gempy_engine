@@ -17,6 +17,7 @@ from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor as BT
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.stack_relation_type import StackRelationType
+from ...modules.dual_contouring.joint_lattice import precision_tolerance
 
 
 def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_list):
@@ -25,7 +26,7 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
     Queries touching an affected stack require bank 0 or 1; fault and
     unaffected stacks are bank-independent. Only query
     coordinates and query fault drift change; solved SP/ref/rest drift does not.
-    NumPy and Torch (CPU or CUDA, optionally KeOps) float64 are supported: queries
+    NumPy and Torch (CPU or CUDA, optionally KeOps) float32/float64 are supported: queries
     take and return host NumPy arrays. Unsupported contracts fail before emission.
     ``snapshots`` are detached inspection copies, never the query's private state.
     """
@@ -55,7 +56,8 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
     on_device = BT.engine_backend is not AvailableBackends.numpy
 
     def device(values):
-        return BT.t.array(np.ascontiguousarray(values), dtype=BT.dtype_obj) if on_device else values
+        # Production precision on every backend; NumPy float64 stays a view.
+        return BT.t.array(np.ascontiguousarray(values), dtype=BT.dtype_obj) if on_device else np.asarray(values, dtype=BT.dtype)
 
     # Frozen host weights stay the inspected snapshot; evaluation uses a device copy.
     device_weights = [device(weights) for _, weights, _ in snapshots]
@@ -109,8 +111,9 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
     gradient_length = np.linalg.norm(gradients[0])
     alignment_error = (float(np.linalg.norm(gradients[0] / gradient_length - plane[:3] / normal_length))
                        if min(normal_length, gradient_length) > 1e-12 else float('inf'))
+    tolerance = precision_tolerance(1e-10, BT.dtype)
     if (np.linalg.matrix_rank(design) != 4 or np.linalg.norm(plane[:3]) < 1e-12 or
-            scalar_error > 1e-10 or gradient_error > 1e-10 or alignment_error > 1e-10):
+            max(scalar_error, gradient_error, alignment_error) > tolerance):
         raise ValueError('unsupported_nonplanar_fault: actual scalar and gradients must define a plane')
     drift_ranges = []
     for level in (octree_list[0], last):
@@ -121,9 +124,9 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
         isovalue = float(host(output.scalar_field_at_sp).reshape(-1)[0])
         separator = scalar_field[:output.grid.len_all_grids] - isovalue
         grid_drift = drift[:output.grid.len_all_grids]
-        away = np.abs(separator) > 1e-10
-        if (not np.isfinite(drift).all() or not np.isclose(drift.min(), 0, rtol=0, atol=1e-12) or
-                not np.isclose(drift.max(), 1, rtol=0, atol=1e-12) or not away.any() or
+        away = np.abs(separator) > tolerance
+        if (not np.isfinite(drift).all() or not np.isclose(drift.min(), 0, rtol=0, atol=precision_tolerance(1e-12, BT.dtype)) or
+                not np.isclose(drift.max(), 1, rtol=0, atol=precision_tolerance(1e-12, BT.dtype)) or not away.any() or
                 not np.array_equal(grid_drift[away] > .5, separator[away] < 0)):
             raise ValueError('unverified_fault_banks: production drift must span 0/1 with bank 0 positive')
         drift_ranges.append((float(drift.min()), float(drift.max())))
@@ -132,7 +135,7 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
     freeze_arrays(inspection)
     return dict(fault_stack=fault_stack, affected_stacks=affected, unaffected_stacks=unaffected,
                 query=query, snapshots=inspection,
-                diagnostics=dict(backend=f"{BT.engine_backend.name}_{'cuda' if BT.use_gpu else 'cpu'}_float64"
+                diagnostics=dict(backend=f"{BT.engine_backend.name}_{'cuda' if BT.use_gpu else 'cpu'}_{BT.dtype}"
                                          f"{'_keops' if BT.use_pykeops else ''}", fixed_weights=True,
                                  weight_provenance='independent_production_output_snapshot',
                                  cache_fingerprints=tuple(fingerprints), plane=tuple(plane),

@@ -1,4 +1,4 @@
-"""Opt-in production bridge to the float64 joint adaptive extractor (``joint``, ``joint_contacts``)."""
+"""Opt-in production bridge to the joint adaptive extractor (``joint``, ``joint_contacts``)."""
 
 import copy
 from dataclasses import replace
@@ -23,6 +23,7 @@ from ...core.data.options.evaluation_options import MeshExtentCapping, MeshExtra
 from ...core.data.stack_relation_type import StackRelationType
 from ...modules.dual_contouring.joint_cell_complex import build_adaptive_complex
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
+from ...modules.dual_contouring.joint_lattice import precision_tolerance
 from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
 
 
@@ -57,7 +58,9 @@ def _collect_joint_leaves(octree_list, n_stacks):
         spacing = (extent[1::2] - extent[::2]) / shape
         physical = (_numpy(grid.values) - extent[::2]) / spacing - 0.5
         canonical = np.rint(physical).astype(np.int64)
-        if not np.allclose(physical, canonical, rtol=0, atol=1e-7):
+        # Lattice units; low-precision centers carry roundoff relative to the extent.
+        roundoff = 32 * np.finfo(BT.dtype).eps * np.abs(extent).reshape(3, 2).max(axis=1) / spacing
+        if not np.allclose(physical, canonical, rtol=0, atol=1e-7 + roundoff):
             raise ValueError("joint octree centers are not on the canonical lattice")
         # Signed/offset integer conventions must differ by a constant per level.
         offset = canonical - coords
@@ -81,7 +84,7 @@ def _collect_joint_leaves(octree_list, n_stacks):
         if metadata is None:
             metadata = level_metadata
         elif (len(metadata) != len(level_metadata) or
-              any(a[:2] != b[:2] or not np.isclose(a[2], b[2], rtol=0, atol=1e-12)
+              any(a[:2] != b[:2] or not np.isclose(a[2], b[2], rtol=0, atol=precision_tolerance(1e-12, BT.dtype))
                   for a, b in zip(metadata, level_metadata))):
             raise ValueError("joint surface metadata/isovalues differ across octree levels")
         if not level_metadata:
@@ -104,8 +107,6 @@ def _check_joint_options(descriptor, options):
     relations = stacks.masking_descriptor
     if StackRelationType.NULL_SPACE in relations:
         raise NotImplementedError("joint null-space stacks are unsupported")
-    if BT.dtype != "float64":
-        raise NotImplementedError("joint requires float64 production fields")
 
 
 def _has_faults(descriptor, interpolation_input):

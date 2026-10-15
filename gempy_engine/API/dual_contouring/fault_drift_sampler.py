@@ -19,6 +19,7 @@ from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.stack_relation_type import StackRelationType
 from ...modules.activator._soft_segment import soft_segment_unbounded
+from ...modules.dual_contouring.joint_lattice import precision_tolerance
 from ...modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
 
 
@@ -60,7 +61,8 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
     on_device = BT.engine_backend is not AvailableBackends.numpy
 
     def device(values):
-        return BT.t.array(np.ascontiguousarray(values), dtype=BT.dtype_obj) if on_device else values
+        # Production precision on every backend; NumPy float64 stays a view.
+        return BT.t.array(np.ascontiguousarray(values), dtype=BT.dtype_obj) if on_device else np.asarray(values, dtype=BT.dtype)
 
     # Frozen host weights stay the inspected snapshot; evaluation uses a device copy.
     device_weights = [device(weights) for _, weights, _ in snapshots]
@@ -106,7 +108,7 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
             block = host(level_output.values_on_all_xyz)
             reference = level_output.exported_fields._macro_reference_size or block.shape[1]
             minima.append(float(block[:, :reference].min()))
-        if not np.allclose(minima, minima[-1], rtol=0, atol=1e-12):
+        if not np.allclose(minima, minima[-1], rtol=0, atol=precision_tolerance(1e-12, BT.dtype)):
             raise ValueError('unsupported_fault_drift_reference: production drift shift differs between octree levels')
         ids.flags.writeable = edges.flags.writeable = False
         rules[fault_stack] = (ids, edges, slope, minima[-1])
@@ -123,7 +125,7 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         expected = host(_modify_faults_values_output(FaultsData(), output, reference_xyz)).reshape(-1)
         rebuilt = drift(fault_stack, evaluate_stack(fault_stack, reference_xyz)[0])
         error = float(np.max(np.abs(rebuilt - expected)))
-        if not np.isfinite(error) or error > 1e-10:
+        if not np.isfinite(error) or error > precision_tolerance(1e-10, BT.dtype):
             raise ValueError(f'unverified_fault_drift: rebuilt production drift differs for fault stack {fault_stack}')
         drift_errors.append(error)
 
@@ -323,7 +325,7 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
     freeze_arrays(inspection)
     return dict(fault_stacks=faults, affected_by=affected_by, query=query, query_batch=query_batch,
                 query_sides=query_sides, drift_plateaus=plateaus, snapshots=inspection,
-                diagnostics=dict(backend=f"{BT.engine_backend.name}_{'cuda' if BT.use_gpu else 'cpu'}_float64"
+                diagnostics=dict(backend=f"{BT.engine_backend.name}_{'cuda' if BT.use_gpu else 'cpu'}_{BT.dtype}"
                                          f"{'_keops' if BT.use_pykeops else ''}", fixed_weights=True,
                                  weight_provenance='independent_production_output_snapshot',
                                  cache_fingerprints=tuple(fingerprints), drift='production_soft_segmentation',

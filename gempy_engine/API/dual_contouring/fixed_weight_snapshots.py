@@ -47,10 +47,9 @@ def freeze_arrays(value):
 
 
 def check_fixed_weight_backend():
-    """NumPy, or Torch on CPU or CUDA, optionally with KeOps; float64, no autograd."""
-    if (BT.engine_backend not in (AvailableBackends.numpy, AvailableBackends.PYTORCH) or BT.COMPUTE_GRADS
-            or np.dtype(str(BT.dtype)) != np.dtype('float64')):
-        raise NotImplementedError('unsupported_fault_backend: float64 NumPy or Torch without autograd required')
+    """NumPy, or Torch on CPU or CUDA, optionally with KeOps; float32 or float64, no autograd."""
+    if BT.engine_backend not in (AvailableBackends.numpy, AvailableBackends.PYTORCH) or BT.COMPUTE_GRADS:
+        raise NotImplementedError('unsupported_fault_backend: NumPy or Torch without autograd required')
 
 
 def fault_matrix(stacks):

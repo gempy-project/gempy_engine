@@ -19,8 +19,8 @@ from ...modules.dual_contouring.joint_contact_relations import build_contact_rel
 from ...modules.dual_contouring.joint_edge_decisions import crossing_normals, edge_crossing_decisions
 from ...modules.dual_contouring.joint_field_queries import ExactPointCache, TargetedFieldBatch
 from ...modules.dual_contouring.joint_lattice import (field_tolerances, lattice_frame, leaf_corner_nodes,
-                                                      lookup_node_fields, minimal_edge_nodes, shared_node_fields,
-                                                      tile_nodes)
+                                                      lookup_node_fields, minimal_edge_nodes, precision_tolerance,
+                                                      shared_node_fields, snap_straddling_nodes, tile_nodes)
 from ...modules.dual_contouring.joint_separator import (authorize_fault_pairs, check_separator_contract,
                                                         check_separator_samples, fit_separator_plane,
                                                         separator_controllers)
@@ -76,8 +76,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     if defer_emission and include_reference:
         raise ValueError('unsupported_deferred_reference: defer_emission and include_reference are incompatible')
     # Topology is host NumPy; Torch tensors for crossings/QEFs live on the active device.
-    if BT.dtype != 'float64' or BT.engine_backend not in (AvailableBackends.numpy, AvailableBackends.PYTORCH):
-        raise ValueError('unsupported_backend: NumPy/Torch float64 only')
+    if BT.engine_backend not in (AvailableBackends.numpy, AvailableBackends.PYTORCH):
+        raise ValueError('unsupported_backend: NumPy/Torch only')
 
     # region Contracts and controllers
     allowed, faults, truncations = build_contact_relations(
@@ -122,20 +122,23 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     faces, edges = complex_['faces'], complex_['edges']
     tiles, edge_nodes = tile_nodes(faces), minimal_edge_nodes(edges)
     tile_xyz, minimal_xyz = bounds[::2]+tiles*spacing, bounds[::2]+edge_nodes*spacing
-    tolerances = field_tolerances(samples, levels)
+    tolerances = field_tolerances(samples, levels, BT.dtype)
     if field_query is not None and (separator_contacts is not None or ownership is not None):
         raise ValueError('invalid_field_query_contract: exclusive with separator contacts and ownership')
     plane = []
 
     def on_separator_plane(points, raw, gradients):
         if plane:
-            check_separator_samples(points, raw[separator], gradients[separator], plane[0])
+            check_separator_samples(points, raw[separator], gradients[separator], plane[0],
+                                    precision_tolerance(1e-10, BT.dtype))
 
     query = ExactPointCache(sample_fields, n, on_separator_plane if separator is not None else None)
     batch = TargetedFieldBatch(field_query)
     if field_query is not None:
         # Every tile and minimal-edge node is a leaf corner: reuse the supplied
         # corner values, after checking that leaves sharing a node agree.
+        samples = snap_straddling_nodes(corners, samples, levels, domain, tolerances)
+        fields = samples-levels[:, None, None]
         lattice = shared_node_fields(corners, fields, domain, tolerances)
         tile_fields = lookup_node_fields(tiles, *lattice).reshape(n, len(faces), 4)
         edge_fields = lookup_node_fields(edge_nodes, *lattice).reshape(n, len(edges), 2)
@@ -146,7 +149,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         all_points = np.concatenate((xyz.reshape(-1, 3), tile_xyz.reshape(-1, 3), minimal_xyz.reshape(-1, 3)))
         raw, gradients = query(all_points)
         if separator is not None:
-            plane.append(fit_separator_plane(all_points, raw[separator], gradients[separator]))
+            plane.append(fit_separator_plane(all_points, raw[separator], gradients[separator],
+                                             precision_tolerance(1e-10, BT.dtype)))
         canonical, _ = query(xyz)
         if np.any(np.abs(canonical.reshape(samples.shape)-levels[:, None, None]-fields) > tolerances[:, None, None]):
             raise ValueError('inconsistent_corner_samples: callback disagrees with raw original corners')
@@ -331,9 +335,9 @@ def _detached(a):
 def _tensor(a, boolean=False):
     if BT.engine_backend is AvailableBackends.PYTORCH:
         import torch
-        return torch.as_tensor(a, dtype=torch.bool if boolean else torch.float64,
+        return torch.as_tensor(a, dtype=torch.bool if boolean else BT.dtype_obj,
                                device=BT.device if BT.use_gpu else 'cpu')
-    return np.asarray(a, dtype=bool if boolean else np.float64)
+    return np.asarray(a, dtype=bool if boolean else BT.dtype)
 
 
 def _surface_crossings(xyz, samples, levels, stricts, merged, multi_fault, fields, *, strict, reject_aligned=False):

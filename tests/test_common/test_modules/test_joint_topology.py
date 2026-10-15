@@ -278,11 +278,16 @@ def test_unbalanced_leaves_explicitly_rejected():
                                   sample_fields=lambda p: None)
 
 
-def test_float32_and_faults_explicitly_unsupported():
-    BT._change_backend(AvailableBackends.numpy, use_gpu=False, dtype='float32')
-    with pytest.raises(ValueError, match='unsupported_backend'):
-        extract_planes()
+def test_float32_supported_and_faults_explicitly_unsupported():
     BT._change_backend(AvailableBackends.numpy, use_gpu=False, dtype='float64')
+    reference, _ = extract_planes()
+    BT._change_backend(AvailableBackends.numpy, use_gpu=False, dtype='float32')
+    try:
+        result, _ = extract_planes()
+    finally:
+        BT._change_backend(AvailableBackends.numpy, use_gpu=False, dtype='float64')
+    assert result['vertex_keys'] == reference['vertex_keys']
+    np.testing.assert_allclose(result['vertices'], reference['vertices'], atol=1e-5)
     with pytest.raises(ValueError, match='unsupported_fault_extraction'):
         extract_adaptive_topology([[0, 0, 0]], [1], (1, 1, 1), (0, 1, 0, 1, 0, 1),
                                   np.ones((1, 1, 8)), [0], [0], [R.FAULT], [[0.]],

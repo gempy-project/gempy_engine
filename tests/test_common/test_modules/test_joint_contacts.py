@@ -490,6 +490,30 @@ def test_model7_banked_joint_on_torch_backends(monkeypatch, kind):
         np.testing.assert_array_equal(host(a.edges), host(b.edges))
         np.testing.assert_allclose(host(a.vertices), host(b.vertices), rtol=0, atol=1e-4)
 
+@pytest.mark.parametrize('backend', [AvailableBackends.numpy, AvailableBackends.PYTORCH])
+@pytest.mark.parametrize('mode', ['joint', 'joint_contacts'])
+def test_model7_float32(backend, mode):
+    """Float32 production fields: same surfaces, vertices within float32 field error of float64."""
+    from gempy_engine.API.model.model_api import compute_model
+
+    if backend is AvailableBackends.PYTORCH:
+        pytest.importorskip('torch')
+    reference = _host_meshes(compute_model(*_model7(7, 2, 2, mode)).dc_meshes)
+    BT._change_backend(backend, use_gpu=False, use_pykeops=False, dtype='float32', grads=False)
+    try:
+        result = _host_meshes(compute_model(*_model7(7, 2, 2, mode)).dc_meshes)
+    finally:
+        BT._change_backend(AvailableBackends.numpy, use_gpu=False, use_pykeops=False, dtype='float64', grads=False)
+    assert len(result) == len(reference)
+    for (v0, f0, k0), (v1, f1, k1) in zip(reference, result):
+        assert len(f1) and abs(len(f1) - len(f0)) <= .01 * len(f0)
+        positions = dict(zip(k1, v1))
+        shared = [k for k in k0 if k in positions]
+        assert len(shared) >= .99 * len(k0)
+        np.testing.assert_allclose(np.array([positions[k] for k in shared]),
+                                   v0[[k0.index(k) for k in shared]], rtol=0, atol=1e-2)
+
+
 @pytest.mark.parametrize('kind', ['torch_cpu', 'torch_gpu', 'keops_gpu'])
 @pytest.mark.parametrize('mode', ['joint', 'joint_contacts'])
 def test_fault_free_production_plane_on_torch_backends(kind, mode):

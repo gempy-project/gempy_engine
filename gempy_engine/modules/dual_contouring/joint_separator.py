@@ -61,25 +61,25 @@ def separator_controllers(controllers, fault_pairs):
     return controllers
 
 
-def fit_separator_plane(points, raw, gradients):
+def fit_separator_plane(points, raw, gradients, tolerance=1e-10):
     """``(gradient, slope, offset)`` of an affine separator with constant aligned actual gradients."""
     gradient = gradients[0]
     slope = np.linalg.lstsq(points-points[0], raw-raw[0], rcond=None)[0]
     offset = raw[0] - points[0] @ slope
     if (np.linalg.norm(gradient) < 1e-12 or np.linalg.norm(slope) < 1e-12
-            or not np.allclose(gradients, gradient, atol=1e-10, rtol=0)
-            or not np.allclose(raw, points @ slope + offset, atol=1e-10, rtol=0)):
+            or not np.allclose(gradients, gradient, atol=tolerance, rtol=0)
+            or not np.allclose(raw, points @ slope + offset, atol=tolerance, rtol=0)):
         raise ValueError('unsupported_separator_geometry: canonical field must be affine with constant actual gradients')
-    if gradient @ slope < (1-1e-10)*np.linalg.norm(gradient)*np.linalg.norm(slope):
+    if gradient @ slope < (1-tolerance)*np.linalg.norm(gradient)*np.linalg.norm(slope):
         raise ValueError('unsupported_separator_orientation: actual gradient must align with normalized affine field')
     return gradient.copy(), slope, offset
 
 
-def check_separator_samples(points, raw, gradients, plane):
+def check_separator_samples(points, raw, gradients, plane, tolerance=1e-10):
     """Later samples must stay on the fitted separator plane."""
     gradient, slope, offset = plane
-    if not (np.allclose(gradients, gradient, atol=1e-10, rtol=0)
-            and np.allclose(raw, points @ slope + offset, atol=1e-10, rtol=0)):
+    if not (np.allclose(gradients, gradient, atol=tolerance, rtol=0)
+            and np.allclose(raw, points @ slope + offset, atol=tolerance, rtol=0)):
         raise ValueError('unsupported_separator_geometry: canonical field must be affine with constant actual gradients')
 
 

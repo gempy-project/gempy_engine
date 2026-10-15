@@ -40,13 +40,49 @@ def minimal_edge_nodes(edges):
     return nodes
 
 
-def field_tolerances(samples, levels):
-    """Per-surface agreement tolerance: relative to the field range plus a few raw ULPs."""
+def precision_tolerance(tolerance, dtype=np.float64):
+    """A float64 agreement bound widened to what ``dtype`` production values resolve.
+
+    Float64 bounds are returned unchanged.
+    """
+    eps = np.finfo(dtype).eps
+    return tolerance if eps <= np.finfo(np.float64).eps else max(tolerance, 2**14*eps)
+
+
+def field_tolerances(samples, levels, dtype=np.float64):
+    """Per-surface agreement tolerance: relative to the field range plus a few raw ULPs.
+
+    ``dtype`` is the precision the fields were produced in (host values are float64).
+    """
     fields = samples-levels[:, None, None]
     scales = np.ptp(fields, axis=(1, 2))
     # Permit a few representable raw-value ULPs, not a relative raw-offset error.
-    roundoff = 4*np.maximum(np.max(np.abs(np.spacing(samples)), axis=(1, 2)), np.abs(np.spacing(levels)))
-    return 1e-10*(1+scales)+roundoff
+    raw, levels = np.asarray(samples, dtype=dtype), np.asarray(levels, dtype=dtype)
+    roundoff = 4*np.maximum(np.max(np.abs(np.spacing(raw)), axis=(1, 2)), np.abs(np.spacing(levels)))
+    return precision_tolerance(1e-10, dtype)*(1+scales)+roundoff.astype(float)
+
+
+def _node_codes(corners, domain_shape):
+    stride = np.asarray(domain_shape).astype(np.int64)+1
+    weights = np.array([stride[1]*stride[2], stride[2], 1])
+    codes = (corners.reshape(-1, 3).astype(np.int64)*weights).sum(axis=1)
+    return np.unique(codes, return_index=True, return_inverse=True), weights
+
+
+def snap_straddling_nodes(corners, samples, levels, domain_shape, tolerances):
+    """Raw samples where leaves sharing a node agree within tolerance but straddle a surface.
+
+    Low-precision fields can put a node within roundoff of a surface. Such
+    corners take the node's first sample (the ``shared_node_fields`` value), so
+    every leaf sees one side; all other samples are returned unchanged.
+    """
+    n = len(samples)
+    (_, first, inverse), _ = _node_codes(corners, domain_shape)
+    flat = samples.reshape(n, -1)
+    canonical = flat[:, first][:, inverse.reshape(-1)]
+    fields, canonical_fields = flat-levels[:, None], canonical-levels[:, None]
+    straddle = (fields*canonical_fields < 0) & (np.abs(fields-canonical_fields) <= tolerances[:, None])
+    return np.where(straddle, canonical, flat).reshape(samples.shape)
 
 
 def shared_node_fields(corners, fields, domain_shape, tolerances):
@@ -55,10 +91,7 @@ def shared_node_fields(corners, fields, domain_shape, tolerances):
     Returns ``(codes, node_fields, weights)`` for ``lookup_node_fields``.
     """
     n = len(fields)
-    stride = np.asarray(domain_shape).astype(np.int64)+1
-    weights = np.array([stride[1]*stride[2], stride[2], 1])
-    codes = (corners.reshape(-1, 3).astype(np.int64)*weights).sum(axis=1)
-    unique, first, inverse = np.unique(codes, return_index=True, return_inverse=True)
+    (unique, first, inverse), weights = _node_codes(corners, domain_shape)
     flat = fields.reshape(n, -1)
     low = np.full((n, len(unique)), np.inf)
     high = np.full((n, len(unique)), -np.inf)
