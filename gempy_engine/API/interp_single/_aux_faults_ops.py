@@ -49,31 +49,17 @@ def _modify_faults_values_output(
         raise ValueError("Finite-fault projection requires scalar gradients")
 
     to_numpy = BackendTensor.t.to_numpy
-    xyz_np = np.asarray(to_numpy(xyz_to_interpolate))
-    scalar_field_np = np.asarray(to_numpy(exported_fields.scalar_field_everywhere))
-    gradients_np = tuple(np.asarray(to_numpy(gradient)) for gradient in gradients)
     target_values = np.asarray(to_numpy(output.scalar_field_at_sp)).reshape(-1)
     if target_values.size != 1:
         raise ValueError("Finite-fault projection requires exactly one fault surface isovalue")
 
-    projected_points = project_points_onto_surface(
-        points=xyz_np,
-        scalar_field_values=scalar_field_np,
-        gradient_fields=gradients_np,
+    finite_fault_scalar_np, _ = finite_fault_taper(
+        finite_fault=fault_input.finite_fault,
+        points=np.asarray(to_numpy(xyz_to_interpolate)),
+        scalar_field_values=np.asarray(to_numpy(exported_fields.scalar_field_everywhere)),
+        gradient_fields=tuple(np.asarray(to_numpy(gradient)) for gradient in gradients),
         target_scalar_value=float(target_values[0]),
-    )
-
-    gradient_matrix = np.stack(gradients_np, axis=-1)
-    valid_gradient = np.linalg.norm(gradient_matrix[:reference_size], axis=1) > 1e-12
-    if not np.any(valid_gradient):
-        raise ValueError("Cannot determine finite-fault frame from near-zero gradients")
-
-    center = np.asarray(fault_input.finite_fault.center)
-    distances_to_center = np.linalg.norm(projected_points[:reference_size] - center, axis=1)
-    center_index = np.argmin(np.where(valid_gradient, distances_to_center, np.inf))
-    finite_fault_scalar_np = fault_input.finite_fault.calculate_slip(
-        points=projected_points,
-        normal=gradient_matrix[center_index],
+        reference_size=reference_size,
     )
     if isinstance(shifted_vals, np.ndarray):
         finite_fault_scalar = finite_fault_scalar_np.astype(shifted_vals.dtype, copy=False)
@@ -85,3 +71,31 @@ def _modify_faults_values_output(
     if include_raw_scalar_fields():
         output.finite_fault_scalar = finite_fault_scalar
     return shifted_vals * finite_fault_scalar
+
+
+def finite_fault_taper(finite_fault, points, scalar_field_values, gradient_fields, target_scalar_value,
+                       reference_size=None, normal=None):
+    """Slip multiplier of ``points`` (host NumPy) and the slip-frame normal used.
+
+    Points are projected onto the fault surface with their own scalar and
+    gradient. Without ``normal`` the frame normal is the gradient at the first
+    ``reference_size`` point whose projection lies nearest the fault center.
+    """
+    projected_points = project_points_onto_surface(
+        points=points,
+        scalar_field_values=scalar_field_values,
+        gradient_fields=gradient_fields,
+        target_scalar_value=target_scalar_value,
+    )
+    if normal is None:
+        reference_size = reference_size or len(points)
+        gradient_matrix = np.stack(gradient_fields, axis=-1)
+        valid_gradient = np.linalg.norm(gradient_matrix[:reference_size], axis=1) > 1e-12
+        if not np.any(valid_gradient):
+            raise ValueError("Cannot determine finite-fault frame from near-zero gradients")
+
+        center = np.asarray(finite_fault.center)
+        distances_to_center = np.linalg.norm(projected_points[:reference_size] - center, axis=1)
+        center_index = np.argmin(np.where(valid_gradient, distances_to_center, np.inf))
+        normal = gradient_matrix[center_index]
+    return finite_fault.calculate_slip(points=projected_points, normal=normal), normal

@@ -61,8 +61,12 @@ def fault_matrix(stacks):
     return matrix.astype(bool)
 
 
-def check_fixed_query_contract(stacks, interpolation_input, octree_list):
-    """Shared fixed-weight query preconditions; returns per-stack fault inputs."""
+def check_fixed_query_contract(stacks, interpolation_input, octree_list, allow_finite_faults=False):
+    """Shared fixed-weight query preconditions; returns per-stack fault inputs.
+
+    Finite faults are accepted only with ``allow_finite_faults`` (production
+    drift queries); fault banks require infinite faults.
+    """
     n_stacks = stacks.n_stacks
     if stacks.faults_input_data is not None and (
             not isinstance(stacks.faults_input_data, (list, tuple)) or
@@ -73,7 +77,7 @@ def check_fixed_query_contract(stacks, interpolation_input, octree_list):
     for data in fault_inputs + [interpolation_input._fault_values]:
         if data is not None and not isinstance(data, FaultsData):
             raise ValueError('invalid_fault_metadata: entries must be FaultsData or None')
-        if data is not None and data.finite_fault_defined:
+        if data is not None and data.finite_fault_defined and not allow_finite_faults:
             raise ValueError('unsupported_finite_fault')
     if interpolation_input._fault_values is not None:
         raise ValueError('unsupported_external_fault_data')
@@ -166,7 +170,9 @@ def fixed_weight_snapshots(descriptor, interpolation_input, options, octree_list
         fault_output = last.outputs[fault_stack].scalar_fields
         if tuple(fault_output.values_on_all_xyz.shape) != (1, len(xyz)):
             raise ValueError('invalid_fault_production_reference_layout')
-        block[fault_stack] = host(_modify_faults_values_output(FaultsData(), fault_output, xyz))
+        # A shallow copy: the rebuild must not write raw finite-fault fields onto the production output.
+        block[fault_stack] = host(_modify_faults_values_output(
+            fault_inputs[fault_stack] or FaultsData(), copy.copy(fault_output), xyz))
     # The solver sees the drift block in the active backend, as production does.
     backend_block = block if BT.engine_backend is AvailableBackends.numpy else BT.t.array(block, dtype=BT.dtype_obj)
     snapshots, fingerprints = [], []

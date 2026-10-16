@@ -3,6 +3,7 @@
 import copy
 import importlib
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -38,12 +39,14 @@ def _keops_gpu():
     return torch
 
 
-def _prepare(monkeypatch, *, levels=2, surface_levels=2, relation=None, inside=None):
+def _prepare(monkeypatch, *, levels=2, surface_levels=2, relation=None, inside=None, finite=False):
     api = importlib.import_module('gempy_engine.API.model.model_api')
     inputs, options, descriptor = model7_combination_factory(
         number_octree_levels=levels, mesh_extraction=True,
         custom_grid=np.array([[x, 500, z] for x in (100, 600, 1200, 1800, 2400)
                               for z in (50, 300, 600, 950)]))
+    if finite:
+        descriptor.stack_structure.faults_input_data = [_finite_fault_data(inputs, descriptor), None, None]
     options.cache_mode = InterpolationOptions.CacheMode.IN_MEMORY_CACHE
     options.evaluation_options.compute_scalar_gradient = True
     options.evaluation_options.number_octree_levels_surface = surface_levels
@@ -211,6 +214,61 @@ def test_production_drift_sampler_reproduces_production_fields(monkeypatch, nump
             sampler['query'](points, stacks=invalid)
     with pytest.raises(ValueError, match='invalid_query_points'):
         sampler['query'](np.zeros(3))
+
+
+def _finite_fault_data(inputs, descriptor, radius=.06):
+    """Model7's vertical fault with a slip patch around its surface points, tips inside the domain."""
+    from gempy_engine.core.data import FiniteFault
+    from gempy_engine.core.data.kernel_classes.faults import FaultsData
+
+    n_fault = descriptor.tensors_structure.number_of_points_per_surface[0]
+    center = np.asarray(inputs.surface_points.sp_coords)[:n_fault].mean(axis=0)
+    return FaultsData.from_user_input(None, FiniteFault(center=tuple(center), strike_radius=radius,
+                                                        dip_radius=radius))
+
+
+def test_finite_fault_drift_sampler_reproduces_production_fields(monkeypatch, numpy_backend):
+    prepared, _ = _prepare(monkeypatch, finite=True)
+    sampler = prepared['drift_sampler']
+    diagnostics = sampler['diagnostics']
+    assert diagnostics['finite_fault_stacks'] == (0,)
+    assert max(diagnostics['drift_rebuild_max_error']) <= 1e-10
+    monkeypatch.setattr(importlib.import_module('gempy_engine.API.interp_single._interp_scalar_field'),
+                        'compute_weights', Mock(side_effect=AssertionError('query must not solve')))
+    for level in prepared['levels']:
+        points = level.grid.values
+        values, gradients = sampler['query'](points)
+        batched, = sampler['query_batch']([(points, (0, 1, 2), 'scalar')])
+        np.testing.assert_allclose(batched, values, rtol=1e-12, atol=1e-12)
+        for index, output in enumerate(level.outputs):
+            fields = output.exported_fields
+            np.testing.assert_allclose(values[index], fields._scalar_field[:len(points)], rtol=1e-12, atol=1e-12)
+            for axis, field in enumerate((fields._gx_field, fields._gy_field, fields._gz_field)):
+                np.testing.assert_allclose(gradients[index, :, axis], field[:len(points)], rtol=1e-12, atol=1e-12)
+
+
+def test_finite_fault_side_queries_follow_the_taper(monkeypatch, numpy_backend):
+    """Fixing the side offsets affected stacks only inside the slip patch."""
+    prepared, _ = _prepare(monkeypatch, finite=True)
+    sampler = prepared['drift_sampler']
+    center = np.asarray(_finite_fault_data(*model7_combination_factory()[::2]).finite_fault.center)
+    # Off the fault along its normal (x), then along strike (y) to inside and beyond the tip.
+    for along_strike, offset in ((0., True), (.03, True), (.09, False)):
+        points = center + np.array([[dx, along_strike, 0.] for dx in (-.05, -.02, .02, .05)])
+        sides = np.ones((1, len(points)))
+        positive = sampler['query_sides'](points, (1, 2), sides)
+        negative = sampler['query_sides'](points, (1, 2), -sides)
+        assert np.any(np.abs(positive - negative) > 1e-6) == offset, along_strike
+
+
+def test_fault_banks_still_reject_finite_faults(monkeypatch, numpy_backend):
+    from gempy_engine.API.dual_contouring.fault_bank_sampler import prepare_fault_bank_sampler
+
+    def inside(*args):
+        with pytest.raises(ValueError, match='unsupported_finite_fault'):
+            prepare_fault_bank_sampler(*args)
+
+    _prepare(monkeypatch, finite=True, inside=inside)
 
 
 def _prepared_drift_sampler():

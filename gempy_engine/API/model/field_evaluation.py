@@ -22,7 +22,7 @@ from ...core.data.solutions import Solutions
 class FieldEvaluator:
     """Callable ``(points, stacks=None, fault_sides=None) -> (S, M)`` raw stack scalars.
 
-    ``fault_stacks`` lists the (independent, infinite) fault stacks, the rows of
+    ``fault_stacks`` lists the independent fault stacks, the rows of
     ``fault_sides``; ``affected_by`` maps each stack to the faults that offset
     it; ``stack_isovalues`` are each stack's surface levels and
     ``stack_relations`` its masking relation, as ``classify_units`` expects.
@@ -35,7 +35,10 @@ class FieldEvaluator:
     _sampler: dict = field(repr=False)
 
     def __call__(self, points, stacks=None, fault_sides=None) -> np.ndarray:
-        """Production fault drift by default; with ``fault_sides`` (F, M) of ±1, each fault's plateau."""
+        """Production fault drift by default; with ``fault_sides`` (F, M) of ±1, each fault's plateau.
+
+        A finite fault's plateau is scaled by its slip taper at each point.
+        """
         stacks = tuple(range(len(self.stack_relations))) if stacks is None else tuple(stacks)
         points = np.asarray(points, dtype=np.float64).reshape(-1, 3)
         if fault_sides is None:
@@ -57,7 +60,7 @@ def prepare_field_evaluator(solutions: Solutions, interpolation_input: Interpola
 
     Pass the same input, descriptor and options as to ``compute_model``. NumPy
     or Torch (CPU or CUDA, optionally KeOps), float64, no autograd. Faults must
-    be independent and infinite; micro corrections and external interpolation
+    be independent (finite faults included); micro corrections and external interpolation
     functions are not supported.
     """
     octree_list = solutions.octrees_output

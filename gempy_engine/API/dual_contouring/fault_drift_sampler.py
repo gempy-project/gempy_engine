@@ -9,7 +9,7 @@ import copy
 
 import numpy as np
 
-from ..interp_single._aux_faults_ops import _modify_faults_values_output
+from ..interp_single._aux_faults_ops import _modify_faults_values_output, finite_fault_taper
 from ..interp_single._interp_scalar_field import _evaluate_sys_eq
 from .fixed_weight_snapshots import (check_fixed_query_contract, check_fixed_weight_backend, fault_matrix,
                                      fixed_weight_snapshots, freeze_arrays, host)
@@ -27,9 +27,11 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
     """Return raw ``query(points, stacks) -> (S x M, S x M x 3)`` with production fault drift.
 
     Affected stacks see the drift the production solve would assign at each
-    query point: every independent infinite fault's scalar
+    query point: every independent fault's scalar
     is evaluated with its fixed weights, soft-segmented with the production ids,
     edges and slope, and shifted by the frozen production reference minimum.
+    A finite fault's drift is further scaled by its slip taper at the query
+    point's projection onto the fault, in the frozen production slip frame.
     The rule is verified against the production drift on the full reference
     grid before any query. Fault stacks themselves are drift-independent.
     Runs on NumPy or Torch (CPU or CUDA, optionally KeOps): queries take and
@@ -49,7 +51,7 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         raise ValueError('unsupported_fault_relations: only independent fault -> affected edges allowed')
     if stacks.segmentation_function is not None:
         raise NotImplementedError('unsupported_fault_segmentation_function: production slope must be a constant')
-    fault_inputs = check_fixed_query_contract(stacks, interpolation_input, octree_list)
+    fault_inputs = check_fixed_query_contract(stacks, interpolation_input, octree_list, allow_finite_faults=True)
     last = octree_list[-1]
     for fault_stack in faults:
         if host(last.outputs[fault_stack].scalar_field_at_sp).size != 1:
@@ -111,19 +113,34 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         if not np.allclose(minima, minima[-1], rtol=0, atol=precision_tolerance(1e-12, BT.dtype)):
             raise ValueError('unsupported_fault_drift_reference: production drift shift differs between octree levels')
         ids.flags.writeable = edges.flags.writeable = False
-        rules[fault_stack] = (ids, edges, slope, minima[-1])
+        rules[fault_stack] = (ids, edges, slope, minima[-1], _finite_slip_frame(
+            fault_inputs[fault_stack], octree_list, fault_stack, private_input))
 
-    def drift(fault_stack, scalar):
-        ids, edges, slope, minimum = rules[fault_stack]
+    finite_faults = {f for f in faults if rules[f][4] is not None}
+
+    def step(fault_stack, scalar):
+        """Shifted soft segmentation of the fault's scalar: the whole drift of an infinite fault."""
+        ids, edges, slope, minimum, _ = rules[fault_stack]
         values = soft_segment_unbounded(Z=device(scalar), edges=device(edges), ids=ids, sigmoid_slope=slope)
         return np.asarray(host(values), dtype=np.float64).reshape(-1) - minimum
+
+    def drift(fault_stack, scalar, gradients=None, points=None):
+        """Production drift from the fault's scalar; finite faults also need its gradients and the points."""
+        values = step(fault_stack, scalar)
+        return values if fault_stack not in finite_faults else values * taper(fault_stack, scalar, gradients, points)
+
+    def taper(fault_stack, scalar, gradients, points):
+        finite_fault, isovalue, normal = rules[fault_stack][4]
+        return finite_fault_taper(finite_fault, np.asarray(points, dtype=np.float64), np.asarray(scalar),
+                                  tuple(np.asarray(gradients).T), isovalue, normal=normal)[0]
 
     reference_xyz = np.concatenate((host(private_input.grid.values), host(private_input.all_surface_points.sp_coords)))
     drift_errors = []
     for fault_stack in faults:
         output = last.outputs[fault_stack].scalar_fields
-        expected = host(_modify_faults_values_output(FaultsData(), output, reference_xyz)).reshape(-1)
-        rebuilt = drift(fault_stack, evaluate_stack(fault_stack, reference_xyz)[0])
+        expected = host(_modify_faults_values_output(
+            fault_inputs[fault_stack] or FaultsData(), copy.copy(output), reference_xyz)).reshape(-1)
+        rebuilt = drift(fault_stack, *evaluate_stack(fault_stack, reference_xyz), reference_xyz)
         error = float(np.max(np.abs(rebuilt - expected)))
         if not np.isfinite(error) or error > precision_tolerance(1e-10, BT.dtype):
             raise ValueError(f'unverified_fault_drift: rebuilt production drift differs for fault stack {fault_stack}')
@@ -141,14 +158,17 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         if points.ndim != 2 or points.shape[1] != 3 or not np.isfinite(points).all():
             raise ValueError('invalid_query_points: finite (M, 3) coordinates required')
         needed = sorted({f for s in stacks for f in affected_by[s]} | {s for s in stacks if s in faults})
-        # Drift needs only fault scalars; fault gradients only when a fault row is requested.
-        fault_fields = {f: evaluate_stack(f, points, gradients=gradients and f in stacks) for f in needed}
+        # Drift needs fault scalars, and a finite fault's gradients for the projection;
+        # otherwise fault gradients only when a fault row is requested.
+        fault_fields = {f: evaluate_stack(f, points, gradients=(gradients and f in stacks) or f in finite_faults)
+                        for f in needed}
         values, normals = [], []
         for s in stacks:
             if s in fault_fields:
                 v, g = fault_fields[s]
+                g = g if gradients else None
             else:
-                rows = (np.stack([drift(f, fault_fields[f][0]) for f in affected_by[s]])
+                rows = (np.stack([drift(f, *fault_fields[f], points) for f in affected_by[s]])
                         if affected_by[s] else None)
                 v, g = evaluate_stack(s, points, rows, gradients)
             values.append(v)
@@ -249,6 +269,9 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         fault_items = [(f, np.concatenate([p for _, p in parts])) for f, parts in fault_parts.items() if parts]
         fault_scalars = dict(zip([f for f, _ in fault_items],
                                  evaluate_many([(f, pts, None) for f, pts in fault_items], 'scalar')))
+        finite_items = [(f, pts) for f, pts in fault_items if f in finite_faults]
+        fault_gradients = dict(zip([f for f, _ in finite_items],
+                                   evaluate_many([(f, pts, None) for f, pts in finite_items], 'gradient')))
         fault_slices = {}
         for f, parts in fault_parts.items():
             offset = 0
@@ -263,8 +286,13 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
             for stack, _ in keys:
                 rows = None
                 if affected_by[stack]:
-                    rows = np.stack([drift(f, fault_scalars[f][fault_slices[(f, (stack, kind))]])
-                                     for f in affected_by[stack]])
+                    rows = []
+                    for f in affected_by[stack]:
+                        part = fault_slices[(f, (stack, kind))]
+                        rows.append(drift(f, fault_scalars[f][part],
+                                          fault_gradients[f][part] if f in finite_faults else None,
+                                          merged[(stack, kind)]))
+                    rows = np.stack(rows)
                 items.append((stack, merged[(stack, kind)], rows))
             evaluated.update(zip(keys, evaluate_many(items, kind)))
         for f in faults:
@@ -283,12 +311,13 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                 offsets[key] = start+len(points)
         return results
 
-    # Drift plateaus far on either side of each fault (production drift saturates there).
+    # Drift plateaus far on either side of each fault (production drift saturates there),
+    # before any finite-fault taper.
     plateaus = {}
     for f in faults:
         edges = rules[f][1]
         far = 1e3*(1+float(np.max(np.abs(edges))))
-        negative, positive = drift(f, np.array([float(edges.min())-far, float(edges.max())+far]))
+        negative, positive = step(f, np.array([float(edges.min())-far, float(edges.max())+far]))
         plateaus[f] = (float(negative), float(positive))
 
     def query_sides(points, stacks, sides):
@@ -297,7 +326,8 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         ``sides`` (len(fault_stacks), M) holds +1 for the positive and -1 for the
         negative fault-potential side of each point's fault block: affected
         stacks see the drift plateau of that side instead of the soft step, so
-        each block's field is smooth up to and across its faults.
+        each block's field is smooth up to and across its faults. A finite
+        fault's plateau is scaled by its slip taper at each point.
         """
         if backend != (BT.engine_backend, BT.dtype, BT.use_gpu, BT.use_pykeops, BT.COMPUTE_GRADS):
             raise RuntimeError('fault sampler backend changed after preparation')
@@ -313,11 +343,14 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
             raise ValueError('invalid_fault_sides: +1 or -1 per fault and point required')
         if not len(points):
             return np.empty((len(stacks), 0))
+        used = sorted({f for s in stacks for f in affected_by[s]} & finite_faults)
+        tapers = {f: taper(f, *evaluate_stack(f, points), points) for f in used}
         items = []
         for s in stacks:
             rows = None
             if affected_by[s]:
-                rows = np.stack([np.where(sides[faults.index(f)] > 0, *plateaus[f][::-1]) for f in affected_by[s]])
+                rows = np.stack([np.where(sides[faults.index(f)] > 0, *plateaus[f][::-1]) * tapers.get(f, 1.)
+                                 for f in affected_by[s]])
             items.append((int(s), points, rows))
         return np.stack(evaluate_many(items, 'scalar'))
 
@@ -330,5 +363,37 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                                  weight_provenance='independent_production_output_snapshot',
                                  cache_fingerprints=tuple(fingerprints), drift='production_soft_segmentation',
                                  drift_rebuild_max_error=tuple(drift_errors),
+                                 finite_fault_stacks=tuple(sorted(finite_faults)),
                                  reference_grid_size=grid_size, surface_level=len(octree_list) - 1,
                                  field_contract='raw_stack_values_and_actual_kernel_gradients'))
+
+
+def _finite_slip_frame(fault_input, octree_list, fault_stack, private_input):
+    """``(finite fault, isovalue, frozen slip-frame normal)`` of a finite fault stack, else None.
+
+    Production picks the frame normal on each surface level's own reference
+    grid; every level must agree, as each level's affected solve used its own.
+    """
+    if fault_input is None or not fault_input.finite_fault_defined:
+        return None
+    sp_coords = host(private_input.all_surface_points.sp_coords)
+    normals = []
+    for level in octree_list:
+        output = level.outputs[fault_stack].scalar_fields
+        fields = output.exported_fields
+        gradients = (fields.gx_field_everywhere, fields.gy_field_everywhere, fields.gz_field_everywhere)
+        if any(gradient is None for gradient in gradients):
+            raise ValueError('invalid_finite_fault_reference: production fault gradients required')
+        xyz = np.concatenate((host(output.grid.values), sp_coords))
+        isovalue = float(host(output.scalar_field_at_sp).reshape(-1)[0])
+        _, normal = finite_fault_taper(
+            fault_input.finite_fault, xyz, np.asarray(host(fields.scalar_field_everywhere), dtype=np.float64),
+            tuple(np.asarray(host(g), dtype=np.float64) for g in gradients), isovalue,
+            reference_size=fields._macro_reference_size or len(xyz))
+        normals.append(np.asarray(normal, dtype=np.float64))
+    units = np.array([n / np.linalg.norm(n) for n in normals])
+    if not np.allclose(units, units[-1], rtol=0, atol=precision_tolerance(1e-10, BT.dtype)):
+        raise ValueError('unsupported_finite_fault_frame: production slip-frame normal differs between octree levels')
+    normal = normals[-1].copy()
+    normal.flags.writeable = False
+    return fault_input.finite_fault, isovalue, normal

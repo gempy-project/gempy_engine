@@ -172,6 +172,21 @@ use the non-stacked symbolic evaluator. Ordinary stacks continue to use the
 optimized stacked evaluator. NumPy and PyKeOps reductions can differ slightly
 because their floating-point reduction orders are different.
 
+## Mesh Extraction
+
+`pretty` and `joint_contacts` support finite faults. `joint_contacts` samples new
+points with the fixed-weight production-drift sampler, which rebuilds the
+tapered drift: the fault scalar and gradient at each query point give its
+projection, and the slip frame normal is frozen from production (it must agree
+across octree levels, else `unsupported_finite_fault_frame`). Gradients follow
+production, which ignores the drift's own gradient, as `pretty` does. The same
+sampler backs `prepare_field_evaluator`; with `fault_sides`, a finite fault's
+side plateau is scaled by its taper.
+
+Banked `joint` extraction rejects finite faults (`unsupported_finite_fault`):
+its fault banks assume a separator that cuts the whole domain, while beyond a
+finite fault's tip the two banks coincide and the horizon must stay one sheet.
+
 ## Known Prototype Issues
 
 - Standalone `FiniteFault.calculate_slip` expects callers to project points separately; engine stack wiring performs that projection.

@@ -370,6 +370,67 @@ def test_model7_natural_hierarchy_meshes():
     assert len(meshes) == 4 and all(len(m.edges) for m in meshes)
 
 
+def _model7_finite(root, depth, min_level, mode, radius=.06):
+    """Model7 with a finite slip patch on its fault, tips inside the domain."""
+    from gempy_engine.core.data import FiniteFault
+    from gempy_engine.core.data.kernel_classes.faults import FaultsData
+
+    inputs, options, descriptor = _model7(root, depth, min_level, mode)
+    n_fault = descriptor.tensors_structure.number_of_points_per_surface[0]
+    center = np.asarray(inputs.surface_points.sp_coords)[:n_fault].mean(axis=0)
+    descriptor.stack_structure.faults_input_data = [FaultsData.from_user_input(
+        None, FiniteFault(center=tuple(center), strike_radius=radius, dip_radius=radius)), None, None]
+    return inputs, options, descriptor
+
+
+def test_model7_finite_fault_natural_adaptive(monkeypatch):
+    from gempy_engine.API.model.model_api import compute_model
+
+    prepared = _audit_no_solves(monkeypatch)
+    meshes = compute_model(*_model7_finite(9, 2, 0, 'joint_contacts')).dc_meshes
+    assert len(prepared) == 1
+    assert [(m.stack_index, m.surface_index) for m in meshes] == [(0, 0), (1, 0), (2, 0), (2, 1)]
+    report = meshes[0].contact_report
+    assert report['interface'] == 'pretty_fault_vertex_merge_single_fault_mesh'
+    assert report['sampler']['finite_fault_stacks'] == (0,)
+    assert max(report['sampler']['drift_rebuild_max_error']) <= 1e-10
+    assert report['borrowed_vertex_count'] > 0
+    assert len(_shared_fault_vertices(meshes)) > 0
+    for mesh in meshes:
+        edges = Counter(tuple(sorted(e)) for tri in mesh.edges.tolist() for e in zip(tri, tri[1:] + tri[:1]))
+        assert len(mesh.edges) and max(edges.values()) <= 2
+
+
+def test_model7_finite_fault_contact_vertices_match_pretty_fault_vertices():
+    """Fully refined, so both modes see identical final-level fault cells.
+
+    Pretty's cross-surface rows can include a crossing from the neighbouring
+    voxel where a horizon passes a lattice corner (here the domain-boundary
+    voxel at y = ymin, beyond the slip patch); joint uses the cell's strict
+    crossings only. Those few fault vertices move by a small fraction of a cell.
+    """
+    from gempy_engine.API.model.model_api import compute_model
+
+    inputs, options, descriptor = _model7_finite(7, 2, 2, 'joint_contacts')
+    extent = np.asarray(inputs.grid.octree_grid.orthogonal_extent).reshape(3, 2)
+    spacing = np.min(extent[:, 1] - extent[:, 0]) / 14  # root 7, two levels
+    contacts = compute_model(inputs, options, descriptor).dc_meshes
+    pretty = compute_model(*_model7_finite(7, 2, 2, 'pretty')).dc_meshes
+    shared = np.array(list(_shared_fault_vertices(contacts).values()))
+    assert len(shared) > 0
+    distance = np.min(np.linalg.norm(shared[:, None] - pretty[0].vertices[None], axis=-1), axis=1)
+    assert np.count_nonzero(distance > 1e-9) <= 2
+    assert distance.max() < .05 * spacing
+    assert len(contacts[0].edges) == len(pretty[0].edges)
+
+
+def test_banked_joint_still_rejects_finite_faults():
+    from gempy_engine.API.model.model_api import compute_model
+
+    with pytest.raises(ValueError, match='unsupported_finite_fault'):
+        compute_model(*_model7_finite(7, 2, 2, 'joint'))
+
+
 def _graben(levels):
     from tests.fixtures.complex_geometries import graben_fault_model
     from gempy_engine.core.data.options import MeshExtractionMaskingOptions
