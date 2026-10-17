@@ -22,9 +22,10 @@ from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.options import InterpolationOptions
 from ...core.data.options.evaluation_options import MeshExtentCapping, MeshExtractionMaskingOptions
 from ...core.data.stack_relation_type import StackRelationType
+from ...modules.dual_contouring.joint_balance import balance_joint_leaves
 from ...modules.dual_contouring.joint_cell_complex import build_adaptive_complex
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
-from ...modules.dual_contouring.joint_lattice import precision_tolerance
+from ...modules.dual_contouring.joint_lattice import lattice_frame, precision_tolerance
 from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
 
 
@@ -237,11 +238,13 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
         finally:
             query_input.set_temp_grid(previous_grid)
 
+    origins, spans, samples, balance = _balance_leaves(
+        origins, spans, domain_shape, extent, samples, lambda points: sample_fields(points)[0])
     result = extract_adaptive_topology(
         origins, spans, domain_shape, extent, samples, surface_to_stack, surface_indices,
         _topology_relations(relations), isovalues, sample_fields=sample_fields, ownership=None,
         include_reference=False)
-    return _meshes_from_result(result, metadata, result["diagnostics"], relations)
+    return _meshes_from_result(result, metadata, dict(result["diagnostics"], octree_balance=balance), relations)
 
 
 def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_list):
@@ -289,14 +292,25 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
         if c not in fault_merge:
             raise ValueError("unsupported_fault_metadata: fault relation from a non-fault stack")
         fault_merge[c].add(int(t))
+    every_surface = np.arange(len(metadata))
+    origins, spans, samples, balance = _balance_leaves(
+        origins, spans, domain_shape, extent, samples,
+        lambda points: field_query([(points, every_surface, 'scalar')])[0])
     result = extract_adaptive_topology(
         origins, spans, domain_shape, extent, samples, groups, indices, topology_relations, levels,
         sample_fields=sample_fields, field_query=field_query, faults_relations=matrix, fault_merge=fault_merge,
         cell_complex=build_adaptive_complex(origins, spans, domain_shape))
-    report = dict(result["diagnostics"], interface="pretty_fault_vertex_merge_single_fault_mesh",
+    report = dict(result["diagnostics"], octree_balance=balance, interface="pretty_fault_vertex_merge_single_fault_mesh",
                   sampler=sampler.get("diagnostics", {}), no_uniform_fallback=True,
                   no_post_reconciliation=True)
     return _meshes_from_result(result, metadata, report, relations)
+
+
+def _balance_leaves(origins, spans, domain_shape, extent, samples, raw_values):
+    """2:1-balance the leaves; new corners take ``raw_values(points)`` (S, M) at physical points."""
+    bounds, spacing = lattice_frame(extent, domain_shape)
+    return balance_joint_leaves(origins, spans, domain_shape, samples,
+                                lambda nodes: raw_values(bounds[::2] + nodes * spacing))
 
 
 def _meshes_from_result(result, metadata, report, relations=()):

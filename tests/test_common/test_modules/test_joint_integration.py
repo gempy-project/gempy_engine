@@ -228,7 +228,8 @@ def test_adapter_callback_isolation_and_shared_ids(monkeypatch, fail_query):
     np.testing.assert_array_equal(meshes[0].joint_vertex_ids, [0, 1, 2])
     np.testing.assert_array_equal(meshes[1].joint_vertex_ids, [0, 2, 3])
     np.testing.assert_array_equal(meshes[0].vertices[[0, 2]], meshes[1].vertices[[0, 1]])
-    assert all(mesh.contact_report == {"joint": True} for mesh in meshes)
+    already_balanced = dict(split_leaves=0, added_leaves=0, queried_nodes=0)
+    assert all(mesh.contact_report == {"joint": True, "octree_balance": already_balanced} for mesh in meshes)
 
 
 @pytest.mark.parametrize("unconformity", [False, True])
