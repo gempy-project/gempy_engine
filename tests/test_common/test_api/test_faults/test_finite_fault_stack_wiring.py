@@ -231,3 +231,12 @@ def test_finite_fault_flat_stack_matches_serial(one_fault_model, monkeypatch):
     assert np.allclose(flat_dependent, serial_dependent, atol=5e-3, rtol=1e-2)
     assert flat.octrees_output[0].outputs[0].exported_fields.gx_field is not None
     assert options.evaluation_options.compute_scalar_gradient is False
+
+
+def test_finite_fault_frame_uses_the_fault_surface_points():
+    from gempy_engine.API.interp_single._aux_faults_ops import finite_fault_frame_indices
+
+    fields = ExportedFields(_scalar_field=np.zeros(10), _grid_size=4, _slice_feature=slice(2, 5))
+    assert finite_fault_frame_indices(fields, 10).tolist() == [6, 7, 8]
+    # Without surface points among the evaluated points the whole reference set is used.
+    assert finite_fault_frame_indices(ExportedFields(_scalar_field=np.zeros(3), _grid_size=3), 3).tolist() == [0, 1, 2]

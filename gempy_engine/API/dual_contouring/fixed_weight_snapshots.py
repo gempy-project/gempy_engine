@@ -61,11 +61,14 @@ def fault_matrix(stacks):
     return matrix.astype(bool)
 
 
-def check_fixed_query_contract(stacks, interpolation_input, octree_list, allow_finite_faults=False):
+def check_fixed_query_contract(stacks, interpolation_input, octree_list, allow_finite_faults=False,
+                               allow_external_stacks=False):
     """Shared fixed-weight query preconditions; returns per-stack fault inputs.
 
     Finite faults are accepted only with ``allow_finite_faults`` (production
-    drift queries); fault banks require infinite faults.
+    drift queries); fault banks require infinite faults. ``allow_external_stacks``
+    (production drift queries) accepts non-fault stacks with external callbacks,
+    which production evaluates without fault drift, null space and stack grid subsets.
     """
     n_stacks = stacks.n_stacks
     if stacks.faults_input_data is not None and (
@@ -83,12 +86,16 @@ def check_fixed_query_contract(stacks, interpolation_input, octree_list, allow_f
         raise ValueError('unsupported_external_fault_data')
     if interpolation_input.micro_points is not None or interpolation_input.evaluation_micro_points is not None:
         raise NotImplementedError('unsupported_fault_micro_correction: fixed reference state required')
-    if stacks.interp_functions_per_stack is not None and any(
-            callback is not None for callback in stacks.interp_functions_per_stack):
+    callbacks = stacks.interp_functions_per_stack or [None] * n_stacks
+    if not allow_external_stacks and any(callback is not None for callback in callbacks):
         raise NotImplementedError('unsupported_external_fault_callback: explicit bank-aware contract required')
-    if StackRelationType.NULL_SPACE in stacks.masking_descriptor:
+    if any(callback is not None and relation is StackRelationType.FAULT
+           for callback, relation in zip(callbacks, stacks.masking_descriptor)):
+        raise NotImplementedError('unsupported_external_fault_callback: fault stacks must be interpolated')
+    if not allow_external_stacks and StackRelationType.NULL_SPACE in stacks.masking_descriptor:
         raise NotImplementedError('unsupported_fault_null_space')
-    if stacks.ignored_grid_types_per_stack is not None and any(stacks.ignored_grid_types_per_stack):
+    if (not allow_external_stacks and stacks.ignored_grid_types_per_stack is not None
+            and any(stacks.ignored_grid_types_per_stack)):
         raise NotImplementedError('unsupported_fault_stack_grid_subset')
     if not octree_list or any(len(level.outputs) != n_stacks for level in octree_list):
         raise ValueError('invalid_fault_octree_outputs')
@@ -146,8 +153,11 @@ def _cache_live(stack_options, stack_index):
             and WeightCache.load_weights(f'{stack_options.cache_model_name}.{stack_index}', False) is not None)
 
 
-def fixed_weight_snapshots(descriptor, interpolation_input, options, octree_list, fault_stacks, fault_inputs):
+def fixed_weight_snapshots(descriptor, interpolation_input, options, octree_list, fault_stacks, fault_inputs,
+                           external_stacks=()):
     """Frozen (solver_input, weights, options) per stack, from the outputs' production weights.
+
+    ``external_stacks`` have no weights (external callbacks); their snapshot is None.
 
     Production fault drift for every stack in ``fault_stacks`` is rebuilt on the
     last surface level's reference grid, exactly as the production solve saw it.
@@ -177,6 +187,10 @@ def fixed_weight_snapshots(descriptor, interpolation_input, options, octree_list
     backend_block = block if BT.engine_backend is AvailableBackends.numpy else BT.t.array(block, dtype=BT.dtype_obj)
     snapshots, fingerprints = [], []
     for stack_index in range(n_stacks):
+        if stack_index in external_stacks:
+            snapshots.append(None)
+            fingerprints.append(None)
+            continue
         private_stacks.stack_number = stack_index
         subset = InterpolationInput.from_interpolation_input_subset(private_input, private_stacks)
         subset.fault_values = _grab_stack_fault_data(backend_block, subset, private_stacks, grid_size)

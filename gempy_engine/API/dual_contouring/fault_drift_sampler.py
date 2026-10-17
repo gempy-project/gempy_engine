@@ -9,7 +9,7 @@ import copy
 
 import numpy as np
 
-from ..interp_single._aux_faults_ops import _modify_faults_values_output, finite_fault_taper
+from ..interp_single._aux_faults_ops import _modify_faults_values_output, finite_fault_frame_indices, finite_fault_taper
 from ..interp_single._interp_scalar_field import _evaluate_sys_eq
 from .fixed_weight_snapshots import (check_fixed_query_contract, check_fixed_weight_backend, fault_matrix,
                                      fixed_weight_snapshots, freeze_arrays, host)
@@ -39,6 +39,8 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
     faults every stack is a plain fixed-weight evaluation.
     ``query_sides(points, stacks, sides)`` instead fixes each fault's drift to
     the plateau of one side per point (see its docstring).
+    Non-fault stacks with external callbacks (e.g. mesh-field null space) are
+    evaluated by their callbacks with no drift, exactly as production does.
     """
     check_fixed_weight_backend()
     stacks = descriptor.stack_structure
@@ -51,14 +53,19 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         raise ValueError('unsupported_fault_relations: only independent fault -> affected edges allowed')
     if stacks.segmentation_function is not None:
         raise NotImplementedError('unsupported_fault_segmentation_function: production slope must be a constant')
-    fault_inputs = check_fixed_query_contract(stacks, interpolation_input, octree_list, allow_finite_faults=True)
+    fault_inputs = check_fixed_query_contract(stacks, interpolation_input, octree_list, allow_finite_faults=True,
+                                              allow_external_stacks=True)
+    external = {s: callback for s, callback in enumerate(stacks.interp_functions_per_stack or ())
+                if callback is not None}
     last = octree_list[-1]
     for fault_stack in faults:
         if host(last.outputs[fault_stack].scalar_field_at_sp).size != 1:
             raise ValueError('unsupported_fault_surfaces: one fault surface per fault stack required')
     snapshots, fingerprints, private_input, grid_size = fixed_weight_snapshots(
-        descriptor, interpolation_input, options, octree_list, faults, fault_inputs)
-    affected_by = {s: tuple(int(f) for f in np.flatnonzero(matrix[:, s])) for s in range(n_stacks)}
+        descriptor, interpolation_input, options, octree_list, faults, fault_inputs, tuple(external))
+    # Production never adds fault drift to an external callback's field.
+    affected_by = {s: () if s in external else tuple(int(f) for f in np.flatnonzero(matrix[:, s]))
+                   for s in range(n_stacks)}
     backend = (BT.engine_backend, BT.dtype, BT.use_gpu, BT.use_pykeops, BT.COMPUTE_GRADS)
     on_device = BT.engine_backend is not AvailableBackends.numpy
 
@@ -67,14 +74,30 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         return BT.t.array(np.ascontiguousarray(values), dtype=BT.dtype_obj) if on_device else np.asarray(values, dtype=BT.dtype)
 
     # Frozen host weights stay the inspected snapshot; evaluation uses a device copy.
-    device_weights = [device(weights) for _, weights, _ in snapshots]
+    device_weights = [None if snapshot is None else device(snapshot[1]) for snapshot in snapshots]
     scalar_options = []
-    for _, _, stack_options in snapshots:
-        scalar_only = copy.deepcopy(stack_options)
-        scalar_only.evaluation_options.compute_scalar_gradient = False
+    for snapshot in snapshots:
+        scalar_only = None if snapshot is None else copy.deepcopy(snapshot[2])
+        if scalar_only is not None:
+            scalar_only.evaluation_options.compute_scalar_gradient = False
         scalar_options.append(scalar_only)
 
+    def evaluate_external(stack_index, points, gradients):
+        callback = external[stack_index]
+        functions = (callback.implicit_function,) + (
+            (callback.gx_function, callback.gy_function, callback.gz_function) if gradients else ())
+        if any(function is None for function in functions):
+            raise ValueError(f'unsupported_external_fault_callback: stack {stack_index} needs gradient callbacks')
+        xyz = device(points)
+        fields = [np.array(host(BT.t.array(function(xyz), dtype=BT.dtype)), dtype=np.float64).reshape(-1)
+                  for function in functions]
+        if any(field.shape != (len(points),) or not np.isfinite(field).all() for field in fields):
+            raise ValueError('nonfinite_or_invalid_fault_query')
+        return fields[0], (np.stack(fields[1:], axis=-1) if gradients else None)
+
     def evaluate_stack(stack_index, points, drift_rows=None, gradients=True):
+        if stack_index in external:
+            return evaluate_external(stack_index, points, gradients)
         original, _, stack_options = snapshots[stack_index]
         if not gradients:
             stack_options = scalar_options[stack_index]
@@ -178,9 +201,12 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
     # Stacked KeOps evaluation (as in FLAT stacks): one block-sparse reduction per
     # kind for stacks with identical kernel options and drift-row counts.
     kind_options = {kind: [] for kind in ('scalar', 'gradient')}
-    for _, _, stack_options in snapshots:
+    for snapshot in snapshots:
         for kind, flags in (('scalar', (True, False)), ('gradient', (False, True))):
-            stacked = copy.deepcopy(stack_options)
+            if snapshot is None:
+                kind_options[kind].append(None)
+                continue
+            stacked = copy.deepcopy(snapshot[2])
             stacked.evaluation_options.compute_scalar, stacked.evaluation_options.compute_scalar_gradient = flags
             kind_options[kind].append(stacked)
 
@@ -192,7 +218,9 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
             groups = {}
             for i in pending:
                 stack, points, rows = items[i]
-                signature = (repr(snapshots[stack][2].kernel_options), 0 if rows is None else len(rows))
+                # External stacks never stack: a unique signature sends them to evaluate_stack.
+                signature = (('external', i) if stack in external else
+                             (repr(snapshots[stack][2].kernel_options), 0 if rows is None else len(rows)))
                 groups.setdefault(signature, []).append(i)
             pending = []
             for members in groups.values():
@@ -364,6 +392,7 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                                  cache_fingerprints=tuple(fingerprints), drift='production_soft_segmentation',
                                  drift_rebuild_max_error=tuple(drift_errors),
                                  finite_fault_stacks=tuple(sorted(finite_faults)),
+                                 external_stacks=tuple(sorted(external)),
                                  reference_grid_size=grid_size, surface_level=len(octree_list) - 1,
                                  field_contract='raw_stack_values_and_actual_kernel_gradients'))
 
@@ -371,8 +400,9 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
 def _finite_slip_frame(fault_input, octree_list, fault_stack, private_input):
     """``(finite fault, isovalue, frozen slip-frame normal)`` of a finite fault stack, else None.
 
-    Production picks the frame normal on each surface level's own reference
-    grid; every level must agree, as each level's affected solve used its own.
+    Production picks the frame normal on each surface level from the fault's
+    surface points, so every level normally agrees; the drift is rebuilt from
+    one frame, so a level that disagrees is still rejected.
     """
     if fault_input is None or not fault_input.finite_fault_defined:
         return None
@@ -389,7 +419,7 @@ def _finite_slip_frame(fault_input, octree_list, fault_stack, private_input):
         _, normal = finite_fault_taper(
             fault_input.finite_fault, xyz, np.asarray(host(fields.scalar_field_everywhere), dtype=np.float64),
             tuple(np.asarray(host(g), dtype=np.float64) for g in gradients), isovalue,
-            reference_size=fields._macro_reference_size or len(xyz))
+            frame_indices=finite_fault_frame_indices(fields, fields._macro_reference_size or len(xyz)))
         normals.append(np.asarray(normal, dtype=np.float64))
     units = np.array([n / np.linalg.norm(n) for n in normals])
     if not np.allclose(units, units[-1], rtol=0, atol=precision_tolerance(1e-10, BT.dtype)):

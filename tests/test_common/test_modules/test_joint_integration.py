@@ -164,6 +164,7 @@ def test_joint_guards(monkeypatch, guard):
         options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
     elif guard == "null":
         descriptor.stack_structure.masking_descriptor[0] = StackRelationType.NULL_SPACE
+        descriptor.stack_structure.ignored_grid_types_per_stack = [("octree_grid",)]
     original_grid = inputs.grid
     with pytest.raises((ValueError, NotImplementedError)):
         adapter.extract_joint_octree(descriptor, inputs, options, levels)
@@ -528,3 +529,34 @@ def test_public_compute_none_joint_ordinary_parity(backend, triangulation, norma
         geometries.append((Counter(map(tuple, mesh.vertices)),
                            Counter(oriented_triangle(points) for points in mesh.vertices[mesh.edges])))
     assert geometries[0] == geometries[1]
+
+
+@pytest.mark.parametrize("mode", ["joint", "joint_contacts"])
+def test_public_compute_joint_null_space_truncates_without_mesh(mode):
+    """Server mesh-field wiring: a NULL_SPACE sphere (external SDF) above an ordinary stack."""
+    from gempy_engine.API.model.model_api import compute_model
+    center, radius = np.array([5., 1., 2.5]), 2.
+    gradient = lambda k: (lambda xyz: -2 * (xyz[:, k] - center[k]))
+    null_space = CustomInterpolationFunctions(
+        np.array([0.]), lambda xyz: radius ** 2 - ((xyz - center) ** 2).sum(1),
+        gradient(0), gradient(1), gradient(2))
+    stacks = StacksStructure(np.array([0, 4]), np.array([0, 2]), np.array([0, 2]),
+                             [StackRelationType.NULL_SPACE, StackRelationType.BASEMENT],
+                             interp_functions_per_stack=[null_space, None], null_space_id=-1)
+    descriptor = InputDataDescriptor(TensorsStructure(np.array([2, 2])), stacks)
+    options = InterpolationOptions.from_args(86.6, 3571.4, uni_degree=0, i_res=4, gi_res=2, number_dimensions=3)
+    options.evaluation_options.number_octree_levels = 3
+    options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
+    options.evaluation_options.mesh_extraction_overlap = mode
+    inputs = InterpolationInput(
+        SurfacePoints(np.array([[2., .5, 2.5], [8., .5, 2.5], [2., .5, 1.], [8., .5, 1.]])),
+        Orientations(np.array([[5., 1., 2.5], [5., 1., 1.]]), np.array([[0., 0., 1.], [0., 0., 1.]])),
+        EngineGrid(octree_grid=RegularGrid([0, 10., 0, 2., 0, 5.], [8, 2, 8])), np.array([0, 1, 2]))
+    solution = compute_model(inputs, options, descriptor)
+    assert [(m.stack_index, m.surface_index, m.exported_surface_index) for m in solution.dc_meshes] == \
+        [(1, 0, 0), (1, 1, 1)]
+    for mesh in solution.dc_meshes:
+        distance = np.linalg.norm(mesh.vertices - center, axis=1)
+        assert len(mesh.edges) and distance.min() > radius - .05
+        # Both surfaces cross the sphere, so each is cut by (and ends on) its boundary.
+        assert np.count_nonzero(np.abs(distance - radius) < .05)

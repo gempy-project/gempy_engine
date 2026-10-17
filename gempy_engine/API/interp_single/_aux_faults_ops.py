@@ -59,7 +59,7 @@ def _modify_faults_values_output(
         scalar_field_values=np.asarray(to_numpy(exported_fields.scalar_field_everywhere)),
         gradient_fields=tuple(np.asarray(to_numpy(gradient)) for gradient in gradients),
         target_scalar_value=float(target_values[0]),
-        reference_size=reference_size,
+        frame_indices=finite_fault_frame_indices(exported_fields, reference_size),
     )
     if isinstance(shifted_vals, np.ndarray):
         finite_fault_scalar = finite_fault_scalar_np.astype(shifted_vals.dtype, copy=False)
@@ -73,13 +73,29 @@ def _modify_faults_values_output(
     return shifted_vals * finite_fault_scalar
 
 
+def finite_fault_frame_indices(exported_fields, reference_size: int) -> np.ndarray:
+    """Indices of the points that may set a finite fault's slip frame.
+
+    These are the fault's own surface points: they do not depend on the grid,
+    so every octree level picks the same frame. Without surface points in the
+    evaluated points, the whole reference set (grid included) is used.
+    """
+    grid_size = exported_fields._grid_size
+    if grid_size is not None and grid_size < reference_size:
+        sp_indices = np.arange(grid_size, reference_size)[exported_fields.slice_feature or slice(None)]
+        if len(sp_indices):
+            return sp_indices
+    return np.arange(reference_size)
+
+
 def finite_fault_taper(finite_fault, points, scalar_field_values, gradient_fields, target_scalar_value,
-                       reference_size=None, normal=None):
+                       frame_indices=None, normal=None):
     """Slip multiplier of ``points`` (host NumPy) and the slip-frame normal used.
 
     Points are projected onto the fault surface with their own scalar and
-    gradient. Without ``normal`` the frame normal is the gradient at the first
-    ``reference_size`` point whose projection lies nearest the fault center.
+    gradient. Without ``normal`` the frame normal is the gradient at the
+    ``frame_indices`` point (default: all points) whose projection lies
+    nearest the fault center.
     """
     projected_points = project_points_onto_surface(
         points=points,
@@ -88,14 +104,14 @@ def finite_fault_taper(finite_fault, points, scalar_field_values, gradient_field
         target_scalar_value=target_scalar_value,
     )
     if normal is None:
-        reference_size = reference_size or len(points)
-        gradient_matrix = np.stack(gradient_fields, axis=-1)
-        valid_gradient = np.linalg.norm(gradient_matrix[:reference_size], axis=1) > 1e-12
+        frame_indices = np.arange(len(points)) if frame_indices is None else np.asarray(frame_indices)
+        gradient_matrix = np.stack(gradient_fields, axis=-1)[frame_indices]
+        valid_gradient = np.linalg.norm(gradient_matrix, axis=1) > 1e-12
         if not np.any(valid_gradient):
             raise ValueError("Cannot determine finite-fault frame from near-zero gradients")
 
         center = np.asarray(finite_fault.center)
-        distances_to_center = np.linalg.norm(projected_points[:reference_size] - center, axis=1)
+        distances_to_center = np.linalg.norm(projected_points[frame_indices] - center, axis=1)
         center_index = np.argmin(np.where(valid_gradient, distances_to_center, np.inf))
         normal = gradient_matrix[center_index]
     return finite_fault.calculate_slip(points=projected_points, normal=normal), normal

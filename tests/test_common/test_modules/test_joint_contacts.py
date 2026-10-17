@@ -424,6 +424,30 @@ def test_model7_finite_fault_contact_vertices_match_pretty_fault_vertices():
     assert len(contacts[0].edges) == len(pretty[0].edges)
 
 
+def test_curved_finite_fault_meshes_across_octree_levels():
+    """The slip frame comes from the fault's surface points, so on a curved
+    fault every octree level solves with the same drift."""
+    from gempy_engine.API.model.model_api import compute_model
+    from gempy_engine.core.data import FiniteFault
+    from gempy_engine.core.data.kernel_classes.faults import FaultsData
+    from tests.fixtures.complex_geometries import one_fault_model
+
+    inputs, descriptor, options = one_fault_model.__wrapped__()
+    evaluation = options.evaluation_options
+    evaluation.number_octree_levels = evaluation.number_octree_levels_surface = 4
+    evaluation.mesh_extraction = True
+    evaluation.mesh_extraction_overlap = 'joint_contacts'
+    center = np.asarray(inputs.surface_points.sp_coords)[:9].mean(axis=0)
+    descriptor.stack_structure.faults_input_data = [FaultsData.from_user_input(
+        None, FiniteFault(center=tuple(center), strike_radius=1.2, dip_radius=1.)), None, None]
+    meshes = compute_model(inputs, options, descriptor).dc_meshes
+    assert len(meshes) == 6 and all(len(m.edges) for m in meshes)
+    report = meshes[0].contact_report
+    assert report['sampler']['finite_fault_stacks'] == (0,)
+    assert max(report['sampler']['drift_rebuild_max_error']) <= 1e-10
+    assert report['borrowed_vertex_count'] > 0
+
+
 def test_banked_joint_still_rejects_finite_faults():
     from gempy_engine.API.model.model_api import compute_model
 
@@ -616,3 +640,51 @@ def test_fault_free_production_plane_on_torch_backends(kind, mode):
         np.testing.assert_allclose(v0, v1, rtol=0, atol=2e-4)
 
 # endregion
+
+
+def _model7_null_space(root, depth, mode, callback_stack_relation=R.NULL_SPACE):
+    """Model 7 with a NULL_SPACE sphere (external SDF) prepended, as the server's mesh fields are."""
+    from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+    from gempy_engine.core.data.interpolation_functions import CustomInterpolationFunctions
+    from gempy_engine.core.data.stacks_structure import StacksStructure
+
+    inputs, options, descriptor = _model7(root, depth, 0, mode)
+    extent = np.asarray(inputs.grid.octree_grid.orthogonal_extent, dtype=float)
+    low, high = extent[::2], extent[1::2]
+    center, radius = (low + high) / 2 + [0., 0., (high - low)[2] / 4], .3 * (high - low).min()
+    gradient = lambda k: (lambda xyz: -2 * (xyz[:, k] - center[k]))
+    sphere = CustomInterpolationFunctions(np.array([0.]), lambda xyz: radius ** 2 - ((xyz - center) ** 2).sum(1),
+                                          gradient(0), gradient(1), gradient(2))
+    stacks = descriptor.stack_structure
+    faults = np.zeros((4, 4), dtype=bool)
+    faults[1:, 1:] = stacks.faults_relations
+    descriptor = InputDataDescriptor(descriptor.tensors_structure, StacksStructure(
+        np.r_[0, stacks.number_of_points_per_stack], np.r_[0, stacks.number_of_orientations_per_stack],
+        np.r_[0, stacks.number_of_surfaces_per_stack], [callback_stack_relation] + list(stacks.masking_descriptor),
+        faults_relations=faults, interp_functions_per_stack=[sphere, None, None, None], null_space_id=-1))
+    finest = (high - low).min() / (root * 2 ** (depth - 1))
+    return (inputs, options, descriptor), center, radius, finest
+
+
+def test_model7_null_space_mesh_field_truncates_layers():
+    from gempy_engine.API.model.model_api import compute_model
+
+    model, center, radius, finest = _model7_null_space(9, 2, 'joint_contacts')
+    meshes = compute_model(*model).dc_meshes
+    # The null-space boundary is extracted but, as in pretty, not returned.
+    assert [(m.stack_index, m.surface_index, m.exported_surface_index) for m in meshes] == \
+        [(1, 0, 0), (2, 0, 1), (3, 0, 2), (3, 1, 3)]
+    assert meshes[0].contact_report['sampler']['external_stacks'] == (0,)
+    for mesh in meshes[1:]:  # Faults are never masked (as in pretty); layers stop on the sphere.
+        distance = np.linalg.norm(mesh.vertices - center, axis=1)
+        assert distance.min() > radius - 1.5 * finest
+        assert np.count_nonzero(np.abs(distance - radius) < .25 * finest)
+
+
+def test_external_fault_stack_still_rejected():
+    from gempy_engine.API.model.model_api import compute_model
+
+    model, *_ = _model7_null_space(9, 2, 'joint_contacts', callback_stack_relation=R.FAULT)
+    model[2].stack_structure.faults_relations[0, 1:] = False
+    with pytest.raises(NotImplementedError, match='fault stacks must be interpolated'):
+        compute_model(*model)

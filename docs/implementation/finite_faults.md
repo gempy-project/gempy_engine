@@ -163,8 +163,11 @@ surface, because that surface supplies the projection isovalue.
 The engine privately enables scalar gradients for finite-fault stacks without
 changing the caller's global or per-stack options. The fault scalar field,
 full-length gradients, and surface isovalue are used to project all evaluation
-coordinates. A fixed local frame is taken from the valid projected point nearest
-the configured center. The resulting slip multiplier tapers the stored fault
+coordinates. A fixed local frame is taken from the fault's own surface point
+whose projection lies nearest the configured center. Surface points do not
+depend on the grid, so every octree level uses the same frame (and the same
+drift); only when no surface points are evaluated does it fall back to the
+nearest valid grid point. The resulting slip multiplier tapers the stored fault
 drift before dependent stacks read it.
 
 In flat-stack mode, finite-fault stacks are isolated into singleton chunks and
@@ -177,8 +180,9 @@ because their floating-point reduction orders are different.
 `pretty` and `joint_contacts` support finite faults. `joint_contacts` samples new
 points with the fixed-weight production-drift sampler, which rebuilds the
 tapered drift: the fault scalar and gradient at each query point give its
-projection, and the slip frame normal is frozen from production (it must agree
-across octree levels, else `unsupported_finite_fault_frame`). Gradients follow
+projection, and the slip frame normal is frozen from production. Production
+takes it from the fault's surface points, so it agrees across octree levels on
+curved faults too; a disagreement still raises `unsupported_finite_fault_frame`. Gradients follow
 production, which ignores the drift's own gradient, as `pretty` does. The same
 sampler backs `prepare_field_evaluator`; with `fault_sides`, a finite fault's
 side plateau is scaled by its taper.

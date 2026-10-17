@@ -105,9 +105,15 @@ def _check_joint_options(descriptor, options):
     if evaluation.mesh_extraction_masking_options != MeshExtractionMaskingOptions.INTERSECT:
         raise ValueError("joint only supports INTERSECT mesh masking")
     stacks = descriptor.stack_structure
-    relations = stacks.masking_descriptor
-    if StackRelationType.NULL_SPACE in relations:
-        raise NotImplementedError("joint null-space stacks are unsupported")
+    for stack_index, relation in enumerate(stacks.masking_descriptor):
+        ignored = () if stacks.ignored_grid_types_per_stack is None else stacks.ignored_grid_types_per_stack[stack_index]
+        if relation is StackRelationType.NULL_SPACE and {"octree_grid", "corners_grid"} & set(ignored or ()):
+            raise NotImplementedError("joint null-space stacks ignoring the octree/corners grid are unsupported")
+
+
+def _topology_relations(relations):
+    """Null space masks like erosion and exports no mesh, so its boundary only truncates."""
+    return [StackRelationType.ERODE if r is StackRelationType.NULL_SPACE else r for r in relations]
 
 
 def _has_faults(descriptor, interpolation_input):
@@ -233,8 +239,9 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
 
     result = extract_adaptive_topology(
         origins, spans, domain_shape, extent, samples, surface_to_stack, surface_indices,
-        relations, isovalues, sample_fields=sample_fields, ownership=None, include_reference=False)
-    return _meshes_from_result(result, metadata, result["diagnostics"])
+        _topology_relations(relations), isovalues, sample_fields=sample_fields, ownership=None,
+        include_reference=False)
+    return _meshes_from_result(result, metadata, result["diagnostics"], relations)
 
 
 def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_list):
@@ -275,32 +282,38 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
     def sample_fields(points):
         raise ValueError("unexpected_full_field_query: joint_contacts uses targeted field queries")
 
-    _, fault_pairs, _ = build_contact_relations(groups, indices, relations, matrix, levels)
+    topology_relations = _topology_relations(relations)
+    _, fault_pairs, _ = build_contact_relations(groups, indices, topology_relations, matrix, levels)
     fault_merge = {int(i): set() for i, g in enumerate(groups) if relations[g] is StackRelationType.FAULT}
     for c, t in fault_pairs:
         if c not in fault_merge:
             raise ValueError("unsupported_fault_metadata: fault relation from a non-fault stack")
         fault_merge[c].add(int(t))
     result = extract_adaptive_topology(
-        origins, spans, domain_shape, extent, samples, groups, indices, relations, levels,
+        origins, spans, domain_shape, extent, samples, groups, indices, topology_relations, levels,
         sample_fields=sample_fields, field_query=field_query, faults_relations=matrix, fault_merge=fault_merge,
         cell_complex=build_adaptive_complex(origins, spans, domain_shape))
     report = dict(result["diagnostics"], interface="pretty_fault_vertex_merge_single_fault_mesh",
                   sampler=sampler.get("diagnostics", {}), no_uniform_fallback=True,
                   no_post_reconciliation=True)
-    return _meshes_from_result(result, metadata, report)
+    return _meshes_from_result(result, metadata, report, relations)
 
 
-def _meshes_from_result(result, metadata, report):
-    """One ``DualContouringMesh`` per exported surface from a shared-vertex extraction result."""
+def _meshes_from_result(result, metadata, report, relations=()):
+    """One ``DualContouringMesh`` per exported surface from a shared-vertex extraction result.
+
+    Null-space surfaces are extracted (they truncate others) but, as in pretty, not returned.
+    """
     vertices = np.asarray(result["vertices"], dtype=np.float64).reshape(-1, 3)
     meshes = []
     for exported, (stack, surface, isovalue) in enumerate(metadata):
+        if stack < len(relations) and relations[stack] is StackRelationType.NULL_SPACE:
+            continue
         faces = np.asarray(result["faces"][exported], dtype=np.int64).reshape(-1, 3)
         ids, inverse = np.unique(faces, return_inverse=True)
         mesh = DualContouringMesh(
             vertices=vertices[ids].copy(), edges=inverse.reshape(-1, 3), stack_index=stack,
-            surface_index=surface, exported_surface_index=exported, isovalue=isovalue,
+            surface_index=surface, exported_surface_index=len(meshes), isovalue=isovalue,
             contact_report=report)
         mesh.joint_vertex_ids = ids
         mesh.joint_vertex_keys = [result["vertex_keys"][i] for i in ids]
