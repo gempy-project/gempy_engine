@@ -154,6 +154,15 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         edge_fields, endpoint_gradients = query(minimal_xyz)
         edge_fields = edge_fields.reshape(n, len(edges), 2)-levels[:, None, None]
         endpoint_gradients = endpoint_gradients.reshape(n, len(edges), 2, 3)
+        if separator is None:
+            # Crossings and vertices come from the leaf corners; a re-queried
+            # node (low precision) can sit on the other side of a surface and
+            # drop the dual face. Decide tiles and edges from the corners too.
+            samples = snap_straddling_nodes(corners, samples, levels, domain)
+            fields = samples-levels[:, None, None]
+            lattice = shared_node_fields(corners, fields, domain)
+            tile_fields = lookup_node_fields(tiles, *lattice).reshape(n, len(faces), 4)
+            edge_fields = lookup_node_fields(edge_nodes, *lattice).reshape(n, len(edges), 2)
     controllers = ordinary_controllers(identities, truncations)
     if separator is not None:
         controllers = separator_controllers(controllers, faults)

@@ -56,21 +56,27 @@ def _node_codes(corners, domain_shape):
     return np.unique(codes, return_index=True, return_inverse=True), weights
 
 
-def snap_straddling_nodes(corners, samples, levels, domain_shape):
+def snap_straddling_nodes(corners, samples, levels, domain_shape, aligned=1e-10):
     """Raw samples where leaves sharing a node straddle a surface take one value.
 
     Leaves evaluating a node separately (other octree level, low precision)
-    can put it on both sides of a surface. Such corners take the node's first
-    sample (the ``shared_node_fields`` value), so every leaf sees one side;
-    all other samples are returned unchanged.
+    can put it on both sides of a surface, or exactly on it in one leaf only
+    (quantized float32 fields). Such corners take the node's first sample (the
+    ``shared_node_fields`` value), so every leaf sees one side. A node then
+    within ``aligned`` of a surface counts as positive (the usual ``f >= 0``
+    sided rule): aligned endpoints emit no dual face, which would open a hole
+    around the node. All other samples are returned unchanged.
     """
     n = len(samples)
     (_, first, inverse), _ = _node_codes(corners, domain_shape)
     flat = samples.reshape(n, -1)
     canonical = flat[:, first][:, inverse.reshape(-1)]
     fields, canonical_fields = flat-levels[:, None], canonical-levels[:, None]
-    straddle = fields*canonical_fields < 0
-    return np.where(straddle, canonical, flat).reshape(samples.shape)
+    straddle = np.sign(fields) != np.sign(canonical_fields)
+    snapped = np.where(straddle, canonical, flat)
+    # Just past the aligned bound and resolvable at the isovalue's magnitude.
+    sided = levels[:, None] + np.maximum(10*aligned, 4*np.spacing(np.abs(levels[:, None])))
+    return np.where(np.abs(snapped-levels[:, None]) < aligned, sided, snapped).reshape(samples.shape)
 
 
 def shared_node_fields(corners, fields, domain_shape):
