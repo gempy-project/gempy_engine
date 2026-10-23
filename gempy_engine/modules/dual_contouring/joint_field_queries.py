@@ -12,42 +12,54 @@ def _host(values):
     return values.detach().cpu().numpy() if hasattr(values, 'detach') else np.asarray(values)
 
 
+def _unique_rows(points):
+    """Sorted unique (K, 3) rows and each row's index into them; -0.0 equals 0.0, as in tuples."""
+    points = np.ascontiguousarray(points, dtype=np.float64).reshape(-1, 3) + 0.
+    order = np.lexsort(points.T[::-1])
+    ordered = points[order]
+    start = np.ones(len(ordered), dtype=bool)
+    start[1:] = np.any(ordered[1:] != ordered[:-1], axis=1)
+    inverse = np.empty(len(points), dtype=np.int64)
+    inverse[order] = np.cumsum(start)-1
+    return ordered[start], inverse
+
+
 class ExactPointCache:
     """All-surface samples keyed by exact coordinates; each point is sampled once.
 
     ``validate(points, raw, gradients)`` may reject freshly sampled blocks.
+    New points are sampled in sorted order.
     """
 
     def __init__(self, sample_fields, n_surfaces, validate=None):
         self._sample, self._n, self._validate = sample_fields, n_surfaces, validate
-        self._index, self._raw, self._gradients = {}, [], []
+        self._points = np.empty((0, 3))
+        self._raw, self._gradients = np.empty((n_surfaces, 0)), np.empty((n_surfaces, 0, 3))
 
     def __len__(self):
-        return len(self._index)
+        return len(self._points)
 
     def __call__(self, points):
-        n = self._n
-        points = np.asarray(points).reshape(-1, 3)
-        keys = list(map(tuple, points))
-        missing = sorted(set(keys)-self._index.keys())
-        if missing:
-            raw, gradients = self._sample(np.asarray(missing))
+        n, stored = self._n, len(self._points)
+        merged, inverse = _unique_rows(np.concatenate((self._points, np.asarray(points, dtype=np.float64).reshape(-1, 3))))
+        requested = inverse[stored:]
+        if len(merged) > stored:
+            # Stored points are sorted and unique, so they keep their relative order.
+            new = np.ones(len(merged), dtype=bool)
+            new[inverse[:stored]] = False
+            missing = merged[new]
+            raw, gradients = self._sample(missing)
             raw, gradients = np.array(_host(raw), copy=True), np.array(_host(gradients), copy=True)
             if raw.shape != (n, len(missing)) or gradients.shape != (n, len(missing), 3) or not (
                     np.isfinite(raw).all() and np.isfinite(gradients).all()):
                 raise ValueError('invalid_callback_samples: finite all-surface scalar/gradient arrays required')
             if self._validate is not None:
-                self._validate(np.asarray(missing), raw, gradients)
-            self._index.update(zip(missing, range(len(self._index), len(self._index)+len(missing))))
-            self._raw.append(raw)
-            self._gradients.append(gradients)
-        columns = np.fromiter((self._index[k] for k in keys), dtype=np.int64, count=len(keys))
-        if len(self._raw) > 1:
-            self._raw[:] = [np.concatenate(self._raw, axis=1)]
-            self._gradients[:] = [np.concatenate(self._gradients, axis=1)]
-        if not self._raw:
-            return np.empty((n, 0)), np.empty((n, 0, 3))
-        return self._raw[0][:, columns], self._gradients[0][:, columns]
+                self._validate(missing, raw, gradients)
+            all_raw, all_gradients = np.empty((n, len(merged))), np.empty((n, len(merged), 3))
+            all_raw[:, ~new], all_gradients[:, ~new] = self._raw, self._gradients
+            all_raw[:, new], all_gradients[:, new] = raw, gradients
+            self._points, self._raw, self._gradients = merged, all_raw, all_gradients
+        return self._raw[:, requested], self._gradients[:, requested]
 
 
 class TargetedFieldBatch:

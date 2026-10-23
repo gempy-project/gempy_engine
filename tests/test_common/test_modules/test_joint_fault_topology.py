@@ -340,7 +340,6 @@ def test_competing_triple_falls_back_to_unshared_vertices(bank):
 def test_candidate_evidence_checks_both_participants_before_joint(participant, decision):
     # The same third controller must be considered on the controller itself,
     # not just on the nominal target of the represented contact equality.
-    face = dict(cells=(0, None))
     tile_fields = np.array([[[-.3, .7, -.3, .7]], [[-.4, -.4, .6, .6]],
                             [[-1., -1., -1., -1.]]])
     leaf_fields = np.ones((3, 1, 8))
@@ -351,7 +350,7 @@ def test_candidate_evidence_checks_both_participants_before_joint(participant, d
     elif decision == 'mismatch':
         tile_fields[2] = 1.
     kwargs = dict(controllers={participant: [(2, 1)]}, leaf_fields=leaf_fields)
-    args = ([face], np.array([[[0., 0., 0.], [1., 0., 0.], [0., 1., 0.], [1., 1., 0.]]]),
+    args = (np.array([[0, -1]]), np.array([[[0., 0., 0.], [1., 0., 0.], [0., 1., 0.], [1., 1., 0.]]]),
             tile_fields, {(0, 1)}, [(0, 0), (1, 0), (2, 0)], np.array([[0, 0, 0]]),
             np.array([1]), None, None, None, None)
     # Competing or mismatched ownership gives the junction up to unshared vertices.

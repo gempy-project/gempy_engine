@@ -19,6 +19,12 @@ bridge = importlib.import_module("gempy_engine.API.dual_contouring.joint_fault_b
 adapter = importlib.import_module("gempy_engine.API.dual_contouring.joint_extraction")
 
 
+
+def _one_triangle_plan(n_surfaces):
+    """Deferred plan with one triangle on vertex ids 0, 1, 2 per surface."""
+    return dict(surface=np.arange(n_surfaces), keys=np.tile([[0, 1, 2]], (n_surfaces, 1)),
+                affected=np.zeros(n_surfaces, dtype=bool), n_surfaces=n_surfaces)
+
 def _fault_case():
     descriptor, inputs, options, levels = _case()
     stacks = descriptor.stack_structure
@@ -75,8 +81,8 @@ def test_bank_assembly_preserves_original_export_order_and_disjoint_namespaces(m
             assert R.FAULT not in relations
             assert isovalues[0][0] == .13
         keys = [("regular", i) for i in range(3)]
-        return dict(vertices=np.eye(3), _triangle_plan=[[dict(keys=tuple(keys))] for _ in groups],
-                    _key_to_id=dict(zip(keys, range(3))), vertex_keys=keys, seam_edges=[[0, 1]],
+        return dict(vertices=np.eye(3), _triangle_plan=_one_triangle_plan(len(groups)),
+                    _key_to_id=np.arange(3), vertex_keys=keys, seam_edges=[[0, 1]],
                     diagnostics={"coarsefine_seam_edge_count": 1})
 
     monkeypatch.setattr(bridge, "extract_adaptive_topology", extract)
@@ -123,8 +129,8 @@ def test_all_partition_validation_barrier_before_emission(monkeypatch, rejected_
             raise ValueError("unsupported_hanging_branch: rejected later partition")
         keys = [("regular", i) for i in range(3)]
         result = dict(vertices=np.eye(3), vertex_keys=keys, seam_edges=[[0, 1]], diagnostics={},
-                      _triangle_plan=[[dict(keys=tuple(keys))] for _ in args[5]],
-                      _key_to_id=dict(zip(keys, range(3))))
+                      _triangle_plan=_one_triangle_plan(len(args[5])),
+                      _key_to_id=np.arange(3))
         prepared.append(result)
         return result
 
@@ -591,8 +597,8 @@ def test_model7_four_original_exports_with_core_contract_stub(monkeypatch):
         assert kwargs["separator_contacts"]["controllers"] == {
             0: [], 1: [(0, -1)], 2: [(1, -1), (0, -1)], 3: [(1, -1), (0, -1)]}
         keys = [("regular", i) for i in range(3)]
-        return dict(vertices=np.eye(3), _triangle_plan=[[dict(keys=tuple(keys))] for _ in groups],
-                    _key_to_id=dict(zip(keys, range(3))), vertex_keys=keys, seam_edges=[[0, 1]],
+        return dict(vertices=np.eye(3), _triangle_plan=_one_triangle_plan(len(groups)),
+                    _key_to_id=np.arange(3), vertex_keys=keys, seam_edges=[[0, 1]],
                     diagnostics={"coarsefine_seam_edge_count": 0})
 
     monkeypatch.setattr(bridge, "extract_adaptive_topology", extract)

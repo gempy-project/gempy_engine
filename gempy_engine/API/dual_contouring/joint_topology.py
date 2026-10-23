@@ -14,7 +14,7 @@ from ...core.data.stack_relation_type import StackRelationType as R
 from ...modules.dual_contouring._gen_vertices import generate_dual_contouring_vertices
 from ...modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge
 from ...modules.dual_contouring.joint_cell_branches import CORNERS, EDGE_START, EDGE_END
-from ...modules.dual_contouring.joint_cell_complex import build_adaptive_complex
+from ...modules.dual_contouring.joint_cell_complex import AdaptiveComplex, _paused_gc, adaptive_complex_arrays
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
 from ...modules.dual_contouring.joint_edge_decisions import crossing_normals, edge_crossing_decisions
 from ...modules.dual_contouring.joint_field_queries import ExactPointCache, TargetedFieldBatch
@@ -30,8 +30,9 @@ from ...modules.dual_contouring.joint_ownership import (borrowed_hermite_rows, b
                                                         fallback_junction_leaves, fallback_region,
                                                         fault_merge_targets, ordinary_controllers)
 from ...modules.dual_contouring.joint_triangle_plan import (emit_adaptive_triangles, plan_adaptive_junctions,
-                                                            plan_adaptive_triangles, plan_edge_rows,
+                                                            plan_adaptive_triangles, plan_edge_rows, ring_triangles,
                                                             validate_adaptive_incidence)
+from ...modules.dual_contouring.joint_xp import host, namespace
 from ...modules.dual_contouring.weighted_qef_setup_multicore import DEFAULT_CROSS_SURFACE_WEIGHT
 
 
@@ -53,7 +54,7 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     ``defer_emission`` returns a fully validated ``_triangle_plan`` and
     ``_key_to_id`` with faces/affected_faces set to None for a caller-owned
     all-bank validation barrier. It cannot be combined with ``include_reference``.
-    ``cell_complex`` may supply the read-only ``build_adaptive_complex`` result
+    ``cell_complex`` may supply the read-only ``adaptive_complex_arrays`` result
     for these exact origins/spans/domain, so bank partitions share one build.
     ``fault_merge`` maps each represented fault surface to exactly the surfaces it
     affects (pretty's fault rule, as key substitution): in leaves where the fault
@@ -102,26 +103,32 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     # endregion
 
     # region Lattice and samples
-    complex_ = build_adaptive_complex(origins, spans, domain_shape) if cell_complex is None else cell_complex
-    origins, spans = np.asarray(origins), np.asarray(spans)
-    domain = np.asarray(domain_shape)
+    # Leaves set the array library and device (NumPy, or Torch on the engine's device).
+    xp = namespace(origins, spans)
+    origins, spans = xp.asarray(origins, dtype=np.int64), xp.asarray(spans, dtype=np.int64)
+    complex_ = (adaptive_complex_arrays(origins, spans, domain_shape) if cell_complex is None else
+                AdaptiveComplex(*(xp.asarray(a) for a in cell_complex)))
+    domain = np.asarray(host(domain_shape))
     bounds, spacing = lattice_frame(extent, domain)
+    low, step = xp.asarray(bounds[::2]), xp.asarray(spacing)
     corners = leaf_corner_nodes(origins, spans, CORNERS)
-    xyz = bounds[::2] + corners*spacing
+    xyz = low + corners*step
     identities = list(zip(map(int, surface_to_stack), map(int, surface_indices)))
     n, leaves = len(identities), len(origins)
     if not n or len(set(identities)) != n:
         raise ValueError('invalid_surface_ids: unique stack/local identities required')
-    samples = _detached(scalar_samples).astype(float)
-    if samples.shape != (n, leaves, 8) or not np.isfinite(samples).all():
+    samples = xp.asarray(scalar_samples, dtype=np.float64)
+    if tuple(samples.shape) != (n, leaves, 8) or not bool(xp.isfinite(samples).all()):
         raise ValueError('invalid_samples: finite (S,N,8) raw corners required')
-    levels = np.array([isovalues[g][s] for g, s in identities])
+    host_levels = np.array([isovalues[g][s] for g, s in identities], dtype=np.float64)
     if separator is not None:
-        levels[separator] = 0.
+        host_levels[separator] = 0.
+    levels = xp.asarray(host_levels)
     fields = samples-levels[:, None, None]
-    faces, edges = complex_['faces'], complex_['edges']
-    tiles, edge_nodes = tile_nodes(faces), minimal_edge_nodes(edges)
-    tile_xyz, minimal_xyz = bounds[::2]+tiles*spacing, bounds[::2]+edge_nodes*spacing
+    n_faces, n_edges = len(complex_.face_axis), len(complex_.edge_axis)
+    tiles = tile_nodes(complex_.face_axis, complex_.face_origin, complex_.face_span)
+    edge_nodes = minimal_edge_nodes(complex_.edge_axis, complex_.edge_origin, complex_.edge_span)
+    tile_xyz, minimal_xyz = low+tiles*step, low+edge_nodes*step
     if field_query is not None and (separator_contacts is not None or ownership is not None):
         raise ValueError('invalid_field_query_contract: exclusive with separator contacts and ownership')
     plane = []
@@ -132,37 +139,42 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                                     precision_tolerance(1e-10, BT.dtype))
 
     query = ExactPointCache(sample_fields, n, on_separator_plane if separator is not None else None)
+
+    def sample(points):
+        raw, gradients = query(host(points).reshape(-1, 3))
+        return xp.asarray(raw), xp.asarray(gradients)
+
     batch = TargetedFieldBatch(field_query)
-    if field_query is not None:
+    all_endpoint_gradients = None
+    if field_query is not None or separator is None:
         # Every tile and minimal-edge node is a leaf corner: reuse the supplied
-        # corner values, one side per node for every leaf sharing it.
-        samples = snap_straddling_nodes(corners, samples, levels, domain)
+        # corner values, one side per node for every leaf sharing it. A
+        # re-queried node (low precision) could sit on the other side of a
+        # surface and drop the dual face.
+        samples = snap_straddling_nodes(corners, samples, host_levels, domain)
         fields = samples-levels[:, None, None]
         lattice = shared_node_fields(corners, fields, domain)
-        tile_fields = lookup_node_fields(tiles, *lattice).reshape(n, len(faces), 4)
-        edge_fields = lookup_node_fields(edge_nodes, *lattice).reshape(n, len(edges), 2)
-        # Endpoint gradients orient ring triangles only on edges a surface
-        # crosses; they are queried with the crossing normals in one batch.
-        endpoint_gradients = np.zeros((n, len(edges), 2, 3))
+        tile_fields = lookup_node_fields(tiles, *lattice).reshape(n, n_faces, 4)
+        edge_fields = lookup_node_fields(edge_nodes, *lattice).reshape(n, n_edges, 2)
     else:
-        all_points = np.concatenate((xyz.reshape(-1, 3), tile_xyz.reshape(-1, 3), minimal_xyz.reshape(-1, 3)))
-        raw, gradients = query(all_points)
-        if separator is not None:
-            plane.append(fit_separator_plane(all_points, raw[separator], gradients[separator],
-                                             precision_tolerance(1e-10, BT.dtype)))
-        tile_fields = query(tile_xyz)[0].reshape(n, len(faces), 4)-levels[:, None, None]
-        edge_fields, endpoint_gradients = query(minimal_xyz)
-        edge_fields = edge_fields.reshape(n, len(edges), 2)-levels[:, None, None]
-        endpoint_gradients = endpoint_gradients.reshape(n, len(edges), 2, 3)
-        if separator is None:
-            # Crossings and vertices come from the leaf corners; a re-queried
-            # node (low precision) can sit on the other side of a surface and
-            # drop the dual face. Decide tiles and edges from the corners too.
-            samples = snap_straddling_nodes(corners, samples, levels, domain)
-            fields = samples-levels[:, None, None]
-            lattice = shared_node_fields(corners, fields, domain)
-            tile_fields = lookup_node_fields(tiles, *lattice).reshape(n, len(faces), 4)
-            edge_fields = lookup_node_fields(edge_nodes, *lattice).reshape(n, len(edges), 2)
+        all_points = xp.concatenate((xyz.reshape(-1, 3), tile_xyz.reshape(-1, 3), minimal_xyz.reshape(-1, 3)))
+        raw, gradients = sample(all_points)
+        plane.append(fit_separator_plane(host(all_points), host(raw[separator]), host(gradients[separator]),
+                                         precision_tolerance(1e-10, BT.dtype)))
+        tile_fields = sample(tile_xyz)[0].reshape(n, n_faces, 4)-levels[:, None, None]
+        edge_fields, all_endpoint_gradients = sample(minimal_xyz)
+        edge_fields = edge_fields.reshape(n, n_edges, 2)-levels[:, None, None]
+        all_endpoint_gradients = all_endpoint_gradients.reshape(n, n_edges, 2, 3)
+    # Endpoint gradients orient ring triangles: only edges some surface crosses need them.
+    crossed_edges = xp.flatnonzero((edge_fields[:, :, 0]*edge_fields[:, :, 1] < 0).any(axis=0))
+    edge_slot = xp.full(n_edges, -1, dtype=np.int64)
+    edge_slot[crossed_edges] = xp.arange(len(crossed_edges))
+    if all_endpoint_gradients is not None:
+        endpoint_gradients = all_endpoint_gradients[:, crossed_edges]
+    elif field_query is None and len(crossed_edges):
+        endpoint_gradients = sample(minimal_xyz[crossed_edges])[1].reshape(n, len(crossed_edges), 2, 3)
+    else:
+        endpoint_gradients = xp.zeros((n, len(crossed_edges), 2, 3))
     controllers = ordinary_controllers(identities, truncations)
     if separator is not None:
         controllers = separator_controllers(controllers, faults)
@@ -172,137 +184,161 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     elif isinstance(ownership, dict):
         check_composite_controllers(ownership, controllers)
     elif ownership is not None:
-        controllers = controllers_from_ownership(_detached(ownership), fields, truncations)
+        controllers = controllers_from_ownership(host(ownership), host(fields), truncations)
     pairs = contact_pairs(controllers, allowed)
     # endregion
 
     # region Crossings, branches and production QEFs
-    stricts = (fields[:, :, EDGE_START]*fields[:, :, EDGE_END]) < 0
-    merged, multi_fault, borrowed = borrowed_leaves(merge_targets, stricts)
-    flags, counts, edge_xyz = _surface_crossings(xyz, samples, levels, stricts, merged, multi_fault, fields,
-                                                 strict=separator is not None or fault_merge is not None,
-                                                 reject_aligned=separator is not None)
+    flags = (fields[:, :, xp.asarray(EDGE_START)]*fields[:, :, xp.asarray(EDGE_END)]) < 0
+    merged, multi_fault, source = borrowed_leaves(merge_targets, flags)
+    borrowed = source >= 0
+    counts, edge_xyz = _surface_crossings(xp, xyz, samples, levels, flags, merged, multi_fault, fields,
+                                          strict=separator is not None or fault_merge is not None,
+                                          reject_aligned=separator is not None)
+    normals = edge_xyz.zeros_like()
     # A surface never solves its own QEF in borrowed leaves; there its Hermite
     # rows only constrain the fault vertex it borrows (pretty's weighted rule).
     solved = flags & ~merged[:, :, None]
-    crossing_points = np.concatenate([edge_xyz[s][flags[s]] for s in range(n)])
-    if len(crossing_points) and field_query is None:
-        query(crossing_points)
-    normals = np.zeros_like(edge_xyz)
+    crossed = [flags[s][edge_xyz.rows[s]] for s in range(n)]
     if field_query is None:
+        crossing_points = xp.concatenate([edge_xyz.values[s][crossed[s]] for s in range(n)])
+        if len(crossing_points):
+            sample(crossing_points)
         for s in range(n):
-            if flags[s].any():
-                normals[s][flags[s]] = query(edge_xyz[s][flags[s]])[1][s]
+            if bool(crossed[s].any()):
+                normals.values[s][crossed[s]] = sample(edge_xyz.values[s][crossed[s]])[1][s]
     else:
-        crossed_edges = [np.flatnonzero(edge_fields[s, :, 0]*edge_fields[s, :, 1] < 0) for s in range(n)]
-        answers = batch([(edge_xyz[s][flags[s]], [s], 'gradient') for s in range(n)] +
-                        [(minimal_xyz[crossed_edges[s]].reshape(-1, 3), [s], 'gradient') for s in range(n)])
+        surface_edges = [xp.flatnonzero(edge_fields[s, :, 0]*edge_fields[s, :, 1] < 0) for s in range(n)]
+        answers = batch([(host(edge_xyz.values[s][crossed[s]]), [s], 'gradient') for s in range(n)] +
+                        [(host(minimal_xyz[surface_edges[s]]).reshape(-1, 3), [s], 'gradient') for s in range(n)])
         for s in range(n):
-            normals[s][flags[s]] = answers[s][0]
-            endpoint_gradients[s, crossed_edges[s]] = answers[n+s][0].reshape(-1, 2, 3)
+            normals.values[s][crossed[s]] = xp.asarray(answers[s][0])
+            endpoint_gradients[s, edge_slot[surface_edges[s]]] = xp.asarray(answers[n+s][0]).reshape(-1, 2, 3)
     for s in range(n):
-        if np.any(np.linalg.norm(normals[s][solved[s]], axis=1) < 1e-12):
+        own = solved[s][edge_xyz.rows[s]]
+        if bool((xp.norm(normals.values[s][own], axis=1) < 1e-12).any()):
             raise ValueError('degenerate_hermite_normal: actual crossing gradient vanishes')
 
-    leaf_origins = list(map(tuple, origins.astype(np.int64).tolist()))
-    leaf_spans = spans.astype(np.int64).tolist()
-
-    def regular_key(s, cell):
-        return 'regular', (identities[s],), leaf_origins[cell], leaf_spans[cell], 0
-
-    regular, weighted_fault_cells = {}, set()
+    # Vertex ids: s*leaves + leaf is surface s's own vertex, joint_start + j the j-th junction.
+    joint_start = n*leaves
+    regular = xp.full((n, leaves, 3), np.nan)
+    weighted_fault_cells = set()
     for s in range(n):
-        own = solved[s]
-        if not own.any():
+        own = solved[s][edge_xyz.rows[s]]
+        solving = own.any(axis=1)
+        if not bool(solving.any()):
             continue
-        cells = np.flatnonzero(own.any(axis=1))
+        cells = edge_xyz.rows[s][solving]
         extra = None
         if fault_merge is not None and s in fault_merge:
-            extra = borrowed_hermite_rows(s, cells, fault_merge[s], borrowed, edge_xyz, normals, flags,
+            extra = borrowed_hermite_rows(s, cells, fault_merge[s], source, edge_xyz, normals, flags,
                                           DEFAULT_CROSS_SURFACE_WEIGHT)
             if extra is not None:
-                weighted_fault_cells.update((s, int(c)) for c in cells[np.any(extra[2] > 0, axis=1)])
-        positions = _solve_qef(edge_xyz[s][own], own, xyz, spans, spacing, origins, normals[s][own], extra)
-        for cell, position in zip(cells, positions):
-            regular[regular_key(s, cell)] = position
+                weighted_fault_cells.update((s, c) for c in cells[(extra[2] > 0).any(axis=1)].tolist())
+        regular[s, cells] = _solve_qef(xp, edge_xyz.values[s][own], own[solving], xyz[cells], spans[cells], step,
+                                       origins[cells], normals.values[s][own], extra)
     # endregion
 
     # region Junctions, fallback region and edge rows
-    fault_region = bool(borrowed) or multi_fault.any()
-    fallback, region = set(), set()
-    if fault_region:
+    region = None
+    if bool(borrowed.any()) or bool(multi_fault.any()):
         # One region for every surface: a junction given up there leaves both
         # participants, affected or not, with unshared vertices.
-        region = fallback_region(edges, (merged | multi_fault).any(axis=0))
-        junctions, evidence, fallback = plan_adaptive_junctions(
-            faces, tile_xyz, tile_fields, pairs, identities, origins, spans, counts, edge_xyz, normals, flags,
-            controllers=controllers, leaf_fields=fields, overridden={s: region for s in range(n)})
+        region = fallback_region(complex_.edge_cells, (merged | multi_fault).any(axis=0))
+    junctions, evidence, fallback = _plan_junctions(
+        xp, complex_.face_cells, tile_xyz, tile_fields, pairs, identities, origins, spans, counts, edge_xyz,
+        normals, flags, controllers, fields, region)
+    if region is not None:
         fallback = fallback_junction_leaves(fallback, region, flags.any(axis=2), pairs)
-    else:
-        junctions, evidence, fallback = plan_adaptive_junctions(
-            faces, tile_xyz, tile_fields, pairs, identities, origins, spans, counts, edge_xyz, normals, flags,
-            controllers=controllers, leaf_fields=fields)
-    fallback_leaves = {(tuple(map(int, origins[c])), int(spans[c])) for c in region | fallback}
+    fallback_leaves = xp.zeros(leaves, dtype=bool) if region is None else xp.copy(region)
+    fallback_leaves[xp.asarray(sorted(fallback), dtype=np.int64)] = True
 
-    def vertex_key(s, cell):
-        if cell in junctions and s in junctions[cell]['pair']:
-            return junctions[cell]['key']
-        source = borrowed.get((s, cell))
-        return regular_key(s if source is None else source, cell)
-
-    edge_cells = np.array([[-1 if c is None else c for c in edge['cells']] for edge in edges],
-                          dtype=np.int64).reshape(-1, 4)
-    selected, fraction = edge_crossing_decisions(edge_fields, controllers, edge_cells, counts)
+    junction_cells = xp.asarray(sorted(junctions), dtype=np.int64)
+    junction_pairs = xp.asarray([sorted(junctions[c]['pair']) for c in sorted(junctions)],
+                                dtype=np.int64).reshape(-1, 2)
+    junction_ids = xp.full(leaves, -1, dtype=np.int64)
+    junction_ids[junction_cells] = joint_start+xp.arange(len(junction_cells))
+    vertex_ids = xp.arange(joint_start).reshape(n, leaves)
+    borrowers, borrowed_cells = xp.nonzero(borrowed)
+    vertex_ids[borrowers, borrowed_cells] = source[borrowers, borrowed_cells]*leaves+borrowed_cells
+    for pair_column in range(2):
+        vertex_ids[junction_pairs[:, pair_column], junction_cells] = junction_ids[junction_cells]
+    # A key's first identity: the surface's own, or the lower one of a junction pair.
     fault_identities = {identities[c] for c in (fault_merge or {})}
-    plans, filtered_triangles = plan_edge_rows(selected, edges, crossing_normals(fraction, endpoint_gradients),
-                                               regular_key, vertex_key, borrowed, fault_identities)
+    fault_surface = np.array([identities[s] in fault_identities for s in range(n)], dtype=bool)
+    lower = np.array([min(pair, key=lambda s: identities[s]) for pair in host(junction_pairs).tolist()],
+                     dtype=np.int64)
+    fault_vertex = xp.asarray(np.concatenate((np.repeat(fault_surface, leaves), fault_surface[lower])))
+
+    selected, fraction = edge_crossing_decisions(edge_fields, controllers, complex_.edge_cells, counts)
+    plan, filtered_triangles = plan_edge_rows(selected, complex_.edge_cells, vertex_ids, borrowed, fault_vertex)
+    triangle_normals = crossing_normals(fraction[plan['surface'], plan['edge']][None],
+                                        endpoint_gradients[plan['surface'], edge_slot[plan['edge']]][None])[0]
     # endregion
 
     # region Validation and emission
-    seams, coarsefine = validate_adaptive_incidence(plans, junctions, evidence, spans)
-    positions = regular.copy()
-    for cell, junction in junctions.items():
-        for s in junction['pair']:
-            positions.pop(regular_key(s, cell))
-        positions[junction['key']] = junction['position']
-    keys = sorted(positions)
-    vertices = np.asarray([positions[k] for k in keys]).reshape(-1, 3)
-    ids = {k: i for i, k in enumerate(keys)}
-    triangles = plan_adaptive_triangles(plans, positions)
+    seams, coarsefine = validate_adaptive_incidence(plan, junction_ids, junction_pairs, joint_start, evidence, spans)
+    junction_positions = np.asarray([junctions[c]['position'] for c in sorted(junctions)], dtype=float)
+    positions = xp.concatenate((regular.reshape(-1, 3), xp.asarray(junction_positions.reshape(-1, 3))))
+    participants = (junction_pairs*leaves+junction_cells[:, None]).reshape(-1)
+    if bool(xp.isnan(positions[participants]).any()):
+        raise ValueError('missing_adaptive_vertex: junction participant has no vertex')
+    positions[participants] = np.nan
+    host_origins, host_spans = host(origins), host(spans)
+    host_cells, host_pairs = host(junction_cells), host(junction_pairs)
+    vertex_order = _key_order(host(xp.flatnonzero(~xp.isnan(positions[:, 0]))), joint_start, leaves, identities,
+                              host_origins, host_spans, host_cells, host_pairs)
+    keys = _vertex_keys(vertex_order, joint_start, leaves, identities, host_origins, host_spans, junctions,
+                        host_cells)
+    vertices = host(positions[xp.asarray(vertex_order)]).reshape(-1, 3)
+    host_ids = np.full(len(positions), -1, dtype=np.int64)
+    host_ids[vertex_order] = np.arange(len(vertex_order))
+    ids = xp.asarray(host_ids)
+    triangles = plan_adaptive_triangles(plan, positions, triangle_normals, joint_start, n)
     output_faces, affected = (None, None) if defer_emission else emit_adaptive_triangles(triangles, ids)
+    seam_edges = np.sort(host_ids[np.asarray(sorted(seams), dtype=np.int64).reshape(-1, 2)], axis=1)
+    seam_edges = seam_edges[np.lexsort(seam_edges.T[::-1])] if len(seam_edges) else seam_edges
     # endregion
 
-    result = dict(vertices=vertices, faces=output_faces, vertex_keys=keys,
-                  seam_edges=np.asarray([[ids[a], ids[b]] for a, b in sorted(seams)], dtype=int).reshape(-1, 2),
-                  junction_cells=np.asarray(sorted(junctions), dtype=int), leaf_origins=origins.copy(),
-                  leaf_spans=spans.copy(), affected_faces=affected,
+    result = dict(vertices=vertices, faces=output_faces, vertex_keys=keys, seam_edges=seam_edges,
+                  junction_cells=host_cells.astype(int), leaf_origins=host_origins.copy(),
+                  leaf_spans=host_spans.copy(), affected_faces=affected,
                   diagnostics=dict(algorithm='adaptive_joint_hermite_qef_dual_contouring',
                                    coarsefine_seam_edge_count=len(coarsefine), no_uniform_fallback=True,
                                    no_post_reconciliation=True, original_hermite_rows=12,
-                                   sampled_point_count=len(query)+batch.sampled, canonical_face_tile_count=len(faces),
-                                   minimal_edge_count=len(edges), finite_faults='unsupported',
+                                   sampled_point_count=len(query)+batch.sampled, canonical_face_tile_count=n_faces,
+                                   minimal_edge_count=n_edges, finite_faults='unsupported',
                                    interior_topology='sampled_boundary_only_not_interior_certified'))
     if defer_emission:
         result.update(_triangle_plan=triangles, _key_to_id=ids)
     if include_reference:
-        reference_keys = sorted(regular)
-        reference_plans = [[dict(row, keys=row['regular_keys']) for row in rows] for rows in plans]
-        reference_faces, _ = emit_adaptive_triangles(
-            plan_adaptive_triangles(reference_plans, regular), {k: i for i, k in enumerate(reference_keys)})
-        result['reference'] = dict(vertices=np.asarray([regular[k] for k in reference_keys]).reshape(-1, 3),
-                                   faces=reference_faces, vertex_keys=reference_keys,
-                                   description='Original production QEFs with identical retained minimal edges')
+        regular_flat = regular.reshape(-1, 3)
+        reference_order = _key_order(host(xp.flatnonzero(~xp.isnan(regular_flat[:, 0]))), joint_start, leaves,
+                                     identities, host_origins, host_spans, host_cells, host_pairs)
+        reference_ids = np.full(len(regular_flat), -1, dtype=np.int64)
+        reference_ids[reference_order] = np.arange(len(reference_order))
+        rings = plan['regular'][plan['entry']]
+        row, reference_triangles, _ = ring_triangles(rings, (rings >= 0).sum(axis=1))
+        reference_plan = dict(surface=plan['surface'][plan['entry']][row], keys=reference_triangles)
+        reference_faces, _ = emit_adaptive_triangles(plan_adaptive_triangles(
+            reference_plan, regular_flat, triangle_normals[plan['entry']][row], joint_start, n),
+            xp.asarray(reference_ids))
+        result['reference'] = dict(
+            vertices=host(regular_flat)[reference_order].reshape(-1, 3), faces=reference_faces,
+            vertex_keys=_vertex_keys(reference_order, joint_start, leaves, identities, host_origins, host_spans,
+                                     {}, ()),
+            description='Original production QEFs with identical retained minimal edges')
     if fault_merge is not None:
         result['diagnostics'].update(
             contact_type='pretty_fault_vertex_merge', strict_crossings=True,
             crossing_contract='strict_scalar_sides', fault_surfaces=sorted(int(c) for c in fault_merge),
             fault_cell_count={int(c): int(flags[c].any(axis=1).sum()) for c in fault_merge},
-            borrowed_vertex_count=len(borrowed), filtered_fault_triangle_count=filtered_triangles,
+            borrowed_vertex_count=int(borrowed.sum()), filtered_fault_triangle_count=filtered_triangles,
             multi_fault_unborrowed_count=int(multi_fault.sum()),
             weighted_fault_vertex_count=len(weighted_fault_cells),
             cross_surface_weight=DEFAULT_CROSS_SURFACE_WEIGHT,
             fault_overridden_junction_cells=sorted(int(c) for c in fallback),
-            fallback_region_leaf_count=len(fallback_leaves))
+            fallback_region_leaf_count=int(fallback_leaves.sum()))
     if separator is not None:
         result['bank'] = bank
         result['diagnostics'].update(bank=bank, separator_contact=separator,
@@ -311,62 +347,180 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     return result
 
 
-def _detached(a):
-    return a.detach().cpu().numpy() if hasattr(a, 'detach') else np.asarray(a)
+def _plan_junctions(xp, face_cells, tile_xyz, tile_fields, pairs, identities, origins, spans, counts, edge_xyz,
+                    normals, flags, controllers, fields, region):
+    """``plan_adaptive_junctions`` on the host, over only the tiles some contact pair straddles.
+
+    Inputs are reduced to those tiles and their leaves (renumbered); results
+    use the original tile and leaf indices.
+    """
+    candidates = xp.zeros(len(face_cells), dtype=bool)
+    for controller, target in pairs:
+        pair_fields = tile_fields[[controller, target]]
+        candidates |= ~((xp.min(pair_fields, axis=2) > 0) | (xp.max(pair_fields, axis=2) < 0)).any(axis=0)
+    tiles = xp.flatnonzero(candidates)
+    tile_cells = face_cells[tiles]
+    cells = xp.unique(tile_cells[tile_cells >= 0])
+    local = xp.full(len(origins), -1, dtype=np.int64)
+    local[cells] = xp.arange(len(cells))
+    n = len(counts)
+    junctions, evidence, fallback = plan_adaptive_junctions(
+        host(xp.where(tile_cells >= 0, local[xp.maximum(tile_cells, 0)], -1)), host(tile_xyz[tiles]),
+        host(tile_fields[:, tiles]), pairs, identities, host(origins[cells]), host(spans[cells]),
+        host(counts[:, cells]), host(xp.stack([edge_xyz[s][cells] for s in range(n)])),
+        host(xp.stack([normals[s][cells] for s in range(n)])), host(flags[:, cells]),
+        controllers=controllers, leaf_fields=host(fields[:, cells]),
+        overridden=None if region is None else {s: host(region[cells]) for s in range(n)})
+    cells, tiles = host(cells).tolist(), host(tiles).tolist()
+    junctions = {cells[c]: junction for c, junction in junctions.items()}
+    evidence = [dict(item, tile=tiles[item['tile']], cells=tuple(cells[c] for c in item['cells'])) for item in evidence]
+    return junctions, evidence, {cells[c] for c in fallback}
+
+
+class _LeafRows:
+    """Per-surface (N, 12, 3) values stored only on each surface's crossed leaves (zero elsewhere).
+
+    ``rows[s]`` are surface ``s``'s leaves and ``values[s]`` their (R, 12, 3)
+    rows; ``self[s][leaves]`` gathers (L, 12, 3) as the dense array would.
+    """
+
+    def __init__(self, xp, rows, values, leaves):
+        self.rows, self.values, self._xp, self._slots = rows, values, xp, []
+        for surface_rows in rows:
+            slot = xp.full(leaves, -1, dtype=np.int64)
+            slot[surface_rows] = xp.arange(len(surface_rows))
+            self._slots.append(slot)
+
+    def zeros_like(self):
+        rows = _LeafRows.__new__(_LeafRows)
+        rows.rows, rows._xp, rows._slots = self.rows, self._xp, self._slots
+        rows.values = [self._xp.zeros(tuple(v.shape)) for v in self.values]
+        return rows
+
+    def __getitem__(self, surface):
+        slot, values, xp = self._slots[surface], self.values[surface], self._xp
+
+        def gather(leaves):
+            index = slot[leaves]
+            out = xp.zeros(tuple(index.shape) + (12, 3))
+            hit = index >= 0
+            out[hit] = values[index[hit]]
+            return out
+        return _Gather(gather)
+
+
+class _Gather:
+    def __init__(self, gather):
+        self._gather = gather
+
+    def __getitem__(self, leaves):
+        return self._gather(leaves)
+
+
+def _key_order(vertex_ids, joint_start, leaves, identities, origins, spans, junction_cells, junction_pairs):
+    """``vertex_ids`` sorted by their public keys: joint before regular, then identities, origin, span."""
+    vertex_ids = np.asarray(vertex_ids, dtype=np.int64)
+    identity = np.asarray(identities, dtype=np.int64).reshape(-1, 2)
+    joint = vertex_ids >= joint_start
+    j = np.where(joint, vertex_ids-joint_start, 0)
+    cells = np.where(joint, junction_cells[j] if len(junction_cells) else 0, vertex_ids % leaves)
+    if len(junction_pairs):
+        pair = junction_pairs[j]
+        # Junction keys hold the pair's identities in sorted (identity) order.
+        a, b = identity[pair[:, 0]], identity[pair[:, 1]]
+        a_first = (a[:, 0] < b[:, 0]) | ((a[:, 0] == b[:, 0]) & (a[:, 1] <= b[:, 1]))
+        first = np.where(a_first[:, None], a, b)
+        second = np.where(a_first[:, None], b, a)
+    else:
+        first = second = np.zeros((len(vertex_ids), 2), dtype=np.int64)
+    own = identity[np.minimum(vertex_ids // leaves, len(identity)-1)]
+    first = np.where(joint[:, None], first, own)
+    second = np.where(joint[:, None], second, 0)
+    origin = origins[cells]
+    order = np.lexsort((spans[cells], origin[:, 2], origin[:, 1], origin[:, 0], second[:, 1], second[:, 0],
+                        first[:, 1], first[:, 0], ~joint))
+    return vertex_ids[order]
+
+
+def _vertex_keys(vertex_ids, joint_start, leaves, identities, origins, spans, junctions, junction_cells):
+    """Public symbolic keys ``(kind, identities, leaf origin, leaf span, 0)`` of ``vertex_ids``."""
+    keys = []
+    joint = vertex_ids >= joint_start
+    origin_rows = origins[vertex_ids % leaves].astype(np.int64).tolist()
+    span_rows = spans[vertex_ids % leaves].astype(np.int64).tolist()
+    surfaces = (vertex_ids // leaves).tolist()
+    with _paused_gc():
+        for v, is_joint, s, origin, span in zip(vertex_ids.tolist(), joint.tolist(), surfaces, origin_rows,
+                                                span_rows):
+            if is_joint:
+                keys.append(junctions[int(junction_cells[v-joint_start])]['key'])
+            else:
+                keys.append(('regular', (identities[s],), tuple(origin), span, 0))
+    return keys
 
 
 def _tensor(a, boolean=False):
+    """``a`` as an engine-backend array (production primitives' dtype and device)."""
     if BT.engine_backend is AvailableBackends.PYTORCH:
         import torch
         return torch.as_tensor(a, dtype=torch.bool if boolean else BT.dtype_obj,
                                device=BT.device if BT.use_gpu else 'cpu')
-    return np.asarray(a, dtype=bool if boolean else BT.dtype)
+    return np.asarray(host(a), dtype=bool if boolean else BT.dtype)
 
 
-def _surface_crossings(xyz, samples, levels, stricts, merged, multi_fault, fields, *, strict, reject_aligned=False):
+def _surface_crossings(xp, xyz, samples, levels, stricts, merged, multi_fault, fields, *, strict,
+                       reject_aligned=False):
     """Production edge crossings per surface on the strict sides, plus branch counts.
 
     Leaves whose geometry a surface discards (borrowed or multi-fault) are
     neither checked nor classified (count one). ``reject_aligned`` rejects any
     original corner on a surface (bank geometry has no sided rule for it).
+    Returns ``(counts, crossings)``: crossings as ``_LeafRows`` on crossed leaves.
     """
     n, leaves = stricts.shape[:2]
-    flags, edge_xyz, counts = [], [], []
+    edge_start, edge_end = xp.asarray(EDGE_START), xp.asarray(EDGE_END)
+    rows_per_surface, values = [], []
     for s in range(n):
-        if reject_aligned and np.any(np.abs(fields[s]) < 1e-10):
+        if reject_aligned and bool((xp.abs(fields[s]) < 1e-10).any()):
             raise ValueError('sample_aligned_interface: original corner lies on surface')
-        crossings, production_flags = find_intersection_on_edge(
-            _tensor(xyz.reshape(-1, 3)), _tensor(samples[s].reshape(-1)), _tensor(levels[s:s+1]),
-            **({'strict_crossings': True} if strict else {}))
-        production_flags = _detached(production_flags).reshape(leaves, 12).astype(bool)
-        skipped = merged[s] | multi_fault[s]
-        # Strict sides decide which edges cross; production supplies the positions,
-        # and a strict edge production does not report is interpolated linearly.
-        dense = np.zeros((leaves, 12, 3))
-        dense[production_flags] = _detached(crossings)
-        missing = stricts[s] & ~production_flags
-        if missing.any():
-            start, end = xyz[:, EDGE_START][missing], xyz[:, EDGE_END][missing]
-            f_start, f_end = fields[s][:, EDGE_START][missing], fields[s][:, EDGE_END][missing]
-            dense[missing] = start + (f_start/(f_start-f_end))[:, None]*(end-start)
-        dense[~stricts[s]] = 0
-        # Ordinary dual contouring: one vertex per crossed leaf, whatever its branch topology.
-        components = (stricts[s].any(axis=1) | skipped).astype(int)
-        flags.append(stricts[s])
-        counts.append(components)
-        edge_xyz.append(dense)
-    return np.asarray(flags), np.asarray(counts), np.asarray(edge_xyz)
+        # Only leaves the surface strictly crosses carry crossings.
+        rows = xp.flatnonzero(stricts[s].any(axis=1))
+        crossed = stricts[s][rows]
+        found = xp.zeros((len(rows), 12, 3))
+        if len(rows):
+            crossings, production_flags = find_intersection_on_edge(
+                _tensor(xyz[rows].reshape(-1, 3)), _tensor(samples[s][rows].reshape(-1)), _tensor(levels[s:s+1]),
+                **({'strict_crossings': True} if strict else {}))
+            production_flags = xp.asarray(production_flags, dtype=bool).reshape(len(rows), 12)
+            # Strict sides decide which edges cross; production supplies the positions,
+            # and a strict edge production does not report is interpolated linearly.
+            found[production_flags] = xp.asarray(crossings, dtype=np.float64)
+            missing = crossed & ~production_flags
+            if bool(missing.any()):
+                corners, f = xyz[rows], fields[s][rows]
+                start, end = corners[:, edge_start][missing], corners[:, edge_end][missing]
+                f_start, f_end = f[:, edge_start][missing], f[:, edge_end][missing]
+                found[missing] = start + (f_start/(f_start-f_end))[:, None]*(end-start)
+            found[~crossed] = 0
+        rows_per_surface.append(rows)
+        values.append(found)
+    # Ordinary dual contouring: one vertex per crossed leaf, whatever its branch topology.
+    counts = xp.astype(stricts.any(axis=2) | merged | multi_fault, np.int64)
+    return counts, _LeafRows(xp, rows_per_surface, values, leaves)
 
 
-def _solve_qef(crossing_xyz, own, xyz, spans, spacing, origins, crossing_normals, extra):
-    """Production QEF vertices of one surface's crossed leaves, with optional extra weighted rows."""
+def _solve_qef(xp, crossing_xyz, own, xyz, spans, spacing, origins, crossing_normals, extra):
+    """Production QEF vertices of one surface's crossed leaves, with optional extra weighted rows.
+
+    All inputs are restricted to the solved leaves (the QEF is per leaf).
+    """
     dc = DualContouringData(
         _tensor(crossing_xyz), _tensor(own, True), _tensor(xyz.mean(axis=1)),
         _tensor(spans[:, None]*spacing), 1, _tensor(origins), gradients=_tensor(crossing_normals),
         strict_crossings=False)
     if extra is not None:
         dc.extra_edge_xyz, dc.extra_edge_normals, dc.extra_weights = map(_tensor, extra)
-    positions = _detached(generate_dual_contouring_vertices(dc))
-    if not np.isfinite(positions).all():
+    positions = xp.asarray(generate_dual_contouring_vertices(dc), dtype=np.float64)
+    if not bool(xp.isfinite(positions).all()):
         raise ValueError('nonfinite_qef_solution: original production solve failed')
     return positions
