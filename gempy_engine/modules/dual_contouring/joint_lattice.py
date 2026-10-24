@@ -7,6 +7,8 @@ leaf corner, so their field values can be read from the leaf corner samples.
 
 import numpy as np
 
+from .joint_xp import host, namespace
+
 
 def lattice_frame(extent, domain_shape):
     """Validated physical bounds (6,) and finest-lattice spacing (3,)."""
@@ -18,25 +20,29 @@ def lattice_frame(extent, domain_shape):
 
 def leaf_corner_nodes(origins, spans, corner_offsets):
     """(N, 8, 3) integer corners of every leaf, in ``corner_offsets`` order."""
-    return np.asarray(origins)[:, None, :] + np.asarray(spans)[:, None, None]*corner_offsets
+    xp = namespace(origins, spans)
+    return xp.asarray(origins)[:, None, :] + xp.asarray(spans)[:, None, None]*xp.asarray(corner_offsets)
 
 
-def tile_nodes(faces):
+def tile_nodes(axes, origins, spans):
     """(F, 4, 3) tile corners ordered 00, 10, 01, 11 in the two non-normal axes."""
-    nodes = np.repeat(np.array([f['origin'] for f in faces], dtype=np.int64).reshape(-1, 1, 3), 4, axis=1)
-    axes = np.array([f['axis'] for f in faces], dtype=np.int64)
-    spans = np.array([f['span'] for f in faces], dtype=np.int64)
+    xp = namespace(axes, origins, spans)
+    nodes = xp.repeat(xp.asarray(origins, dtype=np.int64).reshape(-1, 1, 3), 4, axis=1)
+    axes, spans = xp.asarray(axes, dtype=np.int64), xp.asarray(spans, dtype=np.int64)
+    offsets = xp.asarray([[0, 0], [1, 0], [0, 1], [1, 1]], dtype=np.int64)
     for axis in range(3):
-        rows = axes == axis
+        rows = xp.flatnonzero(axes == axis)
         other = [a for a in range(3) if a != axis]
-        nodes[np.ix_(rows, range(4), other)] += np.array([[0, 0], [1, 0], [0, 1], [1, 1]])*spans[rows, None, None]
+        for column, a in enumerate(other):
+            nodes[rows, :, a] += offsets[:, column]*spans[rows, None]
     return nodes
 
 
-def minimal_edge_nodes(edges):
+def minimal_edge_nodes(axes, origins, spans):
     """(E, 2, 3) start and end node of every minimal edge."""
-    nodes = np.repeat(np.array([e['origin'] for e in edges], dtype=np.int64).reshape(-1, 1, 3), 2, axis=1)
-    nodes[np.arange(len(edges)), 1, [e['axis'] for e in edges]] += [e['span'] for e in edges]
+    xp = namespace(axes, origins, spans)
+    nodes = xp.repeat(xp.asarray(origins, dtype=np.int64).reshape(-1, 1, 3), 2, axis=1)
+    nodes[xp.arange(len(nodes)), 1, xp.asarray(axes, dtype=np.int64)] += xp.asarray(spans, dtype=np.int64)
     return nodes
 
 
@@ -50,10 +56,11 @@ def precision_tolerance(tolerance, dtype=np.float64):
 
 
 def _node_codes(corners, domain_shape):
-    stride = np.asarray(domain_shape).astype(np.int64)+1
-    weights = np.array([stride[1]*stride[2], stride[2], 1])
-    codes = (corners.reshape(-1, 3).astype(np.int64)*weights).sum(axis=1)
-    return np.unique(codes, return_index=True, return_inverse=True), weights
+    xp = namespace(corners)
+    stride = [int(d)+1 for d in host(domain_shape)]
+    weights = xp.asarray([stride[1]*stride[2], stride[2], 1], dtype=np.int64)
+    codes = (xp.astype(corners.reshape(-1, 3), np.int64)*weights).sum(axis=1)
+    return xp.unique(codes, return_index=True, return_inverse=True), weights
 
 
 def snap_straddling_nodes(corners, samples, levels, domain_shape, aligned=1e-10):
@@ -67,16 +74,18 @@ def snap_straddling_nodes(corners, samples, levels, domain_shape, aligned=1e-10)
     sided rule): aligned endpoints emit no dual face, which would open a hole
     around the node. All other samples are returned unchanged.
     """
+    xp = namespace(corners, samples)
     n = len(samples)
     (_, first, inverse), _ = _node_codes(corners, domain_shape)
     flat = samples.reshape(n, -1)
-    canonical = flat[:, first][:, inverse.reshape(-1)]
-    fields, canonical_fields = flat-levels[:, None], canonical-levels[:, None]
-    straddle = np.sign(fields) != np.sign(canonical_fields)
-    snapped = np.where(straddle, canonical, flat)
+    canonical = flat[:, first][:, inverse]
+    levels = xp.asarray(levels, dtype=np.float64)[:, None]
+    fields, canonical_fields = flat-levels, canonical-levels
+    straddle = xp.sign(fields) != xp.sign(canonical_fields)
+    snapped = xp.where(straddle, canonical, flat)
     # Just past the aligned bound and resolvable at the isovalue's magnitude.
-    sided = levels[:, None] + np.maximum(10*aligned, 4*np.spacing(np.abs(levels[:, None])))
-    return np.where(np.abs(snapped-levels[:, None]) < aligned, sided, snapped).reshape(samples.shape)
+    sided = levels + xp.asarray(np.maximum(10*aligned, 4*np.spacing(np.abs(host(levels)))))
+    return xp.where(xp.abs(snapped-levels) < aligned, sided, snapped).reshape(samples.shape)
 
 
 def shared_node_fields(corners, fields, domain_shape):
@@ -90,9 +99,9 @@ def shared_node_fields(corners, fields, domain_shape):
 
 def lookup_node_fields(nodes, codes, node_fields, weights):
     """(S, K) fields at ``nodes`` (..., 3), which must all be leaf corners."""
-    node_codes = (nodes.reshape(-1, 3).astype(np.int64)*weights).sum(axis=1)
-    found = np.minimum(np.searchsorted(codes, node_codes), len(codes)-1)
-    if np.any(codes[found] != node_codes):
+    xp = namespace(nodes, codes)
+    node_codes = (xp.astype(nodes.reshape(-1, 3), np.int64)*weights).sum(axis=1)
+    found = xp.minimum(xp.searchsorted(codes, node_codes), len(codes)-1)
+    if bool((codes[found] != node_codes).any()):
         raise ValueError('unsupported_adaptive_node: tile or edge node is not a leaf corner')
     return node_fields[:, found]
-

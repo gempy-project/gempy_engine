@@ -9,7 +9,8 @@ from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.stack_relation_type import StackRelationType as R
 from ...modules.dual_contouring.joint_cell_branches import CORNERS
-from ...modules.dual_contouring.joint_cell_complex import build_adaptive_complex
+from ...modules.dual_contouring.joint_cell_complex import adaptive_complex_arrays
+from ...modules.dual_contouring.joint_xp import extraction_namespace
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
 from ...modules.dual_contouring.joint_ownership import ordinary_controllers
 from ...modules.dual_contouring.joint_separator import bank_normalized, separator_controllers
@@ -105,9 +106,11 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
         raise ValueError("unsupported_fault_metadata: sampler partition disagrees with directed matrix")
     memo = _BankFieldMemo(sampler["query"], affected)
     # Leaf geometry is bank-independent; every partition shares one complex.
-    cell_complex = build_adaptive_complex(origins, spans, domain_shape)
     spacing = (extent[1::2] - extent[::2]) / domain_shape
     xyz = extent[::2] + (origins[:, None, :] + spans[:, None, None] * CORNERS) * spacing
+    xp = extraction_namespace()
+    origins, spans = xp.asarray(origins, dtype=np.int64), xp.asarray(spans, dtype=np.int64)
+    cell_complex = adaptive_complex_arrays(origins, spans, domain_shape)
     pieces = []
     for bank in (0, 1, -1):
         selected = np.flatnonzero(np.isin(groups, list(unaffected if bank == -1 else affected | {fault_stack})))

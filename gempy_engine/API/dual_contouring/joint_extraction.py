@@ -23,7 +23,8 @@ from ...core.data.options import InterpolationOptions
 from ...core.data.options.evaluation_options import MeshExtentCapping, MeshExtractionMaskingOptions
 from ...core.data.stack_relation_type import StackRelationType
 from ...modules.dual_contouring.joint_balance import balance_joint_leaves
-from ...modules.dual_contouring.joint_cell_complex import build_adaptive_complex
+from ...modules.dual_contouring.joint_cell_complex import adaptive_complex_arrays
+from ...modules.dual_contouring.joint_xp import extraction_namespace
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
 from ...modules.dual_contouring.joint_lattice import lattice_frame, precision_tolerance
 from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
@@ -299,7 +300,7 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
     result = extract_adaptive_topology(
         origins, spans, domain_shape, extent, samples, groups, indices, topology_relations, levels,
         sample_fields=sample_fields, field_query=field_query, faults_relations=matrix, fault_merge=fault_merge,
-        cell_complex=build_adaptive_complex(origins, spans, domain_shape))
+        cell_complex=adaptive_complex_arrays(origins, spans, domain_shape))
     report = dict(result["diagnostics"], octree_balance=balance, interface="pretty_fault_vertex_merge_single_fault_mesh",
                   sampler=sampler.get("diagnostics", {}), no_uniform_fallback=True,
                   no_post_reconciliation=True)
@@ -307,9 +308,15 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
 
 
 def _balance_leaves(origins, spans, domain_shape, extent, samples, raw_values):
-    """2:1-balance the leaves; new corners take ``raw_values(points)`` (S, M) at physical points."""
+    """2:1-balance the leaves; new corners take ``raw_values(points)`` (S, M) at physical points.
+
+    Leaves and samples move to the extraction device (``extraction_namespace``)
+    here; the topology then stays there.
+    """
+    xp = extraction_namespace()
     bounds, spacing = lattice_frame(extent, domain_shape)
-    return balance_joint_leaves(origins, spans, domain_shape, samples,
+    return balance_joint_leaves(xp.asarray(origins, dtype=np.int64), xp.asarray(spans, dtype=np.int64),
+                                domain_shape, xp.asarray(samples, dtype=np.float64),
                                 lambda nodes: raw_values(bounds[::2] + nodes * spacing))
 
 

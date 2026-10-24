@@ -5,7 +5,7 @@ import pytest
 
 from gempy_engine.core.data.stack_relation_type import StackRelationType as R
 from gempy_engine.modules.dual_contouring.joint_cell_branches import CORNERS
-from gempy_engine.modules.dual_contouring.joint_cell_complex import build_adaptive_complex
+from gempy_engine.modules.dual_contouring.joint_cell_complex import adaptive_complex_arrays
 from gempy_engine.modules.dual_contouring.joint_contact_relations import build_contact_relations
 from gempy_engine.modules.dual_contouring.joint_edge_decisions import crossing_normals, edge_crossing_decisions
 from gempy_engine.modules.dual_contouring.joint_field_queries import ExactPointCache, TargetedFieldBatch
@@ -17,7 +17,7 @@ from gempy_engine.modules.dual_contouring.joint_ownership import (borrowed_hermi
                                                                   check_missing_controllers, contact_pairs,
                                                                   controllers_from_ownership, fallback_region,
                                                                   fault_merge_targets, ordinary_controllers)
-from gempy_engine.modules.dual_contouring.joint_triangle_plan import plan_edge_rows
+from gempy_engine.modules.dual_contouring.joint_triangle_plan import collapse_rings, plan_edge_rows, ring_triangles
 
 
 def _uniform(n=2):
@@ -29,13 +29,13 @@ def _uniform(n=2):
 
 def test_lattice_nodes_lie_on_leaf_corners():
     origins, spans, domain = _uniform()
-    complex_ = build_adaptive_complex(origins, spans, domain)
+    complex_ = adaptive_complex_arrays(origins, spans, domain)
     corners = leaf_corner_nodes(origins, spans, CORNERS)
     assert corners.shape == (8, 8, 3)
     known = {tuple(c) for c in corners.reshape(-1, 3)}
-    tiles = tile_nodes(complex_['faces'])
-    edges = minimal_edge_nodes(complex_['edges'])
-    assert tiles.shape == (len(complex_['faces']), 4, 3) and edges.shape == (len(complex_['edges']), 2, 3)
+    tiles = tile_nodes(complex_.face_axis, complex_.face_origin, complex_.face_span)
+    edges = minimal_edge_nodes(complex_.edge_axis, complex_.edge_origin, complex_.edge_span)
+    assert tiles.shape == (len(complex_.face_axis), 4, 3) and edges.shape == (len(complex_.edge_axis), 2, 3)
     assert {tuple(c) for c in tiles.reshape(-1, 3)} <= known
     assert {tuple(c) for c in edges.reshape(-1, 3)} <= known
     # Every minimal edge has unit length along its axis on a uniform grid.
@@ -132,7 +132,7 @@ def test_fault_merge_borrowing_and_multi_fault_leaves():
     merged, multi, borrowed = borrowed_leaves(targets, stricts)
     np.testing.assert_array_equal(merged[2], [True, False, True])
     np.testing.assert_array_equal(multi[2], [False, True, False])
-    assert borrowed == {(2, 0): 0, (2, 2): 1}
+    np.testing.assert_array_equal(borrowed, [[-1, -1, -1], [-1, -1, -1], [0, -1, 1]])
     edge_xyz = np.random.default_rng(0).normal(size=(3, 3, 12, 3))
     normals = np.ones_like(edge_xyz)
     rows = borrowed_hermite_rows(0, np.array([0, 1]), {2}, borrowed, edge_xyz, normals, stricts, 10.)
@@ -144,9 +144,11 @@ def test_fault_merge_borrowing_and_multi_fault_leaves():
 
 
 def test_fallback_region_adds_edge_neighbours():
-    edges = [dict(cells=(0, 1, None, None)), dict(cells=(1, 2, 3, None)), dict(cells=(4, 4, 5, 5))]
-    assert fallback_region(edges, np.array([True, False, False, False, False, False])) == {0, 1}
-    assert fallback_region(edges, np.array([False, True, False, False, False, False])) == {0, 1, 2, 3}
+    edges = np.array([[0, 1, -1, -1], [1, 2, 3, -1], [4, 4, 5, 5]])
+    np.testing.assert_array_equal(np.flatnonzero(fallback_region(edges, np.arange(6) == 0)), [0, 1])
+    np.testing.assert_array_equal(np.flatnonzero(fallback_region(edges, np.arange(6) == 1)), [0, 1, 2, 3])
+    np.testing.assert_array_equal(np.flatnonzero(fallback_region(edges, np.arange(6) == 5)), [4, 5])
+    assert not fallback_region(edges, np.zeros(6, dtype=bool)).any()
 
 # endregion
 
@@ -174,21 +176,33 @@ def test_edge_decisions_keep_owned_interior_crossings():
 
 
 def test_edge_rows_split_borrowed_rings_and_drop_all_fault_triangles():
-    edges = [dict(cells=(0, 1, 2, 3))]
+    edge_cells = np.array([[0, 1, 2, 3]])
+    # Surface 1 borrows surface 0's (fault) vertices in leaves 0, 1 and 3.
+    borrowed = np.zeros((2, 4), dtype=bool)
+    borrowed[1, [0, 1, 3]] = True
+    vertex_ids = np.arange(8).reshape(2, 4)
+    vertex_ids[1, [0, 1, 3]] = [0, 1, 3]
+    fault_vertex = np.repeat([True, False], 4)
+    plan, filtered = plan_edge_rows(np.array([[False], [True]]), edge_cells, vertex_ids, borrowed, fault_vertex)
+    # Quad (0, 1, 6, 3) splits into (0, 1, 3), all fault vertices, and (6, 3, 1).
+    assert filtered == 1
+    np.testing.assert_array_equal(plan['surface'], [1])
+    np.testing.assert_array_equal(plan['keys'], [[6, 3, 1]])
+    np.testing.assert_array_equal(plan['regular'], [[4, 5, 6, 7]])
+    assert plan['entry'].all()
 
-    def regular_key(s, cell):
-        return 'regular', ((s, 0),), (cell, 0, 0), 1, 0
 
-    def vertex_key(s, cell):
-        return regular_key(0 if (s, cell) in borrowed else s, cell)
-
-    borrowed = {(1, 0): 0, (1, 1): 0, (1, 3): 0}
-    normals = np.zeros((2, 1, 3))
-    plans, filtered = plan_edge_rows(np.array([[False], [True]]), edges, normals, regular_key, vertex_key,
-                                     borrowed, {(0, 0)})
-    assert not plans[0] and filtered == 1
-    assert len(plans[1]) == 1 and len(plans[1][0]['keys']) == 3
-    assert plans[1][0]['regular_keys'] == [regular_key(1, c) for c in range(4)]
+def test_collapse_rings_merges_coarse_repeats_only():
+    collapsed, lengths = collapse_rings(np.array([[0, 1, 2, 3], [0, 0, 1, 2], [0, 1, 2, 0], [5, 6, 6, 7]]))
+    np.testing.assert_array_equal(lengths, [4, 3, 3, 3])
+    np.testing.assert_array_equal(collapsed, [[0, 1, 2, 3], [0, 1, 2, -1], [0, 1, 2, -1], [5, 6, 7, -1]])
+    row, triangles, first = ring_triangles(collapsed, lengths)
+    np.testing.assert_array_equal(row, [0, 0, 1, 2, 3])
+    np.testing.assert_array_equal(triangles[:2], [[0, 1, 3], [2, 3, 1]])
+    np.testing.assert_array_equal(first, [True, False, True, True, True])
+    for ring in ([0, 1, 0, 1], [0, 0, 1, 1], [0, 0, 0, 0]):
+        with pytest.raises(ValueError, match='unsupported_adaptive_ring'):
+            collapse_rings(np.array([ring]))
 
 # endregion
 

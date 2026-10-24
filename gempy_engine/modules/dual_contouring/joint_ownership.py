@@ -9,6 +9,7 @@ vertices. Surfaces are indices into the exported surface order.
 
 import numpy as np
 
+from .joint_xp import namespace
 from ...core.data.stack_relation_type import StackRelationType as R
 
 
@@ -106,65 +107,80 @@ def borrowed_leaves(merge_targets, stricts):
     """Leaves where an affected surface borrows a fault's vertex.
 
     ``stricts`` (S, N, 12) are strict edge crossings. Returns ``merged`` and
-    ``multi_fault`` (S, N) masks and ``borrowed`` {(surface, leaf): fault}. A
-    leaf crossed by the surface and two or more of its faults has no unambiguous
-    borrow: the surface keeps its own vertex there (pretty-style, counted).
+    ``multi_fault`` (S, N) masks and ``source`` (S, N), the fault surface whose
+    vertex each (surface, leaf) borrows, or -1. A leaf crossed by the surface
+    and two or more of its faults has no unambiguous borrow: the surface keeps
+    its own vertex there (pretty-style, counted).
     """
-    merged = np.zeros(stricts.shape[:2], dtype=bool)
-    multi_fault = np.zeros_like(merged)
-    borrowed = {}
+    xp = namespace(stricts)
+    merged = xp.zeros(tuple(stricts.shape[:2]), dtype=bool)
+    multi_fault = xp.zeros(tuple(stricts.shape[:2]), dtype=bool)
+    source = xp.full(tuple(stricts.shape[:2]), -1, dtype=np.int64)
     for s, sources in merge_targets.items():
         crossed = stricts[s].any(axis=1)
-        hits = np.array([stricts[c].any(axis=1) & crossed for c in sources])
+        hits = xp.stack([stricts[c].any(axis=1) & crossed for c in sources])
         several = hits.sum(axis=0) > 1
         multi_fault[s] = several
         hits &= ~several
         merged[s] = hits.any(axis=0)
         for c, row in zip(sources, hits):
-            borrowed.update(((s, int(cell)), c) for cell in np.flatnonzero(row))
-    return merged, multi_fault, borrowed
+            source[s, row] = c
+    return merged, multi_fault, source
 
 
-def borrowed_hermite_rows(fault, cells, affected, borrowed, edge_xyz, normals, flags, weight):
+def borrowed_hermite_rows(fault, cells, affected, source, edge_xyz, normals, flags, weight):
     """Extra QEF rows for a fault's vertices from the surfaces that borrow them.
 
     Same rule as pretty: only rows with actual gradient data count, weighted by
-    ``weight``. Returns ``None`` when no affected surface borrows in ``cells``,
-    else ``(xyz, normals, weights)`` of shapes (C, 12B, 3), (C, 12B, 3), (C, 12B).
+    ``weight``. ``source`` (S, N) is ``borrowed_leaves``' borrowed fault per
+    leaf; ``edge_xyz[t][leaves]``/``normals[t][leaves]`` give (L, 12, 3) rows.
+    Returns ``None`` when no affected surface borrows in ``cells``, else
+    ``(xyz, normals, weights)`` of shapes (C, 12B, 3), (C, 12B, 3), (C, 12B).
     """
-    blocks = [t for t in sorted(affected) if any(borrowed.get((t, int(c))) == fault for c in cells)]
+    xp = namespace(source, cells)
+    blocks = [t for t in sorted(affected) if bool((source[t, cells] == fault).any())]
     if not blocks:
         return None
-    extra_xyz = np.zeros((len(cells), 12*len(blocks), 3))
-    extra_normals = np.zeros_like(extra_xyz)
-    extra_weights = np.zeros((len(cells), 12*len(blocks)))
+    extra_xyz = xp.zeros((len(cells), 12*len(blocks), 3))
+    extra_normals = xp.zeros((len(cells), 12*len(blocks), 3))
+    extra_weights = xp.zeros((len(cells), 12*len(blocks)))
     for b, t in enumerate(blocks):
-        rows = np.array([borrowed.get((t, int(c))) == fault for c in cells])
+        rows = xp.flatnonzero(source[t, cells] == fault)
+        borrowers = cells[rows]
         span = slice(12*b, 12*(b+1))
-        extra_xyz[rows, span] = edge_xyz[t][cells[rows]]
-        extra_normals[rows, span] = normals[t][cells[rows]]
-        extra_weights[rows, span] = weight*(flags[t][cells[rows]] & np.any(normals[t][cells[rows]] != 0, axis=-1))
+        borrowed_normals = xp.asarray(normals[t][borrowers])
+        extra_xyz[rows, span] = xp.asarray(edge_xyz[t][borrowers])
+        extra_normals[rows, span] = borrowed_normals
+        extra_weights[rows, span] = weight*xp.astype(flags[t][borrowers] & (borrowed_normals != 0).any(axis=-1),
+                                                     np.float64)
     return extra_xyz, extra_normals, extra_weights
 
 
-def fallback_region(edges, core_leaves):
-    """``core_leaves`` plus one ring of leaves sharing an edge with them.
+def fallback_region(edge_cells, core_leaves):
+    """(N,) mask: ``core_leaves`` plus one ring of leaves sharing an edge with them.
 
-    No kept seam's controller triangles then reach a leaf whose fields jump
-    across the fault.
+    ``edge_cells`` (E, 4) are the minimal-edge leaf rings (-1 outside). No kept
+    seam's controller triangles then reach a leaf whose fields jump across the fault.
     """
-    neighbors = {}
-    for edge in edges:
-        ring = [c for c in edge['cells'] if c is not None]
-        for c in ring:
-            neighbors.setdefault(c, set()).update(ring)
-    core = set(np.flatnonzero(core_leaves).tolist())
-    return core.union(*(neighbors.get(c, ()) for c in core))
+    xp = namespace(edge_cells, core_leaves)
+    core = xp.asarray(core_leaves, dtype=bool)
+    present = edge_cells >= 0
+    touched = (present & core[xp.maximum(edge_cells, 0)]).any(axis=1)
+    region = xp.copy(core)
+    ring = edge_cells[touched]
+    region[ring[ring >= 0]] = True
+    return region
 
 
 def fallback_junction_leaves(planned_fallback, region, crossed_leaves, pairs):
-    """Contact junction candidates given up to the fallback: both participants cross."""
-    return set(planned_fallback).union(*(
-        {c for c in region if crossed_leaves[a, c] and crossed_leaves[b, c]} for a, b in pairs))
+    """Contact junction candidates given up to the fallback: both participants cross.
+
+    ``region`` is the (N,) fallback-region mask; returns a set of leaves.
+    """
+    xp = namespace(region, crossed_leaves)
+    given_up = xp.zeros(tuple(region.shape), dtype=bool)
+    for a, b in pairs:
+        given_up |= region & crossed_leaves[a] & crossed_leaves[b]
+    return set(planned_fallback).union(xp.flatnonzero(given_up).tolist())
 
 # endregion

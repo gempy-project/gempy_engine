@@ -163,7 +163,9 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         output = last.outputs[fault_stack].scalar_fields
         expected = host(_modify_faults_values_output(
             fault_inputs[fault_stack] or FaultsData(), copy.copy(output), reference_xyz)).reshape(-1)
-        rebuilt = drift(fault_stack, *evaluate_stack(fault_stack, reference_xyz), reference_xyz)
+        # Only a finite fault's taper needs the fault gradients.
+        rebuilt = drift(fault_stack, *evaluate_stack(fault_stack, reference_xyz, gradients=fault_stack in finite_faults),
+                        reference_xyz)
         error = float(np.max(np.abs(rebuilt - expected)))
         if not np.isfinite(error) or error > precision_tolerance(1e-10, BT.dtype):
             raise ValueError(f'unverified_fault_drift: rebuilt production drift differs for fault stack {fault_stack}')
