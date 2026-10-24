@@ -10,7 +10,8 @@ from gempy_engine.core.data.regular_grid import RegularGrid
 from gempy_engine.core.data.options.evaluation_options import EvaluationOptions
 from gempy_engine.modules.octrees_topology._neighbor_closure import close_refinement_mask
 from gempy_engine.modules.octrees_topology._octree_common import _generate_next_level_centers
-from gempy_engine.modules.octrees_topology._octree_internals import compute_next_octree_locations
+from gempy_engine import config
+from gempy_engine.modules.octrees_topology._octree_internals import compute_next_octree_locations, _duplicate_corner_count
 from gempy_engine.modules.dual_contouring.fancy_triangulation import get_left_right_array
 from gempy_engine.modules.dual_contouring.fancy_triangulation import triangulate
 from gempy_engine.modules.dual_contouring._support_report import mesh_support_report
@@ -95,6 +96,7 @@ def test_refinement_and_surface_depth(backend, mode, count):
     assert len(result.values) == count * 8
     assert result.refinement_debug['primary_surface_count'] == 1
     assert result.refinement_debug['support_only_count'] == count - 1
+    assert 'duplicate_corner_count' not in result.refinement_debug  # verbose alone stays cheap
     result = compute_next_octree_locations(prev, options, 1).octree_grid
     assert int(result.active_cells.sum()) == 1
 
@@ -170,3 +172,24 @@ def test_mode_serialization():
     options.evaluation_options.octree_refinement_mode = OctreeRefinementMode.PRECISE
     restored = InterpolationOptions.model_validate_json(options.model_dump_json())
     assert restored.evaluation_options.octree_refinement_mode == OctreeRefinementMode.PRECISE
+
+
+def test_duplicate_corner_count_is_explicit_and_exact(backend, monkeypatch):
+    t = BackendTensor.t
+    grid = RegularGrid([0, 5, 0, 5, 0, 5], [5, 5, 5])
+    ids = t.zeros((125, 8))
+    ids[62, 0] = 1
+    prev = SimpleNamespace(litho_faults_ids_corners_grid=ids.reshape(-1),
+                           dxdydz=grid.dxdydz, grid=SimpleNamespace(octree_grid=grid), outputs=[])
+    options = EvaluationOptions(_number_octree_levels=4, _number_octree_levels_surface=2,
+                                octree_min_level=0, octree_refinement_mode='precise', verbose=True)
+    monkeypatch.setattr(config, 'EXPENSIVE_DIAGNOSTICS', True)
+    result = compute_next_octree_locations(prev, options, 0).octree_grid
+    corners = (BackendTensor.t.to_numpy(result.integer_coordinates)[:, None, :]
+               + np.array(list(product((0, 1), repeat=3)))).reshape(-1, 3)
+    expected = len(corners) - len(np.unique(corners, axis=0))
+    assert expected > 0
+    assert result.refinement_debug['duplicate_corner_count'] == expected
+    signed = np.array([[-3, 0, 2], [-2, 0, 2], [5, -1, 0]])
+    corners = (signed[:, None, :] + np.array(list(product((0, 1), repeat=3)))).reshape(-1, 3)
+    assert _duplicate_corner_count(t.array(signed, dtype='int64')) == len(corners) - len(np.unique(corners, axis=0))

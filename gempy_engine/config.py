@@ -31,6 +31,8 @@ else:
     load_dotenv()
 
 DEBUG_MODE = os.getenv('DEBUG_MODE', 'False') == 'True'  # Note the handling of Boolean values
+# Expensive diagnostics (e.g. octree duplicate-corner counts); not enabled by DEBUG_MODE or verbose.
+EXPENSIVE_DIAGNOSTICS = os.getenv('EXPENSIVE_DIAGNOSTICS', 'False') == 'True'
 OPTIMIZE_MEMORY = os.getenv('OPTIMIZE_MEMORY', 'True') == 'True'
 DEFAULT_BACKEND = AvailableBackends[os.getenv('DEFAULT_BACKEND', 'numpy')]
 DEFAULT_PYKEOPS = os.getenv('DEFAULT_PYKEOPS', 'False') == 'True'

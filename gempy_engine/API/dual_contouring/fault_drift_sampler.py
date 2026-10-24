@@ -164,10 +164,19 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         expected = host(_modify_faults_values_output(
             fault_inputs[fault_stack] or FaultsData(), copy.copy(output), reference_xyz)).reshape(-1)
         # Only a finite fault's taper needs the fault gradients.
-        rebuilt = drift(fault_stack, *evaluate_stack(fault_stack, reference_xyz, gradients=fault_stack in finite_faults),
-                        reference_xyz)
-        error = float(np.max(np.abs(rebuilt - expected)))
-        if not np.isfinite(error) or error > precision_tolerance(1e-10, BT.dtype):
+        scalar, gradients = evaluate_stack(fault_stack, reference_xyz, gradients=fault_stack in finite_faults)
+        rebuilt = drift(fault_stack, scalar, gradients, reference_xyz)
+        tolerance = precision_tolerance(1e-10, BT.dtype)
+        error = np.abs(rebuilt - expected)
+        if np.isfinite(error).all() and (error > tolerance).any():
+            # On the fault the steep step amplifies the rebuilt scalar's rounding (another
+            # evaluation order than production): accept drifts the rule gives within it.
+            rounding = 64 * np.finfo(BT.dtype).eps * max(float(np.max(np.abs(scalar))), 1.0)
+            low, high = (drift(fault_stack, scalar + shift, gradients, reference_xyz) for shift in (-rounding, rounding))
+            within = (expected >= np.minimum(low, high) - tolerance) & (expected <= np.maximum(low, high) + tolerance)
+            error = np.where(within, 0.0, error)
+        error = float(np.max(error))
+        if not np.isfinite(error) or error > tolerance:
             raise ValueError(f'unverified_fault_drift: rebuilt production drift differs for fault stack {fault_stack}')
         drift_errors.append(error)
 

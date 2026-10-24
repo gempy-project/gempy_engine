@@ -1,3 +1,5 @@
+import itertools
+
 import numpy as np
 import warnings
 from typing import List
@@ -5,6 +7,7 @@ from typing import List
 from ._curvature_analysis import mark_highest_curvature_voxels
 from ._octree_common import _generate_next_level_centers
 from ._neighbor_closure import close_refinement_mask
+from ... import config
 from ...config import DEBUG_MODE
 from ...core.backend_tensor import BackendTensor
 from ...core.data.engine_grid import EngineGrid
@@ -76,12 +79,6 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, evaluation_options: 
         primary_count = int(primary_mask.sum())
         minimum_level = current_octree_level < evaluation_options.octree_min_level
         child_grid = grid_next_centers.octree_grid
-        corner_offsets = BackendTensor.t.array(
-            [[x, y, z] for x in (0, 1) for y in (0, 1) for z in (0, 1)], dtype='int64'
-        )
-        # Diagnostics only: count stored rows representing the same lattice point.
-        corner_coordinates = (child_grid.integer_coordinates[:, None, :] + corner_offsets).reshape(-1, 3)
-        unique_corners = np.unique(BackendTensor.t.to_numpy(corner_coordinates), axis=0).shape[0]
         grid_next_centers.octree_grid.refinement_debug = dict(
             primary_surface_mask=surface_mask,
             additional_refinement_mask=additional_voxel_selected_to_refinement,
@@ -96,8 +93,10 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, evaluation_options: 
             closure_multiplier=int(voxel_select.sum()) / primary_count if primary_count else 1.0,
             missing_current_neighbor_count=missing_count,
             generated_child_count=len(xyz_coords),
-            duplicate_corner_count=len(corner_coordinates) - unique_corners
         )
+        if config.EXPENSIVE_DIAGNOSTICS:
+            grid_next_centers.octree_grid.refinement_debug['duplicate_corner_count'] = \
+                _duplicate_corner_count(child_grid.integer_coordinates)
 
     if True:
         grid_next_centers.debug_vals = (xyz_coords, xyz_anchor, shift_select_xyz, bool_idx, voxel_select, grid_next_centers)
@@ -105,6 +104,27 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, evaluation_options: 
     else:
         return grid_next_centers
 
+
+def _duplicate_corner_count(integer_coordinates) -> int:
+    """Stored cell-corner rows minus distinct lattice points they represent (diagnostics only)."""
+    coordinates = BackendTensor.t.to_numpy(integer_coordinates).astype(np.int64)
+    if len(coordinates) == 0:
+        return 0
+    coordinates -= coordinates.min(axis=0)
+    extent = coordinates.max(axis=0) + 2  # Corners reach one node past the last cell.
+    stored = 8 * len(coordinates)
+    if np.prod(extent.astype(float)) > 2.0 ** 62:
+        corners = (coordinates[:, None, :] + np.array(list(itertools.product((0, 1), repeat=3)))).reshape(-1, 3)
+        return stored - len(np.unique(corners, axis=0))
+    # One int64 code per lattice node; neighbouring corners are fixed code offsets.
+    codes = (coordinates[:, 0] * extent[1] + coordinates[:, 1]) * extent[2] + coordinates[:, 2]
+    offsets = [(x * extent[1] + y) * extent[2] + z for x, y, z in itertools.product((0, 1), repeat=3)]
+    if np.prod(extent.astype(float)) <= 2 ** 28:
+        present = np.zeros(int(np.prod(extent)), dtype=bool)  # Linear-time presence grid.
+        for offset in offsets:
+            present[codes + offset] = True
+        return stored - int(np.count_nonzero(present))
+    return stored - len(np.unique((codes[:, None] + np.array(offsets)).reshape(-1)))
 
 def _mark_voxel(uv_8):
     list_ixd_select = []

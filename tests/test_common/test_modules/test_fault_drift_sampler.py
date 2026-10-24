@@ -216,6 +216,35 @@ def test_production_drift_sampler_reproduces_production_fields(monkeypatch, nump
         sampler['query'](np.zeros(3))
 
 
+
+@pytest.mark.parametrize('shift, verified', [(32*np.finfo(np.float64).eps, True), (1e-6, False)])
+def test_drift_verification_tolerates_rounding_only_on_the_fault(monkeypatch, numpy_backend, shift, verified):
+    """The steep step turns a rounding-level scalar difference at a fault surface point into a large drift
+    difference (float32 evaluation orders differ by more); only differences that small are accepted."""
+    evaluate = sampler_api._evaluate_sys_eq
+
+    def inside(descriptor, inputs, options, levels):
+        n_points = len(BT.t.to_numpy(inputs.surface_points.sp_coords))
+        calls = []
+
+        def rounded(view, weights, stack_options):
+            fields = evaluate(view, weights, stack_options)
+            calls.append(len(view.xyz_to_interpolate))
+            if len(calls) == 1:  # The fault's verification on reference grid + surface points.
+                fields._scalar_field = fields._scalar_field.copy()
+                fields._scalar_field[-n_points] += shift  # The fault's first surface point: on the step.
+            return fields
+
+        with monkeypatch.context() as patch:
+            patch.setattr(sampler_api, '_evaluate_sys_eq', rounded)
+            if verified:
+                sampler_api.prepare_fault_drift_sampler(descriptor, inputs, options, levels)
+            else:
+                with pytest.raises(ValueError, match='unverified_fault_drift'):
+                    sampler_api.prepare_fault_drift_sampler(descriptor, inputs, options, levels)
+
+    _prepare(monkeypatch, inside=inside)
+
 def _finite_fault_data(inputs, descriptor, radius=.06):
     """Model7's vertical fault with a slip patch around its surface points, tips inside the domain."""
     from gempy_engine.core.data import FiniteFault
