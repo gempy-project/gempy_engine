@@ -342,6 +342,53 @@ def test_review_reproductions_still_mesh(backend, case):
     assert np.isfinite(result['vertices']).all()
 
 
+def _extract_offset_planes(offset, onlap, requery=None):
+    origins, spans = mixed_leaves()
+    corners = origins[:, None, :]+spans[:, None, None]*CORNERS
+
+    def fields(points):
+        x, _, z = points.T
+        values = np.array([x-3.+offset, z-4.+offset])
+        normals = np.array([[1., 0., 0.], [0., 0., 1.]])
+        if onlap:
+            values, normals = values[::-1], normals[::-1]
+        return values, np.broadcast_to(normals[:, None, :], (2, len(points), 3)).copy()
+
+    samples = fields(corners.reshape(-1, 3))[0].reshape(2, -1, 8)
+    return extract_adaptive_topology(
+        origins, spans, (8, 8, 8), (0, 8, 0, 8, 0, 8), samples, [0, 1], [0, 0],
+        [R.ONLAP if onlap else R.ERODE, R.BASEMENT], [[0.], [0.]],
+        sample_fields=fields if requery is None else lambda points: requery(fields(points), points))
+
+
+@pytest.mark.parametrize('onlap', [False, True])
+def test_surfaces_through_lattice_nodes_count_nodes_as_positive(onlap):
+    """Contacts lying exactly on nodes mesh as if shifted infinitesimally to the positive side."""
+    aligned, shifted = _extract_offset_planes(0., onlap), _extract_offset_planes(1e-6, onlap)
+    assert aligned['vertex_keys'] == shifted['vertex_keys']
+    for a, b in zip(aligned['faces'], shifted['faces']):
+        np.testing.assert_array_equal(a, b)
+    np.testing.assert_array_equal(aligned['seam_edges'], shifted['seam_edges'])
+    np.testing.assert_allclose(aligned['vertices'], shifted['vertices'], atol=1e-5)
+    assert len(aligned['seam_edges'])
+
+
+def test_requeried_nodes_disagreeing_with_leaf_corners_keep_their_faces():
+    """Low-precision re-evaluation may put a node on the other side; leaf corners decide."""
+    reference = _extract_offset_planes(-.3, False)
+
+    def requery(answer, points):
+        values, gradients = answer
+        # Flip every node next to the first surface (x = 3 reads -.3) to the positive side.
+        values[0][np.isclose(points[:, 0], 3.)] = 1e-4
+        return values, gradients
+
+    perturbed = _extract_offset_planes(-.3, False, requery)
+    assert perturbed['vertex_keys'] == reference['vertex_keys']
+    for a, b in zip(perturbed['faces'], reference['faces']):
+        np.testing.assert_array_equal(a, b)
+
+
 @pytest.mark.parametrize('backend', [AvailableBackends.numpy, AvailableBackends.PYTORCH])
 def test_consistent_large_raw_offset_remains_supported(backend):
     if backend is AvailableBackends.PYTORCH:

@@ -64,6 +64,27 @@ def test_shared_node_lookup_and_disagreement():
     np.testing.assert_array_equal(snapped[0][~sharing], samples[0][~sharing])
 
 
+def test_snap_sides_nodes_on_the_surface():
+    origins, spans, domain = _uniform()
+    corners = leaf_corner_nodes(origins, spans, CORNERS)
+    sharing = np.all(corners == tuple(corners[0, 7]), axis=-1)
+    samples = corners[..., 2][None].astype(float)+.25
+    # Exactly on the surface in one leaf only (quantized fields): the node's first sample wins.
+    samples[0][sharing] = .5 - 1e-6
+    samples[0][np.argwhere(sharing)[-1][0], np.argwhere(sharing)[-1][1]] = .5
+    snapped = snap_straddling_nodes(corners, samples, np.array([.5]), domain)
+    assert np.all(snapped[0][sharing] == .5 - 1e-6)
+    # Exactly on the surface in every leaf: the node counts as positive, just past the aligned bound.
+    samples[0][sharing] = .5
+    snapped = snap_straddling_nodes(corners, samples, np.array([.5]), domain)
+    assert np.all(snapped[0][sharing] - .5 >= 1e-10)
+    assert np.all(snapped[0][sharing] - .5 < 1e-8)
+    np.testing.assert_array_equal(snapped[0][~sharing], samples[0][~sharing])
+    # The side offset stays resolvable at large isovalues without moving the node far.
+    large = snap_straddling_nodes(corners, samples + 1e12 - .5, np.array([1e12]), domain)
+    assert np.all((large[0][sharing] > 1e12) & (large[0][sharing] - 1e12 < 1e-3))
+
+
 def test_lattice_frame_rejects_invalid_extent():
     bounds, spacing = lattice_frame((0, 2, 0, 4, 0, 8), (2, 2, 2))
     np.testing.assert_array_equal(spacing, [1, 2, 4])
