@@ -1,4 +1,4 @@
-from typing import List
+from typing import Callable, List, Optional
 
 from . import _multi_scalar_field_manager as ms
 from ._octree_generation import interpolate_on_octree
@@ -12,8 +12,19 @@ from ...core.data.octree_level import OctreeLevel
 from ...modules.octrees_topology.octrees_topology_interface import get_next_octree_grid
 
 
+OctreeLevelCallback = Callable[[int, List[OctreeLevel]], None]
+
+
 def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options: data.InterpolationOptions,
-                                data_descriptor: InputDataDescriptor) -> List[OctreeLevel]:
+                                data_descriptor: InputDataDescriptor,
+                                on_octree_level: Optional[OctreeLevelCallback] = None) -> List[OctreeLevel]:
+    """Evaluate every octree level, refining from the previous one.
+
+    ``on_octree_level(level, octree_list)`` is called once a level is complete (evaluated
+    and, unless it is the last one, used to build the next grid), so ``octree_list`` holds
+    levels ``0..level``. The list is live: read it inside the callback and do not mutate it.
+    An exception raised by the callback aborts the computation.
+    """
     n_levels = options.number_octree_levels
 
     octree_list = []
@@ -33,6 +44,8 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
             )
             interpolation_input.set_temp_grid(grid_1_centers)
         octree_list.append(next_octree)
+        if on_octree_level is not None:
+            on_octree_level(i, octree_list)
 
     interpolation_input.set_grid_to_original()
     return octree_list

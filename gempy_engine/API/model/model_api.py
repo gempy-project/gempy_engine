@@ -7,7 +7,7 @@ import numpy as np
 
 from ..dual_contouring.multi_scalar_dual_contouring import dual_contouring_multi_scalar
 from ..dual_contouring import multi_scalar_dual_contouring as dc_dispatch
-from ..interp_single.interp_features import interpolate_n_octree_levels
+from ..interp_single.interp_features import interpolate_n_octree_levels, OctreeLevelCallback
 from ...config import NOT_MAKE_INPUT_DEEP_COPY, AvailableBackends, DualContouringOverlap, resolve_dual_contouring_overlap
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
@@ -30,7 +30,8 @@ from ...modules.weights_cache.weights_cache_interface import WeightCache
 
 @gempy_profiler_decorator
 def compute_model(interpolation_input: InterpolationInput, options: InterpolationOptions,
-                  data_descriptor: InputDataDescriptor, *, geophysics_input: Optional[GeophysicsInput] = None) -> Solutions:
+                  data_descriptor: InputDataDescriptor, *, geophysics_input: Optional[GeophysicsInput] = None,
+                  on_octree_level: Optional[OctreeLevelCallback] = None) -> Solutions:
     if options.mesh_extraction and resolve_dual_contouring_overlap(
             options.evaluation_options.mesh_extraction_overlap, dc_dispatch.DUAL_CONTOURING_VERTEX_OVERLAP
     ) in (DualContouringOverlap.joint, DualContouringOverlap.joint_contacts):
@@ -55,7 +56,8 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
         output: list[OctreeLevel] = interpolate_n_octree_levels(
             interpolation_input=interpolation_input,
             options=options,
-            data_descriptor=data_descriptor
+            data_descriptor=data_descriptor,
+            on_octree_level=on_octree_level
         )
         # region Geophysics
         # ---------------------
