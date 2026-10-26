@@ -24,7 +24,7 @@ def test_computations_do_not_share_volatile_option_state(monkeypatch):
     monkeypatch.setattr(model_api.BackendTensor, "clear_gpu_memory", lambda: None)
     monkeypatch.setattr(model_api, "_check_input_validity", lambda *_: None)
 
-    def observe_options(interpolation_input, options, data_descriptor):
+    def observe_options(interpolation_input, options, data_descriptor, on_octree_level=None):
         level = interpolation_input.level
         options.temp_interpolation_values.current_octree_level = level
         barrier.wait()

@@ -686,7 +686,7 @@ def test_joint_failed_compute_isolates_root_and_descriptor_fault_buffers(monkeyp
     if backend == "torch":
         caller_points.requires_grad_(True)
 
-    def fail(interpolation_input, options, data_descriptor):
+    def fail(interpolation_input, options, data_descriptor, on_octree_level=None):
         assert interpolation_input is not inputs
         assert interpolation_input.surface_points.sp_coords is caller_points
         if backend == "torch":
