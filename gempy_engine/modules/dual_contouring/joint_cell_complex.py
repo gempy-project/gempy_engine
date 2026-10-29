@@ -336,23 +336,25 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
     quarter = int(levels[0])
 
     def locate(points4):
-        """Leaf row containing each quarter-lattice probe; -1 outside the domain."""
+        """Leaf row containing each quarter-lattice probe; -1 outside the domain.
+
+        Every level is probed for every point (leaves do not overlap, so at most one hits): no
+        per-level compaction, one host check at the end.
+        """
         result = xp.full(len(points4), -1, dtype=np.int64)
         inside = ((points4 >= 0) & (points4 < 4 * extent)).all(axis=1)
-        pending = xp.flatnonzero(inside)
         for width, codes, cells, dims in zip(levels, level_codes, level_cells, level_dims):
-            if not len(pending):
-                break
-            probe = _codes(points4[pending] // (4 * width), dims)
+            probe = _codes(points4 // (4 * width), dims)
             found = xp.minimum(xp.searchsorted(codes, probe), len(codes) - 1)
-            hit = codes[found] == probe
-            result[pending[hit]] = cells[found[hit]]
-            pending = pending[~hit]
-        if len(pending):
+            hit = inside & (result < 0) & (codes[found] == probe)
+            result = xp.where(hit, cells[found], result)
+        if bool((inside & (result < 0)).any()):
             raise ValueError('incomplete_coverage: no leaf contains an interior probe')
         return result
 
     # region Faces
+    # Balance and incidence checks are read back together at the end (one host read).
+    deferred = []
     face_axis, face_origin, face_size, face_negative, face_positive = [], [], [], [], []
     for axis in range(3):
         other = [a for a in range(3) if a != axis]
@@ -360,7 +362,7 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
             lower = xp.copy(o)
             lower[:, axis] += side * w
             neighbor = _face_neighbors(locate, lower, w, axis, other, side, quarter)
-            _check_balance(xp, w, neighbor, w, 'face')
+            deferred.append(_balance_violation(xp, w, neighbor, w, 'face'))
             split = (neighbor >= 0) & (xp.where(neighbor >= 0, w[xp.maximum(neighbor, 0)], 0) < w)
             whole = ~split
             tiles = [lower[whole]]
@@ -375,9 +377,9 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
                     child[:, other[0]] += du * half
                     child[:, other[1]] += dv * half
                     child_neighbor = _face_neighbors(locate, child, half, axis, other, side, quarter)
-                    _check_balance(xp, w[rows], child_neighbor, w, 'face')
-                    if bool(((child_neighbor >= 0) & (w[xp.maximum(child_neighbor, 0)] < half)).any()):
-                        raise ValueError('unsupported_unbalanced_octree: face depth difference exceeds one')
+                    deferred.append(_balance_violation(xp, w[rows], child_neighbor, w, 'face'))
+                    deferred.append((((child_neighbor >= 0) & (w[xp.maximum(child_neighbor, 0)] < half)).any(),
+                                     'unsupported_unbalanced_octree: face depth difference exceeds one'))
                     tiles.append(child)
                     sizes.append(half)
                     owners.append(rows)
@@ -400,8 +402,8 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
     starts = xp.ones(len(key), dtype=bool)
     starts[1:] = (key[1:] != key[:-1]).any(axis=1)
     group = xp.cumsum(xp.astype(starts, np.int64)) - 1
-    if bool((cells != cells[xp.flatnonzero(starts)][group]).any()):
-        raise ValueError('inconsistent_face_incidence: adjacent references disagree')
+    deferred.append(((cells != cells[xp.flatnonzero(starts)][group]).any(),
+                     'inconsistent_face_incidence: adjacent references disagree'))
     key, cells = key[starts], cells[starts]
     # endregion
 
@@ -461,8 +463,8 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
     ring_widths = xp.where(present, w[xp.maximum(rings, 0)], 0)
     widest = xp.max(ring_widths, axis=1)
     narrowest = xp.min(xp.where(present, ring_widths, INT64_MAX), axis=1)
-    if bool((widest > 2 * narrowest).any()):
-        raise ValueError('unsupported_unbalanced_octree: edge depth difference exceeds one')
+    deferred.append(((widest > 2 * narrowest).any(), 'unsupported_unbalanced_octree: edge depth difference exceeds one'))
+    _raise_first(xp, deferred)
     seg_span = seg_end - seg_start
     order = _sort_order(xp, (seg_axis, *seg_lower.T, seg_span), (3, *(d+1 for d in domain), largest+1))
     # endregion
@@ -530,8 +532,19 @@ def _face_neighbors(locate, tiles, sizes, axis, other, side, quarter):
     return locate(probe)
 
 
-def _check_balance(xp, width, neighbor, widths, kind):
+def _balance_violation(xp, width, neighbor, widths, kind):
+    """(flag, message): whether a neighbor is more than one level coarser or finer; not read back."""
     present = neighbor >= 0
     neighbor_width = widths[xp.maximum(neighbor, 0)]
-    if bool((present & (xp.maximum(width, neighbor_width) > 2 * xp.minimum(width, neighbor_width))).any()):
-        raise ValueError(f'unsupported_unbalanced_octree: {kind} depth difference exceeds one')
+    return ((present & (xp.maximum(width, neighbor_width) > 2 * xp.minimum(width, neighbor_width))).any(),
+            f'unsupported_unbalanced_octree: {kind} depth difference exceeds one')
+
+
+def _raise_first(xp, deferred):
+    """Raise the first failed (flag, message) check, reading all flags back at once."""
+    if not deferred:
+        return
+    failed = host(xp.stack([xp.asarray(flag) for flag, _ in deferred]))
+    for (_, message), bad in zip(deferred, failed):
+        if bad:
+            raise ValueError(message)

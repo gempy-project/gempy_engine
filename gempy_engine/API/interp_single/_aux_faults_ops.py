@@ -1,6 +1,7 @@
 import numpy as np
 
 from gempy_engine.core.backend_tensor import BackendTensor
+from gempy_engine.core.host_arrays import upload
 from gempy_engine.config import include_raw_scalar_fields
 from gempy_engine.core.data.kernel_classes.faults import FaultsData
 from gempy_engine.core.data.options import InterpolationOptions
@@ -10,7 +11,11 @@ from gempy_engine.modules.faults.finite_faults import project_points_onto_surfac
 
 def _grab_stack_fault_data(_all_stack_values_block, _interpolation_input_i, _stack_structure, grid_size:int) -> FaultsData:
     fault_data = _interpolation_input_i.fault_values or FaultsData()
-    fault_data.fault_values_everywhere = _all_stack_values_block[_stack_structure.active_faults_relations]
+    relations = _stack_structure.active_faults_relations
+    if isinstance(relations, np.ndarray) and relations.dtype == bool and not isinstance(_all_stack_values_block, np.ndarray):
+        # Row indices instead of a host boolean mask: no mask upload and no nonzero read-back.
+        relations = upload(np.flatnonzero(relations))
+    fault_data.fault_values_everywhere = _all_stack_values_block[relations]
     fv_on_all_sp = fault_data.fault_values_everywhere[:, grid_size:_interpolation_input_i.macro_reference_size]
     fault_data.fault_values_on_sp = fv_on_all_sp[:, _interpolation_input_i.slice_feature]
     return fault_data

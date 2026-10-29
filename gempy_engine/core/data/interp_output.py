@@ -156,7 +156,8 @@ class InterpOutput:
         unique_ids = litho_ids + faults_ids * multiplier
         return unique_ids
     
-    def get_block_from_value_type(self, value_type: ValueType, slice_: slice):
+    def get_block_from_value_type(self, value_type: ValueType, slice_: slice, host: bool = True):
+        """The block of ``value_type`` on ``slice_``; NumPy unless ``host=False`` (then backend arrays)."""
         match value_type:
             case ValueType.ids:
                 block = self.final_block
@@ -178,8 +179,7 @@ class InterpOutput:
                 raise ValueError("ValueType not supported.")
 
         match (BackendTensor.engine_backend):
-            case AvailableBackends.PYTORCH:
+            case AvailableBackends.PYTORCH if host:
                 block = BackendTensor.t.to_numpy(block)
-                # block = block.to_numpy()
 
         return block[slice_]

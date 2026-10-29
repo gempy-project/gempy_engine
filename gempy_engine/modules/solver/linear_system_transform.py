@@ -71,12 +71,17 @@ def equilibrate_symmetric_system(
         scaled_rhs = _scale_rows(scaled_rhs, step)
 
         remaining_norms = BackendTensor.tfnp.max(BackendTensor.t.abs(_detached(scaled_matrix)), axis=1)
-        positive_remaining = remaining_norms[remaining_norms > 0]
-        if positive_remaining.shape[0] == 0:
+        positive = remaining_norms > 0
+        # Both tests read back together: the number of nonzero rows and the largest |norm - 1| among them.
+        error = BackendTensor.tfnp.max(BackendTensor.t.where(positive, BackendTensor.t.abs(remaining_norms - 1.0),
+                                                             float("-inf")), axis=0)
+        count = positive.sum()
+        count = count.to(error.dtype) if hasattr(count, "to") else count.astype(error.dtype)
+        n_positive, error = (float(v) for v in BackendTensor.t.to_numpy(BackendTensor.tfnp.stack((count, error))))
+        if n_positive == 0:
             converged = True
             break
-        error = BackendTensor.tfnp.max(BackendTensor.t.abs(positive_remaining - 1.0), axis=0)
-        if float(BackendTensor.t.to_numpy(error)) <= tolerance:
+        if error <= tolerance:
             converged = True
             break
 

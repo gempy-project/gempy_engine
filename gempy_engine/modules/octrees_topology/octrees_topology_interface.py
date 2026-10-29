@@ -105,7 +105,7 @@ def get_regular_grid_value_for_level_torch(octree_list: List['OctreeLevel'], lev
     regular_grid_shape = torch.as_tensor(root.grid.octree_grid_shape)
 
     # Fetch block as a PyTorch tensor
-    block = _get_block_from_value_type(root, scalar_n, value_type)
+    block = _get_block_from_value_type(root, scalar_n, value_type, host=False)
     if not isinstance(block, torch.Tensor):
         block = torch.tensor(block)
 
@@ -135,7 +135,7 @@ def get_regular_grid_value_for_level_torch(octree_list: List['OctreeLevel'], lev
 
         oct_tensor = calculate_oct(shape, n_rep, device)
 
-        block = _get_block_from_value_type(octree, scalar_n, value_type)
+        block = _get_block_from_value_type(octree, scalar_n, value_type, host=False)
         if not isinstance(block, torch.Tensor):
             block = torch.tensor(block, device=device)
 
@@ -271,7 +271,7 @@ def get_regular_grid_value_for_level_numpy(octree_list: List[OctreeLevel], level
     return regular_grid.reshape(shape.tolist())
 
 
-def _get_block_from_value_type(root: OctreeLevel, scalar_n: int, value_type: ValueType):
+def _get_block_from_value_type(root: OctreeLevel, scalar_n: int, value_type: ValueType, host: bool = True):
     element_output: InterpOutput = root.outputs[scalar_n]
-    block = element_output.get_block_from_value_type(value_type, element_output.grid.octree_grid_slice)
+    block = element_output.get_block_from_value_type(value_type, element_output.grid.octree_grid_slice, host)
     return block

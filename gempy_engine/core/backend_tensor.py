@@ -215,11 +215,26 @@ class BackendTensor:
                 tensor = torch.as_tensor(tensor, device=cls.device)
             elif tensor.device != cls.device:
                 tensor = tensor.to(cls.device)
+            if isinstance(n_repeats, (int, numpy.integer)):
+                # A Python count: the output size is known, no upload and no sync.
+                return _true_torch_repeat_interleave(tensor, int(n_repeats), dim=axis)
+            if not isinstance(n_repeats, torch.Tensor) and axis is not None:
+                # Host counts: upload them without blocking and pass the output size, so that
+                # repeat_interleave does not read the counts back.
+                counts = numpy.asarray(n_repeats)
+                return _true_torch_repeat_interleave(tensor, _upload_counts(counts), dim=axis,
+                                                     output_size=int(counts.sum()))
             if not isinstance(n_repeats, torch.Tensor):
                 n_repeats = torch.as_tensor(n_repeats, device=cls.device)
             elif n_repeats.device != cls.device:
                 n_repeats = n_repeats.to(cls.device)
             return _true_torch_repeat_interleave(tensor, n_repeats, dim=axis)
+
+        def _upload_counts(counts):
+            host = torch.from_numpy(numpy.ascontiguousarray(counts, dtype=numpy.int64))
+            if cls.device.type == "cuda":
+                return host.pin_memory().to(cls.device, non_blocking=True)
+            return host
 
         def _array(array_like, dtype=None):
             if array_like is None:

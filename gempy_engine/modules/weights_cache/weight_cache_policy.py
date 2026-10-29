@@ -9,6 +9,7 @@ import numpy as np
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.options import InterpolationOptions, KernelOptions
 from gempy_engine.modules.weights_cache.weights_cache_interface import WeightCache, generate_cache_key
+from gempy_engine.core.compute_scope import checking, stack_cache_of
 
 
 class WeightCacheRoute(Enum):
@@ -71,6 +72,22 @@ def cacheable_kernel_options(kernel_options: KernelOptions) -> dict[str, object]
 
 
 def solver_input_fingerprint(solver_input) -> str:
+    """Hash of the solver inputs; within a compute, computed once per stack (it reads them on the host)."""
+    cache = stack_cache_of(solver_input)
+    faults = solver_input.fault_internal
+    key = (id(solver_input.sp_internal), id(solver_input.ori_internal),
+           id(faults.fault_values_ref), id(faults.fault_values_rest))
+    if cache is not None and cache.fingerprint_key == key and not checking():
+        return cache.fingerprint
+    fingerprint = _solver_input_fingerprint(solver_input)
+    if cache is not None:
+        if cache.fingerprint_key == key and cache.fingerprint != fingerprint:
+            raise AssertionError("compute cache: cached solver input fingerprint differs from its recomputation")
+        cache.fingerprint_key, cache.fingerprint = key, fingerprint
+    return fingerprint
+
+
+def _solver_input_fingerprint(solver_input) -> str:
     hasher = hashlib.sha256()
     fields = (
         ("surface_points_ref", solver_input.sp_internal.ref_surface_points),

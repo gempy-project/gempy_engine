@@ -62,10 +62,14 @@ class RegularGrid:
     def from_octree_level(cls, xyz_coords_octree: np.ndarray, previous_regular_grid: "RegularGrid",
                           active_cells: np.ndarray, left_right: np.ndarray) -> "RegularGrid":
        
-        regular_grid_for_octree_level = cls(
-            orthogonal_extent=previous_regular_grid.orthogonal_extent,
-            regular_grid_shape=previous_regular_grid.regular_grid_shape * 2,
-        )
+        # Octree levels only hold their active cells: skip the dense grid of the doubled shape
+        # (and its copy) that __post_init__ would build and that ``values`` replaces.
+        regular_grid_for_octree_level = cls.__new__(cls)
+        for name, default in (("_active_cells", None), ("left_right", None), ("_integer_coordinates", None),
+                              ("refinement_debug", None), ("original_values", None)):
+            setattr(regular_grid_for_octree_level, name, default)
+        regular_grid_for_octree_level.orthogonal_extent = previous_regular_grid.orthogonal_extent
+        regular_grid_for_octree_level.regular_grid_shape = previous_regular_grid.regular_grid_shape * 2
 
         regular_grid_for_octree_level.values = xyz_coords_octree  # ! Overwrite the common values
         regular_grid_for_octree_level._active_cells = active_cells

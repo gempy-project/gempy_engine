@@ -34,6 +34,8 @@ class StackCache:
     data_side: dict = field(default_factory=dict)
     micro_fitted: bool = False
     micro: Any = None  # (MicroCorrection | None, MicroPointResults | None)
+    fingerprint_key: Any = None
+    fingerprint: Optional[str] = None
 
 
 class _Scope:

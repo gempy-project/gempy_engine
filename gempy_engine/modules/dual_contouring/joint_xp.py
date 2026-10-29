@@ -195,12 +195,17 @@ class TorchOps(NumpyOps):
         return torch.stack([self.asarray(a) for a in arrays], dim=axis)
 
     def _operand(self, value, like):
-        return value if is_tensor(value) else torch.as_tensor(value, dtype=like.dtype, device=self.device)
+        if is_tensor(value):
+            return value
+        if np.ndim(value) == 0:
+            # A 0-dim CPU tensor enters device kernels as a scalar argument: no upload, no sync.
+            return torch.tensor(value, dtype=like.dtype, device="cpu")
+        return torch.as_tensor(value, dtype=like.dtype, device=self.device)
 
     def where(self, condition, a, b):
         like = a if is_tensor(a) else b if is_tensor(b) else None
         if like is None:
-            return torch.where(condition, torch.as_tensor(a, device=self.device), torch.as_tensor(b, device=self.device))
+            return torch.where(condition, torch.tensor(a, device="cpu"), torch.tensor(b, device="cpu"))
         return torch.where(condition, self._operand(a, like), self._operand(b, like))
 
     def flatnonzero(self, a):
