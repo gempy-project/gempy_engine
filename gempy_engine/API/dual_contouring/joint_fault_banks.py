@@ -144,7 +144,8 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
             result = extract_adaptive_topology(
                 origins, spans, domain_shape, extent, samples, groups[selected], indices[selected],
                 relations, levels, sample_fields=sample_fields, include_reference=False, defer_emission=True,
-                faults_relations=matrix, separator_contacts=separator_contacts, cell_complex=cell_complex)
+                faults_relations=matrix, separator_contacts=separator_contacts, cell_complex=cell_complex,
+                snap_extent=options.evaluation_options.mesh_extraction_snap_to_extent)
         else:
             # Removing an unrepresented fault label is safe only if it preserves
             # every ordinary dependency selected from the full original stacks.
@@ -156,7 +157,7 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
             result = extract_adaptive_topology(
                 origins, spans, domain_shape, extent, samples, groups[selected], indices[selected],
                 safe_relations, levels, sample_fields=sample_fields, include_reference=False, defer_emission=True,
-                cell_complex=cell_complex)
+                cell_complex=cell_complex, snap_extent=options.evaluation_options.mesh_extraction_snap_to_extent)
         pieces.append((bank, selected, result))
 
     # A later bank or independent partition may reject otherwise valid geometry.

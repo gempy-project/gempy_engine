@@ -20,7 +20,7 @@ from ...core.data.engine_grid import EngineGrid
 from ...core.data.generic_grid import GenericGrid
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.options import InterpolationOptions
-from ...core.data.options.evaluation_options import MeshExtentCapping, MeshExtractionMaskingOptions
+from ...core.data.options.evaluation_options import MeshExtractionMaskingOptions
 from ...core.data.stack_relation_type import StackRelationType
 from ...modules.dual_contouring.joint_balance import balance_joint_leaves
 from ...modules.dual_contouring.joint_cell_complex import adaptive_complex_arrays
@@ -102,8 +102,6 @@ def _collect_joint_leaves(octree_list, n_stacks):
 
 def _check_joint_options(descriptor, options):
     evaluation = options.evaluation_options
-    if MeshExtentCapping(evaluation.mesh_extraction_extent_capping) != MeshExtentCapping.NONE:
-        raise ValueError("joint extent capping is unsupported")
     if evaluation.mesh_extraction_masking_options != MeshExtractionMaskingOptions.INTERSECT:
         raise ValueError("joint only supports INTERSECT mesh masking")
     stacks = descriptor.stack_structure
@@ -244,7 +242,7 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
     result = extract_adaptive_topology(
         origins, spans, domain_shape, extent, samples, surface_to_stack, surface_indices,
         _topology_relations(relations), isovalues, sample_fields=sample_fields, ownership=None,
-        include_reference=False)
+        include_reference=False, snap_extent=options.evaluation_options.mesh_extraction_snap_to_extent)
     return _meshes_from_result(result, metadata, dict(result["diagnostics"], octree_balance=balance), relations)
 
 
@@ -300,7 +298,8 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
     result = extract_adaptive_topology(
         origins, spans, domain_shape, extent, samples, groups, indices, topology_relations, levels,
         sample_fields=sample_fields, field_query=field_query, faults_relations=matrix, fault_merge=fault_merge,
-        cell_complex=adaptive_complex_arrays(origins, spans, domain_shape))
+        cell_complex=adaptive_complex_arrays(origins, spans, domain_shape),
+        snap_extent=options.evaluation_options.mesh_extraction_snap_to_extent)
     report = dict(result["diagnostics"], octree_balance=balance, interface="pretty_fault_vertex_merge_single_fault_mesh",
                   sampler=sampler.get("diagnostics", {}), no_uniform_fallback=True,
                   no_post_reconciliation=True)

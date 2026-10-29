@@ -382,8 +382,8 @@ def test_actual_model7_root7_two_levels(monkeypatch, mixed):
     assert np.count_nonzero(spans == 1) == (2728 if mixed else 2744)
     assert np.sum(spans ** 3) == 2744
     assert len(solution.dc_meshes) == 4
-    expected_triangles = ([[426, 78, 154, 181], [426, 234, 670, 875]] if mixed else
-                         [[442, 78, 156, 182], [442, 234, 676, 878]])
+    expected_triangles = ([[426, 78, 154, 181], [426, 234, 668, 875]] if mixed else
+                         [[442, 78, 156, 182], [442, 234, 674, 878]])
     assert [[len(f) for f in result["faces"]] for result in results] == expected_triangles
     assert [len(mesh.edges) for mesh in solution.dc_meshes] == np.sum(expected_triangles, axis=0).tolist()
     assert [(m.stack_index, m.surface_index, m.exported_surface_index, m.isovalue)
@@ -491,8 +491,8 @@ def test_actual_model7_natural_root9_two_levels(monkeypatch):
     assert [result["bank"] for result in results] == [0, 1]
     assert len(solution.dc_meshes) == 4
     assert [[len(f) for f in result["faces"]] for result in results] == [
-        [748, 136, 238, 306], [748, 408, 1146, 1572]]
-    assert [len(mesh.edges) for mesh in solution.dc_meshes] == [1496, 544, 1384, 1878]
+        [748, 136, 238, 306], [748, 408, 1142, 1572]]
+    assert [len(mesh.edges) for mesh in solution.dc_meshes] == [1496, 544, 1380, 1878]
     assert [len(result["seam_edges"]) for result in results] == [68, 119]
     assert [(mesh.stack_index, mesh.surface_index, mesh.exported_surface_index, mesh.isovalue)
             for mesh in solution.dc_meshes] == [(*row[:2], i, row[2]) for i, row in enumerate(metadata)]
@@ -650,7 +650,7 @@ def test_joint_model7_preserves_caller_fault_metadata(monkeypatch, existing, non
     else:
         solution = api.compute_model(inputs, options, descriptor)
         assert len(solution.dc_meshes) == 4
-        assert [len(mesh.edges) for mesh in solution.dc_meshes] == [884, 312, 832, 1060]
+        assert [len(mesh.edges) for mesh in solution.dc_meshes] == [884, 312, 830, 1060]
     assert descriptor.stack_structure.faults_input_data is faults
     assert faults[1] is data
     assert descriptor.stack_structure.stack_number == cursor

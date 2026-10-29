@@ -22,7 +22,7 @@ from gempy_engine.core.data.interpolation_functions import CustomInterpolationFu
 from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
 from gempy_engine.core.data.kernel_classes.orientations import Orientations
 from gempy_engine.core.data.options import InterpolationOptions
-from gempy_engine.core.data.options.evaluation_options import MeshExtentCapping, MeshExtractionMaskingOptions, TriangulationMethod
+from gempy_engine.core.data.options.evaluation_options import MeshExtractionMaskingOptions, TriangulationMethod
 from gempy_engine.core.data.regular_grid import RegularGrid
 from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
@@ -155,12 +155,10 @@ def test_large_offset_isovalue_difference_rejected():
         adapter._collect_joint_leaves(levels, 1)
 
 
-@pytest.mark.parametrize("guard", ["cap", "mask", "null"])  # CUDA and float32 are supported (test_joint_contacts)
+@pytest.mark.parametrize("guard", ["mask", "null"])  # CUDA and float32 are supported (test_joint_contacts)
 def test_joint_guards(monkeypatch, guard):
     descriptor, inputs, options, levels = _case()
-    if guard == "cap":
-        options.evaluation_options.mesh_extraction_extent_capping = MeshExtentCapping.SCALAR_LESS_EQUAL
-    elif guard == "mask":
+    if guard == "mask":
         options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
     elif guard == "null":
         descriptor.stack_structure.masking_descriptor[0] = StackRelationType.NULL_SPACE
@@ -202,7 +200,7 @@ def test_adapter_callback_isolation_and_shared_ids(monkeypatch, fail_query):
                 gx_field=np.zeros(len(points)), gy_field=np.zeros(len(points)), gz_field=np.ones(len(points))))]
 
     def extract(origins, spans, domain_shape, extent, samples, surface_to_stack,
-                surface_indices, stack_relations, isovalues, *, sample_fields, ownership, include_reference):
+                surface_indices, stack_relations, isovalues, *, sample_fields, ownership, include_reference, snap_extent):
         assert len(origins) == 15 and samples.shape == (2, 15, 8)
         values, gradients = sample_fields(np.array([[.1, .2, .3], [.4, .5, .6]]))
         np.testing.assert_array_equal(values, [[.3, .6], [.3, .6]])
@@ -266,7 +264,7 @@ def test_production_compute_plane_and_unconformity(monkeypatch, unconformity, re
     calls = []
     if not real_core:
         def extract(origins, spans, shape, extent, samples, surface_to_stack, surface_indices,
-                    relations, levels, *, sample_fields, ownership, include_reference):
+                    relations, levels, *, sample_fields, ownership, include_reference, snap_extent):
             points = np.array([[.12, .23, .34], [.45, .56, .67]])
             values, gradients = sample_fields(points)
             calls.append(points)
@@ -518,7 +516,6 @@ def test_public_compute_none_joint_ordinary_parity(backend, triangulation, norma
         options.evaluation_options.triangulation_method = triangulation
         options.evaluation_options.mesh_extraction_overlap = mode
         options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.INTERSECT
-        options.evaluation_options.mesh_extraction_extent_capping = MeshExtentCapping.NONE
         solution = compute_model(inputs, options, descriptor)
         assert len(solution.octrees_output) == 2 and len(solution.dc_meshes) == 1
         leaves = solution.octrees_output[-1].grid.octree_grid
@@ -527,7 +524,8 @@ def test_public_compute_none_joint_ordinary_parity(backend, triangulation, norma
         np.testing.assert_array_equal(adapter._numpy(leaves.regular_grid_shape), [4, 4, 4])
         mesh = solution.dc_meshes[0]
         assert len(mesh.vertices) and len(mesh.edges) and np.isfinite(mesh.vertices).all()
-        geometries.append((Counter(map(tuple, mesh.vertices)),
+        # Legacy keeps one vertex per crossed cell, even when only in-face folds used it.
+        geometries.append((Counter(map(tuple, mesh.vertices[np.unique(mesh.edges)])),
                            Counter(oriented_triangle(points) for points in mesh.vertices[mesh.edges])))
     assert geometries[0] == geometries[1]
 
