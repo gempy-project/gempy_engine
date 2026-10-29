@@ -144,10 +144,11 @@ def balance_joint_leaves(origins, spans, domain_shape, samples, sample_nodes):
     if not bool(known.all()):
         query_codes, query_first, query_inverse = xp.unique(new_codes[~known], return_index=True,
                                                             return_inverse=True)
-        queried = np.asarray(sample_nodes(host(new_nodes[~known][query_first])), dtype=np.float64)
-        if queried.shape != (len(samples), len(query_codes)) or not np.isfinite(queried).all():
+        # Callbacks get host nodes and may answer with host or device arrays.
+        queried = xp.asarray(sample_nodes(host(new_nodes[~known][query_first])), dtype=np.float64)
+        if tuple(queried.shape) != (len(samples), len(query_codes)) or not bool(xp.isfinite(queried).all()):
             raise ValueError('invalid_balance_samples: finite (S, M) raw values required')
-        values[:, ~known] = xp.asarray(queried)[:, query_inverse]
+        values[:, ~known] = queried[:, query_inverse]
         report['queried_nodes'] = len(query_codes)
     balanced_samples = xp.empty((len(samples), len(balanced_spans), 8))
     balanced_samples[:, unsplit >= 0] = samples[:, unsplit[unsplit >= 0]]

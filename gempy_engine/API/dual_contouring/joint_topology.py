@@ -138,16 +138,15 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
 
     def on_separator_plane(points, raw, gradients):
         if plane:
-            check_separator_samples(points, raw[separator], gradients[separator], plane[0],
+            check_separator_samples(host(points), host(raw[separator]), host(gradients[separator]), plane[0],
                                     precision_tolerance(1e-10, BT.dtype))
 
-    query = ExactPointCache(sample_fields, n, on_separator_plane if separator is not None else None)
+    query = ExactPointCache(sample_fields, n, on_separator_plane if separator is not None else None, xp)
 
     def sample(points):
-        raw, gradients = query(host(points).reshape(-1, 3))
-        return xp.asarray(raw), xp.asarray(gradients)
+        return query(points.reshape(-1, 3))
 
-    batch = TargetedFieldBatch(field_query)
+    batch = TargetedFieldBatch(field_query, xp)
     all_endpoint_gradients = None
     if field_query is not None or separator is None:
         # Every tile and minimal-edge node is a leaf corner: reuse the supplied
@@ -212,11 +211,11 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                 normals.values[s][crossed[s]] = sample(edge_xyz.values[s][crossed[s]])[1][s]
     else:
         surface_edges = [xp.flatnonzero(edge_fields[s, :, 0]*edge_fields[s, :, 1] < 0) for s in range(n)]
-        answers = batch([(host(edge_xyz.values[s][crossed[s]]), [s], 'gradient') for s in range(n)] +
-                        [(host(minimal_xyz[surface_edges[s]]).reshape(-1, 3), [s], 'gradient') for s in range(n)])
+        answers = batch([(edge_xyz.values[s][crossed[s]], [s], 'gradient') for s in range(n)] +
+                        [(minimal_xyz[surface_edges[s]].reshape(-1, 3), [s], 'gradient') for s in range(n)])
         for s in range(n):
-            normals.values[s][crossed[s]] = xp.asarray(answers[s][0])
-            endpoint_gradients[s, edge_slot[surface_edges[s]]] = xp.asarray(answers[n+s][0]).reshape(-1, 2, 3)
+            normals.values[s][crossed[s]] = answers[s][0]
+            endpoint_gradients[s, edge_slot[surface_edges[s]]] = answers[n+s][0].reshape(-1, 2, 3)
     for s in range(n):
         own = solved[s][edge_xyz.rows[s]]
         if bool((xp.norm(normals.values[s][own], axis=1) < 1e-12).any()):

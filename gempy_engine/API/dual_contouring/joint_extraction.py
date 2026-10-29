@@ -24,7 +24,7 @@ from ...core.data.options.evaluation_options import MeshExtractionMaskingOptions
 from ...core.data.stack_relation_type import StackRelationType
 from ...modules.dual_contouring.joint_balance import balance_joint_leaves
 from ...modules.dual_contouring.joint_cell_complex import adaptive_complex_arrays
-from ...modules.dual_contouring.joint_xp import extraction_namespace
+from ...modules.dual_contouring.joint_xp import extraction_namespace, host
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
 from ...modules.dual_contouring.joint_lattice import lattice_frame, precision_tolerance
 from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
@@ -193,13 +193,13 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
         query_input.weights[stack_index] = weights
 
     def sample_fields(points):
-        points = np.asarray(points, dtype=np.float64).reshape(-1, 3)
+        # Host or device points; fields stay backend arrays (no host round trip).
+        points = BT.t.array(points, dtype=BT.dtype_obj).reshape(-1, 3)
         if not len(points):
             return np.empty((len(metadata), 0)), np.empty((len(metadata), 0, 3))
         previous_grid = query_input.grid
         try:
-            query_input.set_temp_grid(EngineGrid(custom_grid=GenericGrid(
-                values=BT.t.array(points, dtype=BT.dtype_obj))))
+            query_input.set_temp_grid(EngineGrid(custom_grid=GenericGrid(values=points)))
             if not fixed_weights:
                 outputs = interpolate_all_fields_no_octree(query_input, query_options, query_descriptor)
             else:
@@ -230,12 +230,14 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
                 slicer = output.grid.custom_grid_slice
                 if any(field is None for field in (fields.gx_field, fields.gy_field, fields.gz_field)):
                     raise ValueError("joint requires actual production gradient callbacks")
-                values.append(_numpy(fields.scalar_field[slicer]))
-                gradients.append(np.stack([_numpy(field[slicer]) for field in
-                                           (fields.gx_field, fields.gy_field, fields.gz_field)], axis=-1))
-            return np.asarray(values, dtype=np.float64), np.asarray(gradients, dtype=np.float64)
+                values.append(fields.scalar_field[slicer])
+                gradients.append(BT.t.stack([field[slicer] for field in
+                                             (fields.gx_field, fields.gy_field, fields.gz_field)], -1))
+            return BT.t.stack(values), BT.t.stack(gradients)
         finally:
             query_input.set_temp_grid(previous_grid)
+
+    sample_fields.device_native = True
 
     origins, spans, samples, balance = _balance_leaves(
         origins, spans, domain_shape, extent, samples, lambda points: sample_fields(points)[0])
@@ -272,7 +274,7 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
         # request's unique points once.
         prepared = []
         for points, surfaces, kind in requests:
-            unique, inverse = np.unique(np.asarray(points, dtype=np.float64).reshape(-1, 3), axis=0,
+            unique, inverse = np.unique(np.asarray(host(points), dtype=np.float64).reshape(-1, 3), axis=0,
                                         return_inverse=True)
             stacks_needed = sorted(set(groups[surfaces].tolist()))
             prepared.append((unique, stacks_needed, kind, np.searchsorted(stacks_needed, groups[surfaces]),

@@ -119,3 +119,50 @@ def test_torch_matches_numpy_on_fault_banks(bank):
             result.pop('_triangle_plan'), result.pop('_key_to_id'))
     _assert_same(expected, actual)
     assert actual['bank'] == expected['bank'] == bank
+
+
+def test_unique_rows_match_lexsort_on_both_namespaces():
+    from gempy_engine.modules.dual_contouring.joint_field_queries import _unique_rows
+    rng = np.random.default_rng(1)
+    points = rng.integers(0, 3, (500, 3)).astype(float) * 0.5
+    points[::7] *= -1  # -0.0 must equal 0.0
+    shifted = points + 0.
+    order = np.lexsort(shifted.T[::-1])
+    start = np.r_[True, np.any(shifted[order][1:] != shifted[order][:-1], axis=1)]
+    reference = shifted[order][start]
+    reference_inverse = np.empty(len(points), dtype=np.int64)
+    reference_inverse[order] = np.cumsum(start) - 1
+    for xp, data in ((NUMPY, points), (TORCH, torch.as_tensor(points))):
+        unique, inverse = _unique_rows(data, xp)
+        np.testing.assert_array_equal(host(unique), reference)
+        np.testing.assert_array_equal(host(inverse), reference_inverse)
+
+
+def test_point_cache_on_torch_matches_numpy_and_honours_callback_contract():
+    from gempy_engine.modules.dual_contouring.joint_field_queries import ExactPointCache
+    seen = []
+
+    def fields(points):
+        seen.append(type(points))
+        p = np.asarray(host(points))
+        return np.stack([p.sum(1), p[:, 0]]), np.broadcast_to(p[None], (2,) + p.shape).copy()
+
+    def native(points):
+        seen.append(type(points))
+        return points.sum(1)[None].repeat(2, 1), points[None].repeat(2, 1, 1)
+
+    rng = np.random.default_rng(2)
+    batches = [rng.integers(0, 4, (n, 3)).astype(float) for n in (40, 25, 60)]
+    caches = {'numpy': ExactPointCache(fields, 2), 'torch': ExactPointCache(fields, 2, xp=TORCH)}
+    for batch in batches:
+        expected = caches['numpy'](batch)
+        got = caches['torch'](torch.as_tensor(batch))
+        assert all(isinstance(g, torch.Tensor) for g in got)
+        for e, g in zip(expected, got):
+            np.testing.assert_array_equal(e, host(g))
+    assert len(caches['numpy']) == len(caches['torch'])
+    assert set(seen) == {np.ndarray}  # Plain callbacks always receive host points.
+    native.device_native = True
+    seen.clear()
+    raw, _ = ExactPointCache(native, 2, xp=TORCH)(torch.as_tensor(batches[0]))
+    assert seen == [torch.Tensor] and isinstance(raw, torch.Tensor)
