@@ -14,6 +14,7 @@ from ..interp_single._interp_single_feature import input_preprocess, interpolate
 from ..interp_single._interp_scalar_field import _evaluate_sys_eq
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor as BT
+from ...core.compute_scope import stack_cache
 from ...core.data import TensorsStructure
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.engine_grid import EngineGrid
@@ -179,7 +180,7 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
             if override is not None:
                 override.evaluation_options.compute_scalar = True
                 override.evaluation_options.compute_scalar_gradient = True
-    fixed_weights = {}
+    fixed_weights, caches = {}, {}
     for stack_index in range(stacks.n_stacks):
         external = stacks.interp_functions_per_stack
         if external is not None and external[stack_index] is not None:
@@ -193,7 +194,8 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
         query_descriptor.stack_structure.stack_number = stack_index
         subset = InterpolationInput.from_interpolation_input_subset(query_input, query_descriptor.stack_structure)
         shape = TensorsStructure.from_tensor_structure_subset(query_descriptor, stack_index)
-        weights, _ = production_weights(stack_options, stack_index, input_preprocess(shape, subset),
+        caches[stack_index] = stack_cache(query_input, stack_index, repr(stack_options.kernel_options))
+        weights, _ = production_weights(stack_options, stack_index, input_preprocess(shape, subset, caches[stack_index]),
                                         octree_list[-1].outputs[stack_index].weights, 'joint')
         if isinstance(weights, np.ndarray) and BT.engine_backend is not AvailableBackends.numpy:
             # Flat stacks keep host weights; evaluators (KeOps) need them on the device.
@@ -225,11 +227,11 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
                         fields = output.exported_fields
                     else:
                         shape = TensorsStructure.from_tensor_structure_subset(query_descriptor, stack_index)
-                        solver_input = input_preprocess(shape, subset)
+                        solver_input = input_preprocess(shape, subset, caches[stack_index])
                         fields = _evaluate_sys_eq(solver_input, fixed_weights[stack_index],
                                                  micro_evaluation_options(stack_options, subset), grid=subset.grid)
                         fit_micro_fields(subset, fields, stack_options, shape.number_of_points_per_surface,
-                                         solver_input.xyz_to_interpolate, True)
+                                         solver_input.xyz_to_interpolate, True, caches[stack_index])
                     # Only raw query fields are needed; segmentation/masking never affects them.
                     outputs.append(SimpleNamespace(exported_fields=fields, grid=subset.grid))
             values, gradients = [], []

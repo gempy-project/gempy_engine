@@ -6,6 +6,7 @@ import numpy as np
 
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
+from gempy_engine.core.compute_scope import checking, assert_same
 from gempy_engine.core.data.micro_points import MicroArray, MicroPointResults
 from .micro_anisotropic_evaluator import build_micro_design_matrix, evaluate_micro_values_and_gradient
 
@@ -132,10 +133,32 @@ def fit_micro_correction(interpolation_input, macro_values, options, surface_siz
                            settings.kernel_type, surface_isovalues)
 
 
-def fit_micro_fields(interpolation_input, fields, options, surface_sizes, xyz, publish_gradients):
-    """Keep contact gradients uncorrected and publish only authored aligned rows."""
+def fit_micro_fields(interpolation_input, fields, options, surface_sizes, xyz, publish_gradients, cache=None):
+    """Keep contact gradients uncorrected and publish only authored aligned rows.
+
+    The fit only reads the macro field at the stack's data rows, which every grid evaluates
+    identically, so within a compute (``cache``, a ``StackCache``) it is solved once per stack.
+    """
     micro = interpolation_input.micro_points
     aligned = micro is not None and len(micro.points) and options.micro_options.enabled and options.micro_options.align_to_macro
+    if cache is not None and cache.micro_fitted and not checking():
+        correction, results = cache.micro
+    else:
+        correction, results = _fit(interpolation_input, fields, options, surface_sizes, micro, aligned)
+        if cache is not None:
+            if cache.micro_fitted:  # checking()
+                _assert_same_fit(cache.micro[0], correction)
+                correction, results = cache.micro
+            else:
+                cache.micro_fitted, cache.micro = True, (correction, results)
+    if aligned:
+        fields.micro_point_results = results
+    apply_micro_correction(fields, xyz, correction)
+    if not publish_gradients:
+        fields._gx_field = fields._gy_field = fields._gz_field = None
+
+
+def _fit(interpolation_input, fields, options, surface_sizes, micro, aligned):
     gradients = None
     if aligned:
         rows = interpolation_input.micro_slice
@@ -145,12 +168,17 @@ def fit_micro_fields(interpolation_input, fields, options, surface_sizes, xyz, p
                                            fields.gz_field_everywhere[rows][indices]), axis=1)
     correction = fit_micro_correction(interpolation_input, fields.scalar_field_everywhere,
                                       options, surface_sizes, gradients)
-    if aligned:
-        fields.micro_point_results = MicroPointResults(interpolation_input.micro_indices.copy(), gradients,
-                                                        correction.matrices[:len(micro.points)])
-    apply_micro_correction(fields, xyz, correction)
-    if not publish_gradients:
-        fields._gx_field = fields._gy_field = fields._gz_field = None
+    results = (MicroPointResults(interpolation_input.micro_indices.copy(), gradients,
+                                 correction.matrices[:len(micro.points)]) if aligned else None)
+    return correction, results
+
+
+def _assert_same_fit(cached: MicroCorrection | None, fresh: MicroCorrection | None):
+    if cached is None or fresh is None:
+        assert_same(cached, fresh, "micro correction")
+        return
+    for name in ('points', 'matrices', 'weights', 'surface_isovalues'):
+        assert_same(getattr(cached, name), getattr(fresh, name), f"micro correction {name}")
 
 
 def apply_micro_correction(fields, xyz, correction: MicroCorrection | None):

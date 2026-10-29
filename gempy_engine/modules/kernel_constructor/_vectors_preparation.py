@@ -1,8 +1,10 @@
+from dataclasses import dataclass
 from typing import Tuple, Optional
 
 import numpy as np
 
 from ...core.backend_tensor import BackendTensor
+from ...core.compute_scope import checking, assert_same, stack_cache_of
 from ._kernel_constructors import assembly_dips_points_tensor, assembly_dips_ug_coords, assembly_dips_points_coords
 from ._kernel_selectors import dips_sp_cartesian_selector, grid_cartesian_selector
 from ._structs import OrientationSurfacePointsCoords, FaultDrift, PointsDrift, DriftMatrixSelector, KernelInput, CartesianSelector, OrientationsDrift, SurfacePointNuggets
@@ -65,6 +67,27 @@ def cov_vectors_preparation(interp_input: SolverInput, kernel_options: KernelOpt
     )
 
 
+@dataclass(frozen=True)
+class EvaluationDataSide:
+    """Grid-independent (x) side of an evaluation ``KernelInput`` for one gradient axis."""
+    dips_ref_coord: object
+    dips_rest_coord: object
+    dips_ug_d1: object
+    dips_ug_d2a: object
+    dips_ug_d2b_sel: object
+    second_degree_selector: object
+    dips_ref_d1: object
+    dips_ref_d2a: object
+    dips_ref_d2b: object
+    dips_rest_d1: object
+    dips_rest_d2a: object
+    dips_rest_d2b: object
+    sel_hu_input: object
+    sel_hv_input: object
+    sel_hu_points_input: object
+    fault_vector_ref: object
+
+
 def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: KernelOptions,
                                     axis: Optional[int] = None, slice_array=None) -> KernelInput:
     sp_: SurfacePointsInternals = interp_input.sp_internal
@@ -88,11 +111,20 @@ def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: K
         n_dips=ori_.n_orientations,
         grid_size=grid.shape[0]
     )
+    data = _evaluation_data_side(interp_input, options, matrices_sizes, axis)
 
-    orientations_sp_matrices = _assembly_dips_points_grid_tensors(grid, matrices_sizes, ori_, sp_)
+    orientations_sp_matrices = OrientationSurfacePointsCoords(data.dips_ref_coord, grid, data.dips_rest_coord, grid)  # When we create que core covariance this are the repeated since the distance are with themselves
 
     # Universal
-    dips_ref_ui, dips_rest_ui, dips_ug = _assembly_drift_grid_tensors(grid, options, matrices_sizes, ori_, sp_, axis)
+    grid_1 = BackendTensor.t.zeros_like(grid)
+    grid_1[:, axis] = 1
+    dips_ug = OrientationsDrift(
+        x_degree_1=data.dips_ug_d1, y_degree_1=grid_1,
+        x_degree_2=data.dips_ug_d2a, y_degree_2=grid * grid_1,
+        x_degree_2b=data.dips_ug_d2b_sel, y_degree_2b=grid,
+        selector_degree_2=data.second_degree_selector)
+    dips_ref_ui = PointsDrift(data.dips_ref_d1, grid, data.dips_ref_d2a, grid, data.dips_ref_d2b, grid)
+    dips_rest_ui = PointsDrift(data.dips_rest_d1, grid, data.dips_rest_d2a, grid, data.dips_rest_d2b, grid)
 
     # Faults
     fault_drift: Optional[FaultDrift]
@@ -101,12 +133,20 @@ def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: K
             faults_val_on_grid: np.ndarray = faults_vals.fault_values_everywhere[:, slice_array]
         else:
             faults_val_on_grid = faults_vals.fault_values_everywhere
-        fault_drift = _assembly_fault_grid_tensors(faults_val_on_grid, options, faults_vals, matrices_sizes.ori_size)
+        fault_drift = FaultDrift(
+            x_degree_1=data.fault_vector_ref,
+            y_degree_1=BackendTensor.t.ascontiguousarray(faults_val_on_grid.T)
+        )
     else:
         fault_drift = None
 
     # Selectors :
-    cartesian_selector = _assembly_cartesian_selector_grid(matrices_sizes, axis)
+    sel_hu_grid, sel_hv_grid, sel_hu_points_grid = grid_cartesian_selector(matrices_sizes, axis)
+    cartesian_selector = CartesianSelector(
+        x_sel_hu=data.sel_hu_input, y_sel_hu=sel_hu_grid,
+        x_sel_hv=data.sel_hv_input, y_sel_hv=sel_hv_grid,
+        x_sel_h_ref=data.sel_hu_points_input, y_sel_h_ref=sel_hu_points_grid,
+        x_sel_h_rest=data.sel_hu_points_input, y_sel_h_rest=sel_hu_points_grid)
     drift_selection = DriftMatrixSelector(
         x_size=matrices_sizes.cov_size,
         y_size=matrices_sizes.grid_size,
@@ -130,22 +170,56 @@ def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: K
     )
 
 
+def _evaluation_data_side(interp_input, options: KernelOptions, matrices_sizes: MatricesSizes, axis) -> EvaluationDataSide:
+    """Built once per stack and axis within a compute (see ``compute_scope``); the grid never enters it."""
+    cache = stack_cache_of(interp_input)
+    key = (axis, options.uni_degree, options.number_dimensions, options.n_uni_eq)
+    if cache is not None and not checking() and key in cache.data_side:
+        return cache.data_side[key]
+
+    sp_: SurfacePointsInternals = interp_input.sp_internal
+    ori_: OrientationsInternals = interp_input.ori_internal
+    dips_ref_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.ref_surface_points, matrices_sizes)
+    dips_rest_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.rest_surface_points, matrices_sizes)
+
+    dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector = assembly_dips_ug_coords(ori_, options, matrices_sizes)
+    sel = BackendTensor.t.ones(options.number_dimensions)
+    sel[axis] = 0
+    dips_ref_d1, dips_ref_d2a, dips_ref_d2b = assembly_dips_points_coords(sp_.ref_surface_points, matrices_sizes, options)
+    dips_rest_d1, dips_rest_d2a, dips_rest_d2b = assembly_dips_points_coords(sp_.rest_surface_points, matrices_sizes, options)
+
+    if matrices_sizes.faults_size > 0:
+        fault_vector_ref, _ = _assembly_fault_internals(interp_input.fault_internal, options, matrices_sizes.ori_size)
+    else:
+        fault_vector_ref = None
+
+    sel_hu_input, sel_hv_input, sel_hu_points_input = dips_sp_cartesian_selector(matrices_sizes, axis)
+    data = EvaluationDataSide(
+        dips_ref_coord=dips_ref_coord, dips_rest_coord=dips_rest_coord,
+        dips_ug_d1=dips_ug_d1, dips_ug_d2a=dips_ug_d2a, dips_ug_d2b_sel=dips_ug_d2b * sel,
+        second_degree_selector=second_degree_selector,
+        dips_ref_d1=dips_ref_d1, dips_ref_d2a=dips_ref_d2a, dips_ref_d2b=dips_ref_d2b,
+        dips_rest_d1=dips_rest_d1, dips_rest_d2a=dips_rest_d2a, dips_rest_d2b=dips_rest_d2b,
+        sel_hu_input=sel_hu_input, sel_hv_input=sel_hv_input, sel_hu_points_input=sel_hu_points_input,
+        fault_vector_ref=fault_vector_ref,
+    )
+    if cache is None:
+        return data
+    if key in cache.data_side:  # checking()
+        cached = cache.data_side[key]
+        for name in EvaluationDataSide.__dataclass_fields__:
+            assert_same(getattr(cached, name), getattr(data, name), f"evaluation data side {name}")
+        return cached
+    cache.data_side[key] = data
+    return data
+
+
 def _assembly_dips_points_tensors(matrices_size: MatricesSizes, ori_, sp_) -> OrientationSurfacePointsCoords:
     dips_ref_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.ref_surface_points, matrices_size)
     dips_rest_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.rest_surface_points, matrices_size)
 
     orientations_sp_matrices = OrientationSurfacePointsCoords(dips_ref_coord, dips_ref_coord, dips_rest_coord,
                                                               dips_rest_coord)  # When we create que core covariance these are the repeated since the distance are with themselves
-
-    return orientations_sp_matrices
-
-
-def _assembly_dips_points_grid_tensors(grid, matrices_size: MatricesSizes, ori_, sp_):
-    """Used for kernel construction"""
-    dips_ref_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.ref_surface_points, matrices_size)
-    dips_rest_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.rest_surface_points, matrices_size)
-
-    orientations_sp_matrices = OrientationSurfacePointsCoords(dips_ref_coord, grid, dips_rest_coord, grid)  # When we create que core covariance this are the repeated since the distance are with themselves
 
     return orientations_sp_matrices
 
@@ -159,19 +233,6 @@ def _assembly_cartesian_selector_tensors(matrices_sizes: MatricesSizes):
         x_sel_h_ref=sel_hu_points_input, y_sel_h_ref=sel_hu_points_input,
         x_sel_h_rest=sel_hu_points_input, y_sel_h_rest=sel_hu_points_input
     )
-    return cartesian_selector
-
-
-def _assembly_cartesian_selector_grid(matrices_sizes, axis=None):
-    """Use for evaluation"""
-    sel_hu_input, sel_hv_input, sel_hu_points_input = dips_sp_cartesian_selector(matrices_sizes, axis)
-    sel_hu_grid, sel_hv_grid, sel_hu_points_grid = grid_cartesian_selector(matrices_sizes, axis)
-
-    cartesian_selector = CartesianSelector(
-        x_sel_hu=sel_hu_input, y_sel_hu=sel_hu_grid,
-        x_sel_hv=sel_hv_input, y_sel_hv=sel_hv_grid,
-        x_sel_h_ref=sel_hu_points_input, y_sel_h_ref=sel_hu_points_grid,
-        x_sel_h_rest=sel_hu_points_input, y_sel_h_rest=sel_hu_points_grid)
     return cartesian_selector
 
 
@@ -193,44 +254,6 @@ def _assembly_drift_tensors(options: KernelOptions, ori_: OrientationsInternals,
     dips_rest_ui = PointsDrift(dips_rest_d1, dips_rest_d1, dips_rest_d2a, dips_rest_d2a, dips_rest_d2b, dips_rest_d2b)
 
     return dips_ref_ui, dips_rest_ui, dips_ug
-
-
-def _assembly_drift_grid_tensors(grid: np.ndarray, options: KernelOptions, matrices_size: MatricesSizes,
-                                 ori_: OrientationsInternals, sp_: SurfacePointsInternals, axis: int):
-    # region UG
-    dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector = assembly_dips_ug_coords(ori_, options, matrices_size)
-
-    grid_1 = BackendTensor.t.zeros_like(grid)
-    grid_1[:, axis] = 1
-
-    sel = BackendTensor.t.ones(options.number_dimensions)
-    sel[axis] = 0
-
-    dips_ug = OrientationsDrift(
-        x_degree_1=dips_ug_d1, y_degree_1=grid_1,
-        x_degree_2=dips_ug_d2a, y_degree_2=grid * grid_1,
-        x_degree_2b=dips_ug_d2b * sel, y_degree_2b=grid,
-        selector_degree_2=second_degree_selector)
-    # endregion
-
-    # region UI
-    dips_ref_d1, dips_ref_d2a, dips_ref_d2b = assembly_dips_points_coords(sp_.ref_surface_points, matrices_size, options)
-    dips_rest_d1, dips_rest_d2a, dips_rest_d2b = assembly_dips_points_coords(sp_.rest_surface_points, matrices_size, options)
-
-    dips_ref_ui = PointsDrift(dips_ref_d1, grid, dips_ref_d2a, grid, dips_ref_d2b, grid)
-    dips_rest_ui = PointsDrift(dips_rest_d1, grid, dips_rest_d2a, grid, dips_rest_d2b, grid)
-    # endregion
-
-    return dips_ref_ui, dips_rest_ui, dips_ug
-
-
-def _assembly_fault_grid_tensors(fault_values_on_grid, options: KernelOptions, faults_val: FaultsData, ori_size: int) -> FaultDrift:
-    fault_vector_ref, fault_vector_rest = _assembly_fault_internals(faults_val, options, ori_size)
-    fault_drift = FaultDrift(
-        x_degree_1=fault_vector_ref,
-        y_degree_1=BackendTensor.t.ascontiguousarray(fault_values_on_grid.T)
-    )
-    return fault_drift
 
 
 def _assembly_fault_tensors(options, faults_val: FaultsData, ori_size: int) -> Tuple[FaultDrift, FaultDrift]:

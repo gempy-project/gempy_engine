@@ -7,6 +7,7 @@ from numpy import dtype, ndarray
 from gempy_engine.config import AvailableBackends, NOT_MAKE_INPUT_DEEP_COPY
 from ._interp_scalar_field import compute_weights, _evaluate_sys_eq
 from ...core.backend_tensor import BackendTensor
+from ...core.compute_scope import checking, StackCache, assert_same
 from ...core.data import SurfacePoints, SurfacePointsInternals, Orientations, OrientationsInternals, TensorsStructure
 from ...core.data.engine_grid import EngineGrid
 from ...core.data.exported_fields import ExportedFields
@@ -99,25 +100,16 @@ def interpolate_feature_with_external_function(interpolation_input: Interpolatio
     return output
 
 
-def input_preprocess(data_shape: TensorsStructure, interpolation_input: InterpolationInput) -> SolverInput:
+def input_preprocess(data_shape: TensorsStructure, interpolation_input: InterpolationInput,
+                     cache: Optional[StackCache] = None) -> SolverInput:
     grid = interpolation_input.grid
-    surface_points: SurfacePoints = interpolation_input.surface_points
-    orientations: Orientations = interpolation_input.orientations
-
-    sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
-    ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(orientations)
+    sp_internal, ori_internal, fault_values = preprocess_stack_data(data_shape, interpolation_input, cache)
 
     # * We need to interpolate in ALL the surface points not only the surface points of the stack
     grid_internal: np.ndarray = data_preprocess_interface.prepare_grid(
         grid=grid.values,
         surface_points=interpolation_input.all_surface_points,
         micro_points=interpolation_input.evaluation_micro_points
-    )
-
-    fault_values: FaultsData = interpolation_input.fault_values
-    fault_values.fault_values_ref, fault_values.fault_values_rest = data_preprocess_interface.prepare_faults(
-        faults_values_on_sp=fault_values.fault_values_on_sp,
-        tensors_structure=data_shape
     )
 
     solver_input = SolverInput(
@@ -127,8 +119,44 @@ def input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpol
         fault_internal=fault_values
     )
     solver_input.weights_x0 = interpolation_input.weights
+    solver_input.stack_cache = cache
 
     return solver_input
+
+
+def preprocess_stack_data(data_shape: TensorsStructure, interpolation_input: InterpolationInput,
+                          cache: Optional[StackCache] = None) -> tuple[SurfacePointsInternals, OrientationsInternals, FaultsData]:
+    """Surface point and orientation internals, and the fault values at the reference/rest points.
+
+    None of them depends on the grid: within a compute they are built once per stack and reused from
+    ``cache``. The fault values are set on the input's own (per-level) ``FaultsData``.
+    """
+    fault_values: FaultsData = interpolation_input.fault_values
+    if cache is not None and cache.sp_internal is not None and not checking():
+        fault_values.fault_values_ref, fault_values.fault_values_rest = cache.fault_values_ref, cache.fault_values_rest
+        return cache.sp_internal, cache.ori_internal, fault_values
+
+    sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(interpolation_input.surface_points, data_shape)
+    ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(interpolation_input.orientations)
+    fault_values.fault_values_ref, fault_values.fault_values_rest = data_preprocess_interface.prepare_faults(
+        faults_values_on_sp=fault_values.fault_values_on_sp,
+        tensors_structure=data_shape
+    )
+    if cache is None:
+        return sp_internal, ori_internal, fault_values
+    if cache.sp_internal is not None:  # checking(): compare, then keep serving the cached objects
+        for name in ('ref_surface_points', 'rest_surface_points', 'nugget_effect_ref_rest'):
+            assert_same(getattr(cache.sp_internal, name), getattr(sp_internal, name), f"sp_internal.{name}")
+        for name in ('dip_positions_tiled', 'gradients_tiled', 'nugget_effect_grad'):
+            assert_same(getattr(cache.ori_internal, name), getattr(ori_internal, name), f"ori_internal.{name}")
+        # Each level reads them from that level's fault-stack evaluation: equal up to float32 rounding.
+        assert_same(cache.fault_values_ref, fault_values.fault_values_ref, "fault_values_ref", rtol=1e-6)
+        assert_same(cache.fault_values_rest, fault_values.fault_values_rest, "fault_values_rest", rtol=1e-6)
+        fault_values.fault_values_ref, fault_values.fault_values_rest = cache.fault_values_ref, cache.fault_values_rest
+        return cache.sp_internal, cache.ori_internal, fault_values
+    cache.sp_internal, cache.ori_internal = sp_internal, ori_internal
+    cache.fault_values_ref, cache.fault_values_rest = fault_values.fault_values_ref, fault_values.fault_values_rest
+    return sp_internal, ori_internal, fault_values
 
 
 def _segment(exported_fields: ExportedFields, external_segment_funct: Callable[[ndarray[tuple[Any, ...], dtype[Any]]], float] | None,

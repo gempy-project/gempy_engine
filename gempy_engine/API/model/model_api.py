@@ -26,6 +26,7 @@ from ...modules.data_preprocess.micro_points import prepare_micro_points
 from ...modules.geophysics.fw_gravity import compute_gravity
 from ...modules.geophysics.fw_magnetic import compute_tmi
 from ...modules.weights_cache.weights_cache_interface import WeightCache
+from ...core.compute_scope import compute_scope
 
 
 @gempy_profiler_decorator
@@ -41,59 +42,65 @@ def compute_model(interpolation_input: InterpolationInput, options: Interpolatio
     # other's active octree level.
     options = options.model_copy(update={"temp_interpolation_values": TempInterpolationValues()})
     try:
-        WeightCache.initialize_cache_dir()
-        options.temp_interpolation_values.start_computation_ts = int(time.time())
-
-        # ! If we inline this it seems the deepcopy does not work
-        if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
-            interpolation_input = copy.deepcopy(interpolation_input)
-
-        # Check input is valid
-        _check_input_validity(interpolation_input, options, data_descriptor)  # TODO
-
-        prepare_micro_points(interpolation_input, options, data_descriptor.stack_structure)
-
-        output: list[OctreeLevel] = interpolate_n_octree_levels(
-            interpolation_input=interpolation_input,
-            options=options,
-            data_descriptor=data_descriptor,
-            on_octree_level=on_octree_level
-        )
-        # region Geophysics
-        # ---------------------
-
-        gravity = None
-        magnetics = None
-        if geophysics_input is not None:
-            gravity, magnetics = _compute_geophysics(geophysics_input, output)
-
-        # endregion
-
-        meshes: Optional[list[DualContouringMesh]] = None
-        if options.mesh_extraction:
-            meshes: list[DualContouringMesh] = dual_contouring_multi_scalar(
-                data_descriptor=data_descriptor,
-                interpolation_input=interpolation_input,
-                options=options,
-                octree_list=output[:options.number_octree_levels_surface]
-            )
-
-        solutions = Solutions(
-            octrees_output=output,
-            dc_meshes=meshes,
-            fw_gravity=gravity,
-            fw_magnetics=magnetics,
-            block_solution_type=options.block_solutions_type
-        )
-
-        if options.debug:
-            solutions.debug_input_data["stack_interpolation_input"] = interpolation_input
-    except Exception as e:
-        raise e
+        with compute_scope():
+            return _compute_model_in_scope(interpolation_input, options, data_descriptor, geophysics_input,
+                                           on_octree_level)
     finally:
         options.temp_interpolation_values.start_computation_ts = -1
         WeightCache.clear_cache()
         BackendTensor.clear_gpu_memory()
+
+
+def _compute_model_in_scope(interpolation_input: InterpolationInput, options: InterpolationOptions,
+                            data_descriptor: InputDataDescriptor, geophysics_input: Optional[GeophysicsInput],
+                            on_octree_level: Optional[OctreeLevelCallback]) -> Solutions:
+    WeightCache.initialize_cache_dir()
+    options.temp_interpolation_values.start_computation_ts = int(time.time())
+
+    # ! If we inline this it seems the deepcopy does not work
+    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH and NOT_MAKE_INPUT_DEEP_COPY is False:
+        interpolation_input = copy.deepcopy(interpolation_input)
+
+    # Check input is valid
+    _check_input_validity(interpolation_input, options, data_descriptor)  # TODO
+
+    prepare_micro_points(interpolation_input, options, data_descriptor.stack_structure)
+
+    output: list[OctreeLevel] = interpolate_n_octree_levels(
+        interpolation_input=interpolation_input,
+        options=options,
+        data_descriptor=data_descriptor,
+        on_octree_level=on_octree_level
+    )
+    # region Geophysics
+    # ---------------------
+
+    gravity = None
+    magnetics = None
+    if geophysics_input is not None:
+        gravity, magnetics = _compute_geophysics(geophysics_input, output)
+
+    # endregion
+
+    meshes: Optional[list[DualContouringMesh]] = None
+    if options.mesh_extraction:
+        meshes: list[DualContouringMesh] = dual_contouring_multi_scalar(
+            data_descriptor=data_descriptor,
+            interpolation_input=interpolation_input,
+            options=options,
+            octree_list=output[:options.number_octree_levels_surface]
+        )
+
+    solutions = Solutions(
+        octrees_output=output,
+        dc_meshes=meshes,
+        fw_gravity=gravity,
+        fw_magnetics=magnetics,
+        block_solution_type=options.block_solutions_type
+    )
+
+    if options.debug:
+        solutions.debug_input_data["stack_interpolation_input"] = interpolation_input
 
     return solutions
 

@@ -2,9 +2,10 @@ import concurrent.futures
 
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output, _options_with_finite_fault_gradients
 from ._interp_scalar_field import _deduplicate_corners, _evaluate_sys_eq, _restore_corner_fields, compute_weights
-from ._interp_single_feature import interpolate_feature_with_external_function
+from ._interp_single_feature import interpolate_feature_with_external_function, preprocess_stack_data
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
+from ...core.compute_scope import checking, StackCache, assert_same, stack_cache, stack_cache_of
 from ...core.data import TensorsStructure, SurfacePoints, Orientations, SurfacePointsInternals, OrientationsInternals
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.input_data_descriptor import InputDataDescriptor
@@ -79,6 +80,10 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
         chunk_options.append(_options_with_finite_fault_gradients(options_i, fault_input))
     # endregion
 
+    # Looked up here: context variables do not reach the executor threads below.
+    chunk_caches = [stack_cache(state.root_interpolation_input, i, repr(options_i.kernel_options))
+                    for i, options_i in zip(chunk, chunk_options)]
+
     # Compute weights for this chunk
     chunk_solver_inputs = _compute_weights_for_stacks(
         interpolation_inputs=chunk_interpolation_inputs,
@@ -87,6 +92,7 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
         tensor_structs=chunk_tensor_structs,
         stack_indices=chunk,
         options_per_stack=chunk_options,
+        caches=chunk_caches,
     )
     for idx, i in enumerate(chunk):
         state.solver_inputs[i] = chunk_solver_inputs[idx]
@@ -129,7 +135,8 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
         state.eval_inputs[i] = chunk_eval_inputs[idx]
         fit_micro_fields(chunk_interpolation_inputs[idx], chunk_exported_fields[idx], chunk_options[idx],
                          chunk_tensor_structs[idx].number_of_points_per_surface,
-                         chunk_eval_inputs[idx].xyz_to_interpolate, chunk_options[idx].compute_scalar_gradient)
+                         chunk_eval_inputs[idx].xyz_to_interpolate, chunk_options[idx].compute_scalar_gradient,
+                         chunk_caches[idx])
 
     # Segment this chunk
     chunk_outputs = _segment(
@@ -204,7 +211,7 @@ def _segment(
 
         # endregion
         output = ScalarFieldOutput(
-            weights=BackendTensor.t.to_numpy(solver_inputs[idx].weights_x0),
+            weights=_host_weights(solver_inputs[idx]),
             grid=interpolation_inputs[idx].grid,
             exported_fields=exported_fields_per_stack[idx],
             values_block=values_block,
@@ -219,6 +226,15 @@ def _segment(
         all_scalar_fields_outputs = [_run_segment(idx_global_i) for idx_global_i in enumerate(stack_indices)]
 
     return all_scalar_fields_outputs
+
+
+def _host_weights(solver_input):
+    cache = stack_cache_of(solver_input)
+    if cache is None:
+        return BackendTensor.t.to_numpy(solver_input.weights_x0)
+    if cache.weights_host is None:
+        cache.weights_host = BackendTensor.t.to_numpy(solver_input.weights_x0)
+    return cache.weights_host
 
 
 def _evaluate(interpolation_inputs: list[InterpolationInput], options: InterpolationOptions, solver_inputs, stack_structure: StacksStructure,
@@ -342,6 +358,7 @@ def _compute_weights_for_stacks(
         tensor_structs: list[TensorsStructure],
         stack_indices: list[int] | None = None,
         options_per_stack: list[InterpolationOptions] | None = None,
+        caches: list[StackCache | None] | None = None,
 ) -> list[SolverInput_v2]:
     if stack_indices is None:
         stack_indices = list(range(stack_structure.n_stacks))
@@ -366,17 +383,29 @@ def _compute_weights_for_stacks(
         return solver_input
 
     def _prepare_solver_input(idx, global_i, local_stack_structure, options_i):
+        cache = caches[idx] if caches is not None else None
         solver_input: SolverInput_v2 = input_preprocess_v2(
             data_shape=tensor_structs[idx],
-            interpolation_input=interpolation_inputs[idx]
+            interpolation_input=interpolation_inputs[idx],
+            cache=cache,
         )
 
         # region compute weights
+        # Weights do not depend on the grid: within a compute they are solved (or looked up) once per stack.
+        if cache is not None and cache.weights is not None and not checking():
+            solver_input.weights_x0, solver_input.debug = cache.weights, cache.debug
+            return solver_input
         weights = compute_weights(
             solver_input=solver_input,
             stack_number=global_i,
             options=options_i
         )
+        if cache is not None:
+            if cache.weights is None:
+                cache.weights, cache.debug = weights, solver_input.debug
+            else:
+                assert_same(cache.weights, weights, "weights")
+                weights, solver_input.debug = cache.weights, cache.debug
         solver_input.weights_x0 = weights
         return solver_input
 
@@ -389,25 +418,20 @@ def _compute_weights_for_stacks(
     return solver_inputs
 
 
-def input_preprocess_v2(data_shape: TensorsStructure, interpolation_input: InterpolationInput) -> SolverInput_v2:
-    surface_points: SurfacePoints = interpolation_input.surface_points
-    orientations: Orientations = interpolation_input.orientations
-
-    sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(surface_points, data_shape)
-    ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(orientations)
-
-    fault_values: FaultsData = interpolation_input.fault_values
-    fault_values.fault_values_ref, fault_values.fault_values_rest = data_preprocess_interface.prepare_faults(
-        faults_values_on_sp=fault_values.fault_values_on_sp,
-        tensors_structure=data_shape
-    )
+def input_preprocess_v2(data_shape: TensorsStructure, interpolation_input: InterpolationInput,
+                        cache: StackCache | None = None) -> SolverInput_v2:
+    sp_internal, ori_internal, fault_values = preprocess_stack_data(data_shape, interpolation_input, cache)
 
     solver_input = SolverInput_v2(
         sp_internal=sp_internal,
         ori_internal=ori_internal,
         fault_internal=fault_values
     )
-    solver_input.weights_x0 = BackendTensor.t.array(interpolation_input.weights)
+    if cache is not None and cache.weights is not None and not checking():
+        solver_input.weights_x0 = cache.weights  # skip uploading the initial guess; the solve is reused
+    else:
+        solver_input.weights_x0 = BackendTensor.t.array(interpolation_input.weights)
+    solver_input.stack_cache = cache
 
     return solver_input
 
