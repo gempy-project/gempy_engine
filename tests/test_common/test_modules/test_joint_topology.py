@@ -407,3 +407,34 @@ def test_consistent_large_raw_offset_remains_supported(backend):
         origins, spans, (8, 8, 8), (0, 8, 0, 8, 0, 8), samples, [0, 1], [0, 0],
         [R.ERODE, R.BASEMENT], [[1e12], [0.]], sample_fields=callback)
     assert result['diagnostics']['coarsefine_seam_edge_count'] == 1
+
+
+def _scalar_root(face):
+    try:
+        root = face_pair_root(face)
+    except ValueError as error:
+        return None, str(error)
+    return root, None
+
+
+def test_batched_face_pair_roots_match_scalar_bit_for_bit():
+    from gempy_engine.modules.dual_contouring.joint_triangle_plan import face_pair_roots
+    rng = np.random.default_rng(3)
+    faces = [rng.uniform(-1, 1, (2, 4)) for _ in range(4000)]
+    faces += [rng.choice([-1., -.5, 0., .5, 1.], (2, 4)) for _ in range(2000)]  # Exact zeros and ties.
+    u_only = np.array([[-1., 1., -1., 1.], [-.3, -.3, .7, .7]])  # Swap path.
+    faces += [u_only, u_only[:, [0, 2, 1, 3]], np.zeros((2, 4)), np.array([[0., 1., 0., 1.], [-.3, -.3, .7, .7]]),
+              np.array([[-1., 1., -1., 1.], [-1., 1., -1., 1.]]), np.array([[1e-15, -1e-15, 0., 0.], [-1., 1., -1., 1.]])]
+    faces = np.array(faces)
+    roots, errors = face_pair_roots(faces)
+    outcomes = {'root': 0, 'none': 0, 'error': 0}
+    for face, root, error in zip(faces, roots, errors):
+        expected_root, expected_error = _scalar_root(face)
+        assert error == expected_error, (face, error, expected_error)
+        if expected_root is None:
+            assert np.isnan(root).all()
+            outcomes['error' if expected_error else 'none'] += 1
+        else:
+            assert root.tobytes() == np.asarray(expected_root, dtype=float).tobytes(), (face, root, expected_root)
+            outcomes['root'] += 1
+    assert min(outcomes.values()) > 0, outcomes

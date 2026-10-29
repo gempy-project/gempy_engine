@@ -62,6 +62,115 @@ def face_pair_root(values):
     return roots[0] if roots else None
 
 
+def face_pair_roots(faces):
+    """``face_pair_root`` for (T, 2, 4) faces at once: ((T, 2) roots, NaN for none; errors).
+
+    ``errors[t]`` is the ``ValueError`` message ``face_pair_root`` would raise for
+    face ``t`` (None otherwise); callers raise it only for faces they reach, as
+    the scalar loop would. Roots come from batched ``eigvals``/``det`` on the
+    same companion matrices as ``np.roots``, so they are bit-identical.
+    """
+    faces = np.asarray(faces, dtype=float).reshape(-1, 2, 4)
+    count = len(faces)
+    roots = np.full((count, 2), np.nan)
+    errors = np.full(count, None, dtype=object)
+    live = ~np.any((faces.min(axis=2) > 0) | (faces.max(axis=2) < 0), axis=1)
+    scales = np.max(np.abs(faces), axis=2)
+    degenerate = live & np.any(scales < 1e-14, axis=1)
+    errors[degenerate] = 'degenerate_sampled_face: interface occupies entire tile'
+    live &= ~degenerate
+    face = np.where(live[:, None, None], faces / np.where(live[:, None], scales, 1.)[:, :, None], 0.)
+
+    def resultant(face):
+        a = face[:, :, 0]
+        b, c = face[:, :, 1] - a, face[:, :, 2] - a
+        d = face[:, :, 3] - a - b - c
+        polynomial = np.stack([b[:, 0]*d[:, 1]-b[:, 1]*d[:, 0],
+                               a[:, 0]*d[:, 1]+b[:, 0]*c[:, 1]-a[:, 1]*d[:, 0]-b[:, 1]*c[:, 0],
+                               a[:, 0]*c[:, 1]-a[:, 1]*c[:, 0]], axis=1)
+        return a, b, c, d, polynomial
+
+    a, b, c, d, polynomial = resultant(face)
+    # A pair depending only on u has a zero v-resultant even when disjoint: retry with u and v swapped.
+    swapped = live & ~np.any(np.abs(polynomial) > 1e-12, axis=1)
+    if swapped.any():
+        face[swapped] = face[swapped][:, :, [0, 2, 1, 3]]
+        a, b, c, d, polynomial = resultant(face)
+        unresolved = swapped & ~np.any(np.abs(polynomial) > 1e-12, axis=1)
+        errors[unresolved] = 'degenerate_sampled_face: nonisolated bilinear intersection'
+        live &= ~unresolved
+
+    # np.roots(polynomial[first |p| > 1e-12:]): strip leading near-zeros, then exact trailing zeros.
+    candidates = np.full((count, 2), np.nan, dtype=complex)
+    significant = np.abs(polynomial) > 1e-12
+    first = np.argmax(significant, axis=1)
+    nonzero = polynomial != 0
+    nonzero[np.arange(3)[None, :] < first[:, None]] = False
+    last = 2 - np.argmax(nonzero[:, ::-1], axis=1)
+    length = np.where(live, last - first + 1, 0)
+    trailing = 2 - last
+    for n in (2, 3):
+        rows = np.flatnonzero(live & (length == n))
+        if not len(rows):
+            continue
+        coefficients = polynomial[rows[:, None], first[rows, None] + np.arange(n)[None, :]]
+        companion = np.zeros((len(rows), n - 1, n - 1))
+        if n == 3:
+            companion[:, 1, 0] = 1.
+        companion[:, 0, :] = -coefficients[:, 1:] / coefficients[:, :1]
+        values = np.linalg.eigvals(companion)
+        candidates[rows, :n - 1] = values
+        # Exact trailing zeros of the stripped polynomial are roots at 0, listed last.
+        zero_slot = (n - 1) + np.arange(2 - (n - 1))
+        for slot in zero_slot:
+            candidates[rows[trailing[rows] > slot - (n - 1)], slot] = 0.
+    # A constant (length 1) has no roots; its trailing zeros are roots at 0.
+    constant = np.flatnonzero(live & (length == 1))
+    for slot in range(2):
+        candidates[constant[trailing[constant] > slot], slot] = 0.
+
+    accepted = np.zeros(count, dtype=int)
+    raised = np.zeros(count, dtype=bool)
+    for k in range(2):
+        root = candidates[:, k]
+        considered = live & ~raised & ~np.isnan(root.real)
+        considered &= (np.abs(root.imag) <= 1e-10) & (-1e-10 <= root.real) & (root.real <= 1+1e-10)
+        u = np.where(considered, root.real, 0.)
+        denominator = c + d*u[:, None]
+        row = np.argmax(np.abs(denominator), axis=1)
+        picked = denominator[np.arange(count), row]
+        flat = considered & (np.abs(picked) < 1e-12)
+        nonisolated = flat & (np.max(np.abs(a + b*u[:, None]), axis=1) < 1e-10)
+        errors[nonisolated] = 'degenerate_sampled_face: nonisolated bilinear intersection'
+        raised |= nonisolated
+        considered &= ~flat
+        v = np.where(considered, -(a[np.arange(count), row] + b[np.arange(count), row]*u)
+                     / np.where(considered, picked, 1.), 0.)
+        considered &= (-1e-10 <= v) & (v <= 1+1e-10)
+        residual = considered & (np.max(np.abs(a + b*u[:, None] + c*v[:, None] + d*u[:, None]*v[:, None]), axis=1) > 1e-9)
+        errors[residual] = 'unresolved_sampled_face: resultant residual'
+        raised |= residual
+        considered &= ~residual
+        jacobian = np.stack((b + d*v[:, None], c + d*u[:, None]), axis=2)
+        tangential = np.zeros(count, dtype=bool)
+        if considered.any():
+            tangential[considered] = np.abs(np.linalg.det(jacobian[considered])) < 1e-10
+        errors[tangential] = 'degenerate_sampled_face: tangential intersection'
+        raised |= tangential
+        considered &= ~tangential
+        on_edge = considered & (np.minimum(np.minimum(u, v), np.minimum(1-u, 1-v)) < 1e-10)
+        errors[on_edge] = 'grid_edge_junction: tile-edge root needs sided support'
+        raised |= on_edge
+        considered &= ~on_edge
+        store = considered & (accepted == 0)
+        roots[store] = np.where(swapped[store, None], np.stack((v, u), axis=1)[store], np.stack((u, v), axis=1)[store])
+        accepted += considered
+    multiple = live & ~raised & (accepted > 1)
+    errors[multiple] = 'unsupported_sampled_junction: multiple tile roots'
+    roots[raised | multiple] = np.nan
+    return roots, errors
+
+
 def plan_adaptive_junctions(face_cells, tile_xyz, tile_fields, pairs, identities,
                             origins, spans, counts, edge_xyz, edge_normals, flags,
                             *, controllers=None, leaf_fields=None, overridden=None):
@@ -91,7 +200,10 @@ def plan_adaptive_junctions(face_cells, tile_xyz, tile_fields, pairs, identities
         straddles = ~np.any((pair_fields.min(axis=2) > 0) | (pair_fields.max(axis=2) < 0), axis=0)
         masks = [overridden[p] for p in pair if p in overridden]
         skipped = np.logical_or.reduce(masks) if masks else None
-        for tile in np.flatnonzero(straddles).tolist():
+        straddling = np.flatnonzero(straddles)
+        # Roots of every straddling tile at once; errors are raised only for tiles the loop reaches.
+        tile_roots, tile_errors = face_pair_roots(pair_fields[:, straddling].transpose(1, 0, 2))
+        for index, tile in enumerate(straddling.tolist()):
             cells = tuple(c for c in face_cells[tile].tolist() if c >= 0)
             if skipped is not None and all(skipped[c] for c in cells):
                 continue
@@ -101,9 +213,11 @@ def plan_adaptive_junctions(face_cells, tile_xyz, tile_fields, pairs, identities
                                  'retained' if np.all(signed > 0) else 'competing')
                 if tile_decision == 'excluded' and all(decisions[c] == 'excluded' for c in cells):
                     continue
-            root = face_pair_root(tile_fields[[controller, target], tile])
-            if root is None:
+            if tile_errors[index] is not None:
+                raise ValueError(tile_errors[index])
+            if np.isnan(tile_roots[index, 0]):
                 continue
+            root = tile_roots[index]
             if additional:
                 if any(decisions[c] != tile_decision for c in cells) or tile_decision == 'competing':
                     fallback.update(cells)
