@@ -7,6 +7,7 @@ from ...core.data.matrices_sizes import MatricesSizes
 from ...core.data.kernel_classes.orientations import OrientationsInternals
 from ...core.data.options import KernelOptions
 from ...core.backend_tensor import BackendTensor as bt
+from ...core.host_arrays import upload
 
 
 def assembly_dips_points_tensor(dips_coord: np.ndarray, sp_coord: np.ndarray, matrices_size: MatricesSizes):
@@ -25,54 +26,40 @@ def assembly_dips_ug_coords(ori_internals: OrientationsInternals, interpolation_
     n_dim = matrices_size.dim
     full_cov_size = matrices_size.cov_size
     shift = matrices_size.sp_size + matrices_size.ori_size
+    degree = interpolation_options.uni_degree
 
-    z = BackendTensor.t.zeros((full_cov_size, n_dim), dtype=BackendTensor.dtype)
-
-    # Assembly vectors for degree 1
-    if interpolation_options.uni_degree != 0:
+    # The 0/1/2 patterns depend only on sizes: built on the host and uploaded at once. Rows of the
+    # second- and third-term masks take the dip positions instead.
+    a, b, b_mask, c, c_mask, selector = np.zeros((6, full_cov_size, n_dim), dtype=BackendTensor.dtype)
+    if degree != 0:
         # Degree 1
         for i in range(n_dim):
-            z[n_ori * i:n_ori * (i + 1), i] = 1
-            z[shift + i, i] = 1
+            a[n_ori * i:n_ori * (i + 1), i] = 1
+            a[shift + i, i] = 1
+    if degree == 2:
+        for i in range(n_dim):
+            rows = slice(n_ori * i, n_ori * (i + 1))
+            # Second term
+            b_mask[rows, i] = 1
+            b[shift + n_dim + i, i] = 2
+            # Third term
+            c_mask[rows, :] = 1
+            c_mask[rows, i] = 0
+            selector[rows, :] = 1
+            selector[rows, i] = 0
+            c[shift + n_dim * 2 + i] = 1
+            c[shift + n_dim * 2 + i, n_dim - i - 1] = 0
+            selector[shift + n_dim * 2 + i] = 1
+            selector[shift + n_dim * 2 + i, n_dim - i - 1] = 0
+    patterns = upload(np.stack((a, b, b_mask, c, c_mask, selector)))
+    dips_a, dips_b, dips_c, uni_second_degree_selector = patterns[0], patterns[1], patterns[3], patterns[5]
 
-    dips_a = z
-
-    # region Degree 2
-    # region Second term:
-    dips_b_aux = ori_internals.dip_positions_tiled
-
-    z2 = BackendTensor.t.zeros((full_cov_size, n_dim), dtype=BackendTensor.dtype)
-
-    if interpolation_options.uni_degree == 2:
-        for i in range(interpolation_options.number_dimensions):
-            z2[n_ori * i:n_ori * (i + 1), i] = dips_b_aux[n_ori * i:n_ori * (i + 1), i]
-            z2[shift + n_dim + i, i] = 2
-
-    dips_b = z2
-    # endregion
-
-    # region Third term:
-    z3 = BackendTensor.t.zeros((full_cov_size, interpolation_options.number_dimensions), dtype=BackendTensor.dtype)
-    uni_second_degree_selector = BackendTensor.t.zeros_like(z3, dtype=BackendTensor.dtype_obj)
-
-    if interpolation_options.uni_degree == 2:
-        for i in range(interpolation_options.number_dimensions):
-            z3[n_ori * i:n_ori * (i + 1), :] = dips_b_aux[n_ori * i:n_ori * (i + 1), :]
-            z3[n_ori * i:n_ori * (i + 1), i] = 0
-
-            uni_second_degree_selector[n_ori * i:n_ori * (i + 1), :] = 1
-            uni_second_degree_selector[n_ori * i:n_ori * (i + 1), i] = 0
-
-            z3[shift + n_dim * 2 + i] = 1
-            z3[shift + n_dim * 2 + i, n_dim - i - 1] = 0
-
-            uni_second_degree_selector[shift + n_dim * 2 + i] = 1
-            uni_second_degree_selector[shift + n_dim * 2 + i, n_dim - i - 1] = 0
-
-    dips_c = z3
-
-    # endregion
-    # endregion
+    if degree == 2:
+        dips_b_aux = ori_internals.dip_positions_tiled
+        padding = BackendTensor.t.zeros((full_cov_size - dips_b_aux.shape[0], n_dim), dtype=BackendTensor.dtype_obj)
+        positions = BackendTensor.t.vstack((dips_b_aux, padding))  # rows aligned with the covariance rows
+        dips_b = BackendTensor.t.where(patterns[2] > 0, positions, dips_b)
+        dips_c = BackendTensor.t.where(patterns[4] > 0, positions, dips_c)
 
     return dips_a, dips_b, dips_c, uni_second_degree_selector
 
@@ -82,24 +69,15 @@ def assembly_dips_points_coords(surface_points: np.ndarray, matrices_sizes: Matr
     n_dim = interpolation_options.number_dimensions
     ori_size = matrices_sizes.ori_size
     drifts_size = matrices_sizes.drifts_size
-    
+
     z = bt.t.zeros((ori_size, n_dim), dtype=BackendTensor.dtype_obj)  # * Orientations area
-    z2 = bt.t.zeros((drifts_size, n_dim), dtype=BackendTensor.dtype_obj)  # * Universal area
-
-    zb = bt.t.copy(z2)  # ! This block has to be here because it has to be before we modify z2
-    zc = bt.t.copy(z2)
-
+    # * Universal area: degree 1 (z2) and the two degree-2 factors (zb, zc), built on the host
+    z2, zb, zc = np.zeros((3, drifts_size, n_dim), dtype=BackendTensor.dtype)
     if interpolation_options.uni_degree != 0:
         for i in range(n_dim):
             z2[i, i] = 1
 
-    # Degree 1
-    points_degree_1 = bt.t.vstack((z, surface_points, z2))
-
-    # Degree 2
-    # TODO: Substitute vstack
     if interpolation_options.uni_degree == 2:
-
         for i in range(n_dim):
             zb[n_dim + i, i] = 1
 
@@ -109,12 +87,13 @@ def assembly_dips_points_coords(surface_points: np.ndarray, matrices_sizes: Matr
 
         for i in range(n_dim):
             zc[n_dim + i, i] = 1
-        # zc[n_dim * 2:, 1] = 1
         zc[n_dim * 2, 1] = 1
         zc[n_dim * 2 + 1, 2] = 1
         zc[n_dim * 2 + 2, 2] = 1
+    universal = upload(np.stack((z2, zb, zc)))
 
-    points_degree_2a = bt.t.vstack((z, surface_points, zb))
-    points_degree_2b = bt.t.vstack((z, surface_points, zc))
+    points_degree_1 = bt.t.vstack((z, surface_points, universal[0]))
+    points_degree_2a = bt.t.vstack((z, surface_points, universal[1]))
+    points_degree_2b = bt.t.vstack((z, surface_points, universal[2]))
 
     return points_degree_1, points_degree_2a, points_degree_2b

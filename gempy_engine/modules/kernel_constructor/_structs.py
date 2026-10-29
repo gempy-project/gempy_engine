@@ -6,6 +6,7 @@ import numpy as np
 
 from gempy_engine.core.utils import cast_type_inplace
 from gempy_engine.core.backend_tensor import BackendTensor, AvailableBackends
+from gempy_engine.core.host_arrays import upload
 
 tensor_types = BackendTensor.tensor_types
 
@@ -195,8 +196,9 @@ class DriftMatrixSelector:
         # sel_i = np.zeros((x_size, 2), dtype=BackendTensor.dtype)
         # sel_j = np.zeros((y_size, 2), dtype=BackendTensor.dtype)
 
-        sel_i = BackendTensor.t.zeros((x_size, 2), dtype=BackendTensor.dtype)
-        sel_j = BackendTensor.t.zeros((y_size, 2), dtype=BackendTensor.dtype)
+        # Built on the host and uploaded at once (rows 0..x_size-1: sel_i, then sel_j)
+        sel = np.zeros((x_size + y_size, 2), dtype=BackendTensor.dtype)
+        sel_i, sel_j = sel[:x_size], sel[x_size:]
 
         drift_pos_0_x = drift_start_post_x
         drift_pos_1_x = drift_start_post_x + n_drift_eq + 1
@@ -209,6 +211,8 @@ class DriftMatrixSelector:
 
             sel_j[:drift_pos_0_y, 0] = -1
             sel_j[drift_pos_0_y:drift_pos_1_y, 1] = -1
+        sel = upload(sel)
+        sel_i, sel_j = sel[:x_size], sel[x_size:]
 
         # Explicit Cast
         self.sel_ui = _secure_cast(sel_i[:, None, :])

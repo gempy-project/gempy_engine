@@ -430,6 +430,11 @@ def _symbolic_evaluator_optimized_stacked(eval_inputs, weights_list, options_lis
 import concurrent.futures
 
 
+def _expand_row(value, n_rows: int):
+    shape = (value.shape[0], n_rows, value.shape[2])
+    return value.expand(*shape) if hasattr(value, 'expand') else np.broadcast_to(value, shape)
+
+
 def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInput:
     """Build a stacked KernelInput by concatenating the internal arrays sequentially."""
     from ..kernel_constructor._structs import (
@@ -514,6 +519,11 @@ def _build_stacked_kernel_data(kernel_data_list: list[KernelInput]) -> KernelInp
 
             # Singleton dimensions cannot identify whether a field is i- or j-indexed.
             axis = 1 if field_name in j_fields[cls] else 0
+            if axis == 1 and not (cls is OrientationsDrift and field_name == 'selector_cj'):
+                # Grid-side terms that are the same in every row arrive as one row: expand each to its
+                # block's grid size so the blocks line up. (selector_cj is sized by the constraints.)
+                vals = [_expand_row(val, n_j) if len(val.shape) == 3 and val.shape[1] == 1 and n_j != 1 else val
+                        for val, (_, n_j) in zip(vals, sizes)]
             shapes = [tuple(val.shape) for val in vals]
             for group, (shape, (n_i, n_j)) in enumerate(zip(shapes, sizes)):
                 expected_size = n_j if axis == 1 else n_i

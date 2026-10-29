@@ -1,10 +1,11 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Tuple, Optional
 
 import numpy as np
 
 from ...core.backend_tensor import BackendTensor
 from ...core.compute_scope import checking, assert_same, stack_cache_of
+from ...core.host_arrays import upload
 from ._kernel_constructors import assembly_dips_points_tensor, assembly_dips_ug_coords, assembly_dips_points_coords
 from ._kernel_selectors import dips_sp_cartesian_selector, grid_cartesian_selector
 from ._structs import OrientationSurfacePointsCoords, FaultDrift, PointsDrift, DriftMatrixSelector, KernelInput, CartesianSelector, OrientationsDrift, SurfacePointNuggets
@@ -82,10 +83,12 @@ class EvaluationDataSide:
     dips_rest_d1: object
     dips_rest_d2a: object
     dips_rest_d2b: object
-    sel_hu_input: object
-    sel_hv_input: object
-    sel_hu_points_input: object
     fault_vector_ref: object
+    # Grid-side terms that are the same in every row are kept as one row: broadcast in dense
+    # evaluation, a parameter (not a per-point variable) in KeOps.
+    grid_1: object
+    cartesian_selector: CartesianSelector
+    drift_selection: DriftMatrixSelector
 
 
 def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: KernelOptions,
@@ -116,11 +119,9 @@ def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: K
     orientations_sp_matrices = OrientationSurfacePointsCoords(data.dips_ref_coord, grid, data.dips_rest_coord, grid)  # When we create que core covariance this are the repeated since the distance are with themselves
 
     # Universal
-    grid_1 = BackendTensor.t.zeros_like(grid)
-    grid_1[:, axis] = 1
     dips_ug = OrientationsDrift(
-        x_degree_1=data.dips_ug_d1, y_degree_1=grid_1,
-        x_degree_2=data.dips_ug_d2a, y_degree_2=grid * grid_1,
+        x_degree_1=data.dips_ug_d1, y_degree_1=data.grid_1,
+        x_degree_2=data.dips_ug_d2a, y_degree_2=grid * data.grid_1,
         x_degree_2b=data.dips_ug_d2b_sel, y_degree_2b=grid,
         selector_degree_2=data.second_degree_selector)
     dips_ref_ui = PointsDrift(data.dips_ref_d1, grid, data.dips_ref_d2a, grid, data.dips_ref_d2b, grid)
@@ -140,30 +141,16 @@ def evaluation_vectors_preparations(interp_input: SolverInput, kernel_options: K
     else:
         fault_drift = None
 
-    # Selectors :
-    sel_hu_grid, sel_hv_grid, sel_hu_points_grid = grid_cartesian_selector(matrices_sizes, axis)
-    cartesian_selector = CartesianSelector(
-        x_sel_hu=data.sel_hu_input, y_sel_hu=sel_hu_grid,
-        x_sel_hv=data.sel_hv_input, y_sel_hv=sel_hv_grid,
-        x_sel_h_ref=data.sel_hu_points_input, y_sel_h_ref=sel_hu_points_grid,
-        x_sel_h_rest=data.sel_hu_points_input, y_sel_h_rest=sel_hu_points_grid)
-    drift_selection = DriftMatrixSelector(
-        x_size=matrices_sizes.cov_size,
-        y_size=matrices_sizes.grid_size,
-        drift_start_post_x=matrices_sizes.ori_size + matrices_sizes.sp_size,
-        drift_start_post_y=matrices_sizes.grid_size,
-        n_drift_eq=matrices_sizes.uni_drift_size)
-
     return KernelInput(
         ori_sp_matrices=orientations_sp_matrices,
-        cartesian_selector=cartesian_selector,
+        cartesian_selector=data.cartesian_selector,
         nugget_scalar=None,
         nugget_grad=None,
         # drift
         ori_drift=dips_ug,
         ref_drift=dips_ref_ui,
         rest_drift=dips_rest_ui,
-        drift_matrix_selector=drift_selection,
+        drift_matrix_selector=data.drift_selection,
         # faults
         ref_fault=fault_drift,
         rest_fault=None
@@ -193,22 +180,45 @@ def _evaluation_data_side(interp_input, options: KernelOptions, matrices_sizes: 
     else:
         fault_vector_ref = None
 
+    # One grid row: every row of these terms is the same.
+    row = replace(matrices_sizes, grid_size=1)
+    grid_1 = np.zeros((1, options.number_dimensions), dtype=BackendTensor.dtype)
+    grid_1[:, axis] = 1
     sel_hu_input, sel_hv_input, sel_hu_points_input = dips_sp_cartesian_selector(matrices_sizes, axis)
+    sel_hu_grid, sel_hv_grid, sel_hu_points_grid = grid_cartesian_selector(row, axis)
+    cartesian_selector = CartesianSelector(
+        x_sel_hu=sel_hu_input, y_sel_hu=sel_hu_grid,
+        x_sel_hv=sel_hv_input, y_sel_hv=sel_hv_grid,
+        x_sel_h_ref=sel_hu_points_input, y_sel_h_ref=sel_hu_points_grid,
+        x_sel_h_rest=sel_hu_points_input, y_sel_h_rest=sel_hu_points_grid)
+    # Every grid row is before the drift block (drift_start_post_y = grid size): -1 in column 0.
+    drift_selection = DriftMatrixSelector(
+        x_size=matrices_sizes.cov_size,
+        y_size=1,
+        drift_start_post_x=matrices_sizes.ori_size + matrices_sizes.sp_size,
+        drift_start_post_y=1,
+        n_drift_eq=matrices_sizes.uni_drift_size)
     data = EvaluationDataSide(
         dips_ref_coord=dips_ref_coord, dips_rest_coord=dips_rest_coord,
         dips_ug_d1=dips_ug_d1, dips_ug_d2a=dips_ug_d2a, dips_ug_d2b_sel=dips_ug_d2b * sel,
         second_degree_selector=second_degree_selector,
         dips_ref_d1=dips_ref_d1, dips_ref_d2a=dips_ref_d2a, dips_ref_d2b=dips_ref_d2b,
         dips_rest_d1=dips_rest_d1, dips_rest_d2a=dips_rest_d2a, dips_rest_d2b=dips_rest_d2b,
-        sel_hu_input=sel_hu_input, sel_hv_input=sel_hv_input, sel_hu_points_input=sel_hu_points_input,
         fault_vector_ref=fault_vector_ref,
+        grid_1=upload(grid_1), cartesian_selector=cartesian_selector, drift_selection=drift_selection,
     )
     if cache is None:
         return data
     if key in cache.data_side:  # checking()
         cached = cache.data_side[key]
         for name in EvaluationDataSide.__dataclass_fields__:
-            assert_same(getattr(cached, name), getattr(data, name), f"evaluation data side {name}")
+            cached_value, value = getattr(cached, name), getattr(data, name)
+            if hasattr(value, '__dict__'):  # selector structs
+                for field_name in vars(value):
+                    assert_same(getattr(cached_value, field_name), getattr(value, field_name),
+                                f"evaluation data side {name}.{field_name}")
+            else:
+                assert_same(cached_value, value, f"evaluation data side {name}")
         return cached
     cache.data_side[key] = data
     return data

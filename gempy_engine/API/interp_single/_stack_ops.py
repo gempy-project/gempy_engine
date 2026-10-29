@@ -81,7 +81,7 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
     # endregion
 
     # Looked up here: context variables do not reach the executor threads below.
-    chunk_caches = [stack_cache(state.root_interpolation_input, i, repr(options_i.kernel_options))
+    chunk_caches = [stack_cache(state.root_interpolation_input, i, hash(options_i.kernel_options))
                     for i, options_i in zip(chunk, chunk_options)]
 
     # Compute weights for this chunk
@@ -281,7 +281,7 @@ def _fused_evaluation_groups(options_per_stack: list[InterpolationOptions],
     groups: dict[tuple, list[int]] = {}
     for idx, (options_i, interpolation_input) in enumerate(zip(options_per_stack, interpolation_inputs)):
         evaluation = micro_evaluation_options(options_i, interpolation_input).evaluation_options
-        key = (repr(options_i.kernel_options), evaluation.compute_scalar, evaluation.compute_scalar_gradient,
+        key = (hash(options_i.kernel_options), evaluation.compute_scalar, evaluation.compute_scalar_gradient,
                interpolation_input.fault_values.n_faults)
         groups.setdefault(key, []).append(idx)
     return list(groups.values())

@@ -5,9 +5,10 @@ the data side of its evaluation kernels and its micro fit are the same at every 
 every mesh-extraction query; only the evaluation grid changes. ``compute_scope()`` keeps them for the
 duration of the call.
 
-Entries are keyed by host facts (the input object, the stack index and the kernel options), never by
-tensor contents, so a lookup costs no device work. Outside a scope nothing is cached. Cached tensors
-are shared between levels and must not be modified in place.
+Entries are keyed by host facts (the input object, the stack index and the hash of the kernel
+options, which covers their settings but not the condition numbers the solver stores as tensors),
+never by tensor contents, so a lookup costs no device work. Outside a scope nothing is cached.
+Cached tensors are shared between levels and must not be modified in place.
 
 ``GEMPY_CHECK_COMPUTE_CACHE=True`` recomputes every cached value on a hit and raises if it differs
 (tests and debugging only: the comparison synchronizes).
