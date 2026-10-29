@@ -287,7 +287,8 @@ NUMPY = NumpyOps()
 def extraction_namespace():
     """Array operations for joint extraction, chosen by ``GEMPY_JOINT_DEVICE``.
 
-    ``auto`` (default): Torch on the GPU when the engine runs PyTorch there,
+    ``auto`` (default): Torch on the engine's device when the engine runs
+    PyTorch (GPU or CPU; Torch is ~4x faster than NumPy here even on CPU),
     else NumPy. ``numpy``: always NumPy. ``torch``: Torch on the engine's
     device (GPU if the engine uses one, else CPU).
     """
@@ -297,9 +298,9 @@ def extraction_namespace():
     choice = os.environ.get('GEMPY_JOINT_DEVICE', 'auto').strip().lower()
     if choice not in ('auto', 'numpy', 'torch'):
         raise ValueError(f'invalid GEMPY_JOINT_DEVICE {choice!r}: expected auto, numpy or torch')
-    on_gpu = (torch is not None and BT.engine_backend is AvailableBackends.PYTORCH and BT.use_gpu
-              and torch.cuda.is_available())
-    if choice == 'numpy' or (choice == 'auto' and not on_gpu):
+    engine_torch = torch is not None and BT.engine_backend is AvailableBackends.PYTORCH
+    on_gpu = engine_torch and BT.use_gpu and torch.cuda.is_available()
+    if choice == 'numpy' or (choice == 'auto' and not engine_torch):
         return NUMPY
     if torch is None:
         raise ValueError('GEMPY_JOINT_DEVICE=torch requires PyTorch')

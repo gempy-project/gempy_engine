@@ -56,7 +56,10 @@ def test_extraction_namespace_follows_environment(monkeypatch):
     monkeypatch.setenv('GEMPY_JOINT_DEVICE', 'torch')
     assert extraction_namespace().torch
     monkeypatch.setenv('GEMPY_JOINT_DEVICE', 'auto')
-    assert extraction_namespace() is NUMPY  # No engine GPU here.
+    assert extraction_namespace() is NUMPY  # NumPy engine.
+    BT._change_backend(AvailableBackends.PYTORCH, use_gpu=False, use_pykeops=False, dtype="float64", grads=False)
+    assert extraction_namespace().torch  # PyTorch engine on CPU.
+    BT._change_backend(AvailableBackends.numpy, use_gpu=False, use_pykeops=False, dtype="float64", grads=False)
     monkeypatch.setenv('GEMPY_JOINT_DEVICE', 'cuda')
     with pytest.raises(ValueError, match='GEMPY_JOINT_DEVICE'):
         extraction_namespace()
