@@ -1,8 +1,12 @@
+import warnings
 from typing import Callable, List, Optional
+
+import numpy as np
 
 from . import _multi_scalar_field_manager as ms
 from ._octree_generation import interpolate_on_octree
 from ...core import data
+from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.engine_grid import EngineGrid
 from ...core.data.input_data_descriptor import InputDataDescriptor
@@ -26,6 +30,7 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
     An exception raised by the callback aborts the computation.
     """
     n_levels = options.number_octree_levels
+    _warn_dense_leaf_level(interpolation_input, options, n_levels)
 
     octree_list = []
     for i in range(0, n_levels):
@@ -49,6 +54,20 @@ def interpolate_n_octree_levels(interpolation_input: InterpolationInput, options
 
     interpolation_input.set_grid_to_original()
     return octree_list
+
+
+def _warn_dense_leaf_level(interpolation_input: InterpolationInput, options: InterpolationOptions, n_levels: int):
+    """Every level below ``octree_min_level`` refines all cells: at ``n_levels - 1`` the leaf level is dense."""
+    min_level = options.evaluation_options.octree_min_level
+    root = interpolation_input.grid.octree_grid
+    if n_levels < 2 or min_level < n_levels - 1 or root is None:
+        return
+    shape = np.asarray(BackendTensor.t.to_numpy(root.regular_grid_shape)).astype(int) * 2 ** (n_levels - 1)
+    warnings.warn(
+        f"octree_min_level={min_level} with number_octree_levels={n_levels} refines every cell: the leaf level is "
+        f"a dense {'x'.join(map(str, shape))} grid ({int(np.prod(shape)):,} cells) and the octree gives no "
+        f"speed-up. Use octree_min_level <= {n_levels - 2} to keep the leaf level adaptive.",
+        UserWarning, stacklevel=3)
 
 
 def interpolate_all_fields_no_octree(interpolation_input: InterpolationInput, options: InterpolationOptions,
