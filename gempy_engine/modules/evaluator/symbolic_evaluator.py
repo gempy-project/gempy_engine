@@ -7,6 +7,8 @@ from ..kernel_constructor._kernels_assembler import create_scalar_kernel, create
 from ..kernel_constructor._structs import KernelInput
 from ..kernel_constructor._vectors_preparation import evaluation_vectors_preparations
 from ._keops_reduction import keops_sum
+from .compiled_evaluator import compiled_evaluation
+from ...core.compute_scope import assert_same, checking, stack_cache_of
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.exported_fields import ExportedFields
@@ -17,6 +19,19 @@ from ..kernel_constructor._internalDistancesMatrices import DistancesBuffer
 
 
 def symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions):
+    cache = stack_cache_of(solver_input)
+    if (cache is not None and BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.PYTORCH
+            and not BackendTensor.COMPUTE_GRADS):
+        fields = compiled_evaluation(solver_input, weights, options, cache)
+        if checking():
+            built = _symbolic_evaluator(solver_input, weights, options)
+            for name in ('_scalar_field', '_gx_field', '_gy_field', '_gz_field'):
+                assert_same(getattr(fields, name), getattr(built, name), f"compiled evaluation {name}")
+        return fields
+    return _symbolic_evaluator(solver_input, weights, options)
+
+
+def _symbolic_evaluator(solver_input: SolverInput, weights: np.ndarray, options: InterpolationOptions):
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy and solver_input.xyz_to_interpolate.flags['C_CONTIGUOUS'] is False:  # ! This is not working with TF yet
         print("xyz is not C_CONTIGUOUS")
     # ! Seems not to make any difference but we need this if we want to change the backend

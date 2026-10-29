@@ -15,9 +15,9 @@ from gempy_engine.core.backend_tensor import BackendTensor
 
 from .test_compute_scope import N_LEVELS, _fault_micro_model
 
-# Measured on the model below (2 stacks, micro contacts, 3 octree levels): 4,596 ops; 7,597 before
-# the per-compute stack cache and the KeOps launch changes. ~15% headroom.
-TORCH_OPS_BUDGET = 5300
+# Measured on the model below (2 stacks, micro contacts, 3 octree levels): 3,570 ops; 7,597 before
+# the per-compute stack cache, the KeOps launch changes and the compiled evaluation. ~15% headroom.
+TORCH_OPS_BUDGET = 4100
 
 
 @pytest.fixture(autouse=True)
@@ -57,11 +57,12 @@ def _count(monkeypatch):
     return counter.ops, reductions
 
 
-def test_keops_reductions_upload_no_constants_and_merge_gradients(monkeypatch):
+def test_keops_formulas_are_built_once_per_stack(monkeypatch):
     _, reductions = _count(monkeypatch)
-    # One reduction per stack and level for the field and its gradient (micro needs the gradient),
-    # plus one for the micro correction of the stack that has micro contacts.
-    assert len(reductions) == 3 * N_LEVELS
+    # The micro stack's evaluation (field and gradient in one reduction) is built once per compute and
+    # called at every level; its micro correction and the fault stack's stacked (fused) evaluation are
+    # still built per level.
+    assert len(reductions) == 1 + 2 * N_LEVELS
     assert sum(reductions) == 0  # float constants travel in one packed parameter per reduction
 
 

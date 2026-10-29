@@ -36,6 +36,7 @@ class StackCache:
     micro: Any = None  # (MicroCorrection | None, MicroPointResults | None)
     fingerprint_key: Any = None
     fingerprint: Optional[str] = None
+    compiled: dict = field(default_factory=dict)  # KeOps reductions built once (compiled_evaluator)
 
 
 class _Scope:
