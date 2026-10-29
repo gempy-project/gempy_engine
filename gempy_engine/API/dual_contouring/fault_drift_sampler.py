@@ -128,12 +128,9 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         output = last.outputs[fault_stack].scalar_fields
         edges = np.array(host(output.exported_fields.scalar_field_at_surface_points), dtype=np.float64)
         slope = snapshots[fault_stack][2].sigmoid_slope
-        minima = []
-        for level in octree_list:
-            level_output = level.outputs[fault_stack].scalar_fields
-            block = host(level_output.values_on_all_xyz)
-            reference = level_output.exported_fields._macro_reference_size or block.shape[1]
-            minima.append(float(block[:, :reference].min()))
+        # Minima on the device, read back together (not every level's whole block).
+        minima = [float(m) for m in host(BT.t.stack([_reference_minimum(level.outputs[fault_stack].scalar_fields)
+                                                     for level in octree_list]))]
         if not np.allclose(minima, minima[-1], rtol=0, atol=precision_tolerance(1e-12, BT.dtype)):
             raise ValueError('unsupported_fault_drift_reference: production drift shift differs between octree levels')
         ids.flags.writeable = edges.flags.writeable = False
@@ -407,6 +404,12 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                                  external_stacks=tuple(sorted(external)),
                                  reference_grid_size=grid_size, surface_level=len(octree_list) - 1,
                                  field_contract='raw_stack_values_and_actual_kernel_gradients'))
+
+
+def _reference_minimum(level_output):
+    block = level_output.values_on_all_xyz
+    reference = level_output.exported_fields._macro_reference_size or block.shape[1]
+    return block[:, :reference].min()
 
 
 def _finite_slip_frame(fault_input, octree_list, fault_stack, private_input):
