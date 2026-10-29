@@ -59,10 +59,10 @@ def _count(monkeypatch):
 
 def test_keops_formulas_are_built_once_per_stack(monkeypatch):
     _, reductions = _count(monkeypatch)
-    # The micro stack's evaluation (field and gradient in one reduction) is built once per compute and
-    # called at every level; its micro correction and the fault stack's stacked (fused) evaluation are
-    # still built per level.
-    assert len(reductions) == 1 + 2 * N_LEVELS
+    # Each stack's evaluation is built once per compute and called at every level: the micro stack's
+    # (field and gradient in one reduction) and the fault stack's stacked (fused) one. The micro
+    # correction is still built per level.
+    assert len(reductions) == 2 + N_LEVELS
     assert sum(reductions) == 0  # float constants travel in one packed parameter per reduction
 
 

@@ -42,6 +42,7 @@ class StackCache:
 class _Scope:
     def __init__(self):
         self._entries = {}
+        self.shared = {}  # entries spanning several stacks (stacked evaluations), keyed by their stack caches
 
     def stack(self, owner, stack_index: int, settings_key) -> StackCache:
         key = (id(owner), stack_index, settings_key)
@@ -68,6 +69,12 @@ def stack_cache(owner, stack_index: int, settings_key=None) -> Optional[StackCac
     """The cache of stack ``stack_index`` of ``owner`` in the active scope, or None outside one."""
     scope = _active.get()
     return None if scope is None else scope.stack(owner, stack_index, settings_key)
+
+
+def scope_cache() -> Optional[dict]:
+    """The active scope's dict for entries that span several stacks, or None outside a scope."""
+    scope = _active.get()
+    return None if scope is None else scope.shared
 
 
 def options_key(kernel_options):

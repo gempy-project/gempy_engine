@@ -7,8 +7,9 @@ from ..kernel_constructor._kernels_assembler import create_scalar_kernel, create
 from ..kernel_constructor._structs import KernelInput
 from ..kernel_constructor._vectors_preparation import evaluation_vectors_preparations
 from ._keops_reduction import keops_sum
-from .compiled_evaluator import compiled_evaluation
-from ...core.compute_scope import assert_same, checking, stack_cache_of
+from .compiled_evaluator import compiled_evaluation, compiled_stacked_evaluation
+from ...core.compute_scope import assert_same, checking, scope_cache, stack_cache_of
+from ...core.host_arrays import upload
 from ...core.backend_tensor import BackendTensor
 from ...core.data import InterpolationOptions
 from ...core.data.exported_fields import ExportedFields
@@ -99,8 +100,7 @@ def _build_block_sparse_ranges(M_sizes: list[int], N_sizes: list[int]):
     numpy_ranges = (ranges_i, slices_i, ranges_j, ranges_j, slices_j, ranges_i)
 
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.PYTORCH:
-        device = "cuda" if BackendTensor.use_gpu else "cpu"
-        return tuple(BackendTensor.t.array(range_).to(device) for range_ in numpy_ranges)
+        return tuple(upload(range_) for range_ in numpy_ranges)
 
     return numpy_ranges
 
@@ -244,6 +244,27 @@ def _symbolic_evaluator_optimized_stacked(eval_inputs, weights_list, options_lis
     performs a single PyKeOps reduction, then splits results back per field.
     """
 
+    n_fields = len(eval_inputs)
+    base_options = options_list[0]
+
+    caches = [stack_cache_of(ei) for ei in eval_inputs]
+    shared = scope_cache()
+    if (shared is not None and all(cache is not None for cache in caches) and not BackendTensor.COMPUTE_GRADS
+            and BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.PYTORCH
+            and base_options.compute_scalar != base_options.compute_scalar_gradient):
+        diagnostics['stage'] = 'compiled_stacked_evaluation'
+        results_concat, block_sizes = compiled_stacked_evaluation(eval_inputs, weights_list, options_list, caches, shared)
+        fields = _stacked_fields(results_concat, block_sizes, n_fields, base_options)
+        if checking():
+            built = _built_stacked_evaluation(eval_inputs, weights_list, options_list, diagnostics)
+            for compiled_fields, built_fields in zip(fields, built):
+                for name in ('_scalar_field', '_gx_field', '_gy_field', '_gz_field'):
+                    assert_same(getattr(compiled_fields, name), getattr(built_fields, name), f"compiled stacked {name}")
+        return fields
+    return _built_stacked_evaluation(eval_inputs, weights_list, options_list, diagnostics)
+
+
+def _built_stacked_evaluation(eval_inputs, weights_list, options_list, diagnostics):
     n_fields = len(eval_inputs)
 
     # Collect sizes: M = grid/eval points (j-dim), N = weights/cov_size (i-dim)
@@ -393,13 +414,18 @@ def _symbolic_evaluator_optimized_stacked(eval_inputs, weights_list, options_lis
             raise ValueError("Failed to compute symbolic evaluation with PyKeOps. Ensure that all_weights and eval_kernel are compatible for lazy tensor operations.") from exc
 
     diagnostics['stage'] = 'split_results'
+    return _stacked_fields(all_results_concat, M_sizes, n_fields, base_options)
+
+
+def _stacked_fields(all_results_concat, M_sizes, n_fields, base_options) -> list[ExportedFields]:
+    """Split a stacked reduction's output (blocks of M_sizes) into ExportedFields per stack."""
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.numpy:
         split_indices = np.cumsum(M_sizes)[:-1]
         all_results_split = np.split(all_results_concat, split_indices)
     else:
         all_results_split = BackendTensor.t.split(all_results_concat, M_sizes)
 
-    original_n_fields = len(eval_inputs)
+    original_n_fields = n_fields
     scalar_fields = all_results_split[:original_n_fields]
     gx_fields = [None] * original_n_fields
     gy_fields = [None] * original_n_fields
@@ -421,7 +447,6 @@ def _symbolic_evaluator_optimized_stacked(eval_inputs, weights_list, options_lis
             raise ValueError("Cannot compute scalar and scalar gradient simultaneously")
 
     # Build ExportedFields per stack
-    diagnostics['stage'] = 'build_exported_fields'
     results = []
     for idx in range(n_fields):
         # We need to make sure the results are numpy arrays if using numpy backend

@@ -31,7 +31,7 @@ def _upgrade_kernel_input_to_keops_tensor_pytorch(struct_data_instance):
     import torch
 
     for key, array_like in struct_data_instance.__dict__.items():
-        if key == "n_faults_i": continue
+        if key == "n_faults_i" or isinstance(array_like, LazyTensor): continue
         if not isinstance(array_like, torch.Tensor):
             array_like = BackendTensor.t.array(array_like)
 
