@@ -15,6 +15,7 @@ from .fixed_weight_snapshots import (check_fixed_query_contract, check_fixed_wei
                                      fixed_weight_snapshots, freeze_arrays, host)
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor as BT
+from ...core.compute_scope import options_key
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.stack_relation_type import StackRelationType
@@ -231,7 +232,7 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                 stack, points, rows = items[i]
                 # External stacks never stack: a unique signature sends them to evaluate_stack.
                 signature = (('external', i) if stack in external else
-                             (repr(snapshots[stack][2].kernel_options), 0 if rows is None else len(rows)))
+                             (options_key(snapshots[stack][2].kernel_options), 0 if rows is None else len(rows)))
                 groups.setdefault(signature, []).append(i)
             pending = []
             for members in groups.values():
