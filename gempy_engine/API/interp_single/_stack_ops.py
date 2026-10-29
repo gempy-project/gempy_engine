@@ -1,4 +1,5 @@
 import concurrent.futures
+import os
 
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output, _options_with_finite_fault_gradients
 from ._interp_scalar_field import _deduplicate_corners, _evaluate_sys_eq, _restore_corner_fields, compute_weights
@@ -185,15 +186,7 @@ def _segment(
 
         options_i = options_per_stack[idx]
 
-        import torch
-        if torch.cuda.is_available():
-            stream = torch.cuda.Stream()
-            with torch.cuda.stream(stream):
-                output = _segment_stack(idx, global_i, local_stack_structure, options_i)
-            stream.synchronize()
-        else:
-            output = _segment_stack(idx, global_i, local_stack_structure, options_i)
-        return output
+        return _on_stack_stream(_segment_stack, idx, global_i, local_stack_structure, options_i)
 
     def _segment_stack(idx, global_i, local_stack_structure, options_i):
         # region segmentation
@@ -219,13 +212,32 @@ def _segment(
         )
         return output
 
-    if CONCURRENT := True:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            all_scalar_fields_outputs = list(executor.map(_run_segment, enumerate(stack_indices)))
-    else:
-        all_scalar_fields_outputs = [_run_segment(idx_global_i) for idx_global_i in enumerate(stack_indices)]
+    return _map_stacks(_run_segment, stack_indices)
 
-    return all_scalar_fields_outputs
+
+def _map_stacks(function, stack_indices):
+    """``function((position, stack_index))`` for every stack of a chunk, as ``GEMPY_STACK_EXECUTION`` says:
+    ``threads`` (default; a thread pool, each stack on its own CUDA stream) or ``inline`` (in order, in the
+    calling thread, on the current stream)."""
+    if _stack_execution() == "inline":
+        return [function(item) for item in enumerate(stack_indices)]
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        return list(executor.map(function, enumerate(stack_indices)))
+
+
+def _on_stack_stream(function, *args):
+    import torch
+    if _stack_execution() == "inline" or not torch.cuda.is_available():
+        return function(*args)
+    stream = torch.cuda.Stream()
+    with torch.cuda.stream(stream):
+        result = function(*args)
+    stream.synchronize()
+    return result
+
+
+def _stack_execution() -> str:
+    return os.getenv("GEMPY_STACK_EXECUTION", "threads").lower()
 
 
 def _host_weights(solver_input):
@@ -372,15 +384,7 @@ def _compute_weights_for_stacks(
 
         options_i = options_per_stack[idx] if options_per_stack is not None else options
 
-        import torch
-        if torch.cuda.is_available():
-            stream = torch.cuda.Stream()
-            with torch.cuda.stream(stream):
-                solver_input = _prepare_solver_input(idx, global_i, local_stack_structure, options_i)
-            stream.synchronize()
-        else:
-            solver_input = _prepare_solver_input(idx, global_i, local_stack_structure, options_i)
-        return solver_input
+        return _on_stack_stream(_prepare_solver_input, idx, global_i, local_stack_structure, options_i)
 
     def _prepare_solver_input(idx, global_i, local_stack_structure, options_i):
         cache = caches[idx] if caches is not None else None
@@ -409,13 +413,7 @@ def _compute_weights_for_stacks(
         solver_input.weights_x0 = weights
         return solver_input
 
-    if CONCURRENT := True:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            solver_inputs = list(executor.map(_run_prep, enumerate(stack_indices)))
-    else:
-        solver_inputs = [_run_prep(idx_global_i) for idx_global_i in enumerate(stack_indices)]
-
-    return solver_inputs
+    return _map_stacks(_run_prep, stack_indices)
 
 
 def input_preprocess_v2(data_shape: TensorsStructure, interpolation_input: InterpolationInput,
