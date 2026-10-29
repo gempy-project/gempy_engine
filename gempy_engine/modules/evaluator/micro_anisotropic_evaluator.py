@@ -1,4 +1,5 @@
 import numpy as np
+from ...core.backend_tensor import BackendTensor
 from ...core.data.options.micro_anisotropic_options import MicroKernelType
 
 
@@ -109,6 +110,12 @@ def _evaluate_micro_torch(xyz, centers, weights, matrices, kernel_range, kernel_
     centers = torch.as_tensor(centers, dtype=xyz.dtype, device=xyz.device)
     weights = torch.as_tensor(weights, dtype=xyz.dtype, device=xyz.device)
     matrices = torch.as_tensor(matrices, dtype=xyz.dtype, device=xyz.device)
+    # KeOps' sqrt has an infinite derivative at d = 0; keep the loop when autograd is live.
+    differentiable = torch.is_grad_enabled() and (xyz.requires_grad or weights.requires_grad
+                                                  or centers.requires_grad or matrices.requires_grad
+                                                  or getattr(kernel_range, 'requires_grad', False))
+    if len(centers) and BackendTensor.use_pykeops and not differentiable:
+        return _evaluate_micro_keops(xyz, centers, weights, matrices, kernel_range, kernel_type, compute_gradient)
     correction = xyz.new_zeros(xyz.shape[0])
     gradient = xyz.new_zeros(xyz.shape) if compute_gradient else None
     for center, matrix, weight in zip(centers, matrices, weights):
@@ -136,3 +143,46 @@ def _evaluate_micro_torch(xyz, centers, weights, matrices, kernel_range, kernel_
             scale = derivative / (kernel_range * distance.clamp_min(torch.finfo(xyz.dtype).tiny))
             gradient = gradient + weight * torch.where(distance > 0, scale, 0)[:, None] * (transformed @ matrix)
     return (correction, gradient) if compute_gradient else correction
+
+
+def _evaluate_micro_keops(xyz, centers, weights, matrices, kernel_range, kernel_type, compute_gradient):
+    """One KeOps reduction over centers; same kernel as the loop in ``_evaluate_micro_torch``.
+
+    Each center j has its own metric A_j = M_j^T M_j, so ||M_j d||^2 = d.A_j d and
+    the gradient direction M_j^T M_j d = A_j d needs a single 3x3 product per pair.
+    """
+    from pykeops.torch import LazyTensor
+
+    metrics = (matrices.transpose(1, 2) @ matrices).reshape(1, -1, 9)  # symmetric: layout-agnostic
+    x = LazyTensor(xyz.contiguous()[:, None, :])
+    c = LazyTensor(centers.contiguous()[None, :, :])
+    a = LazyTensor(metrics.contiguous())
+    w = LazyTensor(weights.contiguous().reshape(1, -1, 1))
+
+    d = x - c
+    q = a.matvecmult(d)  # A_j d
+    distance_sq = (d * q).sum()
+    r = distance_sq.sqrt() / kernel_range
+    kernel_range = float(kernel_range)
+    inv_range_sq = 1.0 / (kernel_range * kernel_range)
+    # scale = K'(r) / (range * distance), written without dividing by distance where it cancels.
+    if kernel_type == "exponential":
+        value = (-r).exp()
+        scale = -value * distance_sq.rsqrt() / kernel_range  # KeOps rsqrt(0) = 0, matching the loop's mask
+    elif kernel_type == "matern_3_2":
+        s = float(np.sqrt(3.)) * r
+        e = (-s).exp()
+        value = (1 + s) * e
+        scale = -3 * inv_range_sq * e
+    elif kernel_type == "matern_5_2":
+        s = float(np.sqrt(5.)) * r
+        e = (-s).exp()
+        value = (1 + s + (5 / 3) * inv_range_sq * distance_sq) * e
+        scale = -(5 / 3) * inv_range_sq * (1 + s) * e
+    else:
+        raise ValueError(f"Unknown micro kernel type: {kernel_type}")
+
+    if not compute_gradient:
+        return (w * value).sum(dim=1).reshape(-1)
+    result = (w * value.concat(scale * q)).sum(dim=1)  # (N, 4): value, gradient
+    return result[:, 0], result[:, 1:]

@@ -61,6 +61,32 @@ def test_joint_values_and_gradient_torch(kernel_type):
         assert weights.grad is not None
 
 
+@pytest.mark.parametrize("kernel_type", ["exponential", "matern_3_2", "matern_5_2"])
+def test_keops_matches_loop_torch(kernel_type):
+    torch = pytest.importorskip("torch")
+    pytest.importorskip("pykeops")
+    from gempy_engine.modules.evaluator.micro_anisotropic_evaluator import _evaluate_micro_keops
+
+    rng = np.random.default_rng(0)
+    centers = rng.uniform(-1, 1, (40, 3))
+    # Per-center rotation + stretch: non-symmetric M, so A = M^T M differs from M M^T.
+    matrices = np.stack([np.linalg.qr(rng.normal(size=(3, 3)))[0] @ np.diag(rng.uniform(.3, 3, 3))
+                         for _ in centers])
+    weights = rng.normal(size=len(centers))
+    xyz = np.concatenate([rng.uniform(-1.5, 1.5, (5000, 3)), centers[:5]])  # include points on centers
+    args = [torch.tensor(a, dtype=torch.float64) for a in (xyz, centers, weights, matrices)]
+
+    with torch.no_grad():
+        loop_values, loop_gradient = evaluate_micro_values_and_gradient(
+            args[0].numpy(), centers, weights, matrices, 0.7, kernel_type, compute_gradient=True)
+        values, gradient = _evaluate_micro_keops(*args, 0.7, kernel_type, compute_gradient=True)
+        only_values = _evaluate_micro_keops(*args, 0.7, kernel_type, compute_gradient=False)
+
+    np.testing.assert_allclose(values.numpy(), loop_values, rtol=1e-10, atol=1e-12)
+    np.testing.assert_allclose(only_values.numpy(), loop_values, rtol=1e-10, atol=1e-12)
+    np.testing.assert_allclose(gradient.numpy(), loop_gradient, rtol=1e-10, atol=1e-12)
+
+
 # ----------------------------------------------------------------
 # evaluate_micro_correction
 # ----------------------------------------------------------------
