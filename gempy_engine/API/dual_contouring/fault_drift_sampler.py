@@ -182,30 +182,6 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                                        tuple(host64(gradients).T), isovalue, normal=normal)[0])
 
     reference_xyz = np.concatenate((host(private_input.grid.values), host(private_input.all_surface_points.sp_coords)))
-    reference_points = wide(reference_xyz)  # uploaded once for every fault's check
-    drift_errors = []
-    for fault_stack in faults:
-        output = last.outputs[fault_stack].scalar_fields
-        expected = host(_modify_faults_values_output(
-            fault_inputs[fault_stack] or FaultsData(), copy.copy(output), reference_xyz)).reshape(-1)
-        # Only a finite fault's taper needs the fault gradients.
-        scalar, gradients = evaluate_stack(fault_stack, reference_points, gradients=fault_stack in finite_faults)
-        rebuilt = host64(drift(fault_stack, scalar, gradients, reference_points))
-        tolerance = precision_tolerance(1e-10, BT.dtype)
-        error = np.abs(rebuilt - expected)
-        if np.isfinite(error).all() and (error > tolerance).any():
-            # On the fault the steep step amplifies the rebuilt scalar's rounding (another
-            # evaluation order than production): accept drifts the rule gives within it.
-            rounding = 64 * np.finfo(BT.dtype).eps * max(float(np.max(np.abs(host64(scalar)))), 1.0)
-            low, high = (host64(drift(fault_stack, scalar + shift, gradients, reference_points))
-                         for shift in (-rounding, rounding))
-            within = (expected >= np.minimum(low, high) - tolerance) & (expected <= np.maximum(low, high) + tolerance)
-            error = np.where(within, 0.0, error)
-        error = float(np.max(error))
-        if not np.isfinite(error) or error > tolerance:
-            raise ValueError(f'unverified_fault_drift: rebuilt production drift differs for fault stack {fault_stack}')
-        drift_errors.append(error)
-
     def query(points, stacks=None, gradients=True):
         """Rows follow ``stacks`` (default: every stack in order); gradients are None if not requested."""
         if backend != (BT.engine_backend, BT.dtype, BT.use_gpu, BT.use_pykeops, BT.COMPUTE_GRADS):
@@ -294,6 +270,38 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
             values, gradients = evaluate_stack(stack, points, rows, gradients=kind == 'gradient', checks=checks)
             results[i] = values if kind == 'scalar' else gradients
         return results
+
+    # Verify the rebuilt drift rule against production on the full reference grid: every fault in one
+    # stacked evaluation, as production evaluated them (finite faults' gradients in a second one).
+    reference_points = wide(reference_xyz)
+    checks = []
+    reference_scalars = dict(zip(faults, evaluate_many([(f, reference_points, None) for f in faults], 'scalar', checks)))
+    finite_list = [f for f in faults if f in finite_faults]
+    reference_gradients = dict(zip(finite_list, evaluate_many([(f, reference_points, None) for f in finite_list],
+                                                              'gradient', checks)))
+    _raise_failed(checks)
+    drift_errors = []
+    for fault_stack in faults:
+        output = last.outputs[fault_stack].scalar_fields
+        expected = host(_modify_faults_values_output(
+            fault_inputs[fault_stack] or FaultsData(), copy.copy(output), reference_xyz)).reshape(-1)
+        # Only a finite fault's taper needs the fault gradients.
+        scalar, gradients = reference_scalars[fault_stack], reference_gradients.get(fault_stack)
+        rebuilt = host64(drift(fault_stack, scalar, gradients, reference_points))
+        tolerance = precision_tolerance(1e-10, BT.dtype)
+        error = np.abs(rebuilt - expected)
+        if np.isfinite(error).all() and (error > tolerance).any():
+            # On the fault the steep step amplifies the rebuilt scalar's rounding (another
+            # evaluation order than production): accept drifts the rule gives within it.
+            rounding = 64 * np.finfo(BT.dtype).eps * max(float(np.max(np.abs(host64(scalar)))), 1.0)
+            low, high = (host64(drift(fault_stack, scalar + shift, gradients, reference_points))
+                         for shift in (-rounding, rounding))
+            within = (expected >= np.minimum(low, high) - tolerance) & (expected <= np.maximum(low, high) + tolerance)
+            error = np.where(within, 0.0, error)
+        error = float(np.max(error))
+        if not np.isfinite(error) or error > tolerance:
+            raise ValueError(f'unverified_fault_drift: rebuilt production drift differs for fault stack {fault_stack}')
+        drift_errors.append(error)
 
     def query_batch(requests):
         """Evaluate ``[(points, stacks, 'scalar'|'gradient')]`` together.
