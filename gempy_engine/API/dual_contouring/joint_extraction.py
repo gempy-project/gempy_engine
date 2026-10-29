@@ -14,7 +14,7 @@ from ..interp_single._interp_single_feature import input_preprocess, interpolate
 from ..interp_single._interp_scalar_field import _evaluate_sys_eq
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor as BT
-from ...core.compute_scope import stack_cache
+from ...core.compute_scope import options_key, stack_cache
 from ...core.data import TensorsStructure
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.engine_grid import EngineGrid
@@ -196,7 +196,7 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
         shape = TensorsStructure.from_tensor_structure_subset(query_descriptor, stack_index)
         # Same data and weights as the interpolation (query_input is a shallow copy; no faults on this
         # path): reuse its stack cache (internals, kernel data side, micro fit).
-        caches[stack_index] = stack_cache(interpolation_input, stack_index, hash(stack_options.kernel_options))
+        caches[stack_index] = stack_cache(interpolation_input, stack_index, options_key(stack_options.kernel_options))
         weights, _ = production_weights(stack_options, stack_index, input_preprocess(shape, subset, caches[stack_index]),
                                         octree_list[-1].outputs[stack_index].weights, 'joint')
         if isinstance(weights, np.ndarray) and BT.engine_backend is not AvailableBackends.numpy:

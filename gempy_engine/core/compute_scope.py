@@ -42,8 +42,8 @@ class _Scope:
     def __init__(self):
         self._entries = {}
 
-    def stack(self, owner, stack_index: int, options_key) -> StackCache:
-        key = (id(owner), stack_index, options_key)
+    def stack(self, owner, stack_index: int, settings_key) -> StackCache:
+        key = (id(owner), stack_index, settings_key)
         entry = self._entries.get(key)
         if entry is None:
             # Holding the owner keeps its id from being reused by another object during the scope.
@@ -63,10 +63,19 @@ def compute_scope():
         _active.reset(token)
 
 
-def stack_cache(owner, stack_index: int, options_key=None) -> Optional[StackCache]:
+def stack_cache(owner, stack_index: int, settings_key=None) -> Optional[StackCache]:
     """The cache of stack ``stack_index`` of ``owner`` in the active scope, or None outside one."""
     scope = _active.get()
-    return None if scope is None else scope.stack(owner, stack_index, options_key)
+    return None if scope is None else scope.stack(owner, stack_index, settings_key)
+
+
+def options_key(kernel_options):
+    """Host-only key of kernel settings. ``KernelOptions.__hash__`` covers the settings; its repr would
+    also format the condition numbers the solver stores as tensors (a device read each)."""
+    try:
+        return hash(kernel_options)
+    except TypeError:  # unhashable stand-ins
+        return repr(kernel_options)
 
 
 def checking() -> bool:
