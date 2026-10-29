@@ -1,5 +1,6 @@
 import numpy as np
 from ...core.backend_tensor import BackendTensor
+from ._keops_reduction import keops_sum
 from ...core.data.options.micro_anisotropic_options import MicroKernelType
 
 
@@ -183,6 +184,6 @@ def _evaluate_micro_keops(xyz, centers, weights, matrices, kernel_range, kernel_
         raise ValueError(f"Unknown micro kernel type: {kernel_type}")
 
     if not compute_gradient:
-        return (w * value).sum(dim=1).reshape(-1)
-    result = (w * value.concat(scale * q)).sum(dim=1)  # (N, 4): value, gradient
+        return keops_sum(w * value, dim=1).reshape(-1)
+    result = keops_sum(w * value.concat(scale * q), dim=1)  # (N, 4): value, gradient
     return result[:, 0], result[:, 1:]
