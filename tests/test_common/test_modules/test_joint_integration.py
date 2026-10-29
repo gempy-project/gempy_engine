@@ -14,6 +14,7 @@ import pytest
 
 from gempy_engine.config import AvailableBackends, DualContouringOverlap
 from gempy_engine.core.backend_tensor import BackendTensor as BT
+from gempy_engine.modules.dual_contouring.joint_xp import host
 from gempy_engine.core.data import TensorsStructure
 from gempy_engine.core.data.engine_grid import EngineGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
@@ -443,7 +444,8 @@ def test_public_compute_joint_mixed_leaf_seam(monkeypatch, backend):
     np.testing.assert_array_equal(adapter._numpy(levels[1].grid.octree_grid.active_cells), selections[0])
     np.testing.assert_array_equal(adapter._numpy(levels[2].grid.octree_grid.active_cells), selections[1])
     origins, spans, shape, _, samples, _ = adapter._collect_joint_leaves(levels, 2)
-    assert set(spans) == {1, 2} and len(origins) == 32 + 256
+    origins, spans = host(origins), host(spans)  # Extraction-device arrays (Torch for a PyTorch engine).
+    assert set(spans.tolist()) == {1, 2} and len(origins) == 32 + 256
     assert np.sum(spans ** 3) == np.prod(shape)
     assert samples.shape == (2, len(origins), 8)
 

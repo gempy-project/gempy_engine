@@ -10,7 +10,7 @@ from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.stack_relation_type import StackRelationType as R
 from ...modules.dual_contouring.joint_cell_branches import CORNERS
 from ...modules.dual_contouring.joint_cell_complex import adaptive_complex_arrays
-from ...modules.dual_contouring.joint_xp import extraction_namespace
+from ...modules.dual_contouring.joint_xp import extraction_namespace, host
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
 from ...modules.dual_contouring.joint_ownership import ordinary_controllers
 from ...modules.dual_contouring.joint_separator import bank_normalized, separator_controllers
@@ -86,6 +86,7 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
             raise ValueError("unsupported_finite_fault")
 
     origins, spans, domain_shape, extent, _, metadata = _collect_joint_leaves(octree_list, stacks.n_stacks)
+    origins, spans = host(origins), host(spans)  # Bank xyz below is built on the host.
     groups = np.array([m[0] for m in metadata], dtype=np.int64)
     indices = np.array([m[1] for m in metadata], dtype=np.int64)
     levels = [_numpy(output.scalar_field_at_sp).astype(np.float64).reshape(-1).copy()

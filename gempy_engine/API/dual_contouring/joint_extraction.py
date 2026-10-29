@@ -35,14 +35,21 @@ def _numpy(values):
 
 
 def _collect_joint_leaves(octree_list, n_stacks):
+    """Leaves (origins, spans) and raw corner samples of every level, on the extraction device.
+
+    Origins, spans and samples are ``extraction_namespace`` arrays; domain shape,
+    extent and metadata are host values.
+    """
     if not octree_list:
         raise ValueError("joint requires octree levels")
     root = octree_list[0].grid.octree_grid
     if root is None:
         raise ValueError("joint requires an octree grid at every level")
+    xp = extraction_namespace()
     extent = _numpy(root.orthogonal_extent).astype(np.float64)
     root_shape = _numpy(root.regular_grid_shape).astype(np.int64)
     domain_shape = root_shape * 2 ** (len(octree_list) - 1)
+    low = xp.asarray(extent[::2])
     origins, spans, samples = [], [], []
     metadata = None
     for level_index, level in enumerate(octree_list):
@@ -53,37 +60,38 @@ def _collect_joint_leaves(octree_list, n_stacks):
             raise ValueError("joint requires the same extent at every octree level")
         if len(level.outputs) != n_stacks:
             raise ValueError("joint requires one output per stack at every octree level")
-        coords = _numpy(grid.integer_coordinates).astype(np.int64)
+        coords = xp.asarray(grid.integer_coordinates, dtype=np.int64)
         count = len(grid.values)
-        if coords.shape != (count, 3):
+        if tuple(coords.shape) != (count, 3):
             raise ValueError("joint octree coordinate rows do not match cells")
         shape = root_shape * 2 ** level_index
         spacing = (extent[1::2] - extent[::2]) / shape
-        physical = (_numpy(grid.values) - extent[::2]) / spacing - 0.5
-        canonical = np.rint(physical).astype(np.int64)
+        physical = (xp.asarray(grid.values, dtype=np.float64) - low) / xp.asarray(spacing) - 0.5
+        canonical = xp.astype(xp.rint(physical), np.int64)
         # Lattice units; low-precision centers carry roundoff relative to the extent.
         roundoff = 32 * np.finfo(BT.dtype).eps * np.abs(extent).reshape(3, 2).max(axis=1) / spacing
-        if not np.allclose(physical, canonical, rtol=0, atol=1e-7 + roundoff):
+        if not bool((xp.abs(physical - canonical) <= xp.asarray(1e-7 + roundoff)).all()):
             raise ValueError("joint octree centers are not on the canonical lattice")
         # Signed/offset integer conventions must differ by a constant per level.
         offset = canonical - coords
-        if count and not np.all(offset == offset[0]):
+        if count and not bool((offset == offset[0]).all()):
             raise ValueError("joint integer coordinates disagree with physical centers")
-        keep = np.ones(count, dtype=bool)
+        keep = xp.ones(count, dtype=bool)
         if level_index + 1 < len(octree_list):
-            refined = _numpy(octree_list[level_index + 1].grid.octree_grid.active_cells)
-            if refined.dtype != np.bool_ or refined.size != count:
+            refined = xp.asarray(octree_list[level_index + 1].grid.octree_grid.active_cells).reshape(-1)
+            if refined.dtype != xp.bool or len(refined) != count:
                 raise ValueError("joint next-level active_cells must be a parent refinement mask")
-            keep = ~refined.reshape(-1)
+            keep = ~refined
         level_metadata, level_samples = [], []
         for stack_index, output in enumerate(level.outputs):
             isovalues = _numpy(output.scalar_field_at_sp).reshape(-1)
-            raw = _numpy(output.exported_fields.scalar_field[output.grid.corners_grid_slice])
-            if raw.size != count * 8:
+            raw = xp.asarray(output.exported_fields.scalar_field[output.grid.corners_grid_slice], dtype=np.float64)
+            if len(raw.reshape(-1)) != count * 8:
                 raise ValueError("joint requires eight raw corner samples per cell")
+            kept = raw.reshape(count, 8)[keep]
             for surface_index, isovalue in enumerate(isovalues):
                 level_metadata.append((stack_index, surface_index, float(isovalue)))
-                level_samples.append(raw.reshape(count, 8)[keep])
+                level_samples.append(kept)
         if metadata is None:
             metadata = level_metadata
         elif (len(metadata) != len(level_metadata) or
@@ -93,11 +101,12 @@ def _collect_joint_leaves(octree_list, n_stacks):
         if not level_metadata:
             raise ValueError("joint requires at least one exported surface")
         span = 2 ** (len(octree_list) - 1 - level_index)
-        origins.append(canonical[keep] * span)
-        spans.append(np.full(np.count_nonzero(keep), span, dtype=np.int64))
-        samples.append(np.asarray(level_samples, dtype=np.float64).reshape(len(level_metadata), -1, 8))
-    return (np.concatenate(origins), np.concatenate(spans), domain_shape, extent,
-            np.concatenate(samples, axis=1), metadata)
+        level_origins = canonical[keep] * span
+        origins.append(level_origins)
+        spans.append(xp.full(len(level_origins), span, dtype=np.int64))
+        samples.append(xp.stack(level_samples))
+    return (xp.concatenate(origins), xp.concatenate(spans), domain_shape, extent,
+            xp.concatenate(samples, axis=1), metadata)
 
 
 def _check_joint_options(descriptor, options):

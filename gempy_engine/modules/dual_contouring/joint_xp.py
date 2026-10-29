@@ -99,6 +99,9 @@ class NumpyOps:
     def isfinite(self, a):
         return np.isfinite(a)
 
+    def rint(self, a):
+        return np.rint(a)
+
     def cumsum(self, a, axis=0):
         return np.cumsum(a, axis=axis)
 
@@ -231,6 +234,9 @@ class TorchOps(NumpyOps):
 
     def isfinite(self, a):
         return torch.isfinite(a)
+
+    def rint(self, a):
+        return torch.round(a)  # Half to even, as np.rint.
 
     def cumsum(self, a, axis=0):
         return torch.cumsum(a, dim=axis)
