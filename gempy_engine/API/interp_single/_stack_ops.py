@@ -217,8 +217,12 @@ def _segment(
 
 def _map_stacks(function, stack_indices):
     """``function((position, stack_index))`` for every stack of a chunk, as ``GEMPY_STACK_EXECUTION`` says:
-    ``threads`` (default; a thread pool, each stack on its own CUDA stream) or ``inline`` (in order, in the
-    calling thread, on the current stream)."""
+    ``inline`` (default; in order, in the calling thread, on the current stream) or ``threads`` (a thread
+    pool, each stack on its own CUDA stream).
+
+    Threads overlap stacks only while one waits on the device, and the per-stack work is now mostly
+    Python issuing small kernels (GIL-bound). A10, same container: Perth Basin interpolation 0.349 s
+    with threads vs 0.235 s inline; sprember_micro 0.146 vs 0.135 s."""
     if _stack_execution() == "inline":
         return [function(item) for item in enumerate(stack_indices)]
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -237,7 +241,7 @@ def _on_stack_stream(function, *args):
 
 
 def _stack_execution() -> str:
-    return os.getenv("GEMPY_STACK_EXECUTION", "threads").lower()
+    return os.getenv("GEMPY_STACK_EXECUTION", "inline").lower()
 
 
 def _host_weights(solver_input):
