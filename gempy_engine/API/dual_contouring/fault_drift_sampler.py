@@ -9,6 +9,11 @@ import copy
 
 import numpy as np
 
+try:
+    import torch
+except ImportError:  # NumPy-only installs: the sampler never takes the Torch branches
+    torch = None
+
 from ..interp_single._aux_faults_ops import _modify_faults_values_output, finite_fault_frame_indices, finite_fault_taper
 from ..interp_single._interp_scalar_field import _evaluate_sys_eq
 from .fixed_weight_snapshots import (check_fixed_query_contract, check_fixed_weight_backend, fault_matrix,
@@ -71,8 +76,22 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
     on_device = BT.engine_backend is not AvailableBackends.numpy
 
     def device(values):
-        # Production precision on every backend; NumPy float64 stays a view.
-        return BT.t.array(np.ascontiguousarray(values), dtype=BT.dtype_obj) if on_device else np.asarray(values, dtype=BT.dtype)
+        # Production precision on every backend; NumPy float64 stays a view; device tensors are only cast.
+        if on_device:
+            return values.to(BT.dtype_obj) if _is_tensor(values) else BT.t.array(np.ascontiguousarray(values), dtype=BT.dtype_obj)
+        return np.asarray(values, dtype=BT.dtype)
+
+    def wide(values):
+        """The sampler's working precision (float64, exact for production fields), on the active device."""
+        if _is_tensor(values):
+            return values.to(torch.float64)
+        return BT.t.array(np.asarray(values, dtype=np.float64), dtype=torch.float64) if on_device else np.asarray(values, dtype=np.float64)
+
+    def host64(values):
+        return np.asarray(host(values), dtype=np.float64)
+
+    stack_rows = (lambda arrays, axis=0: torch.stack(list(arrays), dim=axis)) if on_device else np.stack
+    concatenate = (lambda arrays: torch.cat(list(arrays))) if on_device else np.concatenate
 
     # Frozen host weights stay the inspected snapshot; evaluation uses a device copy.
     device_weights = [None if snapshot is None else device(snapshot[1]) for snapshot in snapshots]
@@ -94,9 +113,12 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                   for function in functions]
         if any(field.shape != (len(points),) or not np.isfinite(field).all() for field in fields):
             raise ValueError('nonfinite_or_invalid_fault_query')
-        return fields[0], (np.stack(fields[1:], axis=-1) if gradients else None)
+        return wide(fields[0]), (wide(np.stack(fields[1:], axis=-1)) if gradients else None)
 
-    def evaluate_stack(stack_index, points, drift_rows=None, gradients=True):
+    def evaluate_stack(stack_index, points, drift_rows=None, gradients=True, checks=None):
+        """(values (M,), gradients (M, 3) or None), float64 on the active device.
+
+        Finiteness is checked through ``checks`` (see ``_raise_failed``) or, without it, at once."""
         if stack_index in external:
             return evaluate_external(stack_index, points, gradients)
         original, _, stack_options = snapshots[stack_index]
@@ -108,14 +130,16 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
             view.fault_internal = copy.copy(original.fault_internal)
             view.fault_internal.fault_values_everywhere = device(drift_rows)
         fields = _evaluate_sys_eq(view, device_weights[stack_index], stack_options)
-        values = np.array(host(fields._scalar_field), dtype=np.float64, copy=True)
-        if values.shape != (len(points),) or not np.isfinite(values).all():
+        values = wide(fields._scalar_field)
+        if tuple(values.shape) != (len(points),):
             raise ValueError('nonfinite_or_invalid_fault_query')
+        _check(checks, values, 'nonfinite_or_invalid_fault_query')
         if not gradients:
             return values, None
-        result = np.stack([host(g) for g in (fields._gx_field, fields._gy_field, fields._gz_field)], axis=-1)
-        if result.shape != (len(points), 3) or not np.isfinite(result).all():
+        result = stack_rows([wide(g) for g in (fields._gx_field, fields._gy_field, fields._gz_field)], axis=-1)
+        if tuple(result.shape) != (len(points), 3):
             raise ValueError('nonfinite_or_invalid_fault_query')
+        _check(checks, result, 'nonfinite_or_invalid_fault_query')
         return values, result
 
     # Production drift rule, per fault: segmentation of its fixed-weight scalar.
@@ -139,11 +163,13 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
 
     finite_faults = {f for f in faults if rules[f][4] is not None}
 
+    device_edges = {f: device(rules[f][1]) for f in faults}
+
     def step(fault_stack, scalar):
-        """Shifted soft segmentation of the fault's scalar: the whole drift of an infinite fault."""
-        ids, edges, slope, minimum, _ = rules[fault_stack]
-        values = soft_segment_unbounded(Z=device(scalar), edges=device(edges), ids=ids, sigmoid_slope=slope)
-        return np.asarray(host(values), dtype=np.float64).reshape(-1) - minimum
+        """Shifted soft segmentation of the fault's scalar: the whole drift of an infinite fault (float64)."""
+        ids, _, slope, minimum, _ = rules[fault_stack]
+        values = soft_segment_unbounded(Z=device(scalar), edges=device_edges[fault_stack], ids=ids, sigmoid_slope=slope)
+        return wide(values).reshape(-1) - minimum
 
     def drift(fault_stack, scalar, gradients=None, points=None):
         """Production drift from the fault's scalar; finite faults also need its gradients and the points."""
@@ -152,25 +178,27 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
 
     def taper(fault_stack, scalar, gradients, points):
         finite_fault, isovalue, normal = rules[fault_stack][4]
-        return finite_fault_taper(finite_fault, np.asarray(points, dtype=np.float64), np.asarray(scalar),
-                                  tuple(np.asarray(gradients).T), isovalue, normal=normal)[0]
+        return wide(finite_fault_taper(finite_fault, host64(points), host64(scalar),
+                                       tuple(host64(gradients).T), isovalue, normal=normal)[0])
 
     reference_xyz = np.concatenate((host(private_input.grid.values), host(private_input.all_surface_points.sp_coords)))
+    reference_points = wide(reference_xyz)  # uploaded once for every fault's check
     drift_errors = []
     for fault_stack in faults:
         output = last.outputs[fault_stack].scalar_fields
         expected = host(_modify_faults_values_output(
             fault_inputs[fault_stack] or FaultsData(), copy.copy(output), reference_xyz)).reshape(-1)
         # Only a finite fault's taper needs the fault gradients.
-        scalar, gradients = evaluate_stack(fault_stack, reference_xyz, gradients=fault_stack in finite_faults)
-        rebuilt = drift(fault_stack, scalar, gradients, reference_xyz)
+        scalar, gradients = evaluate_stack(fault_stack, reference_points, gradients=fault_stack in finite_faults)
+        rebuilt = host64(drift(fault_stack, scalar, gradients, reference_points))
         tolerance = precision_tolerance(1e-10, BT.dtype)
         error = np.abs(rebuilt - expected)
         if np.isfinite(error).all() and (error > tolerance).any():
             # On the fault the steep step amplifies the rebuilt scalar's rounding (another
             # evaluation order than production): accept drifts the rule gives within it.
-            rounding = 64 * np.finfo(BT.dtype).eps * max(float(np.max(np.abs(scalar))), 1.0)
-            low, high = (drift(fault_stack, scalar + shift, gradients, reference_xyz) for shift in (-rounding, rounding))
+            rounding = 64 * np.finfo(BT.dtype).eps * max(float(np.max(np.abs(host64(scalar)))), 1.0)
+            low, high = (host64(drift(fault_stack, scalar + shift, gradients, reference_points))
+                         for shift in (-rounding, rounding))
             within = (expected >= np.minimum(low, high) - tolerance) & (expected <= np.maximum(low, high) + tolerance)
             error = np.where(within, 0.0, error)
         error = float(np.max(error))
@@ -192,7 +220,9 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         needed = sorted({f for s in stacks for f in affected_by[s]} | {s for s in stacks if s in faults})
         # Drift needs fault scalars, and a finite fault's gradients for the projection;
         # otherwise fault gradients only when a fault row is requested.
-        fault_fields = {f: evaluate_stack(f, points, gradients=(gradients and f in stacks) or f in finite_faults)
+        checks = []
+        fault_fields = {f: evaluate_stack(f, points, gradients=(gradients and f in stacks) or f in finite_faults,
+                                          checks=checks)
                         for f in needed}
         values, normals = [], []
         for s in stacks:
@@ -200,12 +230,13 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                 v, g = fault_fields[s]
                 g = g if gradients else None
             else:
-                rows = (np.stack([drift(f, *fault_fields[f], points) for f in affected_by[s]])
+                rows = (stack_rows([drift(f, *fault_fields[f], points) for f in affected_by[s]])
                         if affected_by[s] else None)
-                v, g = evaluate_stack(s, points, rows, gradients)
+                v, g = evaluate_stack(s, points, rows, gradients, checks=checks)
             values.append(v)
             normals.append(g)
-        return np.stack(values), (np.stack(normals) if gradients else None)
+        _raise_failed(checks)
+        return np.stack([host64(v) for v in values]), (np.stack([host64(g) for g in normals]) if gradients else None)
 
     # Stacked KeOps evaluation (as in FLAT stacks): one block-sparse reduction per
     # kind for stacks with identical kernel options and drift-row counts.
@@ -219,8 +250,8 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
             stacked.evaluation_options.compute_scalar, stacked.evaluation_options.compute_scalar_gradient = flags
             kind_options[kind].append(stacked)
 
-    def evaluate_many(items, kind):
-        """[(stack, points, drift_rows)] -> scalars (M,) or gradients (M, 3) per item."""
+    def evaluate_many(items, kind, checks=None):
+        """[(stack, points, drift_rows)] -> scalars (M,) or gradients (M, 3) per item (float64, active device)."""
         results = [None]*len(items)
         pending = list(range(len(items)))
         if BT.use_pykeops:
@@ -250,16 +281,17 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                     [kind_options[kind][items[i][0]] for i in members])
                 for i, field in zip(members, fields):
                     if kind == 'scalar':
-                        value = np.array(host(field._scalar_field), dtype=np.float64).reshape(-1)
+                        value = wide(field._scalar_field).reshape(-1)
                     else:
-                        value = np.stack([np.asarray(host(g), dtype=np.float64).reshape(-1)
-                                          for g in (field._gx_field, field._gy_field, field._gz_field)], axis=-1)
-                    if len(value) != len(items[i][1]) or not np.isfinite(value).all():
+                        value = stack_rows([wide(g).reshape(-1) for g in (field._gx_field, field._gy_field, field._gz_field)],
+                                           axis=-1)
+                    if len(value) != len(items[i][1]):
                         raise ValueError('nonfinite_or_invalid_fault_query')
+                    _check(checks, value, 'nonfinite_or_invalid_fault_query')
                     results[i] = value
         for i in pending:
             stack, points, rows = items[i]
-            values, gradients = evaluate_stack(stack, points, rows, gradients=kind == 'gradient')
+            values, gradients = evaluate_stack(stack, points, rows, gradients=kind == 'gradient', checks=checks)
             results[i] = values if kind == 'scalar' else gradients
         return results
 
@@ -267,11 +299,22 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         """Evaluate ``[(points, stacks, 'scalar'|'gradient')]`` together.
 
         Returns, per request, rows following its ``stacks``: (S, M) scalars or
-        (S, M, 3) gradients. With KeOps, points of all requests sharing a
+        (S, M, 3) gradients, as host NumPy float64. With KeOps, points of all requests sharing a
         (stack, kind) are merged and evaluated in stacked block-sparse reductions;
         fault scalars for the drift are evaluated first, once per fault for every
         point that needs them. Dense backends evaluate each request separately.
         """
+        return [host64(answer) for answer in query_batch_device(requests)]
+
+    def query_batch_device(requests):
+        """``query_batch`` with points and answers as float64 arrays of the active device (Torch tensors
+        on a Torch backend): no host round trip. Validation is read back once per batch."""
+        checks = []
+        answers = _query_batch(requests, checks)
+        _raise_failed(checks)
+        return answers
+
+    def _query_batch(requests, checks):
         if backend != (BT.engine_backend, BT.dtype, BT.use_gpu, BT.use_pykeops, BT.COMPUTE_GRADS):
             raise RuntimeError('fault sampler backend changed after preparation')
         groups = {}  # (stack, kind) -> [(request, row, points)]
@@ -282,20 +325,23 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
             if not stacks or any(not isinstance(i, (int, np.integer)) or isinstance(i, bool)
                                  or not 0 <= i < n_stacks for i in stacks):
                 raise ValueError('invalid_query_stacks: nonempty in-bounds stack indices required')
-            points = np.array(points, dtype=np.float64, copy=True)
-            if points.ndim != 2 or points.shape[1] != 3 or not np.isfinite(points).all():
+            points = wide(points) if _is_tensor(points) else np.array(points, dtype=np.float64, copy=True)
+            if points.ndim != 2 or points.shape[1] != 3:
                 raise ValueError('invalid_query_points: finite (M, 3) coordinates required')
+            _check(checks, points, 'invalid_query_points: finite (M, 3) coordinates required')
+            points = wide(points)
             for row, stack in enumerate(stacks):
                 groups.setdefault((int(stack), kind), []).append((r, row, points))
         if not BT.use_pykeops:
             # Dense evaluators gain nothing from merging (larger merged batches only
             # cross the evaluator chunk size); answer each request on its own.
+            _raise_failed(checks)
             answers = []
             for points, stacks, kind in requests:
-                values, gradients = query(points, stacks=stacks, gradients=kind == 'gradient')
-                answers.append(values if kind == 'scalar' else gradients)
+                values, gradients = query(host64(points), stacks=stacks, gradients=kind == 'gradient')
+                answers.append(wide(values if kind == 'scalar' else gradients))
             return answers
-        merged = {key: np.concatenate([p for _, _, p in members]) for key, members in groups.items()}
+        merged = {key: concatenate([p for _, _, p in members]) for key, members in groups.items()}
         # Phase 1: every fault scalar needed, by drift or by request, in one pass.
         fault_parts = {f: [] for f in faults}
         for (stack, kind), points in merged.items():
@@ -303,12 +349,12 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                 fault_parts[f].append(((stack, kind), points))
             if stack in faults and kind == 'scalar':
                 fault_parts[stack].append(((stack, kind), points))
-        fault_items = [(f, np.concatenate([p for _, p in parts])) for f, parts in fault_parts.items() if parts]
+        fault_items = [(f, concatenate([p for _, p in parts])) for f, parts in fault_parts.items() if parts]
         fault_scalars = dict(zip([f for f, _ in fault_items],
-                                 evaluate_many([(f, pts, None) for f, pts in fault_items], 'scalar')))
+                                 evaluate_many([(f, pts, None) for f, pts in fault_items], 'scalar', checks)))
         finite_items = [(f, pts) for f, pts in fault_items if f in finite_faults]
         fault_gradients = dict(zip([f for f, _ in finite_items],
-                                   evaluate_many([(f, pts, None) for f, pts in finite_items], 'gradient')))
+                                   evaluate_many([(f, pts, None) for f, pts in finite_items], 'gradient', checks)))
         fault_slices = {}
         for f, parts in fault_parts.items():
             offset = 0
@@ -329,17 +375,17 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                         rows.append(drift(f, fault_scalars[f][part],
                                           fault_gradients[f][part] if f in finite_faults else None,
                                           merged[(stack, kind)]))
-                    rows = np.stack(rows)
+                    rows = stack_rows(rows)
                 items.append((stack, merged[(stack, kind)], rows))
-            evaluated.update(zip(keys, evaluate_many(items, kind)))
+            evaluated.update(zip(keys, evaluate_many(items, kind, checks)))
         for f in faults:
             if (f, 'scalar') in merged:
                 evaluated[(f, 'scalar')] = fault_scalars[f][fault_slices[(f, (f, 'scalar'))]]
         results = []
         for points, stacks, kind in requests:
-            n_points = len(np.asarray(points).reshape(-1, 3))
+            n_points = points.reshape(-1, 3).shape[0] if _is_tensor(points) else len(np.asarray(points).reshape(-1, 3))
             shape = (len(tuple(stacks)), n_points) + ((3,) if kind == 'gradient' else ())
-            results.append(np.empty(shape))
+            results.append(torch.empty(shape, dtype=torch.float64, device=BT.device) if on_device else np.empty(shape))
         offsets = {key: 0 for key in groups}
         for key, members in groups.items():
             for r, row, points in members:
@@ -381,7 +427,8 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         if not len(points):
             return np.empty((len(stacks), 0))
         used = sorted({f for s in stacks for f in affected_by[s]} & finite_faults)
-        tapers = {f: taper(f, *evaluate_stack(f, points), points) for f in used}
+        checks = []
+        tapers = {f: host64(taper(f, *evaluate_stack(f, points, checks=checks), points)) for f in used}
         items = []
         for s in stacks:
             rows = None
@@ -389,11 +436,14 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                 rows = np.stack([np.where(sides[faults.index(f)] > 0, *plateaus[f][::-1]) * tapers.get(f, 1.)
                                  for f in affected_by[s]])
             items.append((int(s), points, rows))
-        return np.stack(evaluate_many(items, 'scalar'))
+        values = evaluate_many(items, 'scalar', checks)
+        _raise_failed(checks)
+        return np.stack([host64(v) for v in values])
 
     inspection = copy.deepcopy(snapshots)
     freeze_arrays(inspection)
     return dict(fault_stacks=faults, affected_by=affected_by, query=query, query_batch=query_batch,
+                query_batch_device=query_batch_device,
                 query_sides=query_sides, drift_plateaus=plateaus, snapshots=inspection,
                 diagnostics=dict(backend=f"{BT.engine_backend.name}_{'cuda' if BT.use_gpu else 'cpu'}_{BT.dtype}"
                                          f"{'_keops' if BT.use_pykeops else ''}", fixed_weights=True,
@@ -404,6 +454,32 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                                  external_stacks=tuple(sorted(external)),
                                  reference_grid_size=grid_size, surface_level=len(octree_list) - 1,
                                  field_contract='raw_stack_values_and_actual_kernel_gradients'))
+
+
+def _is_tensor(values) -> bool:
+    return hasattr(values, 'detach')
+
+
+def _check(checks, values, message):
+    """Finiteness of ``values``: appended to ``checks`` (read back together by ``_raise_failed``), or at once."""
+    finite = values.isfinite().all() if _is_tensor(values) else np.isfinite(values).all()
+    if checks is None:
+        if not bool(finite):
+            raise ValueError(message)
+    else:
+        checks.append((finite, message))
+
+
+def _raise_failed(checks):
+    """Raise the first failed check, in order, after one read of all flags."""
+    if not checks:
+        return
+    flags = [flag for flag, _ in checks]
+    failed = (host(BT.t.stack([BT.t.array(f) if not _is_tensor(f) else f for f in flags]))
+              if any(_is_tensor(f) for f in flags) else np.asarray(flags))
+    for (_, message), ok in zip(checks, failed):
+        if not ok:
+            raise ValueError(message)
 
 
 def _reference_minimum(level_output):

@@ -27,6 +27,7 @@ from ...modules.dual_contouring.joint_balance import balance_joint_leaves
 from ...modules.dual_contouring.joint_cell_complex import adaptive_complex_arrays
 from ...modules.dual_contouring.joint_xp import extraction_namespace, host
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
+from ...modules.dual_contouring.joint_field_queries import _unique_rows
 from ...modules.dual_contouring.joint_lattice import lattice_frame, precision_tolerance
 from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
 
@@ -282,19 +283,23 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
               for output in octree_list[0].outputs]
     sampler = prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree_list)
 
+    xp = extraction_namespace()
+
     def field_query(requests):
         # One stacked sampler batch: only the requested surfaces' stacks, each
-        # request's unique points once.
+        # request's unique points once (sorted rows, as np.unique(axis=0)), on the extraction device.
         prepared = []
         for points, surfaces, kind in requests:
-            unique, inverse = np.unique(np.asarray(host(points), dtype=np.float64).reshape(-1, 3), axis=0,
-                                        return_inverse=True)
+            unique, inverse = _unique_rows(xp.asarray(points, dtype=np.float64).reshape(-1, 3), xp)
             stacks_needed = sorted(set(groups[surfaces].tolist()))
-            prepared.append((unique, stacks_needed, kind, np.searchsorted(stacks_needed, groups[surfaces]),
-                             inverse.reshape(-1)))
-        answers = sampler["query_batch"]([(unique, stacks_needed, kind)
-                                          for unique, stacks_needed, kind, _, _ in prepared])
-        return [answer[rows][:, inverse] for answer, (_, _, _, rows, inverse) in zip(answers, prepared)]
+            rows = xp.asarray(np.searchsorted(stacks_needed, groups[surfaces]))
+            prepared.append((unique, stacks_needed, kind, rows, inverse))
+        answers = sampler["query_batch_device"]([(unique, stacks_needed, kind)
+                                                 for unique, stacks_needed, kind, _, _ in prepared])
+        return [xp.asarray(answer, dtype=np.float64)[rows][:, inverse]
+                for answer, (_, _, _, rows, inverse) in zip(answers, prepared)]
+
+    field_query.device_native = True
 
     def sample_fields(points):
         raise ValueError("unexpected_full_field_query: joint_contacts uses targeted field queries")
