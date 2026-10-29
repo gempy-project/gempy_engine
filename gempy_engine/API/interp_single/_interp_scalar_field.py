@@ -144,13 +144,21 @@ def _deduplicate_corners(eval_input: SolverInput | EvaluatorInput, grid: EngineG
     coordinates = (grid.octree_grid.integer_coordinates[:, None, :] + offsets).reshape(-1, 3)
     if len(coordinates) != len(corners):
         return eval_input, None
+    # Pack (x, y, z) into one int64 key: row-wise unique (dim=0/axis=0) is ~100x slower than 1D unique.
+    # Row-major packing preserves lexicographic order, so unique/inverse match the row-wise result.
     if BackendTensor.engine_backend == gempy_engine.config.AvailableBackends.PYTORCH:
         import torch
-        unique, inverse = torch.unique(coordinates, dim=0, return_inverse=True)
+        shifted = coordinates - coordinates.min(dim=0).values
+        extent = shifted.max(dim=0).values + 1
+        keys = (shifted[:, 0] * extent[1] + shifted[:, 1]) * extent[2] + shifted[:, 2]
+        unique, inverse = torch.unique(keys, return_inverse=True)
         first = torch.full((len(unique),), len(corners), dtype=torch.int64, device=coordinates.device)
         first.scatter_reduce_(0, inverse, torch.arange(len(corners), device=coordinates.device), reduce='amin')
     else:
-        _, first, inverse = np.unique(coordinates, axis=0, return_index=True, return_inverse=True)
+        shifted = coordinates - coordinates.min(axis=0)
+        extent = shifted.max(axis=0) + 1
+        keys = (shifted[:, 0] * extent[1] + shifted[:, 1]) * extent[2] + shifted[:, 2]
+        _, first, inverse = np.unique(keys, return_index=True, return_inverse=True)
     if len(first) == len(corners):
         return eval_input, None
 
