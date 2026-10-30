@@ -150,7 +150,7 @@ class InterpOutput:
         faults_ids = BackendTensor.t.rint(self.faults_block[self.grid.corners_grid_slice])
 
         # Get the number of unique lithology IDs
-        multiplier = len(BackendTensor.t.unique(litho_ids))
+        multiplier = _distinct_count(litho_ids)
 
         # Generate the unique IDs
         unique_ids = litho_ids + faults_ids * multiplier
@@ -183,3 +183,11 @@ class InterpOutput:
                 block = BackendTensor.t.to_numpy(block)
 
         return block[slice_]
+
+
+def _distinct_count(values):
+    """``len(unique(values))``; for a tensor as a device scalar, without the host read that ``unique`` needs."""
+    if isinstance(values, np.ndarray):
+        return len(np.unique(values))
+    ordered = values.reshape(-1).sort().values
+    return (ordered[1:] != ordered[:-1]).sum() + (ordered.numel() > 0)

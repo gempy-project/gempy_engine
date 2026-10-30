@@ -60,7 +60,7 @@ class RegularGrid:
 
     @classmethod
     def from_octree_level(cls, xyz_coords_octree: np.ndarray, previous_regular_grid: "RegularGrid",
-                          active_cells: np.ndarray, left_right: np.ndarray) -> "RegularGrid":
+                          active_cells: np.ndarray, left_right: np.ndarray, active_index=None) -> "RegularGrid":
        
         # Octree levels only hold their active cells: skip the dense grid of the doubled shape
         # (and its copy) that __post_init__ would build and that ``values`` replaces.
@@ -75,7 +75,8 @@ class RegularGrid:
         regular_grid_for_octree_level._active_cells = active_cells
         regular_grid_for_octree_level.left_right = left_right
         regular_grid_for_octree_level._integer_coordinates = (
-            2 * BackendTensor.tfnp.repeat(previous_regular_grid.integer_coordinates[active_cells], 8, axis=0)
+            2 * BackendTensor.tfnp.repeat(previous_regular_grid.integer_coordinates[
+                active_cells if active_index is None else active_index], 8, axis=0)
             + BackendTensor.t.array(left_right, dtype='int64')
         )
 

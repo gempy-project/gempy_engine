@@ -24,7 +24,7 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, evaluation_options: 
     uv_8 = ids.reshape((-1, 8))
 
     # Old octree
-    shift_select_xyz, voxel_select = _mark_voxel(uv_8)
+    voxel_select = _marked_voxels(uv_8)
 
     additional_voxel_selected_to_refinement = _additional_refinement_tests(
         voxel_select=voxel_select,
@@ -61,9 +61,15 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, evaluation_options: 
             ids=prev_octree.id_block
         )
 
+    # The diagnostics' counts come from one device read, which also sizes the active cells' index.
+    diagnostics = debug or DEBUG_MODE or evaluation_options.verbose
+    counts = (_host_counts(primary_mask, surface_mask, additional_voxel_selected_to_refinement, support_mask,
+                           voxel_select) if diagnostics else None)
+    active_index = _active_index(voxel_select, counts[-1] if counts else None)
+
     # New Octree
     dxdydz = prev_octree.dxdydz
-    xyz_anchor = prev_octree.grid.octree_grid.values[voxel_select]
+    xyz_anchor = prev_octree.grid.octree_grid.values[active_index]
     xyz_coords, bool_idx = _generate_next_level_centers(xyz_anchor, dxdydz, level=1)
 
     grid_next_centers = EngineGrid(
@@ -71,12 +77,13 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, evaluation_options: 
             xyz_coords_octree=xyz_coords,
             previous_regular_grid=prev_octree.grid.octree_grid,
             active_cells=voxel_select,
-            left_right=bool_idx
+            left_right=bool_idx,
+            active_index=active_index
         ),
     )
 
-    if debug or DEBUG_MODE or evaluation_options.verbose:
-        primary_count = int(primary_mask.sum())
+    if diagnostics:
+        primary_count, surface_count, additional_count, support_count, final_count = counts
         minimum_level = current_octree_level < evaluation_options.octree_min_level
         child_grid = grid_next_centers.octree_grid
         grid_next_centers.octree_grid.refinement_debug = dict(
@@ -84,13 +91,13 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, evaluation_options: 
             additional_refinement_mask=additional_voxel_selected_to_refinement,
             support_only_mask=support_mask,
             current_cell_count=len(primary_mask),
-            primary_surface_count=int(surface_mask.sum()),
-            additional_refinement_count=int(additional_voxel_selected_to_refinement.sum()),
+            primary_surface_count=surface_count,
+            additional_refinement_count=additional_count,
             minimum_level_count=len(primary_mask) if minimum_level else 0,
-            curvature_count=0 if minimum_level else int(additional_voxel_selected_to_refinement.sum()),
-            support_only_count=int(support_mask.sum()),
-            final_refinement_count=int(voxel_select.sum()),
-            closure_multiplier=int(voxel_select.sum()) / primary_count if primary_count else 1.0,
+            curvature_count=0 if minimum_level else additional_count,
+            support_only_count=support_count,
+            final_refinement_count=final_count,
+            closure_multiplier=final_count / primary_count if primary_count else 1.0,
             missing_current_neighbor_count=missing_count,
             generated_child_count=len(xyz_coords),
         )
@@ -99,6 +106,7 @@ def compute_next_octree_locations(prev_octree: OctreeLevel, evaluation_options: 
                 _duplicate_corner_count(child_grid.integer_coordinates)
 
     if True:
+        shift_select_xyz = _mark_voxel(uv_8)[0] if DEBUG_MODE else None
         grid_next_centers.debug_vals = (xyz_coords, xyz_anchor, shift_select_xyz, bool_idx, voxel_select, grid_next_centers)
         return grid_next_centers  # TODO: This is going to break the tests that were using this
     else:
@@ -125,6 +133,28 @@ def _duplicate_corner_count(integer_coordinates) -> int:
             present[codes + offset] = True
         return stored - int(np.count_nonzero(present))
     return stored - len(np.unique((codes[:, None] + np.array(offsets)).reshape(-1)))
+
+def _marked_voxels(uv_8):
+    """Cells whose 8 corner ids are not all equal: the cells ``_mark_voxel`` selects, since its 12
+    edges connect all corners."""
+    return (uv_8 != uv_8[:, :1]).any(1)
+
+
+def _host_counts(*masks) -> list[int]:
+    """The number of selected cells of each mask, from one device read."""
+    t = BackendTensor.t
+    return [int(n) for n in t.to_numpy(t.stack([mask.sum() for mask in masks]))]
+
+
+def _active_index(mask, count=None):
+    """Positions of the selected cells; with a known ``count`` without reading the mask back."""
+    if isinstance(mask, np.ndarray):
+        return np.flatnonzero(mask)
+    import torch
+    if count is not None:
+        return torch.nonzero_static(mask, size=count).reshape(-1)
+    return torch.nonzero(mask).reshape(-1)
+
 
 def _mark_voxel(uv_8):
     list_ixd_select = []
