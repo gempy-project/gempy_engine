@@ -33,6 +33,7 @@ from ...modules.data_preprocess._input_preparation import chunk_preprocess
 from ...modules.data_preprocess import data_preprocess_interface
 from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
 from ...modules.kernel_constructor.stacked_covariance import MAX_STACKED_SIZE, covariance_size, stacked_covariances
+from ...modules.solver import host_fit
 from ...modules.solver.interpolation_solver import pykeops_solver_requested
 from ...modules.weights_cache.weight_cache_policy import fingerprint_needed, prefetch_fingerprints
 
@@ -488,6 +489,8 @@ def _compute_weights_for_stacks(
                                in zip(solver_inputs, caches, map(_options, range(len(stack_indices))))
                                if cache is not None and (cache.weights is None or checking())
                                and fingerprint_needed(options_i)])
+        _prefit_on_host(solver_inputs, interpolation_inputs, tensor_structs,
+                        [_options(idx) for idx in range(len(stack_indices))], caches)
         _prebuild_covariances(solver_inputs, [_options(idx) for idx in range(len(stack_indices))], caches)
         return [_solve_weights(solver_inputs[idx], global_i, _options(idx), caches[idx])
                 for idx, global_i in enumerate(stack_indices)]
@@ -521,6 +524,25 @@ def _solve_weights(solver_input: SolverInput_v2, global_i: int, options_i: Inter
     return solver_input
 
 
+def _prefit_on_host(solver_inputs: list, interpolation_inputs: list, tensor_structs: list,
+                    options_per_stack: list[InterpolationOptions], caches: list[StackCache | None]) -> None:
+    """Fit the chunk's stacks that still need a solve on the host (``host_fit``, when enabled) and leave
+    their weights in their stack caches, where the solve takes them."""
+    dtype = host_fit.host_fit_dtype()
+    if dtype is None or checking():
+        return
+    members, targets = [], []
+    for solver_input, interpolation_input, tensor_struct, options_i, cache in zip(
+            solver_inputs, interpolation_inputs, tensor_structs, options_per_stack, caches):
+        if cache is None or cache.weights is not None or not host_fit.eligible(solver_input, options_i.kernel_options, tensor_struct):
+            continue
+        members.append((solver_input, interpolation_input, options_i.kernel_options, tensor_struct))
+        targets.append(cache)
+    if members:
+        for cache, weights in zip(targets, host_fit.fit_chunk(members, dtype)):
+            cache.host_weights = weights
+
+
 def _prebuild_covariances(solver_inputs: list, options_per_stack: list[InterpolationOptions],
                           caches: list[StackCache | None]) -> None:
     """Build the dense covariances of the stacks that still need a solve together (``stacked_covariances``)
@@ -535,7 +557,7 @@ def _prebuild_covariances(solver_inputs: list, options_per_stack: list[Interpola
     groups: dict[tuple, list] = {}
     for solver_input, options_i, cache in zip(solver_inputs, options_per_stack, caches):
         kernel_options = options_i.kernel_options
-        if (cache is None or (cache.weights is not None and not checking())
+        if (cache is None or (cache.weights is not None and not checking()) or cache.host_weights is not None
                 or kernel_options.optimizing_condition_number):
             continue
         key = (options_key(kernel_options), solver_input.fault_internal.n_faults)

@@ -6,11 +6,13 @@ from numpy import dtype, ndarray
 
 import gempy_engine.config
 from ...core.backend_tensor import BackendTensor
+from ...core.compute_scope import stack_cache_of
 from ...core.data.engine_grid import EngineGrid
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.internal_structs import SolverInput, SolverInput_v2, EvaluatorInput
 from ...core.data.options import KernelOptions, InterpolationOptions
 from ...modules.evaluator.generic_evaluator import generic_evaluator
+from ...modules.kernel_constructor.execution_mode import KernelExecutionMode
 from ...modules.evaluator.symbolic_evaluator import symbolic_evaluator
 from ...modules.kernel_constructor.drift_design import (
     analyze_drift_design,
@@ -85,6 +87,11 @@ def _solve_interpolation_result(
         n_faults=interp_input.fault_internal.n_faults,
         pykeops_requested=pykeops_requested,
     )
+    cache = stack_cache_of(interp_input)
+    if cache is not None and cache.host_weights is not None:  # fitted with the chunk on the host (host_fit)
+        weights, cache.host_weights = cache.host_weights, None
+        return InterpolationSolveResult(route=route, execution_mode=KernelExecutionMode.DENSE, system=None,
+                                        solver_weights=weights, weights=weights, normalized_residual=None)
     match route:
         case InterpolationSolveRoute.DENSE_UNTRANSFORMED:
             result = solve_dense_untransformed(interp_input, kernel_options)
