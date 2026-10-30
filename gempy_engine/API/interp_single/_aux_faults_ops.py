@@ -1,6 +1,7 @@
 import numpy as np
 
 from gempy_engine.core.backend_tensor import BackendTensor
+from gempy_engine.core.compute_scope import scope_cache
 from gempy_engine.core.host_arrays import upload
 from gempy_engine.config import include_raw_scalar_fields
 from gempy_engine.core.data.kernel_classes.faults import FaultsData
@@ -14,11 +15,22 @@ def _grab_stack_fault_data(_all_stack_values_block, _interpolation_input_i, _sta
     relations = _stack_structure.active_faults_relations
     if isinstance(relations, np.ndarray) and relations.dtype == bool and not isinstance(_all_stack_values_block, np.ndarray):
         # Row indices instead of a host boolean mask: no mask upload and no nonzero read-back.
-        relations = upload(np.flatnonzero(relations))
+        relations = _relation_rows(relations)
     fault_data.fault_values_everywhere = _all_stack_values_block[relations]
     fv_on_all_sp = fault_data.fault_values_everywhere[:, grid_size:_interpolation_input_i.macro_reference_size]
     fault_data.fault_values_on_sp = fv_on_all_sp[:, _interpolation_input_i.slice_feature]
     return fault_data
+
+def _relation_rows(relations: np.ndarray):
+    """The rows of ``relations`` as a device index; within a compute uploaded once per pattern, not at every level."""
+    shared = scope_cache()
+    if shared is None:
+        return upload(np.flatnonzero(relations))
+    key = ("fault_relation_rows", relations.shape, relations.tobytes())
+    if key not in shared:
+        shared[key] = upload(np.flatnonzero(relations))
+    return shared[key]
+
 
 def _options_with_finite_fault_gradients(
         options: InterpolationOptions,

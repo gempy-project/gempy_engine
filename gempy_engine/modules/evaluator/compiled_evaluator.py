@@ -228,7 +228,7 @@ def compiled_stacked_evaluation(eval_inputs, weights_list, options_list, caches,
 
     block_sizes = [eval_inputs[idx].xyz_to_interpolate.shape[0] for idx, _ in blocks]
     weight_sizes = [weights_list[idx].shape[0] for idx, _ in blocks]
-    counts = upload(np.asarray(block_sizes, dtype=np.int64))
+    counts, ranges = _block_indices(block_sizes, weight_sizes)
     values = {}
     for name in order:
         if name == "grid":
@@ -240,9 +240,23 @@ def compiled_stacked_evaluation(eval_inputs, weights_list, options_list, caches,
             values[name] = torch.cat([weights_list[idx] for idx, _ in blocks]).reshape(-1, 1)
         else:
             values[name] = torch.repeat_interleave(rows[name], counts, dim=0, output_size=sum(block_sizes))
-    from .symbolic_evaluator import _build_block_sparse_ranges
-    ranges = _build_block_sparse_ranges(block_sizes, weight_sizes)
     return reduction(*[values[name] for name in order], *data_arguments, ranges=ranges).reshape(-1), block_sizes
+
+
+def _block_indices(block_sizes: list[int], weight_sizes: list[int]):
+    """The blocks' repeat counts and PyKeOps block-sparse ranges from one host copy.
+
+    The same values as ``_build_block_sparse_ranges`` (int32): ranges ``(i, slices, j, j, slices, i)``
+    with the i side over the weights and the j side over the grids; the counts are the grid sizes.
+    """
+    n = len(block_sizes)
+    keep_i = np.cumsum([0] + weight_sizes)
+    keep_j = np.cumsum([0] + block_sizes)
+    host = np.concatenate([block_sizes, np.stack([keep_i[:-1], keep_i[1:]], axis=1).reshape(-1),
+                           np.arange(1, n + 1), np.stack([keep_j[:-1], keep_j[1:]], axis=1).reshape(-1)])
+    counts, ranges_i, slices, ranges_j = upload(host.astype(np.int32)).split([n, 2 * n, n, 2 * n])
+    ranges_i, ranges_j = ranges_i.view(n, 2), ranges_j.view(n, 2)
+    return counts, (ranges_i, slices, ranges_j, ranges_j, slices, ranges_i)
 
 
 def _compile_stacked(eval_inputs, options_list, blocks, n_faults, backend):
