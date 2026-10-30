@@ -112,6 +112,7 @@ def _cuda_available():
 def test_fused_kernels_on_cuda(monkeypatch):
     if not _cuda_available():
         pytest.skip("no CUDA device")
+    BackendTensor._change_backend(AvailableBackends.PYTORCH, use_gpu=True)
     _check_segmentation("cuda")
     _check_combination("cuda", monkeypatch)
 
