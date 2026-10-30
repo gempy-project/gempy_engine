@@ -5,6 +5,8 @@ are module functions; this file samples fields, solves the production QEFs and
 passes data between them.
 """
 
+from itertools import repeat
+
 import numpy as np
 
 from ...config import AvailableBackends
@@ -478,18 +480,17 @@ def _key_order(vertex_ids, joint_start, leaves, identities, origins, spans, junc
 
 def _vertex_keys(vertex_ids, joint_start, leaves, identities, origins, spans, junctions, junction_cells):
     """Public symbolic keys ``(kind, identities, leaf origin, leaf span, 0)`` of ``vertex_ids``."""
-    keys = []
     joint = vertex_ids >= joint_start
     origin_rows = origins[vertex_ids % leaves].astype(np.int64).tolist()
     span_rows = spans[vertex_ids % leaves].astype(np.int64).tolist()
-    surfaces = (vertex_ids // leaves).tolist()
+    # Surface index of regular vertices (junction rows are replaced below).
+    surfaces = np.minimum(vertex_ids // leaves, len(identities) - 1).tolist()
+    single = [(identity,) for identity in identities]
     with _paused_gc():
-        for v, is_joint, s, origin, span in zip(vertex_ids.tolist(), joint.tolist(), surfaces, origin_rows,
-                                                span_rows):
-            if is_joint:
-                keys.append(junctions[int(junction_cells[v-joint_start])]['key'])
-            else:
-                keys.append(('regular', (identities[s],), tuple(origin), span, 0))
+        keys = list(zip(repeat('regular'), map(single.__getitem__, surfaces), map(tuple, origin_rows), span_rows,
+                        repeat(0)))
+        for row in np.flatnonzero(joint).tolist():
+            keys[row] = junctions[int(junction_cells[int(vertex_ids[row])-joint_start])]['key']
     return keys
 
 
