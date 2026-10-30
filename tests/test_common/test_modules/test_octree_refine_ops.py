@@ -8,7 +8,7 @@ from gempy_engine.core.data.interp_output import _distinct_count
 from gempy_engine.core.data.regular_grid import RegularGrid
 from gempy_engine.modules.octrees_topology._octree_common import _cell_children, _generate_next_level_centers
 from gempy_engine.modules.octrees_topology._octree_internals import (
-    _active_index, _host_counts, _mark_voxel, _marked_voxels)
+    _active_index, _edge_shifts, _host_counts, _mark_voxel)
 
 
 @pytest.fixture(params=["numpy", "pytorch"])
@@ -62,7 +62,10 @@ def test_marked_voxels_match_edge_marking(backend):
     ids[::3] = ids[::3, :1]  # uniform cells
     ids[1::7, 5] = np.nan
     uv_8 = BackendTensor.t.array(ids)
-    assert _equal(_marked_voxels(uv_8), _mark_voxel(uv_8)[1])
+    edge_marked = BackendTensor.t.to_numpy(_edge_shifts(uv_8)).any(axis=(0, 2))
+    shifts, marked = _mark_voxel(uv_8)
+    assert shifts is None
+    np.testing.assert_array_equal(BackendTensor.t.to_numpy(marked), edge_marked)
 
 
 def test_distinct_count_matches_unique(backend):
