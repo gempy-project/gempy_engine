@@ -3,6 +3,7 @@ import warnings
 from dataclasses import dataclass
 from enum import Enum, auto
 
+import gempy_engine.config
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.compute_scope import assert_same, checking, stack_cache_of
@@ -279,9 +280,10 @@ def _solve_system(
         return None
 
     weights = system.restore_weights(solver_weights)
+    # Only the debug dump reads it, and it reads three norms back to the host.
     residual = (
         normalized_residual(system.physical_matrix, system.physical_rhs, weights)
-        if execution_mode is KernelExecutionMode.DENSE
+        if execution_mode is KernelExecutionMode.DENSE and gempy_engine.config.DEBUG_MODE
         else None
     )
     _record_condition_numbers(kernel_options, system, execution_mode)

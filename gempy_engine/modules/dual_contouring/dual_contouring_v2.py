@@ -21,10 +21,7 @@ def compute_dual_contouring_v2(dc_data_list: list[DualContouringData], max_worke
     # --- PYTORCH BUG WORKAROUND ---
     # Force the lazy initialization of the linalg module on the main thread 
     # to prevent race conditions during parallel voxel processing.
-    if BackendTensor.engine_backend == AvailableBackends.PYTORCH and BackendTensor.use_gpu:
-        import torch
-        _dummy_matrix = torch.ones((1, 1), device=BackendTensor.device, dtype=BackendTensor.dtype_obj)
-        _ = torch.linalg.inv(_dummy_matrix)
+    BackendTensor.initialize_linalg()
 
     if os.getenv("DUAL_CONTOURING_MULTITHREAD", "False") == "True":
         # Use ThreadPoolExecutor to parallelize surface processing

@@ -47,6 +47,7 @@ class BackendTensor:
     t: numpy  # Alias for the tensor backend pointer
 
     COMPUTE_GRADS: bool = False
+    _linalg_ready: set = set()  # devices whose lazy torch.linalg initialization already ran
 
     @classmethod
     def get_backend_string(cls) -> str:
@@ -184,6 +185,15 @@ class BackendTensor:
         print(f"\n Using {cls.engine_backend} backend. \n")
         print(f"\n Using gpu: {cls.use_gpu}. \n")
         print(f"\n Using pykeops: {cls.pykeops_enabled}. \n")
+
+    @classmethod
+    def initialize_linalg(cls):
+        """Run PyTorch's lazy ``torch.linalg`` initialization on the calling thread, once per device and
+        process: it races when first reached from several worker threads. A no-op off the GPU."""
+        if cls.engine_backend != AvailableBackends.PYTORCH or not cls.use_gpu or str(cls.device) in cls._linalg_ready:
+            return
+        torch.linalg.inv(torch.ones((1, 1), device=cls.device, dtype=cls.dtype_obj))
+        cls._linalg_ready.add(str(cls.device))
 
     @classmethod
     def arange(cls, stop, *, dtype=None):

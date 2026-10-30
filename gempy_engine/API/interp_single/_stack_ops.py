@@ -57,10 +57,7 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
     chunk_tensor_structs: list[TensorsStructure] = []
     chunk_options: list[InterpolationOptions] = []
 
-    if BackendTensor.engine_backend == AvailableBackends.PYTORCH and BackendTensor.use_gpu:
-        import torch
-        _dummy_matrix = torch.ones((1, 1), device=BackendTensor.device, dtype=BackendTensor.dtype_obj)
-        _ = torch.linalg.inv(_dummy_matrix)
+    BackendTensor.initialize_linalg()
 
     for i in chunk:
         state.stack_structure.stack_number = i
