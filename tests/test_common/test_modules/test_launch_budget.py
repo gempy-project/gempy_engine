@@ -59,12 +59,17 @@ def _count(monkeypatch):
     return counter.ops, reductions
 
 
-def test_keops_formulas_are_built_once_per_stack(monkeypatch):
+@pytest.mark.parametrize("formula_cache", [True, False])
+def test_keops_formulas_are_built_once_per_stack(monkeypatch, formula_cache):
+    from gempy_engine.modules.evaluator.compiled_evaluator import clear_formula_cache
+    monkeypatch.setenv("GEMPY_FORMULA_CACHE", str(formula_cache))
+    clear_formula_cache()
     _, reductions = _count(monkeypatch)
-    # Each stack's evaluation is built once per compute and called at every level: the micro stack's
-    # (field and gradient in one reduction) and the fault stack's stacked (fused) one. The micro
-    # correction is still built per level.
-    assert len(reductions) == 2 + N_LEVELS
+    # Each stack's evaluation is built once and called at every level: the micro stack's (field and
+    # gradient in one reduction) and the fault stack's stacked (fused) one. With the formula cache the
+    # warm-up compute built them and the measured compute reuses them; without it they are built once
+    # per compute. The micro correction is still built per level.
+    assert len(reductions) == (0 if formula_cache else 2) + N_LEVELS
     assert sum(reductions) == 0  # float constants travel in one packed parameter per reduction
 
 

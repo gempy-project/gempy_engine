@@ -3,12 +3,23 @@
 The KeOps formula of a stack's evaluation (scalar field and gradient) is the same at every octree
 level and in every extraction query: only the evaluation points, the fault values on them and the
 weights change. ``compiled_evaluation`` builds the reduction once with those three as symbolic
-KeOps variables, the grid-independent data side as concrete tensors, and keeps it in the stack
-cache; later evaluations just call it. Same formula and same inputs as building it per call, so the
-results are the same.
+KeOps variables and keeps it in the stack cache; later evaluations just call it.
+
+The grid-independent data side (surface points, orientations, drift and selector vectors) is passed
+as call arguments too: every data tensor is a symbolic variable of the category and dimension the
+tensor itself would have had (one per tensor, as before). The traced formula then depends only on the
+model's structure (kernel options, kernel kind, number of faults, the data's layout), and
+``_formula`` keeps it for the process: a later compute of the same structure, e.g. after moving or
+adding points, skips the trace. A formula that would still hold a data tensor is never kept beyond
+its compute. ``GEMPY_CHECK_COMPUTE_CACHE`` traces again and compares; ``GEMPY_FORMULA_CACHE=False``
+traces in every compute.
 """
 import copy
+import os
 import re
+import threading
+from collections import OrderedDict
+from dataclasses import asdict
 
 import numpy as np
 
@@ -20,6 +31,7 @@ from ..kernel_constructor._structs import (KernelInput, OrientationSurfacePoints
 from ..kernel_constructor._vectors_preparation import _evaluation_data_side
 from ..kernel_constructor.execution_mode import KernelExecutionMode
 from ...core.backend_tensor import BackendTensor
+from ...core.compute_scope import checking
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.matrices_sizes import MatricesSizes
 from ...core.host_arrays import upload
@@ -33,40 +45,130 @@ def compiled_evaluation(solver_input, weights, options, cache) -> ExportedFields
         raise ValueError("Number of dimensions have to be 2 or 3")
     backend = "GPU" if BackendTensor.use_gpu else "CPU"
     key = ("evaluation", gradient, options.number_dimensions, n_faults, backend)
-    reduction = cache.compiled.get(key)
-    if reduction is None:
-        reduction = cache.compiled[key] = _compile(solver_input, options, n_faults, gradient, backend)
+    entry = cache.compiled.get(key)
+    if entry is None:
+        entry = cache.compiled[key] = _compile(solver_input, options, n_faults, gradient, backend)
+    reduction, call_kept, data_arguments = entry
 
     args = [solver_input.xyz_to_interpolate.contiguous()]
     if n_faults:
         args.append(BackendTensor.t.ascontiguousarray(faults.fault_values_everywhere.T))
     args.append(weights.reshape(-1, 1))
     n_outputs = 1 + (options.number_dimensions if gradient else 0)
-    fields = reduction(*args).reshape(-1, n_outputs)
+    fields = reduction(*[args[index] for index in call_kept], *data_arguments).reshape(-1, n_outputs)
     columns = [fields[:, k].contiguous() for k in range(n_outputs)]
     return ExportedFields(columns[0], *(columns[1:] + [None] * (4 - n_outputs)))
 
 
 def _compile(solver_input, options, n_faults, gradient, backend):
+    """(reduction, call variables kept, data arguments): the reduction takes the kept ones of (grid,
+    faults, weights), then the data arguments."""
     from pykeops.torch import LazyTensor
+    n_call = 3 if n_faults else 2
     grid = LazyTensor((0, options.number_dimensions, 1))
     faults = LazyTensor((1, n_faults, 1)) if n_faults else None
-    weights = LazyTensor((2 if n_faults else 1, 1, 0))
-    distance_buffer, distance_key = (DistancesBuffer(), object()) if gradient else (None, None)
+    weights = LazyTensor((n_call - 1, 1, 0))
+    symbols = _DataSymbols(n_call)
+    axes = [None] + (list(range(options.number_dimensions)) if gradient else [])
+    inputs = [symbolic_kernel_input(solver_input, options.kernel_options, axis, grid, faults, symbols) for axis in axes]
 
-    kernels = [create_scalar_kernel(symbolic_kernel_input(solver_input, options.kernel_options, None, grid, faults),
-                                    options.kernel_options, execution_mode=KernelExecutionMode.SYMBOLIC,
-                                    distance_buffer=distance_buffer, distance_cache_key=distance_key)]
-    if gradient:
-        kernels += [create_grad_kernel(symbolic_kernel_input(solver_input, options.kernel_options, axis, grid, faults),
-                                       options.kernel_options, execution_mode=KernelExecutionMode.SYMBOLIC,
+    def trace():
+        distance_buffer, distance_key = (DistancesBuffer(), object()) if gradient else (None, None)
+        kernels = [create_scalar_kernel(inputs[0], options.kernel_options, execution_mode=KernelExecutionMode.SYMBOLIC,
+                                        distance_buffer=distance_buffer, distance_cache_key=distance_key)]
+        kernels += [create_grad_kernel(ki, options.kernel_options, execution_mode=KernelExecutionMode.SYMBOLIC,
                                        distance_buffer=distance_buffer, distance_cache_key=distance_key)
-                    for axis in range(options.number_dimensions)]
-    stacked = kernels[0]
-    for kernel in kernels[1:]:
-        stacked = stacked.concat(kernel)
-    packed, _ = pack_constants(stacked * weights)  # one upload for the formula's float constants
-    return packed.sum(axis=0, backend=backend, call=False)
+                    for ki in inputs[1:]]
+        stacked = kernels[0]
+        for kernel in kernels[1:]:
+            stacked = stacked.concat(kernel)
+        return stacked * weights
+
+    structure = ("evaluation", gradient, options.number_dimensions, n_faults,
+                 _settings(options.kernel_options), tuple(symbols.signature))
+    reduction, kept = _formula(structure, trace, backend)
+    return (reduction, [index for index in kept if index < n_call],
+            [symbols.arguments[index - n_call] for index in kept if index >= n_call])
+
+
+class _DataSymbols:
+    """Symbolic KeOps variables standing for data tensors, numbered from ``first``: one new variable per
+    call, as one ``LazyTensor(tensor)`` per call would be, of the category LazyTensor infers from the
+    shape ((M,1,D) i, (1,N,D) j, (1,1,D) parameter). ``arguments`` are the tensors in variable order,
+    shaped as KeOps takes them; ``signature`` their dimensions and categories."""
+
+    def __init__(self, first):
+        self.first, self.arguments, self.signature = first, [], []
+
+    def __call__(self, tensor):
+        from pykeops.torch import LazyTensor
+        if tensor.dim() != 3:
+            raise ValueError("compiled evaluation: data variables are (M,1,D), (1,N,D) or (1,1,D) tensors")
+        if tensor.shape[0] == 1:
+            category, argument = (2, tensor[0, 0]) if tensor.shape[1] == 1 else (1, tensor[0])
+        elif tensor.shape[1] == 1:
+            category, argument = 0, tensor[:, 0]
+        else:
+            raise ValueError("compiled evaluation: data variables are (M,1,D), (1,N,D) or (1,1,D) tensors")
+        symbol = LazyTensor((self.first + len(self.arguments), tensor.shape[-1], category))
+        self.arguments.append(argument.contiguous())
+        self.signature.append((tensor.shape[-1], category))
+        return symbol
+
+
+# Traced reductions by structure, for the process (least recently used dropped first).
+FORMULA_CACHE_SIZE = 32
+_FORMULAS: OrderedDict = OrderedDict()
+_FORMULAS_LOCK = threading.Lock()
+
+
+def clear_formula_cache():
+    with _FORMULAS_LOCK:
+        _FORMULAS.clear()
+
+
+def _formula(structure, trace, backend):
+    """(reduction, kept symbol indices) of the formula ``trace()`` builds: compacted (``_compact_symbols``),
+    its float constants packed into one parameter, as a callable sum reduction over i.
+
+    Kept for the process when the formula holds no data (only symbolic variables and constants), so later
+    computes of the same ``structure`` skip the trace."""
+    key = (structure, backend, BackendTensor.dtype, str(BackendTensor.device))
+    reuse = os.getenv("GEMPY_FORMULA_CACHE", "True").lower() in ("true", "1", "t", "y", "yes")
+    with _FORMULAS_LOCK:
+        cached = _FORMULAS.get(key) if reuse else None
+        if cached is not None:
+            _FORMULAS.move_to_end(key)
+    if cached is not None and not checking():
+        return cached[0], cached[1]
+    expression, kept = _compact_symbols(trace())
+    holds_data = any(type(variable) is not list for variable in getattr(expression, "variables", ()))
+    packed, _ = pack_constants(expression, dtype=BackendTensor.dtype, device=BackendTensor.device)
+    entry = (packed.sum(axis=0, backend=backend, call=False), kept, _formula_text(packed))
+    if cached is not None:  # checking(): the kept formula must be the one this structure traces to
+        if cached[1:] != entry[1:]:
+            raise AssertionError("formula cache: the cached formula differs from a new trace of the same structure")
+        return cached[0], cached[1]
+    if reuse and not holds_data:
+        with _FORMULAS_LOCK:
+            _FORMULAS[key] = entry
+            while len(_FORMULAS) > FORMULA_CACHE_SIZE:
+                _FORMULAS.popitem(last=False)
+    return entry[0], entry[1]
+
+
+def _formula_text(lazy):
+    """The formula with the packed constants' tensor id masked (it differs from trace to trace)."""
+    return re.sub(r"Var\(\d+,", "Var(constants,", lazy.formula + "|" + (lazy.formula2 or ""))
+
+
+def _settings(kernel_options):
+    """Every kernel setting (not the condition numbers the solver stores), as a hashable key."""
+    settings = asdict(kernel_options)
+    for runtime in ("condition_number", "condition_number_before", "condition_number_after"):
+        settings.pop(runtime, None)
+    return tuple(sorted((name, value if isinstance(value, (int, float, str, bool, type(None))) else repr(value))
+                        for name, value in settings.items()))
 
 
 # region Stacked (fused) evaluation: several stacks in one block-sparse reduction
@@ -93,7 +195,7 @@ def compiled_stacked_evaluation(eval_inputs, weights_list, options_list, caches,
     entry = shared.get(key)
     if entry is None:
         entry = shared[key] = _compile_stacked(eval_inputs, options_list, blocks, n_faults, backend)
-    reduction, order, rows = entry
+    reduction, order, rows, data_arguments = entry
 
     block_sizes = [eval_inputs[idx].xyz_to_interpolate.shape[0] for idx, _ in blocks]
     weight_sizes = [weights_list[idx].shape[0] for idx, _ in blocks]
@@ -111,10 +213,12 @@ def compiled_stacked_evaluation(eval_inputs, weights_list, options_list, caches,
             values[name] = torch.repeat_interleave(rows[name], counts, dim=0, output_size=sum(block_sizes))
     from .symbolic_evaluator import _build_block_sparse_ranges
     ranges = _build_block_sparse_ranges(block_sizes, weight_sizes)
-    return reduction(*[values[name] for name in order], ranges=ranges).reshape(-1), block_sizes
+    return reduction(*[values[name] for name in order], *data_arguments, ranges=ranges).reshape(-1), block_sizes
 
 
 def _compile_stacked(eval_inputs, options_list, blocks, n_faults, backend):
+    """(reduction, call variables kept, their rows, data arguments): the reduction takes the kept call
+    variables (``order``), then the data arguments."""
     import torch
     from pykeops.torch import LazyTensor
     dtype = BackendTensor.dtype_obj
@@ -131,10 +235,11 @@ def _compile_stacked(eval_inputs, options_list, blocks, n_faults, backend):
     names += (["faults"] if n_faults else []) + ["weights"]
     rows = {name: torch.cat([row_of[name](data, k).reshape(1, -1).type(dtype) for k, data in enumerate(datas)])
             for name in names if name in row_of}
+    symbols = _DataSymbols(len(names))
 
     def cat_i(get, shaped=False):  # concatenated data side, (sum n, 1, d)
         values = torch.cat([get(data, k).type(dtype) for k, data in enumerate(datas)])
-        return LazyTensor(values if shaped else values[:, None, :])
+        return symbols(values if shaped else values[:, None, :])
 
     i_side = {
         "dips_ref_coord": cat_i(lambda d, k: d.dips_ref_coord), "dips_rest_coord": cat_i(lambda d, k: d.dips_rest_coord),
@@ -154,26 +259,25 @@ def _compile_stacked(eval_inputs, options_list, blocks, n_faults, backend):
         i_side["fault_vector_ref"] = cat_i(lambda d, k: d.fault_vector_ref)
         i_side["fault_sel_ui"] = cat_i(lambda d, k: fault_selectors[k].sel_ui, True)
 
-    def build(symbolic_names):
-        symbols = {name: LazyTensor((index, (1 if name == "weights" else rows[name].shape[1] if name in rows
-                                             else (n_faults if name == "faults" else 3)),
-                                     0 if name == "weights" else 1))
-                   for index, name in enumerate(symbolic_names)}
-        for name in names:  # unused placeholders never reach the formula
-            symbols.setdefault(name, LazyTensor(rows[name][:1][None] if name in rows else
-                                                torch.zeros((1, 1, n_faults if name == "faults" else 3), dtype=dtype)))
-        ki = _stacked_kernel_input(i_side, symbols, n_faults)
-        options = options_list[0]
+    options = options_list[0]
+
+    def build():
+        call = {name: LazyTensor((index, (1 if name == "weights" else rows[name].shape[1] if name in rows
+                                          else (n_faults if name == "faults" else 3)),
+                                  0 if name == "weights" else 1))
+                for index, name in enumerate(names)}
+        ki = _stacked_kernel_input(i_side, call, n_faults)
         if options.compute_scalar:
             kernel = create_scalar_kernel(ki, options.kernel_options, execution_mode=KernelExecutionMode.SYMBOLIC)
         else:
             kernel = create_grad_kernel(ki, options.kernel_options, execution_mode=KernelExecutionMode.SYMBOLIC)
-        return kernel * symbols["weights"]
+        return kernel * call["weights"]
 
-    expression, kept = _compact_symbols(build(names))
-    order = [names[index] for index in kept]
-    packed, _ = pack_constants(expression)
-    return packed.sum(axis=0, backend=backend, call=False), order, rows
+    structure = ("stacked", options.compute_scalar, n_faults, _settings(options.kernel_options), tuple(names),
+                 tuple((name, rows[name].shape[1]) for name in rows), tuple(symbols.signature))
+    reduction, kept = _formula(structure, build, backend)
+    order = [names[index] for index in kept if index < len(names)]
+    return reduction, order, rows, [symbols.arguments[index - len(names)] for index in kept if index >= len(names)]
 
 
 def _compact_symbols(expression):
@@ -243,24 +347,25 @@ def _data_side(interp_input, kernel_options, axis):
     return _evaluation_data_side(interp_input, kernel_options, sizes, axis)
 
 
-def symbolic_kernel_input(interp_input, kernel_options, axis, grid, faults) -> KernelInput:
-    """Evaluation KernelInput of LazyTensors: the data side concrete (cached), the grid side symbolic.
+def symbolic_kernel_input(interp_input, kernel_options, axis, grid, faults, symbols) -> KernelInput:
+    """Evaluation KernelInput of LazyTensors: the data side (cached) as ``symbols`` data variables, the grid
+    side symbolic.
 
     Mirrors ``evaluation_vectors_preparations`` + ``upgrade_tensors``; ``grid * grid_1`` is formed inside
-    the formula (grid_1 is a one-row parameter).
+    the formula (grid_1 is a one-row parameter). The scalar kernel's fault drift selector, which
+    ``create_scalar_kernel`` would build from the fault vectors' size, is data as well.
     """
-    from pykeops.torch import LazyTensor
     data = _data_side(interp_input, kernel_options, axis)
     dtype = BackendTensor.dtype_obj
 
     def i_side(x):
-        return LazyTensor(x.type(dtype)[:, None, :])
+        return symbols(x.type(dtype)[:, None, :])
 
     def upgraded(struct):  # cached selector structs, already shaped (i: (n, 1, d), j: (1, 1, d))
-        return _struct(type(struct), **{name: LazyTensor(value.type(dtype)) for name, value in vars(struct).items()})
+        return _struct(type(struct), **{name: symbols(value.type(dtype)) for name, value in vars(struct).items()})
 
-    grid_1 = LazyTensor(data.grid_1.type(dtype)[None, :, :])
-    return KernelInput(
+    grid_1 = symbols(data.grid_1.type(dtype)[None, :, :])
+    ki = KernelInput(
         ori_sp_matrices=_struct(OrientationSurfacePointsCoords, dip_ref_i=i_side(data.dips_ref_coord), dip_ref_j=grid,
                                 diprest_i=i_side(data.dips_rest_coord), diprest_j=grid),
         cartesian_selector=upgraded(data.cartesian_selector),
@@ -278,6 +383,12 @@ def symbolic_kernel_input(interp_input, kernel_options, axis, grid, faults) -> K
                            n_faults_i=data.fault_vector_ref.shape[1]) if faults is not None else None),
         rest_fault=None,
     )
+    if faults is not None and axis is None:
+        # As create_scalar_kernel builds it: x the fault vectors' rows, y the one row of the symbolic faults.
+        rows, n_faults = data.fault_vector_ref.shape
+        ki.fault_drift_selector = upgraded(DriftMatrixSelector(x_size=rows, y_size=1, n_drift_eq=n_faults,
+                                                               drift_start_post_x=rows - n_faults, drift_start_post_y=1))
+    return ki
 
 
 def _points_drift(i_side, grid, d1, d2a, d2b):

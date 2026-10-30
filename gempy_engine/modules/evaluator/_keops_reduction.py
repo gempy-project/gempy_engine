@@ -21,13 +21,17 @@ def keops_sum(lazy, **kwargs):
         return packed.sum(**kwargs)
 
 
-def pack_constants(lazy):
-    """(LazyTensor with one parameter vector for all its float constants, its data device)."""
+def pack_constants(lazy, dtype=None, device=None):
+    """(LazyTensor with one parameter vector for all its float constants, its data device).
+
+    ``dtype`` (a dtype name) and ``device`` are used when the formula has no concrete tensor to take
+    them from (every input symbolic)."""
     variables = getattr(lazy, "variables", None)
     formula, formula2 = getattr(lazy, "formula", None), getattr(lazy, "formula2", None)
-    if variables is None or not isinstance(formula, str) or getattr(lazy, "_dtype", None) is None:
+    dtype = getattr(lazy, "_dtype", None) or dtype
+    if variables is None or not isinstance(formula, str) or dtype is None:
         return lazy, None
-    device = next((d for d in (lazy.tools.device(v) for v in variables if type(v) is not list) if d is not None), None)
+    device = next((d for d in (lazy.tools.device(v) for v in variables if type(v) is not list) if d is not None), device)
     constants = [v for v in variables if type(v) is list]
     if len(constants) < 2:
         return lazy, device
@@ -37,7 +41,7 @@ def pack_constants(lazy):
         if tuple(constant) not in offsets:
             offsets[tuple(constant)] = len(values)
             values.extend(constant)
-    parameters = _upload(lazy, values, device)
+    parameters = _upload(lazy, values, device, dtype)
     tag = f"Var({id(parameters)},{len(values)},2)"
     for constant in constants:
         start = offsets[tuple(constant)]
@@ -52,12 +56,12 @@ def pack_constants(lazy):
     return packed, device
 
 
-def _upload(lazy, values, device):
+def _upload(lazy, values, device, dtype):
     if getattr(device, "type", None) == "cuda":
         import torch
-        host = torch.tensor(values, dtype=getattr(torch, lazy._dtype), device="cpu").pin_memory()
+        host = torch.tensor(values, dtype=getattr(torch, dtype), device="cpu").pin_memory()
         return host.to(device, non_blocking=True)
-    return lazy.tools.array(values, lazy._dtype, device)
+    return lazy.tools.array(values, dtype, device)
 
 
 def _bookkeeping_on_host(device):
