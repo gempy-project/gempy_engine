@@ -192,13 +192,23 @@ class DriftMatrixSelector:
     sel_vj: tensor_types = field(default_factory=lambda: np.empty((1, 0, 3)))
 
     def __init__(self, x_size: int, y_size: int, n_drift_eq: int, drift_start_post_x: int, drift_start_post_y: int):
-        # Logic remains the same
-        # sel_i = np.zeros((x_size, 2), dtype=BackendTensor.dtype)
-        # sel_j = np.zeros((y_size, 2), dtype=BackendTensor.dtype)
-
         # Built on the host and uploaded at once (rows 0..x_size-1: sel_i, then sel_j)
-        sel = np.zeros((x_size + y_size, 2), dtype=BackendTensor.dtype)
-        sel_i, sel_j = sel[:x_size], sel[x_size:]
+        sel_i, sel_j = self._host_rows(x_size, y_size, n_drift_eq, drift_start_post_x, drift_start_post_y)
+        self._set(np.concatenate((sel_i, sel_j)), x_size)
+
+    @classmethod
+    def stacked(cls, blocks) -> "DriftMatrixSelector":
+        """The selectors of several blocks, ``(x_size, y_size, n_drift_eq, start_x, start_y)`` each,
+        concatenated block after block on both sides (one upload)."""
+        rows = [cls._host_rows(*block) for block in blocks]
+        selector = cls.__new__(cls)
+        selector._set(np.concatenate([i for i, _ in rows] + [j for _, j in rows]), sum(len(i) for i, _ in rows))
+        return selector
+
+    @staticmethod
+    def _host_rows(x_size, y_size, n_drift_eq, drift_start_post_x, drift_start_post_y):
+        sel_i = np.zeros((x_size, 2), dtype=BackendTensor.dtype)
+        sel_j = np.zeros((y_size, 2), dtype=BackendTensor.dtype)
 
         drift_pos_0_x = drift_start_post_x
         drift_pos_1_x = drift_start_post_x + n_drift_eq + 1
@@ -211,7 +221,10 @@ class DriftMatrixSelector:
 
             sel_j[:drift_pos_0_y, 0] = -1
             sel_j[drift_pos_0_y:drift_pos_1_y, 1] = -1
-        sel = upload(sel)
+        return sel_i, sel_j
+
+    def _set(self, host_rows, x_size):
+        sel = upload(host_rows)
         sel_i, sel_j = sel[:x_size], sel[x_size:]
 
         # Explicit Cast

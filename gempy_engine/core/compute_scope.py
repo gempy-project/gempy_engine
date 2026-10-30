@@ -37,6 +37,7 @@ class StackCache:
     fingerprint_key: Any = None
     fingerprint: Optional[str] = None
     compiled: dict = field(default_factory=dict)  # KeOps reductions built once (compiled_evaluator)
+    covariance: Any = None  # dense matrix from the chunk's stacked build, until the solve takes it
 
 
 class _Scope:

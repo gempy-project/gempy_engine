@@ -4,6 +4,7 @@ import os
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output, _options_with_finite_fault_gradients
 from ._interp_scalar_field import _deduplicate_corners, _evaluate_sys_eq, _restore_corner_fields, compute_weights
 from ._interp_single_feature import interpolate_feature_with_external_function, preprocess_stack_data
+from ... import config
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.compute_scope import checking, StackCache, assert_same, options_key, stack_cache, stack_cache_of
@@ -25,6 +26,8 @@ from numpy import ndarray, dtype
 from ...modules.activator import activator_interface
 from ...modules.data_preprocess import data_preprocess_interface
 from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
+from ...modules.kernel_constructor.stacked_covariance import MAX_STACKED_SIZE, covariance_size, stacked_covariances
+from ...modules.solver.interpolation_solver import pykeops_solver_requested
 
 
 @dataclass
@@ -390,34 +393,89 @@ def _compute_weights_for_stacks(
 
         return _on_stack_stream(_prepare_solver_input, idx, global_i, local_stack_structure, options_i)
 
-    def _prepare_solver_input(idx, global_i, local_stack_structure, options_i):
-        cache = caches[idx] if caches is not None else None
-        solver_input: SolverInput_v2 = input_preprocess_v2(
+    def _preprocess(idx):
+        return input_preprocess_v2(
             data_shape=tensor_structs[idx],
             interpolation_input=interpolation_inputs[idx],
-            cache=cache,
+            cache=caches[idx] if caches is not None else None,
         )
 
-        # region compute weights
-        # Weights do not depend on the grid: within a compute they are solved (or looked up) once per stack.
-        if cache is not None and cache.weights is not None and not checking():
-            solver_input.weights_x0, solver_input.debug = cache.weights, cache.debug
-            return solver_input
-        weights = compute_weights(
-            solver_input=solver_input,
-            stack_number=global_i,
-            options=options_i
-        )
-        if cache is not None:
-            if cache.weights is None:
-                cache.weights, cache.debug = weights, solver_input.debug
-            else:
-                assert_same(cache.weights, weights, "weights")
-                weights, solver_input.debug = cache.weights, cache.debug
-        solver_input.weights_x0 = weights
-        return solver_input
+    def _options(idx):
+        return options_per_stack[idx] if options_per_stack is not None else options
+
+    if caches is not None and _stack_execution() == "inline":
+        # All stacks preprocessed first, so their covariances can be built together.
+        solver_inputs = [_preprocess(idx) for idx in range(len(stack_indices))]
+        _prebuild_covariances(solver_inputs, [_options(idx) for idx in range(len(stack_indices))], caches)
+        return [_solve_weights(solver_inputs[idx], global_i, _options(idx), caches[idx])
+                for idx, global_i in enumerate(stack_indices)]
+
+    def _prepare_solver_input(idx, global_i, local_stack_structure, options_i):
+        cache = caches[idx] if caches is not None else None
+        return _solve_weights(_preprocess(idx), global_i, options_i, cache)
 
     return _map_stacks(_run_prep, stack_indices)
+
+
+def _solve_weights(solver_input: SolverInput_v2, global_i: int, options_i: InterpolationOptions,
+                   cache: StackCache | None) -> SolverInput_v2:
+    # region compute weights
+    # Weights do not depend on the grid: within a compute they are solved (or looked up) once per stack.
+    if cache is not None and cache.weights is not None and not checking():
+        solver_input.weights_x0, solver_input.debug = cache.weights, cache.debug
+        return solver_input
+    weights = compute_weights(
+        solver_input=solver_input,
+        stack_number=global_i,
+        options=options_i
+    )
+    if cache is not None:
+        if cache.weights is None:
+            cache.weights, cache.debug = weights, solver_input.debug
+        else:
+            assert_same(cache.weights, weights, "weights")
+            weights, solver_input.debug = cache.weights, cache.debug
+    solver_input.weights_x0 = weights
+    return solver_input
+
+
+def _prebuild_covariances(solver_inputs: list, options_per_stack: list[InterpolationOptions],
+                          caches: list[StackCache | None]) -> None:
+    """Build the dense covariances of the stacks that still need a solve together (``stacked_covariances``)
+    and leave each in its stack cache, where the dense solve takes it.
+
+    Stacks are grouped by kernel options and number of faults, and a group is split so that no build
+    passes ``MAX_STACKED_SIZE`` rows. Single stacks, gradients, debug dumps and the PyKeOps solver keep
+    the per-stack build."""
+    if (BackendTensor.engine_backend is not AvailableBackends.PYTORCH or BackendTensor.COMPUTE_GRADS
+            or config.DEBUG_MODE or pykeops_solver_requested()):
+        return
+    groups: dict[tuple, list] = {}
+    for solver_input, options_i, cache in zip(solver_inputs, options_per_stack, caches):
+        kernel_options = options_i.kernel_options
+        if (cache is None or (cache.weights is not None and not checking())
+                or kernel_options.optimizing_condition_number):
+            continue
+        key = (options_key(kernel_options), solver_input.fault_internal.n_faults)
+        groups.setdefault(key, []).append((solver_input, kernel_options, cache))
+    for members in groups.values():
+        batch, rows = [], 0
+        for member in members:
+            size = covariance_size(member[0], member[1])
+            if batch and rows + size > MAX_STACKED_SIZE:
+                _stacked_build(batch)
+                batch, rows = [], 0
+            batch.append(member)
+            rows += size
+        _stacked_build(batch)
+
+
+def _stacked_build(batch: list) -> None:
+    if len(batch) < 2:
+        return
+    matrices = stacked_covariances([solver_input for solver_input, _, _ in batch], batch[0][1])
+    for (_, _, cache), matrix in zip(batch, matrices):
+        cache.covariance = matrix
 
 
 def input_preprocess_v2(data_shape: TensorsStructure, interpolation_input: InterpolationInput,

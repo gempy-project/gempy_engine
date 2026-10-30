@@ -5,6 +5,7 @@ from enum import Enum, auto
 
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
+from gempy_engine.core.compute_scope import assert_same, checking, stack_cache_of
 from gempy_engine.core.data.continue_epoch import ContinueEpoch
 from gempy_engine.core.data.options import KernelOptions, NuggetImplementation
 from gempy_engine.modules.kernel_constructor import kernel_constructor_interface as kernel_constructor
@@ -102,8 +103,8 @@ def solve_dense_untransformed(
         kernel_data: KernelInput | None = None,
         used_fallback: bool = False,
 ) -> InterpolationSolveResult:
-    kernel_data = kernel_data or cov_vectors_preparation(interp_input, kernel_options)
-    system = _build_physical_system(kernel_data, interp_input, kernel_options, KernelExecutionMode.DENSE)
+    system = (_build_physical_system(kernel_data, interp_input, kernel_options, KernelExecutionMode.DENSE)
+              if kernel_data is not None else _dense_physical_system(interp_input, kernel_options))
     return _solve_or_raise(
         system,
         interp_input,
@@ -116,8 +117,7 @@ def solve_dense_untransformed(
 
 def solve_dense_fault_stabilized(interp_input, kernel_options: KernelOptions) -> InterpolationSolveResult:
     n_faults = interp_input.fault_internal.n_faults
-    kernel_data = cov_vectors_preparation(interp_input, kernel_options)
-    physical_system = _build_physical_system(kernel_data, interp_input, kernel_options, KernelExecutionMode.DENSE)
+    physical_system = _dense_physical_system(interp_input, kernel_options)
     transform = stabilize_fault_drift_system(
         covariance=physical_system.physical_matrix,
         b_vector=physical_system.physical_rhs,
@@ -137,8 +137,7 @@ def solve_dense_fault_stabilized(interp_input, kernel_options: KernelOptions) ->
 
 def solve_dense_ruiz(interp_input, kernel_options: KernelOptions) -> InterpolationSolveResult:
     n_faults = interp_input.fault_internal.n_faults
-    kernel_data = cov_vectors_preparation(interp_input, kernel_options)
-    physical_system = _build_physical_system(kernel_data, interp_input, kernel_options, KernelExecutionMode.DENSE)
+    physical_system = _dense_physical_system(interp_input, kernel_options)
     transform = equilibrate_symmetric_system(
         physical_system.physical_matrix,
         physical_system.physical_rhs,
@@ -224,6 +223,22 @@ def _build_physical_system(
         execution_mode: KernelExecutionMode,
 ) -> InterpolationSystem:
     matrix = create_cov_kernel(kernel_data, kernel_options, execution_mode=execution_mode)
+    rhs = kernel_constructor.yield_b_vector(interp_input.ori_internal, matrix.shape[0])
+    return InterpolationSystem(physical_matrix=matrix, physical_rhs=rhs)
+
+
+def _dense_physical_system(interp_input, kernel_options: KernelOptions) -> InterpolationSystem:
+    """The dense physical system. Its matrix comes from the chunk's stacked build when that left one in
+    the stack cache (``stacked_covariance``), else it is built here."""
+    cache = stack_cache_of(interp_input)
+    matrix = cache.covariance if cache is not None else None
+    if matrix is None:
+        kernel_data = cov_vectors_preparation(interp_input, kernel_options)
+        return _build_physical_system(kernel_data, interp_input, kernel_options, KernelExecutionMode.DENSE)
+    cache.covariance = None
+    if checking():
+        fresh = create_cov_kernel(cov_vectors_preparation(interp_input, kernel_options), kernel_options)
+        assert_same(matrix, fresh, "stacked covariance block")
     rhs = kernel_constructor.yield_b_vector(interp_input.ori_internal, matrix.shape[0])
     return InterpolationSystem(physical_matrix=matrix, physical_rhs=rhs)
 

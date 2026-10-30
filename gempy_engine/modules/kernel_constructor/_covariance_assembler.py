@@ -29,6 +29,9 @@ def get_covariance(
         options,
         execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
 ):
+    # Several stacks built as one block-diagonal matrix (stacked_covariance) carry their per-block
+    # sizes and nuggets: the position-dependent terms are placed block by block.
+    layout = getattr(ki, 'block_layout', None)
     cov_grad = _get_cov_grad(
         dm,
         k_a,
@@ -36,9 +39,10 @@ def get_covariance(
         ki.nugget_grad,
         options.nugget_implementation,
         execution_mode,
+        layout,
     )
     cov_sp = _get_cov_surface_points(dm, k_ref_ref, k_ref_rest, k_rest_ref, k_rest_rest,
-                                     options, ki.nugget_scalar, ki.nugget_grad.shape[0], execution_mode)
+                                     options, ki.nugget_scalar, ki.nugget_grad.shape[0], execution_mode, layout)
     cov_grad_sp = _get_cross_cov_grad_sp(dm, k_p_ref, k_p_rest, options)  # C
     
     # Universal drift
@@ -73,25 +77,30 @@ def _get_cov_grad(
         nugget,
         nugget_implementation: NuggetImplementation,
         execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+        layout=None,
 ):
     cov_grad = dm.hu * dm.hv / (dm.r_ref_ref ** 2 + 1e-5) * (- k_p_ref + k_a) - k_p_ref * dm.perp_matrix  # C
     if nugget_implementation is NuggetImplementation.LEGACY:
-        return _get_cov_grad_legacy(cov_grad, dm, nugget, execution_mode)
+        return _get_cov_grad_legacy(cov_grad, dm, nugget, execution_mode, layout)
 
     nugget_matrix = _nugget_diagonal(
         matrix_size=cov_grad.shape[0],
         nugget=nugget,
         start=0,
         execution_mode=execution_mode,
+        values=None if layout is None else _block_values(layout, layout.nugget_grad, [0] * len(layout.sizes)),
     )
     return cov_grad + nugget_matrix * dm.perp_matrix
 
 
-def _get_cov_grad_legacy(cov_grad, dm, nugget, execution_mode: KernelExecutionMode):
+def _get_cov_grad_legacy(cov_grad, dm, nugget, execution_mode: KernelExecutionMode, layout=None):
     grad_nugget = nugget[0]
     if execution_mode is KernelExecutionMode.DENSE:
         eye = BackendTensor.t.eye(cov_grad.shape[0])
         nugget_selector = eye * dm.perp_matrix
+        if layout is not None:  # each block's first gradient nugget, one per row (same product per entry)
+            grad_nugget = BackendTensor.t.cat([n[:1].expand(size) for size, n in zip(layout.sizes, layout.nugget_grad)])
+            grad_nugget = grad_nugget.to(nugget_selector.dtype)[:, None]
         nugget_matrix = nugget_selector * grad_nugget
         cov_grad += nugget_matrix
         return cov_grad
@@ -117,6 +126,7 @@ def _get_cov_surface_points(
         nugget_effect,
         grad_matrix_size,
         execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+        layout=None,
 ):
     cov_surface_points = options.i_res * (k_rest_rest - k_rest_ref - k_ref_rest + k_ref_ref)
 
@@ -128,6 +138,7 @@ def _get_cov_surface_points(
             nugget_effect.rest,
             grad_matrix_size,
             execution_mode,
+            layout,
         )
 
     nugget_matrix = _surface_point_nugget_matrix(
@@ -136,6 +147,7 @@ def _get_cov_surface_points(
         start=grad_matrix_size,
         mode=options.nugget_implementation,
         execution_mode=execution_mode,
+        layout=layout,
     )
     flipped_perp_matrix = (dm.perp_matrix - 1) * -1
     return cov_surface_points + nugget_matrix * flipped_perp_matrix
@@ -148,11 +160,19 @@ def _get_cov_surface_points_legacy(
         nugget,
         grad_matrix_size: int,
         execution_mode: KernelExecutionMode,
+        layout=None,
 ):
     if execution_mode is KernelExecutionMode.DENSE:
         cov_shape = cov_surface_points.shape[0]
         shape_sp_size = nugget.shape[0]
         diag = BackendTensor.t.eye(cov_shape)
+        if layout is not None:
+            # Each block's nuggets on its own surface-point rows. ``* diag`` keeps only the diagonal,
+            # as the slice assignment below does per block.
+            values = _block_values(layout, [n.rest for n in layout.nugget_scalar],
+                                   _sp_starts(layout)).to(BackendTensor.dtype_obj)
+            cov_surface_points += values[None, :] * diag
+            return cov_surface_points
         modified_diag = BackendTensor.t.zeros((cov_shape, cov_shape), dtype=BackendTensor.dtype_obj)
         modified_diag[
             grad_matrix_size:grad_matrix_size + shape_sp_size,
@@ -182,6 +202,7 @@ def _surface_point_nugget_matrix(
         start: int,
         mode: NuggetImplementation,
         execution_mode: KernelExecutionMode,
+        layout=None,
 ):
     match mode:
         case NuggetImplementation.DIAGONAL_REF_REST:
@@ -190,9 +211,11 @@ def _surface_point_nugget_matrix(
                 nuggets.rest + nuggets.reference,
                 start,
                 execution_mode,
+                values=None if layout is None else _block_values(
+                    layout, [n.rest + n.reference for n in layout.nugget_scalar], _sp_starts(layout)),
             )
         case NuggetImplementation.FULL_POINT_COVARIANCE:
-            return _full_point_nugget_covariance(matrix_size, nuggets, start, execution_mode)
+            return _full_point_nugget_covariance(matrix_size, nuggets, start, execution_mode, layout)
         case _:
             raise ValueError(f"Unknown nugget implementation: {mode}")
 
@@ -202,20 +225,30 @@ def _full_point_nugget_covariance(
         nuggets: SurfacePointNuggets,
         start: int,
         execution_mode: KernelExecutionMode,
+        layout=None,
 ):
-    rest_diagonal = _nugget_diagonal(
-        matrix_size,
-        nuggets.rest,
-        start,
-        execution_mode,
-    )
-    reference = _pad_surface_values(matrix_size, nuggets.reference, start)
-    surface_ids = _pad_surface_values(matrix_size, nuggets.surface_ids, start)
-    surface_mask = _pad_surface_values(
-        matrix_size,
-        BackendTensor.t.ones(nuggets.rest.shape[0], dtype=nuggets.rest.dtype),
-        start,
-    )
+    if layout is not None:
+        blocks, starts = layout.nugget_scalar, _sp_starts(layout)
+        rest_diagonal = _nugget_diagonal(matrix_size, nuggets.rest, start, execution_mode,
+                                         values=_block_values(layout, [n.rest for n in blocks], starts))
+        reference = _block_values(layout, [n.reference for n in blocks], starts)
+        surface_ids = _block_values(layout, [n.surface_ids for n in blocks], starts)
+        surface_mask = _block_values(
+            layout, [BackendTensor.t.ones(n.rest.shape[0], dtype=n.rest.dtype) for n in blocks], starts)
+    else:
+        rest_diagonal = _nugget_diagonal(
+            matrix_size,
+            nuggets.rest,
+            start,
+            execution_mode,
+        )
+        reference = _pad_surface_values(matrix_size, nuggets.reference, start)
+        surface_ids = _pad_surface_values(matrix_size, nuggets.surface_ids, start)
+        surface_mask = _pad_surface_values(
+            matrix_size,
+            BackendTensor.t.ones(nuggets.rest.shape[0], dtype=nuggets.rest.dtype),
+            start,
+        )
 
     if execution_mode is KernelExecutionMode.DENSE:
         same_surface = surface_ids[:, None] == surface_ids[None, :]
@@ -245,20 +278,34 @@ def _pad_surface_values(matrix_size: int, values, start: int):
     ))
 
 
+def _block_values(layout, values, starts):
+    """Each block's ``values`` at offset ``starts[k]`` of its rows, zeros elsewhere, block after block."""
+    return BackendTensor.tfnp.concatenate([_pad_surface_values(size, v, start)
+                                           for size, v, start in zip(layout.sizes, values, starts)])
+
+
+def _sp_starts(layout):
+    """First surface-point row of each block: after its gradient rows."""
+    return [g.shape[0] for g in layout.nugget_grad]
+
+
 def _nugget_diagonal(
         matrix_size: int,
         nugget,
         start: int,
         execution_mode: KernelExecutionMode = KernelExecutionMode.DENSE,
+        values=None,
 ):
-    """Build a dense or lazy diagonal while preserving nugget gradients."""
-    values = BackendTensor.tfnp.concatenate((
-            BackendTensor.t.zeros(start, dtype=nugget.dtype),
-            nugget,
-            BackendTensor.t.zeros(matrix_size - start - nugget.shape[0], dtype=nugget.dtype),
-    ))
+    """Build a dense or lazy diagonal while preserving nugget gradients. ``values``: the full diagonal,
+    already placed (several blocks)."""
+    if values is None:
+        values = BackendTensor.tfnp.concatenate((
+                BackendTensor.t.zeros(start, dtype=nugget.dtype),
+                nugget,
+                BackendTensor.t.zeros(matrix_size - start - nugget.shape[0], dtype=nugget.dtype),
+        ))
     if execution_mode is KernelExecutionMode.DENSE:
-        return BackendTensor.t.eye(matrix_size, dtype=nugget.dtype) * values
+        return BackendTensor.t.eye(matrix_size, dtype=values.dtype) * values
 
     LazyTensor = _lazy_tensor_class()
 
@@ -308,13 +355,18 @@ def _get_faults_terms(
     cov_size = ki.ref_fault.faults_i.shape[0]
     fault_n = ki.ref_fault.n_faults_i  # TODO: Here we are going to have to loop
 
-    selector_components = _structs.DriftMatrixSelector(
-        x_size=cov_size,
-        y_size=cov_size,
-        n_drift_eq=fault_n,
-        drift_start_post_x=cov_size - fault_n,
-        drift_start_post_y=cov_size - fault_n
-    )
+    layout = getattr(ki, 'block_layout', None)
+    if layout is not None:  # each block's own trailing fault rows
+        selector_components = _structs.DriftMatrixSelector.stacked(
+            [(size, size, fault_n, size - fault_n, size - fault_n) for size in layout.sizes])
+    else:
+        selector_components = _structs.DriftMatrixSelector(
+            x_size=cov_size,
+            y_size=cov_size,
+            n_drift_eq=fault_n,
+            drift_start_post_x=cov_size - fault_n,
+            drift_start_post_y=cov_size - fault_n
+        )
     
     if execution_mode is KernelExecutionMode.SYMBOLIC:
         selector_components = selector_components.upgrade_tensors()
