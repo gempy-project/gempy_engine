@@ -14,7 +14,7 @@ from ..interp_single._interp_single_feature import input_preprocess, interpolate
 from ..interp_single._interp_scalar_field import _evaluate_sys_eq
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor as BT
-from ...core.compute_scope import options_key, stack_cache
+from ...core.compute_scope import checking, options_key, stack_cache
 from ...core.data import TensorsStructure
 from ...core.data.dual_contouring_mesh import DualContouringMesh
 from ...core.data.engine_grid import EngineGrid
@@ -293,7 +293,7 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
     indices = np.array([m[1] for m in metadata], dtype=np.int64)
     levels = [_numpy(output.scalar_field_at_sp).astype(np.float64).reshape(-1).copy()
               for output in octree_list[0].outputs]
-    sampler = prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree_list)
+    sampler = prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree_list, checked=checking())
 
     xp = extraction_namespace()
 

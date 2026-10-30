@@ -164,13 +164,14 @@ def _cache_live(stack_options, stack_index):
 
 
 def fixed_weight_snapshots(descriptor, interpolation_input, options, octree_list, fault_stacks, fault_inputs,
-                           external_stacks=()):
+                           external_stacks=(), private=True):
     """Frozen (solver_input, weights, options) per stack, from the outputs' production weights.
 
     ``external_stacks`` have no weights (external callbacks); their snapshot is None. Inside a compute
     scope each snapshot's solver input carries its stack's interpolation cache (``stack_cache``): the
     production internals and fingerprint, and the compiled evaluation kernels for queries. Inspection
-    copies (``inspection_copy``) leave it out.
+    copies (``inspection_copy``) leave it out. ``private=False`` keeps the solver inputs as built, without
+    their frozen copies, for snapshots that do not outlive the compute.
 
     Production fault drift for every stack in ``fault_stacks`` is rebuilt on the
     last surface level's reference grid, exactly as the production solve saw it.
@@ -221,10 +222,11 @@ def fixed_weight_snapshots(descriptor, interpolation_input, options, octree_list
         weights = np.array(host(weights), dtype=np.float64, copy=True)
         stack_options.evaluation_options.compute_scalar = True
         stack_options.evaluation_options.compute_scalar_gradient = True
-        solver_input.stack_cache = None
-        solver_input = copy.deepcopy(solver_input)
-        freeze_arrays(solver_input)
-        solver_input.stack_cache = cache
+        if private:
+            solver_input.stack_cache = None
+            solver_input = copy.deepcopy(solver_input)
+            freeze_arrays(solver_input)
+            solver_input.stack_cache = cache
         weights.flags.writeable = False
         snapshots.append((solver_input, weights, stack_options))
         fingerprints.append(fingerprint)

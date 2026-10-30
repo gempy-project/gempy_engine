@@ -70,9 +70,11 @@ returns (cache cleared) the output weights alone are the provenance.
   coordinate. External interpolation functions provide their own fields.
 - `joint_contacts` with faults: `prepare_fault_drift_sampler` rebuilds the
   production fault drift at every query point (fault scalar, soft-segmented with
-  the production ids, edges and slope, shifted by the frozen reference minimum),
-  verified against the production drift on the full reference grid first. The
-  core gets **targeted** queries: tile and minimal-edge node values are read
+  the production ids, edges and slope, shifted by the frozen reference minimum).
+  `GEMPY_CHECK_COMPUTE_CACHE` and `prepare_field_evaluator` verify that rule
+  against the production drift on the full reference grid first; a plain compute
+  does not, because it only guards against the two copies of the rule diverging.
+  The core gets **targeted** queries: tile and minimal-edge node values are read
   from the leaf corners (shared nodes must agree), gradients are evaluated only
   for the crossing surface, and vertex checks are scalar-only. With KeOps,
   `query_batch` merges all requests per (stack, kind) into stacked block-sparse

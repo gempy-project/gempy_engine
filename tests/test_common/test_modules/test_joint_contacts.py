@@ -291,14 +291,19 @@ def _model7(root, depth, min_level, mode):
     return inputs, options, descriptor
 
 
+def _check_mode(monkeypatch):
+    """``GEMPY_CHECK_COMPUTE_CACHE``: a compute also verifies the sampler's drift rule against production."""
+    monkeypatch.setattr(importlib.import_module('gempy_engine.core.compute_scope'), 'CHECK_COMPUTE_CACHE', True)
+
+
 def _audit_no_solves(monkeypatch):
     """Fail if any weight solve happens while the drift sampler queries."""
     bridge = importlib.import_module('gempy_engine.API.dual_contouring.joint_extraction')
     prepare = bridge.prepare_fault_drift_sampler
     prepared = []
 
-    def audited(*args):
-        sampler = prepare(*args)
+    def audited(*args, **kwargs):
+        sampler = prepare(*args, **kwargs)
         no_solve = Mock(side_effect=AssertionError('query attempted a production solve'))
         for name in ('gempy_engine.API.interp_single._interp_scalar_field',
                      'gempy_engine.API.interp_single._stack_ops',
@@ -386,6 +391,7 @@ def _model7_finite(root, depth, min_level, mode, radius=.06):
 def test_model7_finite_fault_natural_adaptive(monkeypatch):
     from gempy_engine.API.model.model_api import compute_model
 
+    _check_mode(monkeypatch)
     prepared = _audit_no_solves(monkeypatch)
     meshes = compute_model(*_model7_finite(9, 2, 0, 'joint_contacts')).dc_meshes
     assert len(prepared) == 1
@@ -424,12 +430,14 @@ def test_model7_finite_fault_contact_vertices_match_pretty_fault_vertices():
     assert len(contacts[0].edges) == len(pretty[0].edges)
 
 
-def test_curved_finite_fault_meshes_across_octree_levels():
+def test_curved_finite_fault_meshes_across_octree_levels(monkeypatch):
     """The slip frame comes from the fault's surface points, so on a curved
     fault every octree level solves with the same drift."""
     from gempy_engine.API.model.model_api import compute_model
     from gempy_engine.core.data import FiniteFault
     from gempy_engine.core.data.kernel_classes.faults import FaultsData
+
+    _check_mode(monkeypatch)
     from tests.fixtures.complex_geometries import one_fault_model
 
     inputs, descriptor, options = one_fault_model.__wrapped__()
@@ -471,6 +479,33 @@ def _graben(levels):
     return inputs, options, structure
 
 
+def test_compute_checks_the_drift_rule_only_in_check_mode(monkeypatch):
+    """A plain compute leaves it to check mode; the meshes do not depend on it."""
+    from gempy_engine.API.model.model_api import compute_model
+
+    plain = compute_model(*_graben(3)).dc_meshes
+    assert plain[0].contact_report['sampler']['drift_rebuild_max_error'] == ()
+
+    _check_mode(monkeypatch)
+    checked = compute_model(*_graben(3)).dc_meshes
+    assert len(checked[0].contact_report['sampler']['drift_rebuild_max_error']) == 2
+    for first, second in zip(plain, checked):
+        np.testing.assert_array_equal(first.vertices, second.vertices)
+        np.testing.assert_array_equal(first.edges, second.edges)
+
+
+def test_check_mode_rejects_a_drift_rule_that_left_production(monkeypatch):
+    """The regression the check exists for: the sampler's copy of the rule no longer equals production's."""
+    from gempy_engine.API.dual_contouring import fault_drift_sampler
+    from gempy_engine.API.model.model_api import compute_model
+
+    soft_segment = fault_drift_sampler.soft_segment_unbounded
+    monkeypatch.setattr(fault_drift_sampler, 'soft_segment_unbounded', lambda **kwargs: soft_segment(**kwargs) + .01)
+    _check_mode(monkeypatch)
+    with pytest.raises(ValueError, match='unverified_fault_drift'):
+        compute_model(*_graben(3))
+
+
 def test_graben_two_independent_faults():
     from gempy_engine.API.model.model_api import compute_model
 
@@ -478,7 +513,7 @@ def test_graben_two_independent_faults():
     assert len(meshes) == 6 and all(len(m.edges) for m in meshes)
     report = meshes[0].contact_report
     assert report['fault_surfaces'] == [0, 1]
-    assert set(report['sampler']['cache_fingerprints']) and len(report['sampler']['drift_rebuild_max_error']) == 2
+    assert set(report['sampler']['cache_fingerprints'])
     fault_keys = {0: set(meshes[0].joint_vertex_keys), 1: set(meshes[1].joint_vertex_keys)}
     for mesh in meshes[2:]:
         sources = {f for f, keys in fault_keys.items() if keys & set(mesh.joint_vertex_keys)}
