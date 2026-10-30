@@ -32,21 +32,31 @@ def find_intersection_on_edge(_xyz_corners, scalar_field_on_corners,
 
 
 def _find_strict_intersections(xyz_corners, scalars, isovalues, masking):
-    xp = BackendTensor.t
     xyz = xyz_corners.reshape(-1, 8, 3)
     scalars = scalars.reshape(1, -1, 8)
     if masking is not None:
         xyz = xyz[masking]
         scalars = scalars[:, masking]
+    return _strict_intersections(xyz, scalars, isovalues.reshape(-1, 1, 1))
+
+
+def find_strict_row_intersections(xyz_corners, scalars, isovalues):
+    """``find_intersection_on_edge(..., strict_crossings=True)`` with one isovalue per cell (``isovalues`` (N,)).
+
+    Returns the crossings and the (N * 12,) edge flags of the PyTorch backend's layout (NumPy: (N, 12)).
+    """
+    return _strict_intersections(xyz_corners.reshape(-1, 8, 3), scalars.reshape(1, -1, 8), isovalues.reshape(1, -1, 1))
+
+
+def _strict_intersections(xyz, scalars, isovalues):
+    xp = BackendTensor.t
     if not bool(xp.isfinite(xyz).all()):
         raise ValueError("Strict edge crossings require finite corner coordinates")
 
     # Preserve the legacy x/y/z edge ordering and start-to-end direction.
     start = [4, 5, 6, 7, 2, 3, 6, 7, 1, 3, 5, 7]
     end = [0, 1, 2, 3, 0, 1, 4, 5, 0, 2, 4, 6]
-    valid, t = scalar_crossing_parameters(
-        scalars[:, :, start], scalars[:, :, end], isovalues.reshape(-1, 1, 1), xp=xp
-    )
+    valid, t = scalar_crossing_parameters(scalars[:, :, start], scalars[:, :, end], isovalues, xp=xp)
     shape = (*valid.shape, 3)
     a = xp.broadcast_to(xyz[None, :, start, :], shape)[valid]
     b = xp.broadcast_to(xyz[None, :, end, :], shape)[valid]

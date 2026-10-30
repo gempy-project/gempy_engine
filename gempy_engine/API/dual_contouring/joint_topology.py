@@ -12,7 +12,8 @@ from ...core.backend_tensor import BackendTensor as BT
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.stack_relation_type import StackRelationType as R
 from ...modules.dual_contouring._gen_vertices import generate_dual_contouring_vertices, triangles_in_extent_face
-from ...modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge
+from ...modules.dual_contouring.dual_contouring_interface import (find_intersection_on_edge,
+                                                                  find_strict_row_intersections)
 from ...modules.dual_contouring.joint_cell_branches import CORNERS, EDGE_START, EDGE_END
 from ...modules.dual_contouring.joint_cell_complex import AdaptiveComplex, _paused_gc, adaptive_complex_arrays
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
@@ -201,45 +202,54 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     # A surface never solves its own QEF in borrowed leaves; there its Hermite
     # rows only constrain the fault vertex it borrows (pretty's weighted rule).
     solved = flags & ~merged[:, :, None]
-    crossed = [flags[s][edge_xyz.rows[s]] for s in range(n)]
+    # Every surface's crossings at once (surface-major rows); ``point_bounds`` split them per surface.
+    crossed = edge_xyz.crossed
+    crossing_points = edge_xyz.flat[crossed]
+    point_bounds = edge_xyz.segments(crossed.sum(axis=1))
     if field_query is None:
-        crossing_points = xp.concatenate([edge_xyz.values[s][crossed[s]] for s in range(n)])
         if len(crossing_points):
-            sample(crossing_points)
-        for s in range(n):
-            if bool(crossed[s].any()):
-                normals.values[s][crossed[s]] = sample(edge_xyz.values[s][crossed[s]])[1][s]
+            point_surface = xp.repeat(edge_xyz.surface, 12).reshape(-1, 12)[crossed]
+            normals.flat[crossed] = sample(crossing_points)[1][point_surface, xp.arange(len(crossing_points))]
     else:
-        surface_edges = [xp.flatnonzero(edge_fields[s, :, 0]*edge_fields[s, :, 1] < 0) for s in range(n)]
-        answers = batch([(edge_xyz.values[s][crossed[s]], [s], 'gradient') for s in range(n)] +
-                        [(minimal_xyz[surface_edges[s]].reshape(-1, 3), [s], 'gradient') for s in range(n)])
-        for s in range(n):
-            normals.values[s][crossed[s]] = answers[s][0]
-            endpoint_gradients[s, edge_slot[surface_edges[s]]] = answers[n+s][0].reshape(-1, 2, 3)
-    for s in range(n):
-        own = solved[s][edge_xyz.rows[s]]
-        if bool((xp.norm(normals.values[s][own], axis=1) < 1e-12).any()):
-            raise ValueError('degenerate_hermite_normal: actual crossing gradient vanishes')
+        surface_crossed = edge_fields[:, :, 0]*edge_fields[:, :, 1] < 0
+        edge_flat = xp.flatnonzero(surface_crossed)
+        edge_surface, surface_edges = edge_flat // n_edges, edge_flat % n_edges
+        edge_bounds = np.concatenate(([0], np.cumsum(host(surface_crossed.sum(axis=1))))).tolist()
+        answers = batch([(crossing_points[a:b], [s], 'gradient') for s, (a, b) in enumerate(point_bounds)] +
+                        [(minimal_xyz[surface_edges[a:b]].reshape(-1, 3), [s], 'gradient')
+                         for s, (a, b) in enumerate(zip(edge_bounds[:-1], edge_bounds[1:]))])
+        normals.flat[crossed] = xp.concatenate([answers[s][0] for s in range(n)])
+        endpoint_gradients[edge_surface, edge_slot[surface_edges]] = xp.concatenate(
+            [answers[n+s][0].reshape(-1, 2, 3) for s in range(n)])
+    own = solved[edge_xyz.surface, edge_xyz.flat_rows]
+    if bool(((xp.norm(normals.flat, axis=2) < 1e-12) & own).any()):
+        raise ValueError('degenerate_hermite_normal: actual crossing gradient vanishes')
 
     # Vertex ids: s*leaves + leaf is surface s's own vertex, joint_start + j the j-th junction.
     joint_start = n*leaves
     regular = xp.full((n, leaves, 3), np.nan)
-    weighted_fault_cells = set()
-    for s in range(n):
-        own = solved[s][edge_xyz.rows[s]]
-        solving = own.any(axis=1)
-        if not bool(solving.any()):
-            continue
-        cells = edge_xyz.rows[s][solving]
-        extra = None
-        if fault_merge is not None and s in fault_merge:
+    weighted_fault_cells = []  # per fault surface: its leaves whose QEF has weighted borrowed rows (count)
+    solving = own.any(axis=1)
+    solving_bounds = edge_xyz.segments(solving)
+    keep = xp.flatnonzero(solving)
+    extras = {}
+    for s in (fault_merge or {}):
+        a, b = solving_bounds[s]
+        if b > a:
+            cells = edge_xyz.flat_rows[keep[a:b]]
             extra = borrowed_hermite_rows(s, cells, fault_merge[s], source, edge_xyz, normals, flags,
                                           DEFAULT_CROSS_SURFACE_WEIGHT)
             if extra is not None:
-                weighted_fault_cells.update((s, c) for c in cells[(extra[2] > 0).any(axis=1)].tolist())
-        regular[s, cells] = _solve_qef(xp, edge_xyz.values[s][own], own[solving], xyz[cells], spans[cells], step,
-                                       origins[cells], normals.values[s][own], extra,
-                                       extent=host(bounds) if snap_extent else None)
+                extras[s] = extra
+                weighted_fault_cells.append((extra[2] > 0).any(axis=1).sum())
+    for group in _qef_groups(xp, solving_bounds, extras, spans[edge_xyz.flat_rows[keep]], snap_extent):
+        index = keep[xp.asarray(np.concatenate([np.arange(*solving_bounds[s]) for s in group]))]
+        cells, group_own = edge_xyz.flat_rows[index], own[index]
+        extra = (tuple(xp.concatenate([extras[s][k] for s in group]) for k in range(3))
+                 if group[0] in extras else None)
+        regular[edge_xyz.surface[index], cells] = _solve_qef(
+            xp, edge_xyz.flat[index][group_own], group_own, xyz[cells], spans[cells], step, origins[cells],
+            normals.flat[index][group_own], extra, extent=host(bounds) if snap_extent else None)
     # endregion
 
     # region Junctions, fallback region and edge rows
@@ -339,16 +349,21 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                                      {}, ()),
             description='Original production QEFs with identical retained minimal edges')
     if fault_merge is not None:
+        faults_merged = sorted(int(c) for c in fault_merge)
+        # Every count in one host read.
+        tallies = host(xp.stack([flags[c].any(axis=1).sum() for c in faults_merged] + [
+            borrowed.sum(), multi_fault.sum(), fallback_leaves.sum(),
+            sum(weighted_fault_cells) if weighted_fault_cells else xp.zeros((), dtype=np.int64)])).tolist()
         result['diagnostics'].update(
             contact_type='pretty_fault_vertex_merge', strict_crossings=True,
-            crossing_contract='strict_scalar_sides', fault_surfaces=sorted(int(c) for c in fault_merge),
-            fault_cell_count={int(c): int(flags[c].any(axis=1).sum()) for c in fault_merge},
-            borrowed_vertex_count=int(borrowed.sum()), filtered_fault_triangle_count=filtered_triangles,
-            multi_fault_unborrowed_count=int(multi_fault.sum()),
-            weighted_fault_vertex_count=len(weighted_fault_cells),
+            crossing_contract='strict_scalar_sides', fault_surfaces=faults_merged,
+            fault_cell_count=dict(zip(faults_merged, tallies)),
+            borrowed_vertex_count=tallies[-4], filtered_fault_triangle_count=filtered_triangles,
+            multi_fault_unborrowed_count=tallies[-3],
+            weighted_fault_vertex_count=tallies[-1],
             cross_surface_weight=DEFAULT_CROSS_SURFACE_WEIGHT,
             fault_overridden_junction_cells=sorted(int(c) for c in fallback),
-            fallback_region_leaf_count=int(fallback_leaves.sum()))
+            fallback_region_leaf_count=tallies[-2])
     if separator is not None:
         result['bank'] = bank
         result['diagnostics'].update(bank=bank, separator_contact=separator,
@@ -377,8 +392,8 @@ def _plan_junctions(xp, face_cells, tile_xyz, tile_fields, pairs, identities, or
     junctions, evidence, fallback = plan_adaptive_junctions(
         host(xp.where(tile_cells >= 0, local[xp.maximum(tile_cells, 0)], -1)), host(tile_xyz[tiles]),
         host(tile_fields[:, tiles]), pairs, identities, host(origins[cells]), host(spans[cells]),
-        host(counts[:, cells]), host(xp.stack([edge_xyz[s][cells] for s in range(n)])),
-        host(xp.stack([normals[s][cells] for s in range(n)])), host(flags[:, cells]),
+        host(counts[:, cells]), host(edge_xyz.gather(slice(None), cells)),
+        host(normals.gather(slice(None), cells)), host(flags[:, cells]),
         controllers=controllers, leaf_fields=host(fields[:, cells]),
         overridden=None if region is None else {s: host(region[cells]) for s in range(n)})
     cells, tiles = host(cells).tolist(), host(tiles).tolist()
@@ -390,33 +405,41 @@ def _plan_junctions(xp, face_cells, tile_xyz, tile_fields, pairs, identities, or
 class _LeafRows:
     """Per-surface (N, 12, 3) values stored only on each surface's crossed leaves (zero elsewhere).
 
-    ``rows[s]`` are surface ``s``'s leaves and ``values[s]`` their (R, 12, 3)
-    rows; ``self[s][leaves]`` gathers (L, 12, 3) as the dense array would.
+    Stored flat, surface-major: ``flat`` (R, 12, 3), with each row's ``surface`` and leaf
+    (``flat_rows``) and its strictly crossed edges ``crossed`` (R, 12); ``bounds`` are each surface's
+    (start, stop) rows (host). ``rows[s]`` are surface ``s``'s leaves and ``values[s]`` their (R_s, 12, 3)
+    rows (views of ``flat``); ``self[s][leaves]`` gathers (L, 12, 3) as the dense array would.
     """
 
-    def __init__(self, xp, rows, values, leaves):
-        self.rows, self.values, self._xp, self._slots = rows, values, xp, []
-        for surface_rows in rows:
-            slot = xp.full(leaves, -1, dtype=np.int64)
-            slot[surface_rows] = xp.arange(len(surface_rows))
-            self._slots.append(slot)
+    def __init__(self, xp, surface, rows, flat, crossed, bounds, leaves):
+        self._xp, self.surface, self.flat_rows, self.flat, self.crossed = xp, surface, rows, flat, crossed
+        self.bounds = bounds
+        self.rows = [rows[a:b] for a, b in bounds]
+        self.values = [flat[a:b] for a, b in bounds]
+        self._slot = xp.full((len(bounds), leaves), -1, dtype=np.int64)
+        self._slot[surface, rows] = xp.arange(len(rows))
 
     def zeros_like(self):
         rows = _LeafRows.__new__(_LeafRows)
-        rows.rows, rows._xp, rows._slots = self.rows, self._xp, self._slots
-        rows.values = [self._xp.zeros(tuple(v.shape)) for v in self.values]
+        rows.__dict__.update(self.__dict__)
+        rows.flat = self._xp.zeros(tuple(self.flat.shape))
+        rows.values = [rows.flat[a:b] for a, b in self.bounds]
         return rows
 
-    def __getitem__(self, surface):
-        slot, values, xp = self._slots[surface], self.values[surface], self._xp
+    def segments(self, sizes):
+        """Each surface's (start, stop) in a surface-major array holding ``sizes[r]`` entries per row (host)."""
+        ends = np.concatenate(([0], host(self._xp.cumsum(self._xp.astype(sizes, np.int64)))))
+        return [(int(ends[a]), int(ends[b])) for a, b in self.bounds]
 
-        def gather(leaves):
-            index = slot[leaves]
-            out = xp.zeros(tuple(index.shape) + (12, 3))
-            hit = index >= 0
-            out[hit] = values[index[hit]]
-            return out
-        return _Gather(gather)
+    def gather(self, surface, leaves):
+        """Rows of ``surface`` (an index, or a slice for every surface) at ``leaves``: zero where not crossed."""
+        index = self._slot[surface, leaves]
+        if not len(self.flat):
+            return self._xp.zeros(tuple(index.shape) + (12, 3))
+        return self._xp.where((index >= 0)[..., None, None], self.flat[self._xp.maximum(index, 0)], 0.)
+
+    def __getitem__(self, surface):
+        return _Gather(lambda leaves: self.gather(surface, leaves))
 
 
 class _Gather:
@@ -489,34 +512,58 @@ def _surface_crossings(xp, xyz, samples, levels, stricts, merged, multi_fault, f
     """
     n, leaves = stricts.shape[:2]
     edge_start, edge_end = xp.asarray(EDGE_START), xp.asarray(EDGE_END)
-    rows_per_surface, values = [], []
-    for s in range(n):
-        if reject_aligned and bool((xp.abs(fields[s]) < 1e-10).any()):
-            raise ValueError('sample_aligned_interface: original corner lies on surface')
-        # Only leaves the surface strictly crosses carry crossings.
-        rows = xp.flatnonzero(stricts[s].any(axis=1))
-        crossed = stricts[s][rows]
-        found = xp.zeros((len(rows), 12, 3))
-        if len(rows):
-            crossings, production_flags = find_intersection_on_edge(
-                _tensor(xyz[rows].reshape(-1, 3)), _tensor(samples[s][rows].reshape(-1)), _tensor(levels[s:s+1]),
-                **({'strict_crossings': True} if strict else {}))
-            production_flags = xp.asarray(production_flags, dtype=bool).reshape(len(rows), 12)
-            # Strict sides decide which edges cross; production supplies the positions,
-            # and a strict edge production does not report is interpolated linearly.
-            found[production_flags] = xp.asarray(crossings, dtype=np.float64)
-            missing = crossed & ~production_flags
-            if bool(missing.any()):
-                corners, f = xyz[rows], fields[s][rows]
-                start, end = corners[:, edge_start][missing], corners[:, edge_end][missing]
-                f_start, f_end = f[:, edge_start][missing], f[:, edge_end][missing]
-                found[missing] = start + (f_start/(f_start-f_end))[:, None]*(end-start)
-            found[~crossed] = 0
-        rows_per_surface.append(rows)
-        values.append(found)
+    if reject_aligned and bool((xp.abs(fields) < 1e-10).any()):
+        raise ValueError('sample_aligned_interface: original corner lies on surface')
+    # Only leaves a surface strictly crosses carry crossings: every surface's, surface-major.
+    crossed_leaves = stricts.any(axis=2)
+    flat = xp.flatnonzero(crossed_leaves)
+    surface, rows = flat // leaves, flat % leaves
+    bounds = np.concatenate(([0], np.cumsum(host(crossed_leaves.sum(axis=1)))))
+    crossed = stricts[surface, rows]
+    found = xp.zeros((len(rows), 12, 3))
+    if len(rows):
+        corners, scalars = xyz[rows], samples[surface, rows]
+        if strict:  # each row against its surface's isovalue, in one production call
+            crossings, production_flags = find_strict_row_intersections(
+                _tensor(corners.reshape(-1, 3)), _tensor(scalars.reshape(-1)), _tensor(levels[surface]))
+            crossings = [crossings]
+            production_flags = xp.asarray(production_flags, dtype=bool).reshape(-1, 12)
+        else:
+            calls = [find_intersection_on_edge(_tensor(corners[a:b].reshape(-1, 3)), _tensor(scalars[a:b].reshape(-1)),
+                                               _tensor(levels[s:s+1]))
+                     for s, (a, b) in enumerate(zip(bounds[:-1], bounds[1:])) if b > a]
+            crossings = [c for c, _ in calls]
+            production_flags = xp.concatenate([xp.asarray(f, dtype=bool).reshape(-1, 12) for _, f in calls])
+        # Strict sides decide which edges cross; production supplies the positions,
+        # and a strict edge production does not report is interpolated linearly.
+        found[production_flags] = xp.concatenate([xp.asarray(c, dtype=np.float64) for c in crossings])
+        missing = crossed & ~production_flags
+        if bool(missing.any()):
+            f = fields[surface, rows]
+            start, end = corners[:, edge_start][missing], corners[:, edge_end][missing]
+            f_start, f_end = f[:, edge_start][missing], f[:, edge_end][missing]
+            found[missing] = start + (f_start/(f_start-f_end))[:, None]*(end-start)
+        found[~crossed] = 0
     # Ordinary dual contouring: one vertex per crossed leaf, whatever its branch topology.
-    counts = xp.astype(stricts.any(axis=2) | merged | multi_fault, np.int64)
-    return counts, _LeafRows(xp, rows_per_surface, values, leaves)
+    counts = xp.astype(crossed_leaves | merged | multi_fault, np.int64)
+    return counts, _LeafRows(xp, surface, rows, found, crossed, list(zip(bounds[:-1].tolist(), bounds[1:].tolist())),
+                             leaves)
+
+
+def _qef_groups(xp, bounds, extras, spans, snap_extent):
+    """Surfaces whose QEFs are solved in one production call, in surface order.
+
+    ``bounds`` are each surface's (start, stop) solved rows, ``spans`` those rows' leaf spans. A group
+    shares the number of borrowed extra rows (``extras``) and, when vertices snap to the extent, the
+    smallest leaf span: the snap tolerance scales with the call's smallest cell spacing.
+    """
+    present = [s for s, (a, b) in enumerate(bounds) if b > a]
+    smallest = (host(xp.stack([spans[bounds[s][0]:bounds[s][1]].min() for s in present])).tolist()
+                if snap_extent and present else [None] * len(present))
+    groups = {}
+    for s, span in zip(present, smallest):
+        groups.setdefault((extras[s][0].shape[1] if s in extras else 0, span), []).append(s)
+    return list(groups.values())
 
 
 def _solve_qef(xp, crossing_xyz, own, xyz, spans, spacing, origins, crossing_normals, extra, extent=None):

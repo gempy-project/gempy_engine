@@ -9,7 +9,7 @@ vertices. Surfaces are indices into the exported surface order.
 
 import numpy as np
 
-from .joint_xp import namespace
+from .joint_xp import host, namespace
 from ...core.data.stack_relation_type import StackRelationType as R
 
 
@@ -123,8 +123,8 @@ def borrowed_leaves(merge_targets, stricts):
         multi_fault[s] = several
         hits &= ~several
         merged[s] = hits.any(axis=0)
-        for c, row in zip(sources, hits):
-            source[s, row] = c
+        # At most one fault per leaf is left: its index, -1 elsewhere.
+        source[s] = xp.where(merged[s], sum(c*xp.astype(row, np.int64) for c, row in zip(sources, hits)), -1)
     return merged, multi_fault, source
 
 
@@ -138,22 +138,24 @@ def borrowed_hermite_rows(fault, cells, affected, source, edge_xyz, normals, fla
     ``(xyz, normals, weights)`` of shapes (C, 12B, 3), (C, 12B, 3), (C, 12B).
     """
     xp = namespace(source, cells)
-    blocks = [t for t in sorted(affected) if bool((source[t, cells] == fault).any())]
+    affected = sorted(affected)
+    if not affected:
+        return None
+    # Which cells each affected surface borrows the fault's vertex in; one host read for the blocks.
+    hits = xp.stack([source[t, cells] == fault for t in affected])
+    present = host(hits.any(axis=1))
+    blocks = [(t, hits[k]) for k, t in enumerate(affected) if present[k]]
     if not blocks:
         return None
-    extra_xyz = xp.zeros((len(cells), 12*len(blocks), 3))
-    extra_normals = xp.zeros((len(cells), 12*len(blocks), 3))
-    extra_weights = xp.zeros((len(cells), 12*len(blocks)))
-    for b, t in enumerate(blocks):
-        rows = xp.flatnonzero(source[t, cells] == fault)
-        borrowers = cells[rows]
-        span = slice(12*b, 12*(b+1))
-        borrowed_normals = xp.asarray(normals[t][borrowers])
-        extra_xyz[rows, span] = xp.asarray(edge_xyz[t][borrowers])
-        extra_normals[rows, span] = borrowed_normals
-        extra_weights[rows, span] = weight*xp.astype(flags[t][borrowers] & (borrowed_normals != 0).any(axis=-1),
-                                                     np.float64)
-    return extra_xyz, extra_normals, extra_weights
+    extra_xyz, extra_normals, extra_weights = [], [], []
+    for t, borrows in blocks:
+        borrowed_normals = xp.asarray(normals[t][cells])
+        extra_xyz.append(xp.where(borrows[:, None, None], xp.asarray(edge_xyz[t][cells]), 0.))
+        extra_normals.append(xp.where(borrows[:, None, None], borrowed_normals, 0.))
+        extra_weights.append(xp.where(borrows[:, None], weight*xp.astype(
+            flags[t][cells] & (borrowed_normals != 0).any(axis=-1), np.float64), 0.))
+    return (xp.concatenate(extra_xyz, axis=1), xp.concatenate(extra_normals, axis=1),
+            xp.concatenate(extra_weights, axis=1))
 
 
 def fallback_region(edge_cells, core_leaves):

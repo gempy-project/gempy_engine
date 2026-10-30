@@ -183,15 +183,20 @@ def test_deferred_plan_still_requires_validated_geometry(monkeypatch):
 def test_bank_uses_strict_primitive_not_tolerance_extrapolated_crossings(bank, monkeypatch):
     args, kwargs = bank_case(bank, geometry='near_endpoint')
     calls = []
-    primitive = api.find_intersection_on_edge
+    primitive, row_primitive = api.find_intersection_on_edge, api.find_strict_row_intersections
 
     def recorded(*args, **kwargs):
         calls.append(kwargs.get('strict_crossings', False))
         return primitive(*args, **kwargs)
 
+    def recorded_rows(*args):
+        calls.append(True)  # the strict primitive, every surface's leaves in one call
+        return row_primitive(*args)
+
     monkeypatch.setattr(api, 'find_intersection_on_edge', recorded)
+    monkeypatch.setattr(api, 'find_strict_row_intersections', recorded_rows)
     result = api.extract_adaptive_topology(*args, **kwargs)
-    assert calls == [True]*3
+    assert calls == [True]
     assert result['diagnostics']['coarsefine_seam_edge_count'] == 2
     joint = result['vertices'][np.unique(result['seam_edges'])]
     np.testing.assert_allclose(joint[:, 0], 3.999, atol=1e-12)
