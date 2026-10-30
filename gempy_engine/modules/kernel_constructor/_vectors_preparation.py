@@ -31,8 +31,9 @@ def cov_vectors_preparation(interp_input: SolverInput, kernel_options: KernelOpt
         dim=options.number_dimensions,
         n_dips=ori_.n_orientations
     )
-    orientations_sp_matrices: OrientationSurfacePointsCoords = _assembly_dips_points_tensors(matrices_sizes, ori_, sp_)
-    dips_ref_ui, dips_rest_ui, dips_ug = _assembly_drift_tensors(options, ori_, sp_, matrices_sizes)
+    assemblies = _stack_assemblies(interp_input, options, matrices_sizes)
+    orientations_sp_matrices: OrientationSurfacePointsCoords = _assembly_dips_points_tensors(assemblies)
+    dips_ref_ui, dips_rest_ui, dips_ug = _assembly_drift_tensors(assemblies)
 
     # Selectors :
     cartesian_selector = _assembly_cartesian_selector_tensors(matrices_sizes)
@@ -44,7 +45,7 @@ def cov_vectors_preparation(interp_input: SolverInput, kernel_options: KernelOpt
         n_drift_eq=matrices_sizes.uni_drift_size)
 
     if matrices_sizes.faults_size > 0:
-        fault_vector_ref, fault_vector_rest = _assembly_fault_tensors(options, faults_val, matrices_sizes.ori_size)
+        fault_vector_ref, fault_vector_rest = _assembly_fault_tensors(assemblies)
     else:
         fault_vector_ref, fault_vector_rest = None, None
 
@@ -66,6 +67,49 @@ def cov_vectors_preparation(interp_input: SolverInput, kernel_options: KernelOpt
         ref_fault=fault_vector_ref,
         rest_fault=fault_vector_rest
     )
+
+
+@dataclass(frozen=True)
+class StackAssemblies:
+    """A stack's coordinate, drift and fault vectors: the same in its covariance and in the data side of
+    every evaluation axis (none of them depends on the grid or the axis)."""
+    dips_ref_coord: object
+    dips_rest_coord: object
+    dips_ug: tuple  # degree 1, degree 2a, degree 2b, second-degree selector
+    dips_ref: tuple  # degree 1, degree 2a, degree 2b
+    dips_rest: tuple
+    faults: Optional[tuple]  # fault vectors at the reference and the rest points
+
+
+def _stack_assemblies(interp_input, options: KernelOptions, matrices_sizes: MatricesSizes) -> StackAssemblies:
+    """Built once per stack within a compute (see ``compute_scope``)."""
+    cache = stack_cache_of(interp_input)
+    key = ("assemblies", options.uni_degree, options.number_dimensions, options.n_uni_eq)
+    if cache is not None and not checking() and key in cache.data_side:
+        return cache.data_side[key]
+
+    sp_: SurfacePointsInternals = interp_input.sp_internal
+    ori_: OrientationsInternals = interp_input.ori_internal
+    assemblies = StackAssemblies(
+        dips_ref_coord=assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.ref_surface_points, matrices_sizes),
+        dips_rest_coord=assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.rest_surface_points, matrices_sizes),
+        dips_ug=tuple(assembly_dips_ug_coords(ori_, options, matrices_sizes)),
+        dips_ref=tuple(assembly_dips_points_coords(sp_.ref_surface_points, matrices_sizes, options)),
+        dips_rest=tuple(assembly_dips_points_coords(sp_.rest_surface_points, matrices_sizes, options)),
+        faults=(tuple(_assembly_fault_internals(interp_input.fault_internal, options, matrices_sizes.ori_size))
+                if matrices_sizes.faults_size > 0 else None),
+    )
+    if cache is None:
+        return assemblies
+    if key in cache.data_side:  # checking()
+        cached = cache.data_side[key]
+        for name in StackAssemblies.__dataclass_fields__:
+            cached_value, value = getattr(cached, name), getattr(assemblies, name)
+            for k, (a, b) in enumerate(zip(cached_value, value) if isinstance(value, tuple) else [(cached_value, value)]):
+                assert_same(a, b, f"stack assemblies {name}[{k}]")
+        return cached
+    cache.data_side[key] = assemblies
+    return assemblies
 
 
 @dataclass(frozen=True)
@@ -164,21 +208,14 @@ def _evaluation_data_side(interp_input, options: KernelOptions, matrices_sizes: 
     if cache is not None and not checking() and key in cache.data_side:
         return cache.data_side[key]
 
-    sp_: SurfacePointsInternals = interp_input.sp_internal
-    ori_: OrientationsInternals = interp_input.ori_internal
-    dips_ref_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.ref_surface_points, matrices_sizes)
-    dips_rest_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.rest_surface_points, matrices_sizes)
-
-    dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector = assembly_dips_ug_coords(ori_, options, matrices_sizes)
+    assemblies = _stack_assemblies(interp_input, options, matrices_sizes)
+    dips_ref_coord, dips_rest_coord = assemblies.dips_ref_coord, assemblies.dips_rest_coord
+    dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector = assemblies.dips_ug
     sel = BackendTensor.t.ones(options.number_dimensions)
     sel[axis] = 0
-    dips_ref_d1, dips_ref_d2a, dips_ref_d2b = assembly_dips_points_coords(sp_.ref_surface_points, matrices_sizes, options)
-    dips_rest_d1, dips_rest_d2a, dips_rest_d2b = assembly_dips_points_coords(sp_.rest_surface_points, matrices_sizes, options)
-
-    if matrices_sizes.faults_size > 0:
-        fault_vector_ref, _ = _assembly_fault_internals(interp_input.fault_internal, options, matrices_sizes.ori_size)
-    else:
-        fault_vector_ref = None
+    dips_ref_d1, dips_ref_d2a, dips_ref_d2b = assemblies.dips_ref
+    dips_rest_d1, dips_rest_d2a, dips_rest_d2b = assemblies.dips_rest
+    fault_vector_ref = assemblies.faults[0] if assemblies.faults is not None else None
 
     # One grid row: every row of these terms is the same.
     row = replace(matrices_sizes, grid_size=1)
@@ -224,9 +261,8 @@ def _evaluation_data_side(interp_input, options: KernelOptions, matrices_sizes: 
     return data
 
 
-def _assembly_dips_points_tensors(matrices_size: MatricesSizes, ori_, sp_) -> OrientationSurfacePointsCoords:
-    dips_ref_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.ref_surface_points, matrices_size)
-    dips_rest_coord = assembly_dips_points_tensor(ori_.dip_positions_tiled, sp_.rest_surface_points, matrices_size)
+def _assembly_dips_points_tensors(assemblies: StackAssemblies) -> OrientationSurfacePointsCoords:
+    dips_ref_coord, dips_rest_coord = assemblies.dips_ref_coord, assemblies.dips_rest_coord
 
     orientations_sp_matrices = OrientationSurfacePointsCoords(dips_ref_coord, dips_ref_coord, dips_rest_coord,
                                                               dips_rest_coord)  # When we create que core covariance these are the repeated since the distance are with themselves
@@ -246,9 +282,8 @@ def _assembly_cartesian_selector_tensors(matrices_sizes: MatricesSizes):
     return cartesian_selector
 
 
-def _assembly_drift_tensors(options: KernelOptions, ori_: OrientationsInternals, sp_: SurfacePointsInternals,
-                            matrices_sizes: MatricesSizes):
-    dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector = assembly_dips_ug_coords(ori_, options, matrices_sizes)
+def _assembly_drift_tensors(assemblies: StackAssemblies):
+    dips_ug_d1, dips_ug_d2a, dips_ug_d2b, second_degree_selector = assemblies.dips_ug
 
     dips_ug = OrientationsDrift(
         dips_ug_d1, dips_ug_d1,
@@ -257,8 +292,8 @@ def _assembly_drift_tensors(options: KernelOptions, ori_: OrientationsInternals,
         second_degree_selector
     )
 
-    dips_ref_d1, dips_ref_d2a, dips_ref_d2b = assembly_dips_points_coords(sp_.ref_surface_points, matrices_sizes, options)
-    dips_rest_d1, dips_rest_d2a, dips_rest_d2b = assembly_dips_points_coords(sp_.rest_surface_points, matrices_sizes, options)
+    dips_ref_d1, dips_ref_d2a, dips_ref_d2b = assemblies.dips_ref
+    dips_rest_d1, dips_rest_d2a, dips_rest_d2b = assemblies.dips_rest
 
     dips_ref_ui = PointsDrift(dips_ref_d1, dips_ref_d1, dips_ref_d2a, dips_ref_d2a, dips_ref_d2b, dips_ref_d2b)
     dips_rest_ui = PointsDrift(dips_rest_d1, dips_rest_d1, dips_rest_d2a, dips_rest_d2a, dips_rest_d2b, dips_rest_d2b)
@@ -266,8 +301,8 @@ def _assembly_drift_tensors(options: KernelOptions, ori_: OrientationsInternals,
     return dips_ref_ui, dips_rest_ui, dips_ug
 
 
-def _assembly_fault_tensors(options, faults_val: FaultsData, ori_size: int) -> Tuple[FaultDrift, FaultDrift]:
-    fault_vector_ref, fault_vector_rest = _assembly_fault_internals(faults_val, options, ori_size)
+def _assembly_fault_tensors(assemblies: StackAssemblies) -> Tuple[FaultDrift, FaultDrift]:
+    fault_vector_ref, fault_vector_rest = assemblies.faults
     return FaultDrift(fault_vector_ref, fault_vector_ref), FaultDrift(fault_vector_rest, fault_vector_rest)
 
 
