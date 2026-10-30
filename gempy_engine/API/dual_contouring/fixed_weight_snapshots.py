@@ -16,6 +16,7 @@ from ..interp_single._aux_faults_ops import _grab_stack_fault_data, _modify_faul
 from ..interp_single._interp_single_feature import input_preprocess
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor as BT
+from ...core.compute_scope import options_key, stack_cache
 from ...core.data import TensorsStructure
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.kernel_classes.faults import FaultsData
@@ -29,6 +30,15 @@ from ...modules.weights_cache.weights_cache_interface import WeightCache
 def host(values):
     """NumPy view/copy of a NumPy array or a (possibly CUDA) Torch tensor."""
     return BT.t.to_numpy(values) if hasattr(values, 'detach') else np.asarray(values)
+
+
+def inspection_copy(snapshots):
+    """Detached, frozen copy of ``fixed_weight_snapshots``' snapshots, without their live stack caches."""
+    caches = {id(snapshot[0].stack_cache): None for snapshot in snapshots
+              if snapshot is not None and getattr(snapshot[0], 'stack_cache', None) is not None}
+    inspection = copy.deepcopy(snapshots, caches)
+    freeze_arrays(inspection)
+    return inspection
 
 
 def freeze_arrays(value):
@@ -157,7 +167,10 @@ def fixed_weight_snapshots(descriptor, interpolation_input, options, octree_list
                            external_stacks=()):
     """Frozen (solver_input, weights, options) per stack, from the outputs' production weights.
 
-    ``external_stacks`` have no weights (external callbacks); their snapshot is None.
+    ``external_stacks`` have no weights (external callbacks); their snapshot is None. Inside a compute
+    scope each snapshot's solver input carries its stack's interpolation cache (``stack_cache``): the
+    production internals and fingerprint, and the compiled evaluation kernels for queries. Inspection
+    copies (``inspection_copy``) leave it out.
 
     Production fault drift for every stack in ``fault_stacks`` is rebuilt on the
     last surface level's reference grid, exactly as the production solve saw it.
@@ -195,19 +208,23 @@ def fixed_weight_snapshots(descriptor, interpolation_input, options, octree_list
         subset = InterpolationInput.from_interpolation_input_subset(private_input, private_stacks)
         subset.fault_values = _grab_stack_fault_data(backend_block, subset, private_stacks, grid_size)
         shape = TensorsStructure.from_tensor_structure_subset(private_descriptor, stack_index)
-        solver_input = input_preprocess(shape, subset)
         overrides = private_stacks.interpolation_options_per_stack
         stack_options = copy.deepcopy(overrides[stack_index] if overrides is not None and
                                       overrides[stack_index] is not None else options)
         if stack_options.number_dimensions != 3:
             raise NotImplementedError('unsupported_fault_dimensions')
+        # The production stack's cache (same input and kernel settings as the interpolation).
+        cache = stack_cache(interpolation_input, stack_index, options_key(stack_options.kernel_options))
+        solver_input = input_preprocess(shape, subset, cache)
         weights, fingerprint = production_weights(stack_options, stack_index, solver_input,
                                                   getattr(last.outputs[stack_index], 'weights', None), 'fault')
         weights = np.array(host(weights), dtype=np.float64, copy=True)
         stack_options.evaluation_options.compute_scalar = True
         stack_options.evaluation_options.compute_scalar_gradient = True
+        solver_input.stack_cache = None
         solver_input = copy.deepcopy(solver_input)
         freeze_arrays(solver_input)
+        solver_input.stack_cache = cache
         weights.flags.writeable = False
         snapshots.append((solver_input, weights, stack_options))
         fingerprints.append(fingerprint)

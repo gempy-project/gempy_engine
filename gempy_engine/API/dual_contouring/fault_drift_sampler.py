@@ -17,7 +17,7 @@ except ImportError:  # NumPy-only installs: the sampler never takes the Torch br
 from ..interp_single._aux_faults_ops import _modify_faults_values_output, finite_fault_frame_indices, finite_fault_taper
 from ..interp_single._interp_scalar_field import _evaluate_sys_eq
 from .fixed_weight_snapshots import (check_fixed_query_contract, check_fixed_weight_backend, fault_matrix,
-                                     fixed_weight_snapshots, freeze_arrays, host)
+                                     fixed_weight_snapshots, host, inspection_copy)
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor as BT
 from ...core.compute_scope import options_key
@@ -448,8 +448,7 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         _raise_failed(checks)
         return np.stack([host64(v) for v in values])
 
-    inspection = copy.deepcopy(snapshots)
-    freeze_arrays(inspection)
+    inspection = inspection_copy(snapshots)
     return dict(fault_stacks=faults, affected_by=affected_by, query=query, query_batch=query_batch,
                 query_batch_device=query_batch_device,
                 query_sides=query_sides, drift_plateaus=plateaus, snapshots=inspection,

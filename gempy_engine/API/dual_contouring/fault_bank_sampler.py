@@ -12,7 +12,7 @@ import numpy as np
 from ..interp_single._aux_faults_ops import _modify_faults_values_output
 from ..interp_single._interp_scalar_field import _evaluate_sys_eq
 from .fixed_weight_snapshots import (check_fixed_query_contract, check_fixed_weight_backend, fault_matrix,
-                                     fixed_weight_snapshots, freeze_arrays, host)
+                                     fixed_weight_snapshots, host, inspection_copy)
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor as BT
 from ...core.data.kernel_classes.faults import FaultsData
@@ -131,8 +131,7 @@ def prepare_fault_bank_sampler(descriptor, interpolation_input, options, octree_
             raise ValueError('unverified_fault_banks: production drift must span 0/1 with bank 0 positive')
         drift_ranges.append((float(drift.min()), float(drift.max())))
     # Inspection snapshots do not expose mutable attributes of the closure.
-    inspection = copy.deepcopy(snapshots)
-    freeze_arrays(inspection)
+    inspection = inspection_copy(snapshots)
     return dict(fault_stack=fault_stack, affected_stacks=affected, unaffected_stacks=unaffected,
                 query=query, snapshots=inspection,
                 diagnostics=dict(backend=f"{BT.engine_backend.name}_{'cuda' if BT.use_gpu else 'cpu'}_{BT.dtype}"
