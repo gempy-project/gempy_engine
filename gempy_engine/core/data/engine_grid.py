@@ -147,7 +147,10 @@ class EngineGrid:
 
     @property
     def len_all_grids(self) -> int:
-        return self.values.shape[0]
+        # ``values.shape[0]`` without concatenating (copying) the grids
+        return sum(len(grid) for grid in (self.octree_grid, self.dense_grid, self.custom_grid, self.topography,
+                                          self.sections, self.geophysics_grid, self.corners_grid)
+                   if grid is not None)
 
     @property
     def octree_grid_values(self) -> np.ndarray:  # shape(nx, ny, nz, 3)
