@@ -125,19 +125,24 @@ def input_preprocess(data_shape: TensorsStructure, interpolation_input: Interpol
 
 
 def preprocess_stack_data(data_shape: TensorsStructure, interpolation_input: InterpolationInput,
-                          cache: Optional[StackCache] = None) -> tuple[SurfacePointsInternals, OrientationsInternals, FaultsData]:
+                          cache: Optional[StackCache] = None,
+                          internals: Optional[tuple] = None) -> tuple[SurfacePointsInternals, OrientationsInternals, FaultsData]:
     """Surface point and orientation internals, and the fault values at the reference/rest points.
 
     None of them depends on the grid: within a compute they are built once per stack and reused from
-    ``cache``. The fault values are set on the input's own (per-level) ``FaultsData``.
+    ``cache``. The fault values are set on the input's own (per-level) ``FaultsData``. ``internals``: the
+    surface point and orientation internals already built for the whole chunk (``chunk_preprocess``).
     """
     fault_values: FaultsData = interpolation_input.fault_values
     if cache is not None and cache.sp_internal is not None and not checking():
         fault_values.fault_values_ref, fault_values.fault_values_rest = cache.fault_values_ref, cache.fault_values_rest
         return cache.sp_internal, cache.ori_internal, fault_values
 
-    sp_internal: SurfacePointsInternals = data_preprocess_interface.prepare_surface_points(interpolation_input.surface_points, data_shape)
-    ori_internal: OrientationsInternals = data_preprocess_interface.prepare_orientations(interpolation_input.orientations)
+    if internals is not None:
+        sp_internal, ori_internal = internals
+    else:
+        sp_internal = data_preprocess_interface.prepare_surface_points(interpolation_input.surface_points, data_shape)
+        ori_internal = data_preprocess_interface.prepare_orientations(interpolation_input.orientations)
     fault_values.fault_values_ref, fault_values.fault_values_rest = data_preprocess_interface.prepare_faults(
         faults_values_on_sp=fault_values.fault_values_on_sp,
         tensors_structure=data_shape

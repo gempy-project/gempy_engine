@@ -28,6 +28,7 @@ from numpy import ndarray, dtype
 
 from ...modules.activator import activator_interface
 from ...modules.activator._soft_segment import segmentation_constants, soft_segment_stacked
+from ...modules.data_preprocess._input_preparation import chunk_preprocess
 from ...modules.data_preprocess import data_preprocess_interface
 from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
 from ...modules.kernel_constructor.stacked_covariance import MAX_STACKED_SIZE, covariance_size, stacked_covariances
@@ -456,19 +457,27 @@ def _compute_weights_for_stacks(
 
         return _on_stack_stream(_prepare_solver_input, idx, global_i, local_stack_structure, options_i)
 
-    def _preprocess(idx):
+    def _preprocess(idx, internals=None):
         return input_preprocess_v2(
             data_shape=tensor_structs[idx],
             interpolation_input=interpolation_inputs[idx],
             cache=caches[idx] if caches is not None else None,
+            internals=internals,
         )
 
     def _options(idx):
         return options_per_stack[idx] if options_per_stack is not None else options
 
     if caches is not None and _stack_execution() == "inline":
-        # All stacks preprocessed first, so their covariances can be built together.
-        solver_inputs = [_preprocess(idx) for idx in range(len(stack_indices))]
+        # All stacks preprocessed first, so their covariances can be built together; the ones built for
+        # the first time in this compute from one gather per array for the whole chunk.
+        first = [idx for idx, cache in enumerate(caches) if cache is not None and cache.sp_internal is None]
+        chunk = (chunk_preprocess([interpolation_inputs[idx].surface_points for idx in first],
+                                  [interpolation_inputs[idx].orientations for idx in first],
+                                  [tensor_structs[idx] for idx in first])
+                 if len(first) > 1 and not BackendTensor.COMPUTE_GRADS else None)
+        internals = dict(zip(first, chunk or ()))
+        solver_inputs = [_preprocess(idx, internals.get(idx)) for idx in range(len(stack_indices))]
         # The weight-cache fingerprints of the stacks to solve, from one device read for the chunk.
         prefetch_fingerprints([solver_input for solver_input, cache, options_i
                                in zip(solver_inputs, caches, map(_options, range(len(stack_indices))))
@@ -547,8 +556,8 @@ def _stacked_build(batch: list) -> None:
 
 
 def input_preprocess_v2(data_shape: TensorsStructure, interpolation_input: InterpolationInput,
-                        cache: StackCache | None = None) -> SolverInput_v2:
-    sp_internal, ori_internal, fault_values = preprocess_stack_data(data_shape, interpolation_input, cache)
+                        cache: StackCache | None = None, internals: tuple | None = None) -> SolverInput_v2:
+    sp_internal, ori_internal, fault_values = preprocess_stack_data(data_shape, interpolation_input, cache, internals)
 
     solver_input = SolverInput_v2(
         sp_internal=sp_internal,
