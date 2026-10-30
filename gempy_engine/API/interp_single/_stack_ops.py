@@ -1,5 +1,7 @@
 import concurrent.futures
+import numbers
 import os
+from copy import copy
 
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output, _options_with_finite_fault_gradients
 from ._interp_scalar_field import _deduplicate_corners, _evaluate_sys_eq, _restore_corner_fields, compute_weights
@@ -24,6 +26,7 @@ from typing import Any
 from numpy import ndarray, dtype
 
 from ...modules.activator import activator_interface
+from ...modules.activator._soft_segment import segmentation_constants, soft_segment_stacked
 from ...modules.data_preprocess import data_preprocess_interface
 from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
 from ...modules.kernel_constructor.stacked_covariance import MAX_STACKED_SIZE, covariance_size, stacked_covariances
@@ -191,19 +194,24 @@ def _segment(
 
         return _on_stack_stream(_segment_stack, idx, global_i, local_stack_structure, options_i)
 
+    stacked_blocks = _stacked_values_blocks(exported_fields_per_stack, interpolation_inputs, solver_inputs,
+                                            stack_structure, stack_indices, options_per_stack)
+
     def _segment_stack(idx, global_i, local_stack_structure, options_i):
         # region segmentation
-        segmentation_input = SegmentationInput(
-            unit_values=interpolation_inputs[idx].unit_values,
-            sigmoid_slope=(local_stack_structure.segmentation_function(eval_inputs[idx].xyz_to_interpolate)
-                           if local_stack_structure.segmentation_function is not None
-                           else options_i.sigmoid_slope)
-        )
-        values_block = activator_interface.activate_formation_block(
-            exported_fields=exported_fields_per_stack[idx],
-            ids=segmentation_input.unit_values,
-            sigmoid_slope=segmentation_input.sigmoid_slope
-        )
+        values_block = stacked_blocks.get(idx)
+        if values_block is None:
+            segmentation_input = SegmentationInput(
+                unit_values=interpolation_inputs[idx].unit_values,
+                sigmoid_slope=(local_stack_structure.segmentation_function(eval_inputs[idx].xyz_to_interpolate)
+                               if local_stack_structure.segmentation_function is not None
+                               else options_i.sigmoid_slope)
+            )
+            values_block = activator_interface.activate_formation_block(
+                exported_fields=exported_fields_per_stack[idx],
+                ids=segmentation_input.unit_values,
+                sigmoid_slope=segmentation_input.sigmoid_slope
+            )
 
         # endregion
         output = ScalarFieldOutput(
@@ -216,6 +224,51 @@ def _segment(
         return output
 
     return _map_stacks(_run_segment, stack_indices)
+
+
+def _stacked_values_blocks(exported_fields_per_stack: list[ExportedFields], interpolation_inputs: list[InterpolationInput],
+                           solver_inputs, stack_structure: StacksStructure, stack_indices: list[int],
+                           options_per_stack: list[InterpolationOptions]) -> dict:
+    """Values blocks of the chunk's stacks segmented together (``soft_segment_stacked``), by chunk position.
+
+    Stacks with the same number of units and field length share one segmentation; the reversed ids and
+    temperatures come from the stack cache (they do not depend on the grid). Stacks with a segmentation
+    function, an array slope, a fault shell or fewer than two units are left to the per-stack path."""
+    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH or _stack_execution() != "inline":
+        return {}
+    groups: dict[tuple, list] = {}
+    for idx, global_i in enumerate(stack_indices):
+        local_stack_structure = copy(stack_structure)
+        local_stack_structure.stack_number = global_i
+        fields, ids = exported_fields_per_stack[idx], interpolation_inputs[idx].unit_values
+        slope = options_per_stack[idx].sigmoid_slope
+        cache = stack_cache_of(solver_inputs[idx])
+        if (cache is None or local_stack_structure.segmentation_function is not None
+                or not isinstance(slope, numbers.Number) or fields.scalar_field_at_fault_shell is not None
+                or len(ids) < 2):
+            continue
+        field, edges = fields.scalar_field_everywhere, fields.scalar_field_at_surface_points
+        if edges.shape != (len(ids) - 1,):
+            continue
+        constants = cache.segmentation.get(float(slope))
+        if constants is None or checking():
+            fresh = segmentation_constants(ids, slope)
+            if constants is not None:
+                assert_same(constants[0], fresh[0], "segmentation ids")
+                assert_same(constants[1], fresh[1], "segmentation temperatures")
+            constants = cache.segmentation.setdefault(float(slope), fresh)
+        groups.setdefault((len(ids), field.shape[0], field.dtype), []).append((idx, field, edges, *constants))
+
+    def rows(values):
+        return values[0][None] if len(values) == 1 else BackendTensor.t.stack(values)
+
+    blocks = {}
+    for members in groups.values():
+        z, edges, ids, tau = (rows([member[k] for member in members]) for k in range(1, 5))
+        values = soft_segment_stacked(z, edges, ids, tau)
+        for row, member in enumerate(members):
+            blocks[member[0]] = values[row][None, :]
+    return blocks
 
 
 def _map_stacks(function, stack_indices):

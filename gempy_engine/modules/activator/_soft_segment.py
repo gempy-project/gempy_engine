@@ -35,6 +35,28 @@ def soft_segment_unbounded(Z, edges, ids, sigmoid_slope):
     return ids__sum[None, :]
 
 
+def segmentation_constants(ids, sigmoid_slope):
+    """The grid-independent inputs of ``soft_segment_stacked`` for one field: the reversed unit ids and
+    the per-edge temperatures, made exactly as ``soft_segment_unbounded`` makes them."""
+    ids = bt.t.array(ids[::-1].copy())
+    return ids, _temperatures(ids, sigmoid_slope)
+
+
+def soft_segment_stacked(Z, edges, ids, tau_k):
+    """``soft_segment_unbounded`` of B fields at once (scalar slopes, K >= 2 units each).
+
+    Z: (B, N); edges: (B, K-1); ids, tau_k: (B, K) and (B, K-1) from ``segmentation_constants``.
+    Returns (B, N). Every element meets the same operands and operations as in ``_lith_segmentation``:
+    the per-field 0-dim edges and temperatures become (B, 1) columns.
+    """
+    first = _sigmoid(scalar_field=-Z, edges=-edges[:, :1], tau_k=tau_k[:, :1])
+    last = _sigmoid(scalar_field=Z, edges=edges[:, -1:], tau_k=tau_k[:, -1:])
+    left = _sigmoid(scalar_field=Z[..., None], edges=edges[:, None, :-1], tau_k=tau_k[:, None, :-1])
+    right = _sigmoid(scalar_field=Z[..., None], edges=edges[:, None, 1:], tau_k=tau_k[:, None, 1:])
+    membership = bt.t.concatenate([first[..., None], left - right, last[..., None]], axis=-1)
+    return bt.t.sum(membership * ids[:, None, :], axis=-1)
+
+
 def _final_faults_segmentation(Z, edges, sigmoid_slope):
     first = _sigmoid(
         scalar_field=Z,
@@ -57,8 +79,7 @@ def _lith_segmentation(Z, edges, ids, sigmoid_slope):
     if len(ids) <= 1:
         return bt.t.ones_like(Z, dtype=bt.dtype_obj)[..., None]
     # 1) per-edge temperatures τ_k = |Δ_k|/(4·m)
-    jumps = bt.t.abs(ids[1:] - ids[:-1], dtype=bt.dtype_obj)  # shape (K-1,)
-    tau_k = jumps / float(sigmoid_slope)  # shape (K-1,)
+    tau_k = _temperatures(ids, sigmoid_slope)  # shape (K-1,)
     # 2) first bin (-∞, e1) via σ((e1 - Z)/τ₁)
     first = _sigmoid(
         scalar_field=-Z,
@@ -91,6 +112,11 @@ def _lith_segmentation(Z, edges, ids, sigmoid_slope):
         axis=-1
     )  # shape (...,K)
     return membership
+
+
+def _temperatures(ids, sigmoid_slope):
+    jumps = bt.t.abs(ids[1:] - ids[:-1], dtype=bt.dtype_obj)  # shape (K-1,)
+    return jumps / float(sigmoid_slope)  # shape (K-1,)
 
 
 def _sigmoid(scalar_field, edges, tau_k):
