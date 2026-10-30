@@ -6,6 +6,7 @@ surface-expanded fields or lithology IDs.
 """
 
 import copy
+import numbers
 
 import numpy as np
 
@@ -24,7 +25,7 @@ from ...core.compute_scope import options_key
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.kernel_classes.faults import FaultsData
 from ...core.data.stack_relation_type import StackRelationType
-from ...modules.activator._soft_segment import soft_segment_unbounded
+from ...modules.activator._soft_segment import segmentation_constants, soft_segment_stacked, soft_segment_unbounded
 from ...modules.dual_contouring.joint_lattice import precision_tolerance
 from ...modules.evaluator.symbolic_evaluator import symbolic_evaluator_optimized_stacked
 
@@ -176,6 +177,33 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
         values = step(fault_stack, scalar)
         return values if fault_stack not in finite_faults else values * taper(fault_stack, scalar, gradients, points)
 
+    # Segmentation constants per fault, as soft_segment_unbounded makes them (stacked steps, Torch only).
+    stackable = {f: segmentation_constants(rules[f][0], rules[f][2]) for f in faults
+                 if on_device and isinstance(rules[f][2], numbers.Number) and len(rules[f][0]) >= 2}
+
+    def steps(fault_list, scalars):
+        """``step`` of several faults on the same points: (F, M) float64.
+
+        Faults with the same number of units are soft-segmented together (``soft_segment_stacked``: the
+        same operations per element as one ``step`` each)."""
+        fault_list = list(fault_list)
+        if (len(fault_list) < 2 or any(f not in stackable for f in fault_list)
+                or len({len(rules[f][0]) for f in fault_list}) != 1):
+            return stack_rows([step(f, scalar) for f, scalar in zip(fault_list, scalars)])
+        values = soft_segment_stacked(stack_rows([device(scalar).reshape(-1) for scalar in scalars]),
+                                      stack_rows([device_edges[f].reshape(-1) for f in fault_list]),
+                                      stack_rows([stackable[f][0] for f in fault_list]),
+                                      stack_rows([stackable[f][1] for f in fault_list]))
+        return wide(values) - wide(np.array([rules[f][3] for f in fault_list]))[:, None]
+
+    def drifts(fault_list, scalars, gradients, points):
+        """``drift`` of several faults on the same points: (F, M) float64; ``gradients`` per fault (finite ones)."""
+        values = steps(fault_list, scalars)
+        if not any(f in finite_faults for f in fault_list):
+            return values
+        return stack_rows([values[k] * taper(f, scalars[k], gradients[k], points) if f in finite_faults else values[k]
+                           for k, f in enumerate(fault_list)])
+
     def taper(fault_stack, scalar, gradients, points):
         finite_fault, isovalue, normal = rules[fault_stack][4]
         return wide(finite_fault_taper(finite_fault, host64(points), host64(scalar),
@@ -281,13 +309,15 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
                                                               'gradient', checks)))
     _raise_failed(checks)
     drift_errors = []
-    for fault_stack in faults:
+    # Only a finite fault's taper needs the fault gradients.
+    rebuilt_drifts = host64(drifts(faults, [reference_scalars[f] for f in faults],
+                                   [reference_gradients.get(f) for f in faults], reference_points)) if faults else None
+    for k, fault_stack in enumerate(faults):
         output = last.outputs[fault_stack].scalar_fields
         expected = host(_modify_faults_values_output(
             fault_inputs[fault_stack] or FaultsData(), copy.copy(output), reference_xyz)).reshape(-1)
-        # Only a finite fault's taper needs the fault gradients.
         scalar, gradients = reference_scalars[fault_stack], reference_gradients.get(fault_stack)
-        rebuilt = host64(drift(fault_stack, scalar, gradients, reference_points))
+        rebuilt = rebuilt_drifts[k]
         tolerance = precision_tolerance(1e-10, BT.dtype)
         error = np.abs(rebuilt - expected)
         if np.isfinite(error).all() and (error > tolerance).any():
@@ -377,13 +407,10 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
             for stack, _ in keys:
                 rows = None
                 if affected_by[stack]:
-                    rows = []
-                    for f in affected_by[stack]:
-                        part = fault_slices[(f, (stack, kind))]
-                        rows.append(drift(f, fault_scalars[f][part],
-                                          fault_gradients[f][part] if f in finite_faults else None,
-                                          merged[(stack, kind)]))
-                    rows = stack_rows(rows)
+                    parts = [fault_slices[(f, (stack, kind))] for f in affected_by[stack]]
+                    rows = drifts(affected_by[stack], [fault_scalars[f][part] for f, part in zip(affected_by[stack], parts)],
+                                  [fault_gradients[f][part] if f in finite_faults else None
+                                   for f, part in zip(affected_by[stack], parts)], merged[(stack, kind)])
                 items.append((stack, merged[(stack, kind)], rows))
             evaluated.update(zip(keys, evaluate_many(items, kind, checks)))
         for f in faults:
@@ -404,11 +431,12 @@ def prepare_fault_drift_sampler(descriptor, interpolation_input, options, octree
 
     # Drift plateaus far on either side of each fault (production drift saturates there),
     # before any finite-fault taper.
-    plateaus = {}
+    plateaus, far_points = {}, []
     for f in faults:
         edges = rules[f][1]
         far = 1e3*(1+float(np.max(np.abs(edges))))
-        negative, positive = step(f, np.array([float(edges.min())-far, float(edges.max())+far]))
+        far_points.append(np.array([float(edges.min())-far, float(edges.max())+far]))
+    for f, (negative, positive) in zip(faults, host64(steps(faults, far_points)) if faults else ()):
         plateaus[f] = (float(negative), float(positive))
 
     def query_sides(points, stacks, sides):
