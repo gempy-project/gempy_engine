@@ -215,12 +215,13 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         edge_flat = xp.flatnonzero(surface_crossed)
         edge_surface, surface_edges = edge_flat // n_edges, edge_flat % n_edges
         edge_bounds = np.concatenate(([0], np.cumsum(host(surface_crossed.sum(axis=1))))).tolist()
-        answers = batch([(crossing_points[a:b], [s], 'gradient') for s, (a, b) in enumerate(point_bounds)] +
-                        [(minimal_xyz[surface_edges[a:b]].reshape(-1, 3), [s], 'gradient')
-                         for s, (a, b) in enumerate(zip(edge_bounds[:-1], edge_bounds[1:]))])
-        normals.flat[crossed] = xp.concatenate([answers[s][0] for s in range(n)])
+        # One request per surface: its crossings, then the endpoints of the minimal edges it crosses.
+        endpoints = minimal_xyz[surface_edges].reshape(-1, 3)
+        answers = batch([(xp.concatenate((crossing_points[a:b], endpoints[2*c:2*d])), [s], 'gradient')
+                         for s, ((a, b), c, d) in enumerate(zip(point_bounds, edge_bounds[:-1], edge_bounds[1:]))])
+        normals.flat[crossed] = xp.concatenate([answers[s][0][:b-a] for s, (a, b) in enumerate(point_bounds)])
         endpoint_gradients[edge_surface, edge_slot[surface_edges]] = xp.concatenate(
-            [answers[n+s][0].reshape(-1, 2, 3) for s in range(n)])
+            [answers[s][0][b-a:].reshape(-1, 2, 3) for s, (a, b) in enumerate(point_bounds)])
     own = solved[edge_xyz.surface, edge_xyz.flat_rows]
     if bool(((xp.norm(normals.flat, axis=2) < 1e-12) & own).any()):
         raise ValueError('degenerate_hermite_normal: actual crossing gradient vanishes')

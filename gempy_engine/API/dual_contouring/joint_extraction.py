@@ -27,7 +27,7 @@ from ...modules.dual_contouring.joint_balance import balance_joint_leaves
 from ...modules.dual_contouring.joint_cell_complex import adaptive_complex_arrays
 from ...modules.dual_contouring.joint_xp import extraction_namespace, host
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
-from ...modules.dual_contouring.joint_field_queries import _unique_rows
+from ...modules.dual_contouring.joint_field_queries import unique_rows_per_request
 from ...modules.dual_contouring.joint_lattice import lattice_frame, precision_tolerance
 from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
 
@@ -289,15 +289,20 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
         # One stacked sampler batch: only the requested surfaces' stacks, each
         # request's unique points once (sorted rows, as np.unique(axis=0)), on the extraction device.
         prepared = []
-        for points, surfaces, kind in requests:
-            unique, inverse = _unique_rows(xp.asarray(points, dtype=np.float64).reshape(-1, 3), xp)
+        uniques = unique_rows_per_request([points for points, _, _ in requests], xp)
+        for (points, surfaces, kind), (unique, inverse) in zip(requests, uniques):
             stacks_needed = sorted(set(groups[surfaces].tolist()))
-            rows = xp.asarray(np.searchsorted(stacks_needed, groups[surfaces]))
+            rows = np.searchsorted(stacks_needed, groups[surfaces])
+            # Rows that just list the stacks in order need no gather.
+            rows = None if np.array_equal(rows, np.arange(len(stacks_needed))) else xp.asarray(rows)
             prepared.append((unique, stacks_needed, kind, rows, inverse))
         answers = sampler["query_batch_device"]([(unique, stacks_needed, kind)
                                                  for unique, stacks_needed, kind, _, _ in prepared])
-        return [xp.asarray(answer, dtype=np.float64)[rows][:, inverse]
-                for answer, (_, _, _, rows, inverse) in zip(answers, prepared)]
+        results = []
+        for answer, (_, _, _, rows, inverse) in zip(answers, prepared):
+            answer = xp.asarray(answer, dtype=np.float64)
+            results.append((answer if rows is None else answer[rows])[:, inverse])
+        return results
 
     field_query.device_native = True
 

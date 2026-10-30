@@ -144,18 +144,20 @@ def borrowed_hermite_rows(fault, cells, affected, source, edge_xyz, normals, fla
     # Which cells each affected surface borrows the fault's vertex in; one host read for the blocks.
     hits = xp.stack([source[t, cells] == fault for t in affected])
     present = host(hits.any(axis=1))
-    blocks = [(t, hits[k]) for k, t in enumerate(affected) if present[k]]
-    if not blocks:
+    if not present.any():
         return None
-    extra_xyz, extra_normals, extra_weights = [], [], []
-    for t, borrows in blocks:
-        borrowed_normals = xp.asarray(normals[t][cells])
-        extra_xyz.append(xp.where(borrows[:, None, None], xp.asarray(edge_xyz[t][cells]), 0.))
-        extra_normals.append(xp.where(borrows[:, None, None], borrowed_normals, 0.))
-        extra_weights.append(xp.where(borrows[:, None], weight*xp.astype(
-            flags[t][cells] & (borrowed_normals != 0).any(axis=-1), np.float64), 0.))
-    return (xp.concatenate(extra_xyz, axis=1), xp.concatenate(extra_normals, axis=1),
-            xp.concatenate(extra_weights, axis=1))
+    # Every borrowing surface (block) at once: (B, C, 12[, 3]) rows, zero where the surface does not borrow.
+    blocks = np.flatnonzero(present)
+    surfaces = xp.asarray(np.asarray(affected, dtype=np.int64)[blocks])[:, None]
+    borrows = hits[xp.asarray(blocks)] if len(blocks) < len(affected) else hits
+    borrowed_xyz, borrowed_normals = (rows.gather(surfaces, cells) if hasattr(rows, 'gather')
+                                      else xp.asarray(rows)[surfaces, cells] for rows in (edge_xyz, normals))
+    weights = weight*xp.astype(flags[surfaces, cells] & (borrowed_normals != 0).any(axis=-1), np.float64)
+
+    def columns(values):  # (B, C, 12, ...) -> (C, 12 B, ...): block b in columns 12 b to 12 b + 11
+        values = xp.where(borrows.reshape(borrows.shape + (1,) * (values.ndim - 2)), values, 0.)
+        return values.swapaxes(0, 1).reshape((len(cells), 12*len(blocks)) + tuple(values.shape[3:]))
+    return columns(borrowed_xyz), columns(borrowed_normals), columns(weights)
 
 
 def fallback_region(edge_cells, core_leaves):
