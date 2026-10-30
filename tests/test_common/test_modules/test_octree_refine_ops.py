@@ -82,3 +82,10 @@ def test_host_counts_and_active_index(backend):
         np.testing.assert_array_equal(BackendTensor.t.to_numpy(_active_index(mask)), expected)
         np.testing.assert_array_equal(BackendTensor.t.to_numpy(_active_index(mask, count)), expected)
 
+
+def test_dxdydz_matches_per_axis_formula(backend):
+    extent = BackendTensor.t.array(np.array([-0.3, 0.7, 0.1, 0.45, -1.0, 2.0]))
+    shape = BackendTensor.t.array(np.array([5, 6, 3]))
+    for axis, d in enumerate(RegularGrid._compute_dxdydz(extent, shape)):
+        assert _equal(d, (extent[2 * axis + 1] - extent[2 * axis]) / shape[axis])
+    assert RegularGrid._compute_dxdydz([0, 1, 0, 2, 0, 4], [2, 2, 2]) == (0.5, 1.0, 2.0)

@@ -208,9 +208,10 @@ class RegularGrid:
 
     @classmethod
     def _compute_dxdydz(cls, extent, resolution):
-        dx = (extent[1] - extent[0]) / resolution[0]
-        dy = (extent[3] - extent[2]) / resolution[1]
-        dz = (extent[5] - extent[4]) / resolution[2]
+        if isinstance(extent, (list, tuple)) or isinstance(resolution, (list, tuple)):
+            extent, resolution = np.asarray(extent), np.asarray(resolution)
+        # The three axes in one op each: (extent max - extent min) / resolution
+        dx, dy, dz = (extent[1::2] - extent[::2]) / resolution
         return dx, dy, dz
 
 
