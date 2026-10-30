@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 import math
 
+import numpy as np
+
 from gempy_engine.core.backend_tensor import BackendTensor
 
 
@@ -52,6 +54,9 @@ def equilibrate_symmetric_system(
     if not math.isfinite(tolerance) or tolerance < 0:
         raise ValueError("tolerance must be finite and non-negative")
 
+    if _equilibrate_on_host(matrix, rhs):
+        return _host_equilibration(matrix, rhs, max_iterations, tolerance)
+
     factors = BackendTensor.t.ones(matrix.shape[0], dtype=matrix.dtype)
     scaled_matrix = matrix
     scaled_rhs = rhs
@@ -89,6 +94,56 @@ def equilibrate_symmetric_system(
         matrix=scaled_matrix,
         rhs=scaled_rhs,
         factors=factors,
+        iterations=iteration,
+        converged=converged,
+    )
+
+
+HOST_EQUILIBRATION_SIZE = 512
+
+
+def _equilibrate_on_host(matrix, rhs) -> bool:
+    """Small CUDA systems without autograd: each iteration is a few tiny kernels and a device read."""
+    return (getattr(matrix, "is_cuda", False) and not matrix.requires_grad and not rhs.requires_grad
+            and rhs.dtype == matrix.dtype and matrix.shape[0] <= HOST_EQUILIBRATION_SIZE)
+
+
+def _host_equilibration(matrix, rhs, max_iterations: int, tolerance: float) -> LinearSystemTransform:
+    """``equilibrate_symmetric_system`` with NumPy on one host copy of the system, uploaded back in one copy.
+
+    The same operations in the same dtype, read once instead of once per iteration. They are all correctly
+    rounded in NumPy and on CUDA (torch's vectorized CPU sqrt is not), so on CUDA the result is the same.
+    """
+    import torch
+    n_rows = matrix.shape[0]
+    host = torch.cat([matrix.reshape(-1), rhs.reshape(-1)]).cpu().numpy()
+    scaled_matrix = host[:n_rows * n_rows].reshape(n_rows, n_rows)
+    scaled_rhs = host[n_rows * n_rows:].reshape(rhs.shape)
+    factors = np.ones(n_rows, dtype=host.dtype)
+    ones = np.ones(n_rows, dtype=host.dtype)
+    converged = False
+    for iteration in range(1, max_iterations + 1):
+        row_norms = np.abs(scaled_matrix).max(axis=1)
+        positive = row_norms > 0
+        step = np.where(positive, 1.0 / np.sqrt(np.where(positive, row_norms, ones)), ones)
+        factors = factors * step
+        scaled_matrix = scaled_matrix * step[:, None] * step[None, :]
+        scaled_rhs = _scale_rows(scaled_rhs, step)
+
+        remaining_norms = np.abs(scaled_matrix).max(axis=1)
+        positive = remaining_norms > 0
+        if not positive.any() or float(np.abs(remaining_norms[positive] - 1.0).max()) <= tolerance:
+            converged = True
+            break
+
+    device = torch.from_numpy(np.concatenate([scaled_matrix.reshape(-1), scaled_rhs.reshape(-1), factors]))
+    if matrix.is_cuda:
+        device = device.pin_memory()
+    device = device.to(matrix.device, non_blocking=True)
+    return LinearSystemTransform(
+        matrix=device[:n_rows * n_rows].reshape(n_rows, n_rows),
+        rhs=device[n_rows * n_rows:n_rows * n_rows + scaled_rhs.size].reshape(rhs.shape),
+        factors=device[-n_rows:],
         iterations=iteration,
         converged=converged,
     )
