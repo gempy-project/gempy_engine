@@ -16,10 +16,11 @@ from gempy_engine.core.backend_tensor import BackendTensor
 from .test_compute_scope import N_LEVELS, _fault_micro_model
 
 # Measured on the model below (2 stacks, micro contacts, 3 octree levels) in a clean environment
-# (no engine .env): 4,359 ops, ~1,000 of them the solutions' regular-grid expansion; 7,597 before the
+# (no engine .env): 4,143 ops, ~1,000 of them the solutions' regular-grid expansion; 7,597 before the
 # per-compute stack cache, the KeOps launch changes and the compiled evaluation, 4,624 before the
-# host-index surface-point split and the shared assemblies. ~15% headroom.
-TORCH_OPS_BUDGET = 5000
+# host-index surface-point split and the shared assemblies, 4,359 before the stacked scalar-field
+# combination. ~15% headroom.
+TORCH_OPS_BUDGET = 4800
 
 
 @pytest.fixture(autouse=True)
