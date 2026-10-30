@@ -7,6 +7,9 @@ KeOps variables, the grid-independent data side as concrete tensors, and keeps i
 cache; later evaluations just call it. Same formula and same inputs as building it per call, so the
 results are the same.
 """
+import copy
+import re
+
 import numpy as np
 
 from ._keops_reduction import pack_constants
@@ -167,13 +170,33 @@ def _compile_stacked(eval_inputs, options_list, blocks, n_faults, backend):
             kernel = create_grad_kernel(ki, options.kernel_options, execution_mode=KernelExecutionMode.SYMBOLIC)
         return kernel * symbols["weights"]
 
-    expression = build(names)
-    used = {variable[0] for variable in expression.symbolic_variables}
-    order = [name for index, name in enumerate(names) if index in used]
-    if len(order) != len(names):
-        expression = build(order)
+    expression, kept = _compact_symbols(build(names))
+    order = [names[index] for index in kept]
     packed, _ = pack_constants(expression)
     return packed.sum(axis=0, backend=backend, call=False), order, rows
+
+
+def _compact_symbols(expression):
+    """``expression`` with its symbolic variables renumbered 0, 1, ... in index order, and the old indices kept.
+
+    KeOps needs every declared variable index to appear in the formula, and some placeholders (row fields
+    of other kernel kinds) do not. Renumbering gives the formula a second trace with only the used
+    placeholders would give, without tracing again: the unused ones never entered the formula."""
+    formulas = expression.formula + (expression.formula2 or "")
+    kept = sorted({int(index) for index in re.findall(r"VarSymb\((\d+),", formulas)})
+    if kept != sorted({variable[0] for variable in expression.symbolic_variables}):
+        raise ValueError("compiled evaluation: symbolic variables and formula disagree")
+    if kept == list(range(len(kept))):
+        return expression, kept
+    new = {old: position for position, old in enumerate(kept)}
+
+    def renumber(formula):
+        return formula and re.sub(r"VarSymb\((\d+),", lambda match: f"VarSymb({new[int(match.group(1))]},", formula)
+
+    compact = copy.copy(expression)
+    compact.formula, compact.formula2 = renumber(expression.formula), renumber(expression.formula2)
+    compact.symbolic_variables = tuple((new[index], dim, cat) for index, dim, cat in expression.symbolic_variables)
+    return compact, kept
 
 
 def _stacked_kernel_input(i_side, symbols, n_faults) -> KernelInput:
