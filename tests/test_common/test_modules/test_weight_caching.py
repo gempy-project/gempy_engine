@@ -166,3 +166,52 @@ def test_in_memory_cache_does_not_write_to_disk(monkeypatch):
     store_weight_result(decision, example_weights)
 
     assert stored[0]["write_to_disk"] is False
+
+
+def _reference_fingerprint(fields):
+    """The fingerprint as it was hashed before the reads were batched: one host copy per array."""
+    import hashlib
+    from gempy_engine.core.backend_tensor import BackendTensor
+    hasher = hashlib.sha256()
+    for name, values in fields:
+        hasher.update(name.encode())
+        if values is None:
+            hasher.update(b"none")
+            continue
+        array = np.ascontiguousarray(BackendTensor.t.to_numpy(values))
+        hasher.update(str(array.shape).encode())
+        hasher.update(str(array.dtype).encode())
+        hasher.update(array.tobytes())
+    return hasher.hexdigest()
+
+
+def test_batched_fingerprint_reads_hash_the_same_bytes(restore_backend):
+    import pytest
+    torch = pytest.importorskip("torch")
+    from gempy_engine.config import AvailableBackends
+    from gempy_engine.core.backend_tensor import BackendTensor
+    from gempy_engine.core.compute_scope import StackCache
+    from gempy_engine.modules.weights_cache import weight_cache_policy as policy
+    BackendTensor._change_backend(AvailableBackends.PYTORCH)
+
+    rng = np.random.default_rng(2)
+
+    def solver_input(n):
+        sp = SimpleNamespace(ref_surface_points=torch.as_tensor(rng.random((n, 3)), dtype=torch.float32),
+                             rest_surface_points=torch.as_tensor(rng.random((n, 3)), dtype=torch.float32).T.T,
+                             nugget_effect_rest=torch.as_tensor(rng.random(n), dtype=torch.float32),
+                             nugget_effect_ref_unique=torch.as_tensor(rng.random(2), dtype=torch.float64),
+                             surface_ids=None)
+        ori = SimpleNamespace(dip_positions_tiled=torch.as_tensor(rng.random((3, 6)), dtype=torch.float32).T,  # a view
+                              gradients_tiled=torch.as_tensor(rng.random((6, 3)), dtype=torch.float32),
+                              nugget_effect_grad=torch.as_tensor(rng.random(6), dtype=torch.float32))
+        faults = SimpleNamespace(fault_values_ref=np.zeros(0), fault_values_rest=torch.zeros((0, n)))
+        return SimpleNamespace(sp_internal=sp, ori_internal=ori, fault_internal=faults, stack_cache=StackCache())
+
+    inputs = [solver_input(n) for n in (4, 7, 1)]
+    for item in inputs:
+        assert policy._solver_input_fingerprint(item) == _reference_fingerprint(policy._fingerprint_fields(item))
+    policy.prefetch_fingerprints(inputs)
+    for item in inputs:
+        assert item.stack_cache.fingerprint == _reference_fingerprint(policy._fingerprint_fields(item))
+        assert policy.solver_input_fingerprint(item) == item.stack_cache.fingerprint

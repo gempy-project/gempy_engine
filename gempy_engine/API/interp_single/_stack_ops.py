@@ -32,6 +32,7 @@ from ...modules.data_preprocess import data_preprocess_interface
 from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
 from ...modules.kernel_constructor.stacked_covariance import MAX_STACKED_SIZE, covariance_size, stacked_covariances
 from ...modules.solver.interpolation_solver import pykeops_solver_requested
+from ...modules.weights_cache.weight_cache_policy import fingerprint_needed, prefetch_fingerprints
 
 
 @dataclass
@@ -468,6 +469,11 @@ def _compute_weights_for_stacks(
     if caches is not None and _stack_execution() == "inline":
         # All stacks preprocessed first, so their covariances can be built together.
         solver_inputs = [_preprocess(idx) for idx in range(len(stack_indices))]
+        # The weight-cache fingerprints of the stacks to solve, from one device read for the chunk.
+        prefetch_fingerprints([solver_input for solver_input, cache, options_i
+                               in zip(solver_inputs, caches, map(_options, range(len(stack_indices))))
+                               if cache is not None and (cache.weights is None or checking())
+                               and fingerprint_needed(options_i)])
         _prebuild_covariances(solver_inputs, [_options(idx) for idx in range(len(stack_indices))], caches)
         return [_solve_weights(solver_inputs[idx], global_i, _options(idx), caches[idx])
                 for idx, global_i in enumerate(stack_indices)]

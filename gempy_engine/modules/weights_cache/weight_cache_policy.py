@@ -71,12 +71,16 @@ def cacheable_kernel_options(kernel_options: KernelOptions) -> dict[str, object]
     return parameters
 
 
+def fingerprint_needed(options: InterpolationOptions) -> bool:
+    """Whether ``resolve_weight_cache`` hashes the solver input: an enabled cache and a computation timestamp."""
+    return (options.cache_mode in (InterpolationOptions.CacheMode.CACHE, InterpolationOptions.CacheMode.IN_MEMORY_CACHE)
+            and not BackendTensor.COMPUTE_GRADS and options.temp_interpolation_values.start_computation_ts != -1)
+
+
 def solver_input_fingerprint(solver_input) -> str:
     """Hash of the solver inputs; within a compute, computed once per stack (it reads them on the host)."""
     cache = stack_cache_of(solver_input)
-    faults = solver_input.fault_internal
-    key = (id(solver_input.sp_internal), id(solver_input.ori_internal),
-           id(faults.fault_values_ref), id(faults.fault_values_rest))
+    key = _fingerprint_key(solver_input)
     if cache is not None and cache.fingerprint_key == key and not checking():
         return cache.fingerprint
     fingerprint = _solver_input_fingerprint(solver_input)
@@ -87,9 +91,35 @@ def solver_input_fingerprint(solver_input) -> str:
     return fingerprint
 
 
+def prefetch_fingerprints(solver_inputs) -> None:
+    """The fingerprints of several stacks, hashed from one device read and left in their stack caches,
+    where ``solver_input_fingerprint`` finds them. Inputs without a cache, or already hashed, are skipped."""
+    pending = []
+    for solver_input in solver_inputs:
+        cache, key = stack_cache_of(solver_input), _fingerprint_key(solver_input)
+        if cache is not None and cache.fingerprint_key != key:
+            pending.append((cache, key, _fingerprint_fields(solver_input)))
+    if not pending:
+        return
+    arrays = _host_arrays([values for *_, fields in pending for _, values in fields])
+    for cache, key, fields in pending:
+        cache.fingerprint_key, cache.fingerprint = key, _hash_fields(fields, arrays[:len(fields)])
+        arrays = arrays[len(fields):]
+
+
+def _fingerprint_key(solver_input):
+    faults = solver_input.fault_internal
+    return (id(solver_input.sp_internal), id(solver_input.ori_internal),
+            id(faults.fault_values_ref), id(faults.fault_values_rest))
+
+
 def _solver_input_fingerprint(solver_input) -> str:
-    hasher = hashlib.sha256()
-    fields = (
+    fields = _fingerprint_fields(solver_input)
+    return _hash_fields(fields, _host_arrays([values for _, values in fields]))
+
+
+def _fingerprint_fields(solver_input) -> tuple:
+    return (
         ("surface_points_ref", solver_input.sp_internal.ref_surface_points),
         ("surface_points_rest", solver_input.sp_internal.rest_surface_points),
         ("surface_points_nugget_rest", solver_input.sp_internal.nugget_effect_rest),
@@ -101,16 +131,38 @@ def _solver_input_fingerprint(solver_input) -> str:
         ("fault_values_ref", solver_input.fault_internal.fault_values_ref),
         ("fault_values_rest", solver_input.fault_internal.fault_values_rest),
     )
-    for name, values in fields:
+
+
+def _hash_fields(fields, arrays) -> str:
+    hasher = hashlib.sha256()
+    for (name, _), array in zip(fields, arrays):
         hasher.update(name.encode())
-        if values is None:
+        if array is None:
             hasher.update(b"none")
             continue
-        array = np.ascontiguousarray(BackendTensor.t.to_numpy(values))
+        array = np.ascontiguousarray(array)
         hasher.update(str(array.shape).encode())
         hasher.update(str(array.dtype).encode())
         hasher.update(array.tobytes())
     return hasher.hexdigest()
+
+
+def _host_arrays(values: list) -> list:
+    """Host copies of ``values`` (None, NumPy arrays or tensors): the tensors of each dtype are read back
+    in one copy, not one copy (and one sync) each. Same shapes, dtypes and element order."""
+    arrays = [BackendTensor.t.to_numpy(v) if v is not None and not hasattr(v, "detach") else v for v in values]
+    by_dtype: dict = {}
+    for position, value in enumerate(values):
+        if hasattr(value, "detach"):
+            by_dtype.setdefault((value.dtype, value.device), []).append(position)
+    for positions in by_dtype.values():
+        host = BackendTensor.t.to_numpy(BackendTensor.t.cat([values[k].detach().reshape(-1) for k in positions]))
+        offset = 0
+        for k in positions:
+            size = values[k].numel()
+            arrays[k] = host[offset:offset + size].reshape(tuple(values[k].shape))
+            offset += size
+    return arrays
 
 
 def _resolve_enabled_cache(
