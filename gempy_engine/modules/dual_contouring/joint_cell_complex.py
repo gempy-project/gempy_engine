@@ -334,12 +334,14 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
             domain[0] * domain[1] * domain[2]:
         raise ValueError('incomplete_coverage: leaves must cover the full rectangular domain')
     quarter = int(levels[0])
+    # Balance, coverage and incidence checks are read back together at the end (one host read).
+    deferred = []
 
     def locate(points4):
         """Leaf row containing each quarter-lattice probe; -1 outside the domain.
 
         Every level is probed for every point (leaves do not overlap, so at most one hits): no
-        per-level compaction, one host check at the end.
+        per-level compaction; the coverage check is deferred.
         """
         result = xp.full(len(points4), -1, dtype=np.int64)
         inside = ((points4 >= 0) & (points4 < 4 * extent)).all(axis=1)
@@ -348,54 +350,45 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
             found = xp.minimum(xp.searchsorted(codes, probe), len(codes) - 1)
             hit = inside & (result < 0) & (codes[found] == probe)
             result = xp.where(hit, cells[found], result)
-        if bool((inside & (result < 0)).any()):
-            raise ValueError('incomplete_coverage: no leaf contains an interior probe')
+        deferred.append(((inside & (result < 0)).any(), 'incomplete_coverage: no leaf contains an interior probe'))
         return result
 
     # region Faces
-    # Balance and incidence checks are read back together at the end (one host read).
-    deferred = []
-    face_axis, face_origin, face_size, face_negative, face_positive = [], [], [], [], []
-    for axis in range(3):
-        other = [a for a in range(3) if a != axis]
-        for side in (0, 1):
-            lower = xp.copy(o)
-            lower[:, axis] += side * w
-            neighbor = _face_neighbors(locate, lower, w, axis, other, side, quarter)
-            deferred.append(_balance_violation(xp, w, neighbor, w, 'face'))
-            split = (neighbor >= 0) & (xp.where(neighbor >= 0, w[xp.maximum(neighbor, 0)], 0) < w)
-            whole = ~split
-            tiles = [lower[whole]]
-            sizes = [w[whole]]
-            owners = [xp.flatnonzero(whole)]
-            neighbors = [neighbor[whole]]
-            rows = xp.flatnonzero(split)
-            if len(rows):
-                half = w[rows] // 2
-                for du, dv in product((0, 1), repeat=2):
-                    child = xp.copy(lower[rows])
-                    child[:, other[0]] += du * half
-                    child[:, other[1]] += dv * half
-                    child_neighbor = _face_neighbors(locate, child, half, axis, other, side, quarter)
-                    deferred.append(_balance_violation(xp, w[rows], child_neighbor, w, 'face'))
-                    deferred.append((((child_neighbor >= 0) & (w[xp.maximum(child_neighbor, 0)] < half)).any(),
-                                     'unsupported_unbalanced_octree: face depth difference exceeds one'))
-                    tiles.append(child)
-                    sizes.append(half)
-                    owners.append(rows)
-                    neighbors.append(child_neighbor)
-            tiles, sizes = xp.concatenate(tiles), xp.concatenate(sizes)
-            owners, neighbors = xp.concatenate(owners), xp.concatenate(neighbors)
-            # (negative-side, positive-side); boundary tiles are (owner, None).
-            negative = xp.where((neighbors < 0) | (side == 1), owners, neighbors)
-            positive = xp.where(neighbors < 0, -1, owners if side == 0 else neighbors)
-            face_axis.append(xp.full(len(tiles), axis, dtype=np.int64))
-            face_origin.append(tiles)
-            face_size.append(sizes)
-            face_negative.append(negative)
-            face_positive.append(positive)
-    face_axis, face_origin, face_size = map(xp.concatenate, (face_axis, face_origin, face_size))
-    face_negative, face_positive = xp.concatenate(face_negative), xp.concatenate(face_positive)
+    # Every leaf face (6 per leaf, side-major as (axis, side)), located in one probe; then every
+    # quarter of the faces whose neighbour is finer, in a second. The faces' order does not matter:
+    # they are sorted by key and deduplicated below.
+    sides = np.array([(axis, side) for axis in range(3) for side in (0, 1)])
+    unit = np.eye(3, dtype=np.int64)
+    normal = unit[sides[:, 0]]  # (6, 3)
+    plane = 1 - normal  # the two in-plane axes
+    probe_offset = np.where(sides[:, 1:], quarter, -quarter) * normal  # into the neighbour
+    lower = o[None] + xp.asarray(sides[:, 1:] * normal)[:, None, :] * w[None, :, None]  # (6, N, 3)
+    neighbor = locate((4 * lower + xp.asarray(probe_offset)[:, None, :]
+                       + xp.asarray(plane)[:, None, :] * (2 * w)[None, :, None]).reshape(-1, 3)).reshape(6, n)
+    deferred.append(_balance_violation(xp, w, neighbor, w, 'face'))
+    split = (neighbor >= 0) & (w[xp.maximum(neighbor, 0)] < w)
+    whole_rows, split_rows = xp.flatnonzero(~split), xp.flatnonzero(split)  # rows of the (6 N) faces
+    whole_kind, whole_leaf, split_kind, split_leaf = whole_rows // n, whole_rows % n, split_rows // n, split_rows % n
+    half = w[split_leaf] // 2
+    # Quarter (du, dv) of each split face: offsets along its two in-plane axes, as product((0, 1), repeat=2).
+    quarters = np.array([[du * unit[a] + dv * unit[b] for du, dv in product((0, 1), repeat=2)]
+                         for a, b in (np.flatnonzero(row) for row in plane)])  # (6, 4, 3)
+    child = lower[split_kind, split_leaf][:, None, :] + half[:, None, None] * xp.asarray(quarters)[split_kind]
+    child_neighbor = locate((4 * child + xp.asarray(probe_offset)[split_kind][:, None, :]
+                             + xp.asarray(plane)[split_kind][:, None, :] * (2 * half)[:, None, None]).reshape(-1, 3))
+    child_neighbor = child_neighbor.reshape(-1, 4)
+    deferred.append(_balance_violation(xp, w[split_leaf][:, None], child_neighbor, w, 'face'))
+    deferred.append((((child_neighbor >= 0) & (w[xp.maximum(child_neighbor, 0)] < half[:, None])).any(),
+                     'unsupported_unbalanced_octree: face depth difference exceeds one'))
+    kind = xp.concatenate((whole_kind, xp.repeat(split_kind, 4)))
+    face_origin = xp.concatenate((lower.reshape(-1, 3)[whole_rows], child.reshape(-1, 3)))
+    face_size = xp.concatenate((w[whole_leaf], xp.repeat(half, 4)))
+    owners = xp.concatenate((whole_leaf, xp.repeat(split_leaf, 4)))
+    neighbors = xp.concatenate((neighbor.reshape(-1)[whole_rows], child_neighbor.reshape(-1)))
+    face_axis, face_side = xp.asarray(sides[:, 0])[kind], xp.asarray(sides[:, 1])[kind]
+    # (negative-side, positive-side); boundary tiles are (owner, None).
+    face_negative = xp.where((neighbors < 0) | (face_side == 1), owners, neighbors)
+    face_positive = xp.where(neighbors < 0, -1, xp.where(face_side == 0, owners, neighbors))
     order = _sort_order(xp, (face_axis, *face_origin.T, face_size), (3, *(d+1 for d in domain), largest+1))
     key = xp.concatenate((face_axis[:, None], face_origin, face_size[:, None]), axis=1)[order]
     cells = xp.stack((face_negative, face_positive), axis=1)[order]
@@ -442,23 +435,16 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
     segment = xp.flatnonzero((active[:-1] != 0) & ~new_line[1:])
     seg_axis = events[segment, 0]
     seg_start, seg_end = events[segment, 3], events[segment + 1, 3]
-    seg_lower = xp.zeros((len(segment), 3), dtype=np.int64)
-    rings = xp.zeros((len(segment), 4), dtype=np.int64)
-    for axis in range(3):
-        rows = xp.flatnonzero(seg_axis == axis)
-        if not len(rows):
-            continue
-        other = [a for a in range(3) if a != axis]
-        seg_lower[rows, axis] = seg_start[rows]
-        for column, a in enumerate(other):
-            seg_lower[rows, a] = events[segment[rows], 1 + column]
-        midpoint = 4 * seg_lower[rows]
-        midpoint[:, axis] += 2 * (seg_end[rows] - seg_start[rows])
-        for k, offsets in enumerate(_INCIDENT_OFFSETS[axis]):
-            probe = xp.copy(midpoint)
-            for a in other:
-                probe[:, a] += quarter if offsets[a] == 0 else -quarter
-            rings[rows, k] = locate(probe)
+    # Per axis: the edge's own axis, then its two transverse axes (the event columns 1 and 2).
+    axis_unit = xp.asarray(unit)[seg_axis]
+    transverse = xp.asarray(np.stack([unit[[a for a in range(3) if a != axis]] for axis in range(3)]))[seg_axis]
+    seg_lower = (seg_start[:, None] * axis_unit + events[segment, 1][:, None] * transverse[:, 0]
+                 + events[segment, 2][:, None] * transverse[:, 1])
+    midpoint = 4 * seg_lower + (2 * (seg_end - seg_start))[:, None] * axis_unit
+    # The four quadrant probes around each edge, in _INCIDENT_OFFSETS order (the axis' own offset is 0).
+    ring_offsets = np.array([[[0 if a == axis else quarter if offsets[a] == 0 else -quarter for a in range(3)]
+                              for offsets in _INCIDENT_OFFSETS[axis]] for axis in range(3)])  # (3, 4, 3)
+    rings = locate((midpoint[:, None, :] + xp.asarray(ring_offsets)[seg_axis]).reshape(-1, 3)).reshape(-1, 4)
     present = rings >= 0
     ring_widths = xp.where(present, w[xp.maximum(rings, 0)], 0)
     widest = xp.max(ring_widths, axis=1)
@@ -522,14 +508,6 @@ def _codes(coordinates, dims):
 def _member(xp, values, sorted_codes):
     found = xp.minimum(xp.searchsorted(sorted_codes, values), len(sorted_codes) - 1)
     return sorted_codes[found] == values
-
-
-def _face_neighbors(locate, tiles, sizes, axis, other, side, quarter):
-    probe = 4 * tiles
-    probe[:, axis] += quarter if side else -quarter
-    for a in other:
-        probe[:, a] += 2 * sizes
-    return locate(probe)
 
 
 def _balance_violation(xp, width, neighbor, widths, kind):
