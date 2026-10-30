@@ -65,14 +65,25 @@ def _compile(solver_input, options, n_faults, gradient, backend):
     faults, weights), then the data arguments."""
     from pykeops.torch import LazyTensor
     n_call = 3 if n_faults else 2
-    grid = LazyTensor((0, options.number_dimensions, 1))
-    faults = LazyTensor((1, n_faults, 1)) if n_faults else None
-    weights = LazyTensor((n_call - 1, 1, 0))
-    symbols = _DataSymbols(n_call)
     axes = [None] + (list(range(options.number_dimensions)) if gradient else [])
-    inputs = [symbolic_kernel_input(solver_input, options.kernel_options, axis, grid, faults, symbols) for axis in axes]
+
+    def kernel_inputs(lazy):
+        if lazy:
+            grid, weights = LazyTensor((0, options.number_dimensions, 1)), LazyTensor((n_call - 1, 1, 0))
+            faults = LazyTensor((1, n_faults, 1)) if n_faults else None
+        else:
+            grid, weights, faults = _STAND_IN, _STAND_IN, _STAND_IN if n_faults else None
+        symbols = _DataSymbols(n_call, lazy)
+        inputs = [symbolic_kernel_input(solver_input, options.kernel_options, axis, grid, faults, symbols)
+                  for axis in axes]
+        return symbols, inputs, weights
+
+    symbols, _, _ = kernel_inputs(lazy=False)  # the arguments and the structure, without KeOps objects
 
     def trace():
+        traced, inputs, weights = kernel_inputs(lazy=True)
+        if traced.signature != symbols.signature:
+            raise AssertionError("compiled evaluation: the traced data variables differ from the collected ones")
         distance_buffer, distance_key = (DistancesBuffer(), object()) if gradient else (None, None)
         kernels = [create_scalar_kernel(inputs[0], options.kernel_options, execution_mode=KernelExecutionMode.SYMBOLIC,
                                         distance_buffer=distance_buffer, distance_cache_key=distance_key)]
@@ -88,32 +99,50 @@ def _compile(solver_input, options, n_faults, gradient, backend):
                  _settings(options.kernel_options), tuple(symbols.signature))
     reduction, kept = _formula(structure, trace, backend)
     return (reduction, [index for index in kept if index < n_call],
-            [symbols.arguments[index - n_call] for index in kept if index >= n_call])
+            [symbols.argument(index - n_call) for index in kept if index >= n_call])
 
 
 class _DataSymbols:
     """Symbolic KeOps variables standing for data tensors, numbered from ``first``: one new variable per
     call, as one ``LazyTensor(tensor)`` per call would be, of the category LazyTensor infers from the
-    shape ((M,1,D) i, (1,N,D) j, (1,1,D) parameter). ``arguments`` are the tensors in variable order,
-    shaped as KeOps takes them; ``signature`` their dimensions and categories."""
+    shape ((M,1,D) i, (1,N,D) j, (1,1,D) parameter). ``argument(position)`` is a variable's tensor shaped
+    as KeOps takes it (made only for the variables a formula keeps); ``signature`` the dimensions and
+    categories. With ``lazy=False`` a call only records the tensor and returns a stand-in: enough to
+    find the formula and its arguments."""
 
-    def __init__(self, first):
-        self.first, self.arguments, self.signature = first, [], []
+    def __init__(self, first, lazy=True):
+        self.first, self.lazy, self.tensors, self.signature = first, lazy, [], []
+
+    def argument(self, position):
+        tensor, category = self.tensors[position]
+        return (tensor[:, 0] if category == 0 else tensor[0] if category == 1 else tensor[0, 0]).contiguous()
+
+    def variable(self, position):
+        from pykeops.torch import LazyTensor
+        dim, category = self.signature[position]
+        return LazyTensor((self.first + position, dim, category))
 
     def __call__(self, tensor):
-        from pykeops.torch import LazyTensor
-        if tensor.dim() != 3:
+        shape = tensor.shape
+        if len(shape) != 3 or (shape[0] != 1 and shape[1] != 1):
             raise ValueError("compiled evaluation: data variables are (M,1,D), (1,N,D) or (1,1,D) tensors")
-        if tensor.shape[0] == 1:
-            category, argument = (2, tensor[0, 0]) if tensor.shape[1] == 1 else (1, tensor[0])
-        elif tensor.shape[1] == 1:
-            category, argument = 0, tensor[:, 0]
-        else:
-            raise ValueError("compiled evaluation: data variables are (M,1,D), (1,N,D) or (1,1,D) tensors")
-        symbol = LazyTensor((self.first + len(self.arguments), tensor.shape[-1], category))
-        self.arguments.append(argument.contiguous())
-        self.signature.append((tensor.shape[-1], category))
-        return symbol
+        category = (2 if shape[1] == 1 else 1) if shape[0] == 1 else 0
+        self.tensors.append((tensor, category))
+        self.signature.append((shape[-1], category))
+        return self.variable(len(self.tensors) - 1) if self.lazy else _STAND_IN
+
+
+class _StandIn:
+    """Handed out instead of KeOps variables while only collecting arguments: absorbs the arithmetic
+    ``symbolic_kernel_input`` does on them (``grid * grid_1``)."""
+
+    def __mul__(self, other):
+        return self
+
+    __rmul__ = __mul__
+
+
+_STAND_IN = _StandIn()
 
 
 # Traced reductions by structure, for the process (least recently used dropped first).
@@ -235,11 +264,12 @@ def _compile_stacked(eval_inputs, options_list, blocks, n_faults, backend):
     names += (["faults"] if n_faults else []) + ["weights"]
     rows = {name: torch.cat([row_of[name](data, k).reshape(1, -1).type(dtype) for k, data in enumerate(datas)])
             for name in names if name in row_of}
-    symbols = _DataSymbols(len(names))
+    symbols = _DataSymbols(len(names), lazy=False)
 
-    def cat_i(get, shaped=False):  # concatenated data side, (sum n, 1, d)
+    def cat_i(get, shaped=False):  # concatenated data side, (sum n, 1, d): its data variable's position
         values = torch.cat([get(data, k).type(dtype) for k, data in enumerate(datas)])
-        return symbols(values if shaped else values[:, None, :])
+        symbols(values if shaped else values[:, None, :])
+        return len(symbols.tensors) - 1
 
     i_side = {
         "dips_ref_coord": cat_i(lambda d, k: d.dips_ref_coord), "dips_rest_coord": cat_i(lambda d, k: d.dips_rest_coord),
@@ -266,7 +296,8 @@ def _compile_stacked(eval_inputs, options_list, blocks, n_faults, backend):
                                           else (n_faults if name == "faults" else 3)),
                                   0 if name == "weights" else 1))
                 for index, name in enumerate(names)}
-        ki = _stacked_kernel_input(i_side, call, n_faults)
+        ki = _stacked_kernel_input({name: symbols.variable(position) for name, position in i_side.items()}, call,
+                                   n_faults)
         if options.compute_scalar:
             kernel = create_scalar_kernel(ki, options.kernel_options, execution_mode=KernelExecutionMode.SYMBOLIC)
         else:
@@ -277,7 +308,7 @@ def _compile_stacked(eval_inputs, options_list, blocks, n_faults, backend):
                  tuple((name, rows[name].shape[1]) for name in rows), tuple(symbols.signature))
     reduction, kept = _formula(structure, build, backend)
     order = [names[index] for index in kept if index < len(names)]
-    return reduction, order, rows, [symbols.arguments[index - len(names)] for index in kept if index >= len(names)]
+    return reduction, order, rows, [symbols.argument(index - len(names)) for index in kept if index >= len(names)]
 
 
 def _compact_symbols(expression):
@@ -358,13 +389,16 @@ def symbolic_kernel_input(interp_input, kernel_options, axis, grid, faults, symb
     data = _data_side(interp_input, kernel_options, axis)
     dtype = BackendTensor.dtype_obj
 
+    def typed(x):
+        return x if x.dtype == dtype else x.type(dtype)
+
     def i_side(x):
-        return symbols(x.type(dtype)[:, None, :])
+        return symbols(typed(x)[:, None, :])
 
     def upgraded(struct):  # cached selector structs, already shaped (i: (n, 1, d), j: (1, 1, d))
-        return _struct(type(struct), **{name: symbols(value.type(dtype)) for name, value in vars(struct).items()})
+        return _struct(type(struct), **{name: symbols(typed(value)) for name, value in vars(struct).items()})
 
-    grid_1 = symbols(data.grid_1.type(dtype)[None, :, :])
+    grid_1 = symbols(typed(data.grid_1)[None, :, :])
     ki = KernelInput(
         ori_sp_matrices=_struct(OrientationSurfacePointsCoords, dip_ref_i=i_side(data.dips_ref_coord), dip_ref_j=grid,
                                 diprest_i=i_side(data.dips_rest_coord), diprest_j=grid),
