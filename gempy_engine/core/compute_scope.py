@@ -117,3 +117,25 @@ def assert_same(cached, fresh, what: str, rtol: float = 0.0):
 
     if not same(cached, fresh):
         raise AssertionError(f"compute cache: cached {what} differs from its recomputation")
+
+
+def assert_close(actual, expected, what: str, rtol: float = 1e-5, atol: float = 1e-5, max_mismatch: float = 0.0):
+    """Raise unless two torch tensors agree within ``rtol`` and ``atol`` (a fraction of ``expected``'s largest
+    magnitude) at all but a ``max_mismatch`` fraction of entries; booleans must be equal there. None only
+    matches None. For check mode (GEMPY_CHECK_COMPUTE_CACHE): it reads the device."""
+    import torch
+    if actual is None or expected is None:
+        if actual is not expected:
+            raise AssertionError(f"{what}: only one of the values is None")
+        return
+    if actual.shape != expected.shape or actual.dtype != expected.dtype:
+        raise AssertionError(f"{what}: {actual.dtype} {tuple(actual.shape)} vs "
+                             f"{expected.dtype} {tuple(expected.shape)}")
+    if expected.dtype.is_floating_point:
+        scale = float(expected.abs().max()) if expected.numel() else 0.0
+        mismatch = ~torch.isclose(actual, expected, rtol=rtol, atol=atol * (scale or 1.0), equal_nan=True)
+    else:
+        mismatch = actual != expected
+    n_mismatch = int(mismatch.sum())
+    if n_mismatch > max_mismatch * mismatch.numel():
+        raise AssertionError(f"{what}: {n_mismatch} of {mismatch.numel()} entries differ beyond tolerance")

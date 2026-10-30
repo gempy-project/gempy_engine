@@ -1,11 +1,11 @@
-"""The stacked scalar-field combination equals the per-stack loops bit for bit (_combine_stacked)."""
+"""The stacked scalar-field combination with torch ops equals the per-stack loops bit for bit (_combine_stacked)."""
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 from gempy_engine.API.interp_single._masking_ops import (_combine_scalar_fields, _combine_stacked, _faults_mask,
-                                                         _lithology_mask, _stackable, bitwise_equal)
+                                                         _lithology_mask, _stackable)
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.exported_fields import ExportedFields
@@ -22,6 +22,19 @@ def torch_backend(restore_backend):
     default = torch.get_default_dtype()
     yield
     torch.set_default_dtype(default)
+
+
+def bitwise_equal(a, b) -> bool:
+    """Same dtype, shape and bits (signed zeros and NaN payloads included); None only equals None."""
+    if a is None or b is None:
+        return a is b
+    import torch
+    if a.dtype != b.dtype or a.shape != b.shape:
+        return False
+    if a.dtype.is_floating_point:
+        as_int = {2: torch.int16, 4: torch.int32, 8: torch.int64}[a.element_size()]
+        return torch.equal(a.contiguous().view(as_int), b.contiguous().view(as_int))
+    return torch.equal(a, b)
 
 
 def _output(rng, relation, dtype, gradients, limit_dtype=None):

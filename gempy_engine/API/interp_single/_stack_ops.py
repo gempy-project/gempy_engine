@@ -9,8 +9,8 @@ from ._interp_single_feature import interpolate_feature_with_external_function, 
 from ... import config
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
-from ...core.compute_scope import (checking, StackCache, assert_same, options_key, scope_cache, stack_cache,
-                                   stack_cache_of)
+from ...core.compute_scope import (checking, StackCache, assert_close, assert_same, options_key, scope_cache,
+                                   stack_cache, stack_cache_of)
 from ...core.data import TensorsStructure, SurfacePoints, Orientations, SurfacePointsInternals, OrientationsInternals
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.input_data_descriptor import InputDataDescriptor
@@ -26,6 +26,7 @@ from typing import Any
 
 from numpy import ndarray, dtype
 
+from ...modules import fused
 from ...modules.activator import activator_interface
 from ...modules.activator._soft_segment import segmentation_constants, soft_segment_stacked
 from ...modules.data_preprocess._input_preparation import chunk_preprocess
@@ -276,7 +277,11 @@ def _stacked_values_blocks(exported_fields_per_stack: list[ExportedFields], inte
     blocks = {}
     for members in groups.values():
         z, edges, ids, tau = (rows([member[k] for member in members]) for k in range(1, 5))
-        values = soft_segment_stacked(z, edges, ids, tau)
+        values = fused.soft_segment_stacked(z, edges, ids, tau)
+        if values is None:
+            values = soft_segment_stacked(z, edges, ids, tau)
+        elif checking():
+            assert_close(values, soft_segment_stacked(z, edges, ids, tau), "fused segmentation")
         for row, member in enumerate(members):
             blocks[member[0]] = values[row][None, :]
     return blocks

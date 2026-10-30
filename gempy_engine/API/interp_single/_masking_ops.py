@@ -4,7 +4,7 @@ import numpy as np
 from numpy import ndarray
 
 from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.core.compute_scope import checking
+from gempy_engine.core.compute_scope import assert_close, checking, scope_cache
 from gempy_engine.core.data.exported_fields import ExportedFields
 from gempy_engine.core.data.exported_structs import CombinedScalarFieldsOutput
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
@@ -17,13 +17,14 @@ def combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
                           data_descriptor: InputDataDescriptor,
                           compute_scalar_grad: bool = False) -> List[CombinedScalarFieldsOutput]:
     stack_structure = data_descriptor.stack_structure
-    if _stackable(all_scalar_fields_outputs, stack_structure.masking_descriptor, data_descriptor.stack_relation,
-                  compute_scalar_grad):
-        combined = _combine_stacked(all_scalar_fields_outputs, stack_structure.masking_descriptor,
-                                    data_descriptor.stack_relation, compute_scalar_grad)
+    masking_descriptor, stack_relation = stack_structure.masking_descriptor, data_descriptor.stack_relation
+    if _stackable(all_scalar_fields_outputs, masking_descriptor, stack_relation, compute_scalar_grad):
+        limits = _compute_erosion_limits(all_scalar_fields_outputs, masking_descriptor, stack_relation, data_descriptor)
+        combined = _combine_stacked(all_scalar_fields_outputs, masking_descriptor, stack_relation, compute_scalar_grad,
+                                    limits)
         if checking():
-            _assert_same_combination(combined, _combine_per_stack(all_scalar_fields_outputs, data_descriptor,
-                                                                  compute_scalar_grad))
+            _assert_close_combination(combined, _combine_per_stack(all_scalar_fields_outputs, data_descriptor,
+                                                                   compute_scalar_grad))
         return combined
     return _combine_per_stack(all_scalar_fields_outputs, data_descriptor, compute_scalar_grad)
 
@@ -255,55 +256,32 @@ def _stackable(outputs: List[ScalarFieldOutput], masking_descriptor, stack_relat
 
 
 def _combine_stacked(outputs: List[ScalarFieldOutput], masking_descriptor, stack_relation,
-                     compute_scalar_grad: bool) -> List[CombinedScalarFieldsOutput]:
+                     compute_scalar_grad: bool, limits=None) -> List[CombinedScalarFieldsOutput]:
     """``_combine_scalar_fields`` with ``_lithology_mask`` and ``_faults_mask``, for stacks that ``_stackable`` accepts.
 
-    Bit-identical to the loops: the products are the same elementwise ops on stacked rows; the fault block is
-    summed stack by stack as before; and the lithology masks are disjoint (each grid point is in at most one
-    stack's mask), so each value and scalar-field block is the single unmasked term plus exact zeros, which a
-    cumulative sum (sequential from +0, as the loop starts) gives exactly, signed zeros included.
+    Masks and blocks come from one fused kernel on CUDA (``fused.combine``), otherwise from ``_stacked_blocks``.
+    ``limits``: the stacks' erosion limits (``erosion_limits``), computed here when not given.
     """
     import torch
+    from gempy_engine.modules import fused
     n_scalar_fields = len(outputs)
     grid_size = outputs[0].grid_size
     fields = [output.exported_fields for output in outputs]
-    scalar_rows = [f.scalar_field for f in fields]
     lithology_kinds = [_row_kind(relation) for relation in masking_descriptor]
     fault_kinds = [_fault_row_kind(relation) for relation in stack_relation]
+    if limits is None:
+        limits = erosion_limits(fields, lithology_kinds, fault_kinds)
 
-    rows = {}
-    eroding = [i for i in range(n_scalar_fields) if "erode" in (lithology_kinds[i], fault_kinds[i])]
-    if eroding:
-        limits = torch.stack([fields[i].scalar_field_at_surface_points.min() for i in eroding])
-        limits = limits.to(torch.result_type(scalar_rows[0], limits[0]))  # a 0-dim limit takes the field's dtype
-        eroded = torch.stack([scalar_rows[i] for i in eroding]) > limits.reshape(-1, 1)
-        rows.update(zip(eroding, eroded.unbind(0)))
-    kinds = set(lithology_kinds + fault_kinds)
-    if "false" in kinds:
-        rows["false"] = BackendTensor.t.zeros(grid_size, dtype=bool)
-    if "true" in kinds:
-        rows["true"] = BackendTensor.t.ones(grid_size, dtype=bool)
-
-    def mask(row_kinds):
-        return torch.stack([rows[i if kind == "erode" else kind] for i, kind in enumerate(row_kinds)])
-
-    lithology_mask = _final_lithology_mask(mask(lithology_kinds))
-    faults_mask = mask(fault_kinds)
-
+    scalars = torch.stack([f.scalar_field for f in fields])
     values = torch.cat([output.values_block for output in outputs])
-    lithology_values = values * lithology_mask
-    lithology_scalars = torch.stack(scalar_rows) * lithology_mask
     # The loop's blocks start as full((1, N), 0), int64 so the values' dtype wins, and zeros((1, N)) of the
     # default dtype.
-    final_blocks = torch.cumsum(lithology_values, dim=0).unbind(0)
-    scalar_dtype = torch.promote_types(torch.get_default_dtype(), lithology_scalars.dtype)
-    scalar_blocks = torch.cumsum(lithology_scalars.to(scalar_dtype), dim=0).unbind(0)
-
-    squeezed_fault_block = BackendTensor.t.zeros((1, grid_size))
-    fault_blocks = []
-    for row in (values * faults_mask).unbind(0):
-        squeezed_fault_block = (squeezed_fault_block + row).reshape(-1)
-        fault_blocks.append(squeezed_fault_block)
+    scalar_dtype = torch.promote_types(torch.get_default_dtype(), scalars.dtype)
+    fault_dtype = torch.promote_types(torch.get_default_dtype(), values.dtype)
+    blocks = fused.combine(scalars, values, limits, lithology_kinds, fault_kinds, scalar_dtype, fault_dtype)
+    if blocks is None:
+        blocks = _stacked_blocks(scalars, values, limits, lithology_kinds, fault_kinds, scalar_dtype)
+    lithology_mask, final_blocks, scalar_blocks, fault_blocks = blocks
 
     gradients = [[None] * n_scalar_fields] * 3
     if compute_scalar_grad is True and fields[0].gx_field is not None:
@@ -330,6 +308,71 @@ def _combine_stacked(outputs: List[ScalarFieldOutput], masking_descriptor, stack
     return all_combined_scalar_fields
 
 
+def _stacked_blocks(scalars, values, limits, lithology_kinds, fault_kinds, scalar_dtype):
+    """Lithology mask (n_stacks, N) and the value, scalar-field and fault blocks with torch ops.
+
+    Bit-identical to the loops: the products are the same elementwise ops on stacked rows; the fault block is
+    summed stack by stack as before; and the lithology masks are disjoint (each grid point is in at most one
+    stack's mask), so each value and scalar-field block is the single unmasked term plus exact zeros, which a
+    cumulative sum (sequential from +0, as the loop starts) gives exactly, signed zeros included.
+    """
+    import torch
+    grid_size = scalars.shape[1]
+    eroded = (scalars > limits.reshape(-1, 1)).unbind(0)
+    kinds = set(lithology_kinds + fault_kinds)
+    constant = {}
+    if "false" in kinds:
+        constant["false"] = BackendTensor.t.zeros(grid_size, dtype=bool)
+    if "true" in kinds:
+        constant["true"] = BackendTensor.t.ones(grid_size, dtype=bool)
+
+    def mask(row_kinds):
+        return torch.stack([eroded[i] if kind == "erode" else constant[kind] for i, kind in enumerate(row_kinds)])
+
+    lithology_mask = _final_lithology_mask(mask(lithology_kinds))
+    final_blocks = torch.cumsum(values * lithology_mask, dim=0)
+    scalar_blocks = torch.cumsum((scalars * lithology_mask).to(scalar_dtype), dim=0)
+
+    squeezed_fault_block = BackendTensor.t.zeros((1, grid_size))
+    fault_blocks = []
+    for row in (values * mask(fault_kinds)).unbind(0):
+        squeezed_fault_block = (squeezed_fault_block + row).reshape(-1)
+        fault_blocks.append(squeezed_fault_block)
+    return lithology_mask, final_blocks, scalar_blocks, fault_blocks
+
+
+def erosion_limits(fields: List[ExportedFields], lithology_kinds, fault_kinds):
+    """The stacks' erosion limits, (n_stacks,) in the fields' dtype: the minimum scalar field at the surface points
+    of a stack whose lithology or fault row is an erosion mask (as ``_compute_mask_components``), 0 elsewhere."""
+    import torch
+    limits = []
+    for f, lithology_kind, fault_kind in zip(fields, lithology_kinds, fault_kinds):
+        if "erode" in (lithology_kind, fault_kind):
+            limit = f.scalar_field_at_surface_points.min()
+            limits.append(limit.to(torch.result_type(f.scalar_field, limit)))  # a 0-dim limit takes the field's dtype
+        else:
+            limits.append(BackendTensor.t.zeros((), dtype=fields[0].scalar_field.dtype))
+    return torch.stack(limits)
+
+
+def _compute_erosion_limits(outputs: List[ScalarFieldOutput], masking_descriptor, stack_relation,
+                            data_descriptor: InputDataDescriptor):
+    """``erosion_limits``, within a compute taken at the first octree level: they are field values at the surface
+    points, which do not depend on the grid."""
+    fields = [output.exported_fields for output in outputs]
+    kinds = ([_row_kind(relation) for relation in masking_descriptor],
+             [_fault_row_kind(relation) for relation in stack_relation])
+    shared = scope_cache()
+    if shared is None:
+        return erosion_limits(fields, *kinds)
+    key = ("erosion_limits", id(data_descriptor))
+    if key not in shared:  # holding the descriptor keeps its id from being reused during the scope
+        shared[key] = (data_descriptor, erosion_limits(fields, *kinds))
+    elif checking():
+        assert_close(shared[key][1], erosion_limits(fields, *kinds), "erosion limits")
+    return shared[key][1]
+
+
 def _fault_row_kind(relation) -> str:
     """Which row ``_faults_mask`` gives a stack: a fault's erosion mask, otherwise all False."""
     match relation:
@@ -339,27 +382,18 @@ def _fault_row_kind(relation) -> str:
             return "false"
 
 
-def bitwise_equal(a, b) -> bool:
-    """Same dtype, shape and bits (signed zeros and NaN payloads included); None only equals None."""
-    if a is None or b is None:
-        return a is b
-    import torch
-    if a.dtype != b.dtype or a.shape != b.shape:
-        return False
-    if a.dtype.is_floating_point:
-        as_int = {2: torch.int16, 4: torch.int32, 8: torch.int64}[a.element_size()]
-        return torch.equal(a.contiguous().view(as_int), b.contiguous().view(as_int))
-    return torch.equal(a, b)
+def _assert_close_combination(stacked: List[CombinedScalarFieldsOutput], per_stack: List[CombinedScalarFieldsOutput]):
+    """Raise unless the stacked combination matches the per-stack one (GEMPY_CHECK_COMPUTE_CACHE).
 
-
-def _assert_same_combination(stacked: List[CombinedScalarFieldsOutput], per_stack: List[CombinedScalarFieldsOutput]):
-    """Raise unless the stacked combination is bit for bit the per-stack one (GEMPY_CHECK_COMPUTE_CACHE)."""
+    A few points may differ: erosion limits taken at the first level can put a point that lies on a limit on
+    the other side of it.
+    """
     for s, p in zip(stacked, per_stack, strict=True):
-        pairs = [(s.squeezed_mask_array, p.squeezed_mask_array), (s.final_block, p.final_block),
-                 (s.faults_block, p.faults_block)]
-        pairs += [(getattr(s.final_exported_fields, name), getattr(p.final_exported_fields, name))
+        pairs = [(s.squeezed_mask_array, p.squeezed_mask_array, "lithology mask"),
+                 (s.final_block, p.final_block, "block"), (s.faults_block, p.faults_block, "fault block")]
+        pairs += [(getattr(s.final_exported_fields, name), getattr(p.final_exported_fields, name), name)
                   for name in ("_scalar_field", "_gx_field", "_gy_field", "_gz_field")]
-        if not all(bitwise_equal(a, b) for a, b in pairs):
-            raise AssertionError("compute cache: stacked scalar-field combination differs from the per-stack one")
+        for a, b, what in pairs:
+            assert_close(a, b, f"stacked combination, {what}", max_mismatch=1e-4)
 
 # endregion
