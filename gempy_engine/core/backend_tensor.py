@@ -31,6 +31,12 @@ PYKEOPS = DEFAULT_PYKEOPS
 from importlib.util import find_spec, module_from_spec
 
 
+# Up to this share of the device's memory stays cached between computes: releasing it costs about 30 ms a compute
+# (empty_cache itself, then cold allocations). A larger cache is released, so one big model does not keep it from
+# KeOps, whose allocations do not go through torch's cache.
+_GPU_CACHE_KEPT_SHARE = 0.25
+
+
 class BackendTensor:
     engine_backend: AvailableBackends
 
@@ -513,9 +519,13 @@ class BackendTensor:
         # 2. GC: Safely destroy orphaned Python/C++ objects
         # gc.collect() ! This takes a very long time, I have to balance the reliability vs performance
 
-        if BackendTensor.use_gpu:
+        if BackendTensor.use_gpu and cls._gpu_cache_share() > _GPU_CACHE_KEPT_SHARE:
             # 3. Release VRAM: Give the memory back to the OS
             torch.cuda.empty_cache()
+
+    @staticmethod
+    def _gpu_cache_share() -> float:
+        return torch.cuda.memory_reserved() / torch.cuda.get_device_properties(torch.cuda.current_device()).total_memory
 
 
 BackendTensor._change_backend(DEFAULT_BACKEND)
