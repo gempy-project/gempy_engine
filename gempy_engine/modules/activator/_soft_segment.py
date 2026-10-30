@@ -49,8 +49,11 @@ def soft_segment_stacked(Z, edges, ids, tau_k):
     Returns (B, N). Every element meets the same operands and operations as in ``_lith_segmentation``:
     the per-field 0-dim edges and temperatures become (B, 1) columns.
     """
-    first = _sigmoid(scalar_field=-Z, edges=-edges[:, :1], tau_k=tau_k[:, :1])
-    last = _sigmoid(scalar_field=Z, edges=edges[:, -1:], tau_k=tau_k[:, -1:])
+    def zero_dim(column):  # a 0-dim operand takes the field's dtype instead of promoting it; so does its column
+        return column.to(bt.t.result_type(Z, column.reshape(-1)[0]))
+
+    first = _sigmoid(scalar_field=-Z, edges=zero_dim(-edges[:, :1]), tau_k=zero_dim(tau_k[:, :1]))
+    last = _sigmoid(scalar_field=Z, edges=zero_dim(edges[:, -1:]), tau_k=zero_dim(tau_k[:, -1:]))
     left = _sigmoid(scalar_field=Z[..., None], edges=edges[:, None, :-1], tau_k=tau_k[:, None, :-1])
     right = _sigmoid(scalar_field=Z[..., None], edges=edges[:, None, 1:], tau_k=tau_k[:, None, 1:])
     membership = bt.t.concatenate([first[..., None], left - right, last[..., None]], axis=-1)
