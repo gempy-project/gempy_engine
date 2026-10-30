@@ -9,7 +9,8 @@ from ._interp_single_feature import interpolate_feature_with_external_function, 
 from ... import config
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
-from ...core.compute_scope import checking, StackCache, assert_same, options_key, stack_cache, stack_cache_of
+from ...core.compute_scope import (checking, StackCache, assert_same, options_key, scope_cache, stack_cache,
+                                   stack_cache_of)
 from ...core.data import TensorsStructure, SurfacePoints, Orientations, SurfacePointsInternals, OrientationsInternals
 from ...core.data.exported_fields import ExportedFields
 from ...core.data.input_data_descriptor import InputDataDescriptor
@@ -61,7 +62,7 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
 
     for i in chunk:
         state.stack_structure.stack_number = i
-        tensor_struct_i: TensorsStructure = TensorsStructure.from_tensor_structure_subset(state.root_data_descriptor, i)
+        tensor_struct_i: TensorsStructure = _stack_tensors_structure(state.root_data_descriptor, i)
         interpolation_input_i: InterpolationInput = InterpolationInput.from_interpolation_input_subset(
             all_interpolation_input=state.root_interpolation_input,
             stack_structure=state.stack_structure
@@ -168,6 +169,17 @@ def process_chunk(state: InterpolationState, chunk: list[int]):
             xyz_to_interpolate=state.eval_inputs[i].xyz_to_interpolate
         )
         state.all_stack_values_block[i, :] = values_output
+
+
+def _stack_tensors_structure(descriptor: InputDataDescriptor, stack_index: int) -> TensorsStructure:
+    """The stack's ``TensorsStructure``; within a compute built once, as it does not depend on the grid."""
+    shared = scope_cache()
+    if shared is None:
+        return TensorsStructure.from_tensor_structure_subset(descriptor, stack_index)
+    key = ("tensors_structure", id(descriptor), stack_index)
+    if key not in shared:  # holding the descriptor keeps its id from being reused during the scope
+        shared[key] = (descriptor, TensorsStructure.from_tensor_structure_subset(descriptor, stack_index))
+    return shared[key][1]
 
 
 def _segment(

@@ -28,7 +28,12 @@ def prepare_grid(grid: np.ndarray, surface_points: SurfacePoints, micro_points=N
 
 
 def prepare_faults(faults_values_on_sp: np.ndarray, tensors_structure: TensorsStructure) -> Tuple[ndarray, ndarray]:
-    
+    split = tensors_structure.host_split()
+    if split is not None:  # the same columns, gathered by host-built indices
+        _, rest_index, repeated_ref_index, _ = split
+        faults_values_on_sp = bt.t.array(faults_values_on_sp, dtype=BackendTensor.dtype)
+        return faults_values_on_sp[:, repeated_ref_index], faults_values_on_sp[:, rest_index]
+
     partitions_bool = tensors_structure.partitions_bool
     number_repetitions = bt.t.array(tensors_structure.number_of_points_per_surface - 1)
     faults_values_on_sp = bt.t.array(faults_values_on_sp, dtype=BackendTensor.dtype)

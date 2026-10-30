@@ -17,6 +17,19 @@ def orientations_preprocess(orientations: Orientations):
 
 
 def surface_points_preprocess(sp_input: SurfacePoints, tensors_structure: TensorsStructure) -> SurfacePointsInternals:
+    split = tensors_structure.host_split()
+    if split is not None:  # the same rows, gathered by host-built indices
+        ref_index, rest_index, repeated_ref_index, surface_index = split
+        nugget_effect, sp_coords = sp_input.nugget_effect_scalar, sp_input.sp_coords
+        rest_nugget = nugget_effect[rest_index]
+        return SurfacePointsInternals(
+            sp_coords[repeated_ref_index],
+            sp_coords[rest_index],
+            rest_nugget,
+            nugget_effect[repeated_ref_index],
+            nugget_effect[ref_index],
+            surface_index.to(rest_nugget.dtype),
+        )
 
     partitions_bool = tensors_structure.partitions_bool
 

@@ -6,6 +6,7 @@ from typing import Type
 import numpy as np
 
 from ..backend_tensor import BackendTensor as b, BackendTensor
+from ...config import AvailableBackends
 from ..utils import cast_type_inplace
 
 
@@ -23,7 +24,11 @@ class TensorsStructure:
     _reference_sp_position: np.ndarray =  field(default_factory=lambda: np.ones(1))
 
     def __post_init__(self):  # TODO: Move this to init
+        counts = self.number_of_points_per_surface
         cast_type_inplace(self, keep_dtype=True)
+        # The counts on the host too (zeros removed) when they were given there: the torch backend splits
+        # and repeats the surface points with host-built indices (``host_split``) instead of device masks.
+        self.host_counts = counts[counts != 0] if isinstance(counts, np.ndarray) else None
 
         # Set _number_of_points_per_surface_vector
         self.number_of_points_per_surface = self.number_of_points_per_surface[self.number_of_points_per_surface != 0]  # remove 0s
@@ -42,7 +47,10 @@ class TensorsStructure:
 
         n_points_per_surface = ts.number_of_points_per_surface[l0:l1]
 
-        return cls(n_points_per_surface, dtype=ts.dtype)
+        subset = cls(n_points_per_surface, dtype=ts.dtype)
+        if getattr(ts, "host_counts", None) is not None:
+            subset.host_counts = ts.host_counts[l0:l1]
+        return subset
 
     @property
     def reference_sp_position(self):
@@ -56,6 +64,28 @@ class TensorsStructure:
     @property
     def n_surfaces(self):
         return self.number_of_points_per_surface.shape[0]
+
+    def host_split(self):
+        """Device row indices of the reference points, the rest points and the reference point repeated for
+        each of its surface's rest points, plus each rest point's surface number (int64), or None.
+
+        Built once from ``host_counts`` on the torch backend: gathers with these give exactly what the
+        boolean ``partitions_bool`` masks and the repeats by device counts give, without their syncs."""
+        if (BackendTensor.engine_backend is not AvailableBackends.PYTORCH
+                or not isinstance(getattr(self, "host_counts", None), np.ndarray)):
+            return None
+        device, split = getattr(self, "_host_split", (None, None))
+        if split is None or device != str(BackendTensor.device):
+            from ..host_arrays import upload
+            counts = self.host_counts.astype(np.int64)
+            starts = np.concatenate(([0], np.cumsum(counts)[:-1]))
+            rest = np.setdiff1d(np.arange(counts.sum()), starts)  # ascending, as a boolean mask selects
+            repeats = counts - 1
+            index = upload(np.concatenate((starts, rest, np.repeat(starts, repeats), np.repeat(np.arange(len(counts)), repeats))))
+            bounds = np.cumsum([len(starts), len(rest), len(rest)])
+            split = (index[:bounds[0]], index[bounds[0]:bounds[1]], index[bounds[1]:bounds[2]], index[bounds[2]:])
+            self._host_split = (str(BackendTensor.device), split)
+        return split
 
     @property
     def partitions_bool(self):
