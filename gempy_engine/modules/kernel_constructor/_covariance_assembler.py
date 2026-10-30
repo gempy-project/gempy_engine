@@ -3,6 +3,7 @@ from gempy_engine.config import AvailableBackends
 
 import gempy_engine.config
 from gempy_engine.core.backend_tensor import BackendTensor
+from gempy_engine.core.host_arrays import upload
 from gempy_engine.core.data.options import KernelOptions, NuggetImplementation
 from gempy_engine.core.data.solutions import Solutions
 from gempy_engine.modules.kernel_constructor import _structs
@@ -233,8 +234,9 @@ def _full_point_nugget_covariance(
                                          values=_block_values(layout, [n.rest for n in blocks], starts))
         reference = _block_values(layout, [n.reference for n in blocks], starts)
         surface_ids = _block_values(layout, [n.surface_ids for n in blocks], starts)
-        surface_mask = _block_values(
-            layout, [BackendTensor.t.ones(n.rest.shape[0], dtype=n.rest.dtype) for n in blocks], starts)
+        surface_mask = _placed(layout, BackendTensor.t.ones(sum(n.rest.shape[0] for n in blocks),
+                                                            dtype=blocks[0].rest.dtype),
+                               [n.rest.shape[0] for n in blocks], starts)
     else:
         rest_diagonal = _nugget_diagonal(
             matrix_size,
@@ -280,8 +282,21 @@ def _pad_surface_values(matrix_size: int, values, start: int):
 
 def _block_values(layout, values, starts):
     """Each block's ``values`` at offset ``starts[k]`` of its rows, zeros elsewhere, block after block."""
-    return BackendTensor.tfnp.concatenate([_pad_surface_values(size, v, start)
-                                           for size, v, start in zip(layout.sizes, values, starts)])
+    return _placed(layout, BackendTensor.tfnp.concatenate(list(values)), [v.shape[0] for v in values], starts)
+
+
+def _placed(layout, joined, lengths, starts):
+    """``joined`` (the blocks' values one after another, ``lengths`` each) written into a zero vector of the
+    blocks' rows at host-built positions: one scatter instead of padding block by block."""
+    offsets = np.cumsum([0, *layout.sizes[:-1]])
+    positions = np.concatenate([offset + start + np.arange(length)
+                                for offset, start, length in zip(offsets, starts, lengths)]).astype(np.int64)
+    if BackendTensor.engine_backend is not AvailableBackends.PYTORCH:
+        placed = np.zeros(sum(layout.sizes), dtype=joined.dtype)
+        placed[positions] = joined
+        return placed
+    zeros = BackendTensor.t.zeros(sum(layout.sizes), dtype=joined.dtype)
+    return zeros.index_put((upload(positions),), joined)
 
 
 def _sp_starts(layout):
