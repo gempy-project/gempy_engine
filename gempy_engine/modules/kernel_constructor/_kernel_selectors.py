@@ -5,13 +5,19 @@ from ...core.host_arrays import upload
 
 
 def dips_sp_cartesian_selector(matrices_sizes: MatricesSizes, axis: int = None):
+    # Built on the host and uploaded at once
+    selectors = upload(cartesian_host_patterns(matrices_sizes, axis))
+    return selectors[0], selectors[1], selectors[2]
+
+
+def cartesian_host_patterns(matrices_sizes: MatricesSizes, axis: int = None) -> np.ndarray:
+    """(3, cov_size, dim) int8: the hu, hv and huv selectors of ``dips_sp_cartesian_selector``."""
     vector_size = matrices_sizes.cov_size
     n_dim = matrices_sizes.dim
     n_dips = matrices_sizes.n_dips
     n_points = matrices_sizes.sp_size
 
-    # Built on the host and uploaded at once
-    sel_hu, sel_hv, sel_huv = np.zeros((3, vector_size, n_dim), dtype="int8")
+    sel_hu, sel_hv, sel_huv = patterns = np.zeros((3, vector_size, n_dim), dtype="int8")
 
     for i in range(n_dim): # ! sel_hu has to be the same also for all axis 
         sel_hu[n_dips * i:n_dips * (i + 1), i] = 1
@@ -22,9 +28,7 @@ def dips_sp_cartesian_selector(matrices_sizes: MatricesSizes, axis: int = None):
         sel_huv[n_dips * n_dim: n_dips * n_dim + n_points, :] = 1
     else:
         sel_huv[n_dips * n_dim: n_dips * n_dim + n_points, axis] = 1
-
-    selectors = upload(np.stack((sel_hu, sel_hv, sel_huv)))
-    return selectors[0], selectors[1], selectors[2]
+    return patterns
 
 
 def grid_cartesian_selector(matrices_sizes: MatricesSizes, axis: int = None):

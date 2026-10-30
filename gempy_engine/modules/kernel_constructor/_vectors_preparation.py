@@ -81,10 +81,15 @@ class StackAssemblies:
     faults: Optional[tuple]  # fault vectors at the reference and the rest points
 
 
+def assemblies_key(options: KernelOptions):
+    """Stack-cache key of a stack's ``StackAssemblies`` (in ``StackCache.data_side``)."""
+    return "assemblies", options.uni_degree, options.number_dimensions, options.n_uni_eq
+
+
 def _stack_assemblies(interp_input, options: KernelOptions, matrices_sizes: MatricesSizes) -> StackAssemblies:
     """Built once per stack within a compute (see ``compute_scope``)."""
     cache = stack_cache_of(interp_input)
-    key = ("assemblies", options.uni_degree, options.number_dimensions, options.n_uni_eq)
+    key = assemblies_key(options)
     if cache is not None and not checking() and key in cache.data_side:
         return cache.data_side[key]
 

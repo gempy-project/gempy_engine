@@ -84,3 +84,45 @@ def test_chunk_prebuild_groups_by_fault_count_and_splits_by_size(monkeypatch):
     assert sorted(builds) == [2, 2, 2]
     for solver_input, cache in zip(stacks, caches):
         assert BackendTensor.t.equal(cache.covariance, _per_stack(solver_input, options))
+
+
+@pytest.mark.parametrize("uni_degree", [0, 1, 2])
+@pytest.mark.parametrize("n_faults", [0, 2])
+def test_chunk_kernel_input_equals_concatenated_stack_inputs(uni_degree, n_faults):
+    from gempy_engine.core.compute_scope import StackCache
+    from gempy_engine.modules.kernel_constructor._vectors_preparation import assemblies_key, _stack_assemblies
+    from gempy_engine.modules.kernel_constructor.stacked_covariance import (_matrices_sizes, chunk_kernel_input,
+                                                                            stack_kernel_inputs)
+    rng = np.random.default_rng(13)
+    options = KernelOptions(range=1.7, c_o=0.9, uni_degree=uni_degree)
+    stacks = [_stack(rng, [3, 4], 2, n_faults), _stack(rng, [5], 3, n_faults), _stack(rng, [2, 2, 3], 1, n_faults)]
+    for solver_input in stacks:
+        solver_input.stack_cache = StackCache()
+    chunk = chunk_kernel_input(stacks, options)
+    assert chunk is not None
+    reference = stack_kernel_inputs([cov_vectors_preparation(solver_input, options) for solver_input in stacks])
+    for name in ("ori_sp_matrices", "cartesian_selector", "ori_drift", "ref_drift", "rest_drift",
+                 "drift_matrix_selector", "ref_fault", "rest_fault"):
+        a, b = getattr(chunk, name), getattr(reference, name)
+        assert (a is None) == (b is None), name
+        for field, value in (vars(a).items() if a is not None else ()):
+            expected = vars(b)[field]
+            if field == "n_faults_i":
+                assert value == expected
+                continue
+            assert value.shape == expected.shape and value.dtype == expected.dtype, f"{name}.{field}"
+            assert BackendTensor.t.equal(value, expected), f"{name}.{field}"
+    for name in ("rest", "reference", "surface_ids"):
+        assert BackendTensor.t.equal(getattr(chunk.nugget_scalar, name), getattr(reference.nugget_scalar, name))
+    assert BackendTensor.t.equal(chunk.nugget_grad, reference.nugget_grad)
+    assert chunk.block_layout.sizes == reference.block_layout.sizes
+
+    for solver_input in stacks:  # the views left for the evaluation data side equal fresh assemblies
+        cached = solver_input.stack_cache.data_side[assemblies_key(options)]
+        solver_input.stack_cache = None
+        fresh = _stack_assemblies(solver_input, options, _matrices_sizes(solver_input, options))
+        for field in ("dips_ref_coord", "dips_rest_coord", "dips_ug", "dips_ref", "dips_rest", "faults"):
+            a, b = getattr(cached, field), getattr(fresh, field)
+            for x, y in (zip(a, b) if isinstance(a, tuple) else [(a, b)]) if a is not None else ():
+                assert x.dtype == y.dtype and BackendTensor.t.equal(x, y), field
+            assert (a is None) == (b is None)
