@@ -33,7 +33,8 @@ class RawArraysSolution:
     fault_block: np.ndarray = field(default_factory=lambda: np.empty(0))
     litho_faults_block: np.ndarray = field(default_factory=lambda: np.empty(0))
 
-    scalar_field_matrix: np.ndarray = field(default_factory=lambda: np.empty(0))
+    _scalar_field_matrix: np.ndarray = field(default_factory=lambda: np.empty(0))
+    _deferred_scalar_octrees: Optional[list[OctreeLevel]] = field(default=None, repr=False, compare=False)
     finite_fault_scalar_field_matrix: np.ndarray = field(default_factory=lambda: np.empty(0))
     finite_fault_stack_indices: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int64))
     block_matrix: np.ndarray = field(default_factory=lambda: np.empty(0))
@@ -66,6 +67,19 @@ class RawArraysSolution:
     # endregion
     scalar_field_at_surface_points: list[np.ndarray] = None
     n_surfaces: int = 0
+
+    @property
+    def scalar_field_matrix(self) -> np.ndarray:
+        """Scalar field of every stack on the regular grid; a deferred matrix is collapsed on first read."""
+        if self._deferred_scalar_octrees is not None:
+            octrees, self._deferred_scalar_octrees = self._deferred_scalar_octrees, None
+            self._scalar_field_matrix = _stacked_regular_grid_values(octrees, ValueType.scalar)
+        return self._scalar_field_matrix
+
+    @scalar_field_matrix.setter
+    def scalar_field_matrix(self, value: np.ndarray):
+        self._deferred_scalar_octrees = None
+        self._scalar_field_matrix = value
 
     # ? TODO: This could be just the init
     @classmethod
@@ -154,25 +168,24 @@ class RawArraysSolution:
         return meshes
 
 
+def _stacked_regular_grid_values(octree_output: list[OctreeLevel], scalar_type: ValueType) -> np.ndarray:
+    temp_list = []
+    for i in range(octree_output[0].number_of_outputs):
+        dense_valuse_from_octree: np.ndarray = get_regular_grid_value_for_level(
+            octree_list=octree_output,
+            level=None,
+            value_type=scalar_type,
+            scalar_n=i
+        ).ravel()
+        temp_list.append(dense_valuse_from_octree)
+    scalar_field_stacked = BackendTensor.t.stack(temp_list)
+    return BackendTensor.t.to_numpy(scalar_field_stacked)
+
+
 def _fill_block_solutions_with_octree_output(octrees_output, raw_arrays_solution: "RawArraysSolution"):
-
-    # Region Local Functions
-    def ___get_regular_grid_values_for_all_structural_groups(octree_output: list[OctreeLevel], scalar_type: ValueType):
-        temp_list = []
-        for i in range(octree_output[0].number_of_outputs):
-            dense_valuse_from_octree: np.ndarray = get_regular_grid_value_for_level(
-                octree_list=octree_output,
-                level=None,
-                value_type=scalar_type,
-                scalar_n=i
-            ).ravel()
-            temp_list.append(dense_valuse_from_octree)
-        scalar_field_stacked = BackendTensor.t.stack(temp_list)
-        return BackendTensor.t.to_numpy(scalar_field_stacked)
-
-    # Endregion
-    if not (os.getenv("ONLY_LITH_SOLUTION") == "True"):
-        raw_arrays_solution.block_matrix = ___get_regular_grid_values_for_all_structural_groups(
+    only_lith = os.getenv("ONLY_LITH_SOLUTION") == "True"
+    if not only_lith:
+        raw_arrays_solution.block_matrix = _stacked_regular_grid_values(
             octree_output=octrees_output,
             scalar_type=ValueType.values_block
         )
@@ -186,20 +199,23 @@ def _fill_block_solutions_with_octree_output(octrees_output, raw_arrays_solution
             level=None,
             value_type=ValueType.litho_faults_block
         )).astype("int32").ravel()
-        raw_arrays_solution.mask_matrix = ___get_regular_grid_values_for_all_structural_groups(
+        raw_arrays_solution.mask_matrix = _stacked_regular_grid_values(
             octree_output=octrees_output,
             scalar_type=ValueType.mask_component
         )
-        raw_arrays_solution.mask_matrix_squeezed = ___get_regular_grid_values_for_all_structural_groups(
+        raw_arrays_solution.mask_matrix_squeezed = _stacked_regular_grid_values(
             octree_output=octrees_output,
             scalar_type=ValueType.squeeze_mask
         )
 
     if include_raw_scalar_fields():
-        raw_arrays_solution.scalar_field_matrix = ___get_regular_grid_values_for_all_structural_groups(
-            octree_output=octrees_output,
-            scalar_type=ValueType.scalar
-        )
+        if only_lith:  # The server sends corner-filled fields instead, so this matrix is rarely read.
+            raw_arrays_solution._deferred_scalar_octrees = octrees_output
+        else:
+            raw_arrays_solution.scalar_field_matrix = _stacked_regular_grid_values(
+                octree_output=octrees_output,
+                scalar_type=ValueType.scalar
+            )
         _fill_finite_fault_scalar_fields_with_octree_output(octrees_output, raw_arrays_solution)
 
     lith_block_temp = BackendTensor.t.to_numpy(get_regular_grid_value_for_level(

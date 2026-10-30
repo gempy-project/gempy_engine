@@ -240,3 +240,24 @@ def test_finite_fault_frame_uses_the_fault_surface_points():
     assert finite_fault_frame_indices(fields, 10).tolist() == [6, 7, 8]
     # Without surface points among the evaluated points the whole reference set is used.
     assert finite_fault_frame_indices(ExportedFields(_scalar_field=np.zeros(3), _grid_size=3), 3).tolist() == [0, 1, 2]
+
+
+def test_raw_scalar_matrix_is_deferred_only_for_lith_solutions(one_fault_model, monkeypatch):
+    monkeypatch.setenv("SET_RAW_SCALAR_FIELDS_IN_SOLUTION", "True")
+    interpolation_input, data_descriptor, options = copy.deepcopy(one_fault_model)
+    options.evaluation_options.number_octree_levels = 2
+    options.evaluation_options.mesh_extraction = False
+
+    monkeypatch.setenv("ONLY_LITH_SOLUTION", "False")
+    eager = compute_model(copy.deepcopy(interpolation_input), options, copy.deepcopy(data_descriptor)).raw_arrays
+    assert eager._deferred_scalar_octrees is None
+
+    monkeypatch.setenv("ONLY_LITH_SOLUTION", "True")
+    lazy = compute_model(interpolation_input, options, data_descriptor).raw_arrays
+    assert lazy._deferred_scalar_octrees is not None
+    np.testing.assert_array_equal(lazy.scalar_field_matrix, eager.scalar_field_matrix)
+    assert lazy._deferred_scalar_octrees is None
+
+    lazy._deferred_scalar_octrees = ["unread"]
+    lazy.scalar_field_matrix = np.zeros(3)  # An assigned matrix replaces a deferred one.
+    np.testing.assert_array_equal(lazy.scalar_field_matrix, np.zeros(3))
