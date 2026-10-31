@@ -184,78 +184,98 @@ def plan_adaptive_junctions(face_cells, tile_xyz, tile_fields, pairs, identities
     """
     evidence, leaf_roots, fallback = [], {}, set()
     overridden = overridden or {}
+    face_cells = np.asarray(face_cells)
     for pair in sorted(pairs):
         controller, target = pair
         additional = {(c, sign) for participant in pair
                       for c, sign in (controllers or {}).get(participant, []) if c not in pair}
-        decisions = None
-        if additional:
-            signed = np.array([sign*leaf_fields[c] for c, sign in additional])
-            excluded = np.any(np.all(signed < 0, axis=2), axis=0)
-            retained = np.all(signed > 0, axis=(0, 2))
-            decisions = np.where(excluded, 'excluded', np.where(retained, 'retained', 'competing'))
-        # face_pair_root returns None unless both participants change sign on
-        # the tile; nothing earlier in the loop can raise, so skip those tiles.
+        # face_pair_root returns None unless both participants change sign on the tile.
         pair_fields = np.asarray(tile_fields[[controller, target]], dtype=float)
-        straddles = ~np.any((pair_fields.min(axis=2) > 0) | (pair_fields.max(axis=2) < 0), axis=0)
-        masks = [overridden[p] for p in pair if p in overridden]
-        skipped = np.logical_or.reduce(masks) if masks else None
-        straddling = np.flatnonzero(straddles)
-        # Roots of every straddling tile at once; errors are raised only for tiles the loop reaches.
+        straddling = np.flatnonzero(~np.any((pair_fields.min(axis=2) > 0) | (pair_fields.max(axis=2) < 0), axis=0))
+        # Roots of every straddling tile at once; errors are raised only for tiles that are kept.
         tile_roots, tile_errors = face_pair_roots(pair_fields[:, straddling].transpose(1, 0, 2))
-        for index, tile in enumerate(straddling.tolist()):
-            cells = tuple(c for c in face_cells[tile].tolist() if c >= 0)
-            if skipped is not None and all(skipped[c] for c in cells):
-                continue
-            if additional:
-                signed = np.array([sign*tile_fields[c, tile] for c, sign in additional])
-                tile_decision = ('excluded' if np.any(np.all(signed < 0, axis=1)) else
-                                 'retained' if np.all(signed > 0) else 'competing')
-                if tile_decision == 'excluded' and all(decisions[c] == 'excluded' for c in cells):
-                    continue
-            if tile_errors[index] is not None:
-                raise ValueError(tile_errors[index])
-            if np.isnan(tile_roots[index, 0]):
-                continue
-            root = tile_roots[index]
-            if additional:
-                if any(decisions[c] != tile_decision for c in cells) or tile_decision == 'competing':
-                    fallback.update(cells)
-                    continue
-                if tile_decision == 'excluded':
-                    continue
-            xyz = tile_xyz[tile]
-            point = xyz[0] + root[0]*(xyz[1]-xyz[0]) + root[1]*(xyz[2]-xyz[0])
-            evidence.append(dict(tile=tile, pair=pair, cells=cells, point=point))
-            for cell in cells:
+        rows, present = face_cells[straddling], face_cells[straddling] >= 0
+        cells = np.maximum(rows, 0)
+        kept = np.ones(len(straddling), dtype=bool)
+        masks = [overridden[p] for p in pair if p in overridden]
+        if masks:
+            kept &= ~(np.logical_or.reduce(masks)[cells] | ~present).all(axis=1)
+        if additional:
+            leaf_decision = _ownership_decision(np.array([sign*leaf_fields[c] for c, sign in additional]))[cells]
+            tile_decision = _ownership_decision(np.array([sign*tile_fields[c][straddling] for c, sign in additional]))
+            kept &= ~((tile_decision == _EXCLUDED) & ((leaf_decision == _EXCLUDED) | ~present).all(axis=1))
+        failed = np.flatnonzero(kept & np.not_equal(tile_errors, None))
+        if len(failed):
+            raise ValueError(tile_errors[failed[0]])
+        kept &= ~np.isnan(tile_roots[:, 0])
+        if additional:
+            disputed = kept & (((leaf_decision != tile_decision[:, None]) & present).any(axis=1)
+                               | (tile_decision == _COMPETING))
+            fallback.update(rows[disputed][present[disputed]].tolist())
+            kept &= ~disputed & (tile_decision != _EXCLUDED)
+        xyz, root = tile_xyz[straddling[kept]], tile_roots[kept]
+        points = xyz[:, 0] + root[:, :1]*(xyz[:, 1]-xyz[:, 0]) + root[:, 1:]*(xyz[:, 2]-xyz[:, 0])
+        for tile, row, point in zip(straddling[kept].tolist(), rows[kept].tolist(), points):
+            leaves = tuple(c for c in row if c >= 0)
+            evidence.append(dict(tile=tile, pair=pair, cells=leaves, point=point))
+            for cell in leaves:
                 leaf_roots.setdefault(cell, {}).setdefault(pair, []).append(point)
-    junctions = {}
+    planned, leaf_counts = [], np.asarray(counts).tolist()
     for cell, candidates in sorted(leaf_roots.items()):
         if cell in fallback or any(overridden[s][cell] for pair in candidates for s in pair if s in overridden):
             fallback.add(cell)
             continue
         pair, roots = next(iter(candidates.items()))
         # Competing pairs, missing roots, extra branches or one stack: no shared junction.
-        if (len(candidates) != 1 or len(roots) != 2 or any(counts[s, cell] != 1 for s in pair)
+        if (len(candidates) != 1 or len(roots) != 2 or any(leaf_counts[s][cell] != 1 for s in pair)
                 or identities[pair[0]][0] == identities[pair[1]][0]):
             fallback.add(cell)
             continue
-        points = np.concatenate([edge_xyz[s, cell, flags[s, cell]] for s in pair])
-        normals = np.concatenate([edge_normals[s, cell, flags[s, cell]] for s in pair])
-        point, end = roots
-        direction = end-point
-        projected = normals @ direction
-        rhs = np.sum(normals*(points-point), axis=1)
-        denominator = projected @ projected + direction @ direction
-        if not np.isfinite(denominator) or denominator <= 1e-24:
-            fallback.add(cell)
-            continue
-        parameter = np.clip((projected @ rhs + (points.mean(axis=0)-point) @ direction)/denominator, 0., 1.)
-        key = ('joint', tuple(sorted(identities[s] for s in pair)),
-               tuple(map(int, origins[cell])), int(spans[cell]), 0)
-        junctions[cell] = dict(key=key, pair=pair, position=point+parameter*direction, roots=(point, end))
+        planned.append((cell, pair, roots))
+    junctions = {}
+    if planned:
+        cells, pairs_of, roots = zip(*planned)
+        positions, solved = _junction_positions(np.array(cells), np.array(pairs_of), np.array(roots), edge_xyz,
+                                                edge_normals, flags)
+        origin_rows, span_rows = np.asarray(origins).tolist(), np.asarray(spans).tolist()
+        for cell, pair, ends, position, ok in zip(cells, pairs_of, roots, positions, solved.tolist()):
+            if not ok:
+                fallback.add(cell)
+                continue
+            key = ('joint', tuple(sorted(identities[s] for s in pair)), tuple(map(int, origin_rows[cell])),
+                   int(span_rows[cell]), 0)
+            junctions[cell] = dict(key=key, pair=pair, position=position, roots=tuple(ends))
     evidence = [item for item in evidence if not any(c in fallback for c in item['cells'])]
     return junctions, evidence, fallback
+
+
+_EXCLUDED, _RETAINED, _COMPETING = 0, 1, 2
+
+
+def _ownership_decision(signed):
+    """Per leaf or tile of (A, K, C) signed controller values at its C corners."""
+    return np.where(np.any(np.all(signed < 0, axis=2), axis=0), _EXCLUDED,
+                    np.where(np.all(signed > 0, axis=(0, 2)), _RETAINED, _COMPETING))
+
+
+def _junction_positions(cells, pairs, roots, edge_xyz, edge_normals, flags):
+    """Where each contact line through a leaf best fits both participants' Hermite rows.
+
+    ``cells`` (J,), ``pairs`` (J, 2) and ``roots`` (J, 2, 3): the line runs between the two
+    tile roots. Returns the (J, 3) positions and whether each line's system is solvable.
+    """
+    def rows(values):  # (J, 24, ...): both participants' 12 edges
+        return np.concatenate((values[pairs[:, 0], cells], values[pairs[:, 1], cells]), axis=1)
+
+    crossed, points, normals = rows(flags), rows(edge_xyz), rows(edge_normals)
+    start, direction = roots[:, 0], roots[:, 1]-roots[:, 0]
+    projected = crossed*np.einsum('jri,ji->jr', normals, direction)
+    rhs = crossed*np.einsum('jri,jri->jr', normals, points-start[:, None])
+    with np.errstate(divide='ignore', invalid='ignore'):
+        denominator = (projected*projected).sum(axis=1) + (direction*direction).sum(axis=1)
+        mean = (crossed[:, :, None]*points).sum(axis=1)/crossed.sum(axis=1, keepdims=True)
+        parameter = ((projected*rhs).sum(axis=1) + ((mean-start)*direction).sum(axis=1))/denominator
+    return start + np.clip(parameter, 0., 1.)[:, None]*direction, np.isfinite(denominator) & (denominator > 1e-24)
 
 
 # Production quad split of a collapsed ring: (0, 1, 3), (2, 3, 1); a triangle ring is kept.
