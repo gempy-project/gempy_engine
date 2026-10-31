@@ -191,7 +191,6 @@ def _additional_refinement_tests(voxel_select, current_octree_level, evaluation_
     test_for_curvature = 0 <= evaluation_options.octree_curvature_threshold <= 1 and evaluation_options.compute_scalar_gradient
 
     additional_voxel_selected_to_refinement = BackendTensor.t.zeros(voxel_select.shape, dtype=bool)
-    half_diagonal = 0.5 * float(np.linalg.norm(np.asarray(prev_octree.grid.octree_grid.dxdydz, dtype=float)))
     output: InterpOutput
     for output in prev_octree.outputs:
         slicer =output.grid.corners_grid_slice
@@ -200,7 +199,7 @@ def _additional_refinement_tests(voxel_select, current_octree_level, evaluation_
             additional_voxel_selected_to_refinement |= _cells_a_surface_may_cross(
                 exported_fields.scalar_field[output.grid.octree_grid_slice],
                 exported_fields.scalar_field_at_surface_points,
-                half_diagonal
+                0.5 * sum(float(size) ** 2 for size in prev_octree.grid.octree_grid.dxdydz) ** 0.5
             )
         if test_for_curvature:
             additional_voxel_selected_to_refinement |= mark_highest_curvature_voxels(
