@@ -55,7 +55,9 @@ def precision_tolerance(tolerance, dtype=np.float64):
     return tolerance if eps <= np.finfo(np.float64).eps else max(tolerance, 2**14*eps)
 
 
-def _node_codes(corners, domain_shape):
+def node_codes(corners, domain_shape):
+    """Distinct leaf-corner nodes: ``((codes, first, inverse), weights)``, as ``snap_straddling_nodes`` and
+    ``shared_node_fields`` both read them."""
     xp = namespace(corners)
     stride = [int(d)+1 for d in host(domain_shape)]
     weights = xp.asarray([stride[1]*stride[2], stride[2], 1], dtype=np.int64)
@@ -63,7 +65,7 @@ def _node_codes(corners, domain_shape):
     return xp.unique(codes, return_index=True, return_inverse=True), weights
 
 
-def snap_straddling_nodes(corners, samples, levels, domain_shape, aligned=1e-10):
+def snap_straddling_nodes(corners, samples, levels, domain_shape, aligned=1e-10, nodes=None):
     """Raw samples where leaves sharing a node straddle a surface take one value.
 
     Leaves evaluating a node separately (other octree level, low precision)
@@ -76,7 +78,7 @@ def snap_straddling_nodes(corners, samples, levels, domain_shape, aligned=1e-10)
     """
     xp = namespace(corners, samples)
     n = len(samples)
-    (_, first, inverse), _ = _node_codes(corners, domain_shape)
+    (_, first, inverse), _ = node_codes(corners, domain_shape) if nodes is None else nodes
     flat = samples.reshape(n, -1)
     canonical = flat[:, first][:, inverse]
     levels = xp.asarray(levels, dtype=np.float64)[:, None]
@@ -88,12 +90,12 @@ def snap_straddling_nodes(corners, samples, levels, domain_shape, aligned=1e-10)
     return xp.where(xp.abs(snapped-levels) < aligned, sided, snapped).reshape(samples.shape)
 
 
-def shared_node_fields(corners, fields, domain_shape):
+def shared_node_fields(corners, fields, domain_shape, nodes=None):
     """One field value per distinct leaf-corner node: the first leaf's.
 
     Returns ``(codes, node_fields, weights)`` for ``lookup_node_fields``.
     """
-    (unique, first, _), weights = _node_codes(corners, domain_shape)
+    (unique, first, _), weights = node_codes(corners, domain_shape) if nodes is None else nodes
     return unique, fields.reshape(len(fields), -1)[:, first], weights
 
 

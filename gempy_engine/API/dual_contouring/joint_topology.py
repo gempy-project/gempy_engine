@@ -20,14 +20,15 @@ from ...modules.dual_contouring._gen_vertices import generate_dual_contouring_ve
 from ...modules.dual_contouring.dual_contouring_interface import (find_intersection_on_edge,
                                                                   find_strict_row_intersections)
 from ...modules.dual_contouring.joint_cell_branches import CORNERS, EDGE_START, EDGE_END
-from ...modules.dual_contouring.joint_cell_complex import (AdaptiveComplex, _paused_gc, adaptive_complex_arrays,
-                                                           partial_complex_arrays)
+from ...modules.dual_contouring.joint_cell_complex import (AdaptiveComplex, _ordering_code, _paused_gc,
+                                                           adaptive_complex_arrays, partial_complex_arrays)
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
 from ...modules.dual_contouring.joint_edge_decisions import crossing_normals, edge_crossing_decisions
 from ...modules.dual_contouring.joint_field_queries import ExactPointCache, TargetedFieldBatch
 from ...modules.dual_contouring.joint_lattice import (lattice_frame, leaf_corner_nodes,
-                                                      lookup_node_fields, minimal_edge_nodes, precision_tolerance,
-                                                      shared_node_fields, snap_straddling_nodes, tile_nodes)
+                                                      lookup_node_fields, minimal_edge_nodes, node_codes,
+                                                      precision_tolerance, shared_node_fields, snap_straddling_nodes,
+                                                      tile_nodes)
 from ...modules.dual_contouring.joint_separator import (authorize_fault_pairs, check_separator_contract,
                                                         check_separator_samples, fit_separator_plane,
                                                         separator_controllers)
@@ -39,7 +40,7 @@ from ...modules.dual_contouring.joint_ownership import (borrowed_hermite_rows, b
 from ...modules.dual_contouring.joint_triangle_plan import (emit_adaptive_triangles, plan_adaptive_junctions,
                                                             plan_adaptive_triangles, plan_edge_rows, ring_triangles,
                                                             validate_adaptive_incidence)
-from ...modules.dual_contouring.joint_xp import host, namespace
+from ...modules.dual_contouring.joint_xp import NUMPY, host, namespace
 from ...modules.dual_contouring.weighted_qef_setup_multicore import DEFAULT_CROSS_SURFACE_WEIGHT
 
 
@@ -165,9 +166,10 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         # corner values, one side per node for every leaf sharing it. A
         # re-queried node (low precision) could sit on the other side of a
         # surface and drop the dual face.
-        samples = snap_straddling_nodes(corners, samples, host_levels, domain)
+        nodes = node_codes(corners, domain)
+        samples = snap_straddling_nodes(corners, samples, host_levels, domain, nodes=nodes)
         fields = samples-levels[:, None, None]
-        lattice = shared_node_fields(corners, fields, domain)
+        lattice = shared_node_fields(corners, fields, domain, nodes)
     controllers = ordinary_controllers(identities, truncations)
     if separator is not None:
         controllers = separator_controllers(controllers, faults)
@@ -546,9 +548,13 @@ def _key_order(vertex_ids, joint_start, leaves, identities, origins, spans, junc
     first = np.where(joint[:, None], first, own)
     second = np.where(joint[:, None], second, 0)
     origin = origins[cells]
-    order = np.lexsort((spans[cells], origin[:, 2], origin[:, 1], origin[:, 0], second[:, 1], second[:, 0],
-                        first[:, 1], first[:, 0], ~joint))
-    return vertex_ids[order]
+    columns = (~joint, first[:, 0], first[:, 1], second[:, 0], second[:, 1], origin[:, 0], origin[:, 1], origin[:, 2],
+               spans[cells])
+    radices = [int(c.max())+2 if len(c) else 1 for c in columns]
+    # Identities and lattice coordinates are small: one packed code is usually enough. Negative stack
+    # or surface numbers cannot pack.
+    code = None if min(int(c.min()) if len(c) else 0 for c in columns) < 0 else _ordering_code(NUMPY, columns, radices)
+    return vertex_ids[np.lexsort(columns[::-1]) if code is None else np.argsort(code)]
 
 
 class VertexKeys(Sequence):
