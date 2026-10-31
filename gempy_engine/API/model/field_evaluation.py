@@ -11,11 +11,12 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..dual_contouring.fault_drift_sampler import prepare_fault_drift_sampler
-from ..dual_contouring.fixed_weight_snapshots import host
+from ..dual_contouring.fixed_weight_snapshots import UNSUPPORTED_MICRO, fault_matrix, host, uses_micro_points
 from ...core.data.input_data_descriptor import InputDataDescriptor
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.options import InterpolationOptions
 from ...core.data.solutions import Solutions
+from ...core.data.stack_relation_type import StackRelationType
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,12 @@ def prepare_field_evaluator(solutions: Solutions, interpolation_input: Interpola
     be independent (finite faults included); micro corrections and external interpolation
     functions are not supported.
     """
+    stacks = data_descriptor.stack_structure
+    faults = [i for i, relation in enumerate(stacks.masking_descriptor) if relation is StackRelationType.FAULT]
+    if fault_matrix(stacks)[np.ix_(faults, faults)].any():
+        raise ValueError('unsupported_fault_relations: only independent fault -> affected edges allowed')
+    if uses_micro_points(interpolation_input):
+        raise NotImplementedError(UNSUPPORTED_MICRO)
     octree_list = solutions.octrees_output
     sampler = prepare_fault_drift_sampler(data_descriptor, interpolation_input, options, octree_list)
     stack_isovalues = [np.asarray(host(output.scalar_field_at_sp), dtype=np.float64).reshape(-1).copy()

@@ -25,6 +25,8 @@ from ...modules.solver.interpolation_solver import pykeops_solver_requested
 from ...modules.weights_cache.weight_cache_policy import resolve_weight_cache, WeightCacheRoute
 from ...modules.weights_cache.weights_cache_interface import WeightCache
 
+UNSUPPORTED_MICRO = 'unsupported_fault_micro_correction: fixed reference state required'
+
 
 def host(values):
     """NumPy view/copy of a NumPy array or a (possibly CUDA) Torch tensor."""
@@ -61,14 +63,20 @@ def fault_matrix(stacks):
     return matrix.astype(bool)
 
 
+def uses_micro_points(interpolation_input):
+    """Whether the input holds micro points; ``evaluation_micro_points`` alone is unset on a caller's copy."""
+    return interpolation_input.micro_points is not None or interpolation_input.evaluation_micro_points is not None
+
+
 def check_fixed_query_contract(stacks, interpolation_input, octree_list, allow_finite_faults=False,
-                               allow_external_stacks=False):
+                               allow_external_stacks=False, allow_micro=False):
     """Shared fixed-weight query preconditions; returns per-stack fault inputs.
 
     Finite faults are accepted only with ``allow_finite_faults`` (production
     drift queries); fault banks require infinite faults. ``allow_external_stacks``
     (production drift queries) accepts non-fault stacks with external callbacks,
     which production evaluates without fault drift, null space and stack grid subsets.
+    ``allow_micro`` (production drift queries) accepts micro points.
     """
     n_stacks = stacks.n_stacks
     if stacks.faults_input_data is not None and (
@@ -84,8 +92,8 @@ def check_fixed_query_contract(stacks, interpolation_input, octree_list, allow_f
             raise ValueError('unsupported_finite_fault')
     if interpolation_input._fault_values is not None:
         raise ValueError('unsupported_external_fault_data')
-    if interpolation_input.micro_points is not None or interpolation_input.evaluation_micro_points is not None:
-        raise NotImplementedError('unsupported_fault_micro_correction: fixed reference state required')
+    if not allow_micro and uses_micro_points(interpolation_input):
+        raise NotImplementedError(UNSUPPORTED_MICRO)
     callbacks = stacks.interp_functions_per_stack or [None] * n_stacks
     if not allow_external_stacks and any(callback is not None for callback in callbacks):
         raise NotImplementedError('unsupported_external_fault_callback: explicit bank-aware contract required')
@@ -153,6 +161,15 @@ def _cache_live(stack_options, stack_index):
             and WeightCache.load_weights(f'{stack_options.cache_model_name}.{stack_index}', False) is not None)
 
 
+def reference_points(interpolation_input, grid=None):
+    """Production's evaluation points: ``grid``, every surface point and the shared micro suffix."""
+    points = [host((interpolation_input.grid if grid is None else grid).values),
+              host(interpolation_input.all_surface_points.sp_coords)]
+    if interpolation_input.evaluation_micro_points is not None:
+        points.append(host(interpolation_input.evaluation_micro_points.points))
+    return np.concatenate(points)
+
+
 def fixed_weight_snapshots(descriptor, interpolation_input, options, octree_list, fault_stacks, fault_inputs,
                            external_stacks=()):
     """Frozen (solver_input, weights, options) per stack, from the outputs' production weights.
@@ -174,7 +191,7 @@ def fixed_weight_snapshots(descriptor, interpolation_input, options, octree_list
     # to the last *surface* output's full production grid, including all SPs.
     private_input.set_temp_grid(copy.deepcopy(last.outputs[fault_stacks[0] if fault_stacks else 0].grid))
     grid_size = private_input.grid.len_all_grids
-    xyz = np.concatenate((host(private_input.grid.values), host(private_input.all_surface_points.sp_coords)))
+    xyz = reference_points(private_input)
     block = np.zeros((n_stacks, len(xyz)), dtype=np.float64)
     for fault_stack in fault_stacks:
         fault_output = last.outputs[fault_stack].scalar_fields
