@@ -203,7 +203,8 @@ def plan_edge_rows(selected, edge_cells, vertex_ids, borrowed, fault_vertex):
     ``vertex_ids`` (S, N) are each surface's used vertex per leaf; its own are
     ``s*N + leaf``. Where a surface borrows fault vertices (``borrowed`` (S, N)
     mask), rings are split into production diagonals, dropping triangles lying
-    wholly on vertices of ``fault_vertex`` (per vertex id). Returns the plan
+    wholly on vertices of ``fault_vertex`` (per vertex id) that are not the
+    surface's own: a fault offset by another still reaches it. Returns the plan
     ``dict(surface, edge, keys (T, 3), regular (T, 4), entry)`` in surface, edge
     and ring order, with ``regular`` the collapsed own-vertex ring and ``entry``
     marking each emitted face's first triangle, and the dropped triangle count.
@@ -216,7 +217,8 @@ def plan_edge_rows(selected, edge_cells, vertex_ids, borrowed, fault_vertex):
     keys, lengths = collapse_rings(vertex_ids[surfaces[:, None], cells])
     row, triangles, first = ring_triangles(keys, lengths)
     split = borrowed[surfaces[:, None], cells].any(axis=1)[row]
-    dropped = split & fault_vertex[triangles].all(axis=1)
+    own = triangles//n_leaves == surfaces[row][:, None]
+    dropped = split & (fault_vertex[triangles] & ~own).all(axis=1)
     kept = ~dropped
     plan = dict(surface=surfaces[row][kept], edge=edges[row][kept], keys=triangles[kept],
                 regular=regular[row][kept], entry=(first | split)[kept])

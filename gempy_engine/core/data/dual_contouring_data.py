@@ -34,6 +34,7 @@ class DualContouringData:
     triangulation_report: dict = field(default_factory=dict)  # Quad support before overlap/fault triangle removal.
     strict_crossings: bool = False
     extent: Optional[np.ndarray] = None  # (xmin, xmax, ymin, ymax, zmin, zmax); None disables snapping to the extent.
+    snapped_faces: Optional[np.ndarray] = None  # (n_valid_voxels, 3, 2) extent faces each vertex was snapped to.
 
     @property
     def valid_voxels(self):

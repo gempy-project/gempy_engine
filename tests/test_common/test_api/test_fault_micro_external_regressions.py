@@ -1,4 +1,4 @@
-"""Fault, micro-point and external-stack combinations found on the server.
+"""Fault, micro-point, external-stack and extent-snapping cases found on the server.
 
 Runs the server's mesh path (``joint_contacts``, INTERSECT masking) on NumPy and
 on Torch float32 with KeOps and flat stacks. ``known_bug`` tests state the
@@ -31,6 +31,7 @@ from gempy_engine.core.data.options.evaluation_options import MeshExtractionMask
 from gempy_engine.core.data.stack_relation_type import StackRelationType as R
 from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.core.exceptions import GemPyEngineInputError
+from gempy_engine.modules.dual_contouring._gen_vertices import snap_tolerance
 
 FAULT_X = .47
 SECOND_FAULT = (.33, .5)  # y left and right of FAULT_X
@@ -43,6 +44,7 @@ ONE_FAULT = [[0, 1], [0, 0]]
 FAULT_ON_FAULT = [[0, 1, 1], [0, 0, 1], [0, 0, 0]]
 INDEPENDENT_FAULTS = [[0, 0, 1], [0, 0, 1], [0, 0, 0]]
 NON_TRANSITIVE_FAULTS = [[0, 1, 0], [0, 0, 1], [0, 0, 0]]
+ALL_OVERLAPS = ['none', 'pretty', 'joint_contacts']
 
 
 def known_bug(raises, reason):
@@ -176,14 +178,11 @@ def _mesh(meshes, stack):
 
 
 def _assert_stepped(mesh, axis, levels):
-    """The mesh sits on ``levels`` left and right of the fault.
-
-    A percentile, because vertices merged onto another fault move up to half a cell.
-    """
+    """The mesh sits on ``levels`` left and right of the fault."""
     vertices = _host(mesh.vertices)
     sides = vertices[vertices[:, 0] < FAULT_X - .12, axis], vertices[vertices[:, 0] > FAULT_X + .12, axis]
     for side, level in zip(sides, levels):
-        assert np.quantile(np.abs(side - level), .95) < .01
+        assert np.abs(side - level).max() < .01
 
 
 def _contact_misfit(mesh):
@@ -330,10 +329,86 @@ def test_surface_keeps_its_vertex_where_its_fault_borrows_from_another(backend):
     assert meshes[0].contact_report['multi_fault_unborrowed_count'] > 0
 
 
-@known_bug(AssertionError, "the all-fault triangle filter also counts the offset fault's own vertices as fault vertices")
 def test_offset_fault_reaches_the_fault_that_cuts_it(backend):
     meshes = compute_model(*_model([_fault(), _second_fault(), _strata()], FAULT_ON_FAULT)).dc_meshes
     _assert_borrows_fault_vertices(meshes, 0, 1)
+
+
+# endregion
+
+
+# region Snapping to the extent
+
+class _DeviceScalar:
+    """A 0-D CUDA tensor as NumPy sees it: ``float`` reads it, implicit conversion refuses."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def __float__(self):
+        return self.value
+
+    def __array__(self, *args, **kwargs):
+        raise TypeError("can't convert cuda:0 device type tensor to numpy")
+
+
+def _plane(level, tilt=(0., 0.)):
+    """Horizon at ``level`` in the middle of the model, rising ``tilt`` along x and y."""
+    points = _patch(2, level)
+    points[:, 2] += tilt[0] * (points[:, 0] - .5) + tilt[1] * (points[:, 1] - .5)
+    return Stack(points, R.BASEMENT, ([.5, .5, level], [-tilt[0], -tilt[1], 1.]))
+
+
+def _snapped(model, snap):
+    model[1].evaluation_options.mesh_extraction_snap_to_extent = snap
+    return model
+
+
+def _assert_no_folds(mesh):
+    """No triangle lies flat in an extent face."""
+    corners = _host(mesh.vertices)[_host(mesh.edges)]
+    assert not ((np.abs(corners) < 1e-6) | (np.abs(corners - 1) < 1e-6)).all(axis=1).any()
+
+
+def test_snap_tolerance_reads_a_grid_spacing_held_on_a_device():
+    assert snap_tolerance(tuple(_DeviceScalar(d) for d in (.5, .25, 1.))) == pytest.approx(2.5e-4)
+
+
+@pytest.mark.parametrize('level', [1e-5, 1 - 1e-5], ids=['bottom', 'top'])
+@pytest.mark.parametrize('overlap', ALL_OVERLAPS)
+def test_surface_just_inside_a_face_is_not_snapped_away(backend, overlap, level):
+    """Closer to the face than the snap tolerance, without crossing it."""
+    meshes = [compute_model(*_snapped(_model([_plane(level)], [[0]], overlap=overlap), snap)).dc_meshes[0]
+              for snap in (False, True)]
+    assert len(meshes[1].edges) == len(meshes[0].edges) > 0
+    assert np.abs(_host(meshes[1].vertices)[:, 2] - level).max() < 1e-3
+
+
+@pytest.mark.parametrize('overlap', ALL_OVERLAPS)
+def test_surface_crossing_a_face_ends_on_it_without_folds(backend, overlap):
+    mesh = compute_model(*_model([_plane(.1, (.4, .4))], [[0]], overlap=overlap)).dc_meshes[0]
+    assert (np.abs(_host(mesh.vertices)[:, 2]) < 1e-6).sum() > 3
+    _assert_no_folds(mesh)
+
+
+def test_contact_leaving_through_a_face_leaves_no_fold(backend):
+    """A junction snapped to the face folds like any other snapped vertex."""
+    top = _plane(.1, (.5, .25))._replace(relation=R.ERODE)
+    meshes = compute_model(*_model([top, _plane(.14, (.1, -.5))], [[0, 0], [0, 0]])).dc_meshes
+    assert set(meshes[0].joint_vertex_keys) & set(meshes[1].joint_vertex_keys)
+    for mesh in meshes:
+        _assert_no_folds(mesh)
+
+
+@pytest.mark.parametrize('tilt', [0., .3], ids=['flat', 'dipping'])
+@pytest.mark.parametrize('overlap', ['pretty', 'joint_contacts'])
+def test_fault_vertices_on_the_extent_keep_the_surfaces_that_borrow_them(backend, overlap, tilt):
+    """The fault and the horizon meet on the extent face at the horizon's own level."""
+    horizon = _plane(STRATA[0], (0., tilt))
+    meshes = compute_model(*_model([_fault(), horizon], ONE_FAULT, overlap=overlap)).dc_meshes
+    vertices = _host(_mesh(meshes, 1).vertices)
+    assert np.abs(vertices[:, 2] - STRATA[0] - tilt * (vertices[:, 1] - .5)).max() < .002
+    assert (vertices[:, 1] < 1e-6).any() and (vertices[:, 1] > 1 - 1e-6).any()
 
 
 # endregion
