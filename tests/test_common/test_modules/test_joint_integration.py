@@ -201,7 +201,8 @@ def test_adapter_callback_isolation_and_shared_ids(monkeypatch, fail_query):
                 gx_field=np.zeros(len(points)), gy_field=np.zeros(len(points)), gz_field=np.ones(len(points))))]
 
     def extract(origins, spans, domain_shape, extent, samples, surface_to_stack,
-                surface_indices, stack_relations, isovalues, *, sample_fields, ownership, include_reference, snap_extent):
+                surface_indices, stack_relations, isovalues, *, sample_fields, ownership, include_reference, snap_extent,
+                balanced):
         assert len(origins) == 15 and samples.shape == (2, 15, 8)
         values, gradients = sample_fields(np.array([[.1, .2, .3], [.4, .5, .6]]))
         np.testing.assert_array_equal(values, [[.3, .6], [.3, .6]])
@@ -265,7 +266,7 @@ def test_production_compute_plane_and_unconformity(monkeypatch, unconformity, re
     calls = []
     if not real_core:
         def extract(origins, spans, shape, extent, samples, surface_to_stack, surface_indices,
-                    relations, levels, *, sample_fields, ownership, include_reference, snap_extent):
+                    relations, levels, *, sample_fields, ownership, include_reference, snap_extent, balanced):
             points = np.array([[.12, .23, .34], [.45, .56, .67]])
             values, gradients = sample_fields(points)
             calls.append(points)

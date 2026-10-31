@@ -167,7 +167,8 @@ def _targeted(kwargs, log=None):
         answers = []
         for points, surfaces, kind in requests:
             if log is not None:
-                log.append((len(points), tuple(surfaces), kind == 'gradient'))
+                # Distinct points: production evaluates each request's unique rows.
+                log.append((len(np.unique(points, axis=0)), tuple(surfaces), kind == 'gradient'))
             values, normals = full(points)
             answers.append(normals[surfaces] if kind == 'gradient' else values[surfaces])
         return answers

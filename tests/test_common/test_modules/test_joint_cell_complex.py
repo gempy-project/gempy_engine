@@ -3,7 +3,8 @@ from itertools import product
 import numpy as np
 import pytest
 
-from gempy_engine.modules.dual_contouring.joint_cell_complex import build_adaptive_complex
+from gempy_engine.modules.dual_contouring.joint_cell_complex import (build_adaptive_complex, complex_records,
+                                                                   partial_complex_arrays)
 from gempy_engine.modules.dual_contouring.joint_cell_branches import INCIDENT_OFFSETS
 
 
@@ -267,5 +268,52 @@ def _model7_equivalence():
     origins, spans, domain = leaves['value']
     assert len(set(spans.tolist())) == 2  # natural mixed coarse/fine leaves
     assert build_adaptive_complex(origins, spans, domain) == _build_adaptive_complex_reference(origins, spans, domain)
+
+# endregion
+
+
+# region Partial complex
+
+@pytest.mark.parametrize('backend', ['numpy', 'torch'])
+@pytest.mark.parametrize('seed', range(60))
+def test_partial_complex_keeps_the_records_of_its_leaves(seed, backend):
+    rng = np.random.default_rng(seed)
+    origins, spans, domain = _random_octree(rng, root_width=2 if seed % 2 else 4)
+    outcome, full = _outcome(build_adaptive_complex, origins, spans, domain)
+    if outcome == 'error':
+        pytest.skip('unbalanced')
+    given = rng.random(len(spans)) < .5
+    rows = np.flatnonzero(given)
+    arrays = origins, spans, rows
+    if backend == 'torch':
+        torch = pytest.importorskip('torch')
+        arrays = tuple(torch.as_tensor(a) for a in arrays)
+    partial = complex_records(partial_complex_arrays(arrays[0], arrays[1], domain, arrays[2], arrays[2]))
+
+    def enclosed(edges):
+        return [edge for edge in edges if all(cell is not None and given[cell] for cell in edge['cells'])]
+
+    assert enclosed(partial['edges']) == enclosed(full['edges'])
+    assert all(face in full['faces'] for face in partial['faces'])
+    whole = [face for face in full['faces']
+             if any(cell is not None and given[cell] and spans[cell] == face['span'] for cell in face['cells'])]
+    assert all(face in partial['faces'] for face in whole)
+
+
+def test_partial_complex_edges_can_span_minimal_edges():
+    """Only given leaves split edges: the coarse leaf's edge stays whole beside fine leaves left out."""
+    origins, spans, domain = _mixed()
+    coarse = np.flatnonzero(spans == 2)
+    edges = complex_records(partial_complex_arrays(origins, spans, domain, coarse[:0], coarse))['edges']
+    assert any(edge['span'] == 2 and edge['origin'] == (2, 0, 0) and edge['axis'] == 1 for edge in edges)
+    full = build_adaptive_complex(origins, spans, domain)['edges']
+    assert not any(edge['span'] == 2 and edge['origin'] == (2, 0, 0) and edge['axis'] == 1 for edge in full)
+
+
+def test_partial_complex_of_every_leaf_and_of_none():
+    origins, spans, domain = _mixed()
+    assert complex_records(partial_complex_arrays(origins, spans, domain)) == build_adaptive_complex(origins, spans, domain)
+    empty = complex_records(partial_complex_arrays(origins, spans, domain, spans[:0], spans[:0]))
+    assert empty == {'faces': [], 'edges': []}
 
 # endregion

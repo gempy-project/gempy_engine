@@ -247,8 +247,42 @@ def adaptive_complex_arrays(origins, spans, domain_shape) -> AdaptiveComplex:
     return _adaptive_complex_arrays(NUMPY, *(np.asarray(value) for value in (origins, spans)), domain_shape)
 
 
+def partial_complex_arrays(origins, spans, domain_shape, face_leaves=None, edge_leaves=None) -> AdaptiveComplex:
+    """The tiles of leaves ``face_leaves`` and the edges of ``edge_leaves`` (rows; ``None`` for every leaf).
+
+    For extraction, which needs only the leaves its surfaces cross. Neighbours and rings are located
+    against all leaves, so every tile has its full-complex record. Collinear endpoints come from
+    ``edge_leaves`` only: an edge whose whole ring lies in ``edge_leaves`` has its full-complex record,
+    any other may span several minimal edges. Sort orders are the full complex's. Storage and work are
+    proportional to the given leaves, plus the location tables. The leaves are trusted: only what
+    the built rows touch is validated. If lattice codes could overflow, this is the full complex.
+    """
+    xp = namespace(origins, spans)
+    domain = tuple(int(d) for d in host(domain_shape))
+    if _codes_overflow(xp, origins, spans, domain):
+        return adaptive_complex_arrays(origins, spans, domain_shape)
+    o, w = xp.astype(origins, np.int64), xp.astype(spans, np.int64)
+    every = xp.arange(len(o))
+    deferred = []
+    tables = _level_tables(xp, o, w, domain)
+    locate = _locator(xp, tables, xp.asarray(domain, dtype=np.int64), deferred)
+    key, cells = _face_records(xp, o, w, every if face_leaves is None else face_leaves, domain, tables, locate, deferred)
+    edges = _edge_records(xp, o, w, every if edge_leaves is None else edge_leaves, domain, tables, locate, deferred)
+    _raise_first(xp, deferred)
+    return AdaptiveComplex(xp.copy(key[:, 0]), xp.copy(key[:, 1:4]), xp.copy(key[:, 4]), cells, *edges)
+
+
 class _HostFallback(Exception):
     """Inputs the device path does not order exactly (invalid or overflowing codes)."""
+
+
+def _codes_overflow(xp, origins, spans, domain):
+    """Exactness guard: every quantity of the build must stay far inside int64."""
+    largest_value = max(abs(int(origins.min())), abs(int(origins.max())), abs(int(spans.min())),
+                        abs(int(spans.max())), *domain)
+    positive = sorted({int(w) for w in xp.unique(spans).tolist() if w > 0})
+    level_sizes = [(-(-domain[0] // w)) * (-(-domain[1] // w)) * (-(-domain[2] // w)) for w in positive]
+    return 8 * largest_value >= _INT64_SAFE or any(size >= _INT64_SAFE for size in level_sizes)
 
 
 def _is_integer(a):
@@ -267,12 +301,7 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
     domain = tuple(map(int, domain_shape))
     if not len(origins) or any(size <= 0 for size in domain):
         raise ValueError('invalid_domain: require nonempty leaves and positive domain_shape')
-    # Exactness guard: every quantity below must stay far inside int64.
-    largest_value = max(abs(int(origins.min())), abs(int(origins.max())), abs(int(spans.min())),
-                        abs(int(spans.max())), *domain)
-    positive = sorted({int(w) for w in xp.unique(spans).tolist() if w > 0})
-    level_sizes = [(-(-domain[0] // w)) * (-(-domain[1] // w)) * (-(-domain[2] // w)) for w in positive]
-    if 8 * largest_value >= _INT64_SAFE or any(size >= _INT64_SAFE for size in level_sizes):
+    if _codes_overflow(xp, origins, spans, domain):
         if xp.torch:
             raise _HostFallback
         return complex_arrays(_build_adaptive_complex_reference(origins, spans, domain_shape))
@@ -312,31 +341,39 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
         raise ValueError(next(message for mask, message in checks if bool(mask[leaf])))
     # endregion
 
-    levels = xp.unique(w).tolist()
-    level_codes, level_cells, level_dims = [], [], []
-    for width in levels:
-        dims = tuple(-(-d // width) for d in domain)
-        rows = xp.flatnonzero(w == width)
-        codes = _codes(o[rows] // width, dims)
-        order = xp.argsort(codes)
-        level_codes.append(codes[order])
-        level_cells.append(rows[order])
-        level_dims.append(dims)
-    largest = levels[-1]
-    for i, width in enumerate(levels):
-        for j in range(i + 1, len(levels)):
-            ancestor = levels[j]
+    tables = _level_tables(xp, o, w, domain)
+    for i, (width, _, _, _) in enumerate(tables):
+        for ancestor, codes, _, dims in tables[i + 1:]:
             rows = xp.flatnonzero(w == width)
-            if len(rows) and bool(_member(xp, _codes(o[rows] // ancestor, level_dims[j]), level_codes[j]).any()):
+            if len(rows) and bool(_member(xp, _codes(o[rows] // ancestor, dims), codes).any()):
                 raise ValueError('overlapping_leaves: leaf and ancestor both present')
     widths_found, counts = xp.unique(w, return_counts=True)
     if sum(int(c) * int(v) ** 3 for v, c in zip(widths_found.tolist(), counts.tolist())) != \
             domain[0] * domain[1] * domain[2]:
         raise ValueError('incomplete_coverage: leaves must cover the full rectangular domain')
-    quarter = int(levels[0])
     # Balance, coverage and incidence checks are read back together at the end (one host read).
     deferred = []
+    locate = _locator(xp, tables, extent, deferred)
+    every = xp.arange(n)
+    key, cells = _face_records(xp, o, w, every, domain, tables, locate, deferred)
+    edges = _edge_records(xp, o, w, every, domain, tables, locate, deferred)
+    _raise_first(xp, deferred)
+    return AdaptiveComplex(xp.copy(key[:, 0]), xp.copy(key[:, 1:4]), xp.copy(key[:, 4]), cells, *edges)
 
+
+def _level_tables(xp, o, w, domain):
+    """Per leaf width, ascending: ``(width, sorted codes, their leaf rows, lattice dims)``."""
+    tables = []
+    for width in xp.unique(w).tolist():
+        dims = tuple(-(-d // width) for d in domain)
+        rows = xp.flatnonzero(w == width)
+        codes = _codes(o[rows] // width, dims)
+        order = xp.argsort(codes)
+        tables.append((width, codes[order], rows[order], dims))
+    return tables
+
+
+def _locator(xp, tables, extent, deferred):
     def locate(points4):
         """Leaf row containing each quarter-lattice probe; -1 outside the domain.
 
@@ -345,31 +382,40 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
         """
         result = xp.full(len(points4), -1, dtype=np.int64)
         inside = ((points4 >= 0) & (points4 < 4 * extent)).all(axis=1)
-        for width, codes, cells, dims in zip(levels, level_codes, level_cells, level_dims):
+        for width, codes, cells, dims in tables:
             probe = _codes(points4 // (4 * width), dims)
             found = xp.minimum(xp.searchsorted(codes, probe), len(codes) - 1)
             hit = inside & (result < 0) & (codes[found] == probe)
             result = xp.where(hit, cells[found], result)
         deferred.append(((inside & (result < 0)).any(), 'incomplete_coverage: no leaf contains an interior probe'))
         return result
+    return locate
 
-    # region Faces
-    # Every leaf face (6 per leaf, side-major as (axis, side)), located in one probe; then every
-    # quarter of the faces whose neighbour is finer, in a second. The faces' order does not matter:
-    # they are sorted by key and deduplicated below.
+
+def _face_records(xp, o, w, rows, domain, tables, locate, deferred):
+    """Sorted tiles of the leaves ``rows``: keys (F, 5) ``(axis, origin, span)`` and cells (F, 2).
+
+    Every face of those leaves (6 per leaf, side-major as (axis, side)), located in one probe; then every
+    quarter of the faces whose neighbour is finer, in a second. The faces' order does not matter:
+    they are sorted by key and deduplicated.
+    """
+    if not len(rows):
+        return xp.zeros((0, 5), dtype=np.int64), xp.zeros((0, 2), dtype=np.int64)
+    a, s, n = o[rows], w[rows], len(rows)
+    quarter, largest = tables[0][0], tables[-1][0]
     sides = np.array([(axis, side) for axis in range(3) for side in (0, 1)])
     unit = np.eye(3, dtype=np.int64)
     normal = unit[sides[:, 0]]  # (6, 3)
     plane = 1 - normal  # the two in-plane axes
     probe_offset = np.where(sides[:, 1:], quarter, -quarter) * normal  # into the neighbour
-    lower = o[None] + xp.asarray(sides[:, 1:] * normal)[:, None, :] * w[None, :, None]  # (6, N, 3)
+    lower = a[None] + xp.asarray(sides[:, 1:] * normal)[:, None, :] * s[None, :, None]  # (6, N, 3)
     neighbor = locate((4 * lower + xp.asarray(probe_offset)[:, None, :]
-                       + xp.asarray(plane)[:, None, :] * (2 * w)[None, :, None]).reshape(-1, 3)).reshape(6, n)
-    deferred.append(_balance_violation(xp, w, neighbor, w, 'face'))
-    split = (neighbor >= 0) & (w[xp.maximum(neighbor, 0)] < w)
+                       + xp.asarray(plane)[:, None, :] * (2 * s)[None, :, None]).reshape(-1, 3)).reshape(6, n)
+    deferred.append(_balance_violation(xp, s, neighbor, w, 'face'))
+    split = (neighbor >= 0) & (w[xp.maximum(neighbor, 0)] < s)
     whole_rows, split_rows = xp.flatnonzero(~split), xp.flatnonzero(split)  # rows of the (6 N) faces
     whole_kind, whole_leaf, split_kind, split_leaf = whole_rows // n, whole_rows % n, split_rows // n, split_rows % n
-    half = w[split_leaf] // 2
+    half = s[split_leaf] // 2
     # Quarter (du, dv) of each split face: offsets along its two in-plane axes, as product((0, 1), repeat=2).
     quarters = np.array([[du * unit[a] + dv * unit[b] for du, dv in product((0, 1), repeat=2)]
                          for a, b in (np.flatnonzero(row) for row in plane)])  # (6, 4, 3)
@@ -377,13 +423,13 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
     child_neighbor = locate((4 * child + xp.asarray(probe_offset)[split_kind][:, None, :]
                              + xp.asarray(plane)[split_kind][:, None, :] * (2 * half)[:, None, None]).reshape(-1, 3))
     child_neighbor = child_neighbor.reshape(-1, 4)
-    deferred.append(_balance_violation(xp, w[split_leaf][:, None], child_neighbor, w, 'face'))
+    deferred.append(_balance_violation(xp, s[split_leaf][:, None], child_neighbor, w, 'face'))
     deferred.append((((child_neighbor >= 0) & (w[xp.maximum(child_neighbor, 0)] < half[:, None])).any(),
                      'unsupported_unbalanced_octree: face depth difference exceeds one'))
     kind = xp.concatenate((whole_kind, xp.repeat(split_kind, 4)))
     face_origin = xp.concatenate((lower.reshape(-1, 3)[whole_rows], child.reshape(-1, 3)))
-    face_size = xp.concatenate((w[whole_leaf], xp.repeat(half, 4)))
-    owners = xp.concatenate((whole_leaf, xp.repeat(split_leaf, 4)))
+    face_size = xp.concatenate((s[whole_leaf], xp.repeat(half, 4)))
+    owners = rows[xp.concatenate((whole_leaf, xp.repeat(split_leaf, 4)))]
     neighbors = xp.concatenate((neighbor.reshape(-1)[whole_rows], child_neighbor.reshape(-1)))
     face_axis, face_side = xp.asarray(sides[:, 0])[kind], xp.asarray(sides[:, 1])[kind]
     # (negative-side, positive-side); boundary tiles are (owner, None).
@@ -397,16 +443,22 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
     group = xp.cumsum(xp.astype(starts, np.int64)) - 1
     deferred.append(((cells != cells[xp.flatnonzero(starts)][group]).any(),
                      'inconsistent_face_incidence: adjacent references disagree'))
-    key, cells = key[starts], cells[starts]
-    # endregion
+    return key[starts], cells[starts]
 
-    # region Edges: sweep the union of original leaf edges on every grid line
+
+def _edge_records(xp, o, w, rows, domain, tables, locate, deferred):
+    """Sorted minimal edges (axis, origin, span, ring): sweep the union of the leaves' edges on every grid line."""
+    if not len(rows):
+        empty = xp.zeros(0, dtype=np.int64)
+        return empty, xp.zeros((0, 3), dtype=np.int64), empty, xp.zeros((0, 4), dtype=np.int64)
+    a, s, n = o[rows], w[rows], len(rows)
+    quarter, largest = tables[0][0], tables[-1][0]
     line_axis, line_t, line_coord, line_delta = [], [], [], []
     for axis in range(3):
-        other = [a for a in range(3) if a != axis]
+        other = [i for i in range(3) if i != axis]
         for du, dv in product((0, 1), repeat=2):
-            transverse = xp.stack((o[:, other[0]] + du * w, o[:, other[1]] + dv * w), axis=1)
-            for coord, delta in ((o[:, axis], 1), (o[:, axis] + w, -1)):
+            transverse = xp.stack((a[:, other[0]] + du * s, a[:, other[1]] + dv * s), axis=1)
+            for coord, delta in ((a[:, axis], 1), (a[:, axis] + s, -1)):
                 line_axis.append(xp.full(n, axis, dtype=np.int64))
                 line_t.append(transverse)
                 line_coord.append(coord)
@@ -436,13 +488,14 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
     seg_axis = events[segment, 0]
     seg_start, seg_end = events[segment, 3], events[segment + 1, 3]
     # Per axis: the edge's own axis, then its two transverse axes (the event columns 1 and 2).
+    unit = np.eye(3, dtype=np.int64)
     axis_unit = xp.asarray(unit)[seg_axis]
-    transverse = xp.asarray(np.stack([unit[[a for a in range(3) if a != axis]] for axis in range(3)]))[seg_axis]
+    transverse = xp.asarray(np.stack([unit[[i for i in range(3) if i != axis]] for axis in range(3)]))[seg_axis]
     seg_lower = (seg_start[:, None] * axis_unit + events[segment, 1][:, None] * transverse[:, 0]
                  + events[segment, 2][:, None] * transverse[:, 1])
     midpoint = 4 * seg_lower + (2 * (seg_end - seg_start))[:, None] * axis_unit
     # The four quadrant probes around each edge, in _INCIDENT_OFFSETS order (the axis' own offset is 0).
-    ring_offsets = np.array([[[0 if a == axis else quarter if offsets[a] == 0 else -quarter for a in range(3)]
+    ring_offsets = np.array([[[0 if i == axis else quarter if offsets[i] == 0 else -quarter for i in range(3)]
                               for offsets in _INCIDENT_OFFSETS[axis]] for axis in range(3)])  # (3, 4, 3)
     rings = locate((midpoint[:, None, :] + xp.asarray(ring_offsets)[seg_axis]).reshape(-1, 3)).reshape(-1, 4)
     present = rings >= 0
@@ -450,13 +503,9 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
     widest = xp.max(ring_widths, axis=1)
     narrowest = xp.min(xp.where(present, ring_widths, INT64_MAX), axis=1)
     deferred.append(((widest > 2 * narrowest).any(), 'unsupported_unbalanced_octree: edge depth difference exceeds one'))
-    _raise_first(xp, deferred)
     seg_span = seg_end - seg_start
     order = _sort_order(xp, (seg_axis, *seg_lower.T, seg_span), (3, *(d+1 for d in domain), largest+1))
-    # endregion
-
-    return AdaptiveComplex(xp.copy(key[:, 0]), xp.copy(key[:, 1:4]), xp.copy(key[:, 4]), cells,
-                           seg_axis[order], seg_lower[order], seg_span[order], rings[order])
+    return seg_axis[order], seg_lower[order], seg_span[order], rings[order]
 
 
 @contextlib.contextmanager

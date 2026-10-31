@@ -6,9 +6,11 @@ from itertools import product
 import numpy as np
 import pytest
 
+from gempy_engine.API.dual_contouring import joint_topology
 from gempy_engine.API.dual_contouring.joint_topology import extract_adaptive_topology
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor as BT
+from gempy_engine.core import compute_scope
 from gempy_engine.core.data.dual_contouring_data import DualContouringData
 from gempy_engine.core.data.stack_relation_type import StackRelationType as R
 from gempy_engine.modules.dual_contouring._gen_vertices import generate_dual_contouring_vertices
@@ -276,6 +278,32 @@ def test_unbalanced_leaves_explicitly_rejected():
         extract_adaptive_topology(origins, spans, (8, 4, 4), (0, 8, 0, 4, 0, 4),
                                   np.ones((1, len(origins), 8)), [0], [0], [R.BASEMENT], [[0.]],
                                   sample_fields=lambda p: None)
+
+
+def test_balanced_leaves_build_only_the_part_of_the_complex_they_use(monkeypatch):
+    expected, _ = extract_planes()
+
+    def forbidden(*args):
+        raise AssertionError('full cell complex built')
+
+    monkeypatch.setattr(joint_topology, 'adaptive_complex_arrays', forbidden)
+    actual, _ = extract_planes(balanced=True)
+    np.testing.assert_array_equal(actual['vertices'], expected['vertices'])
+    assert actual['vertex_keys'] == expected['vertex_keys']
+    for a, b in zip(actual['faces'], expected['faces']):
+        np.testing.assert_array_equal(a, b)
+
+
+@pytest.mark.parametrize('kwargs, check_mode', [(dict(), False), (dict(balanced=True), True)])
+@pytest.mark.parametrize('tamper, match', [(lambda faces, edges: (faces, faces), 'edges differ'),
+                                           (lambda faces, edges: (faces[:0], edges), 'junction tiles differ')])
+def test_partial_complex_is_compared_with_the_full_one(monkeypatch, tamper, match, kwargs, check_mode):
+    original = joint_topology.partial_complex_arrays
+    monkeypatch.setattr(joint_topology, 'partial_complex_arrays',
+                        lambda origins, spans, domain, faces, edges: original(origins, spans, domain, *tamper(faces, edges)))
+    monkeypatch.setattr(compute_scope, 'CHECK_COMPUTE_CACHE', check_mode)
+    with pytest.raises(AssertionError, match=match):
+        extract_planes(**kwargs)
 
 
 def test_float32_supported_and_faults_explicitly_unsupported():

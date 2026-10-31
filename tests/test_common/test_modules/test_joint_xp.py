@@ -81,6 +81,19 @@ def _assert_same(expected, actual):
     assert actual['diagnostics'] == expected['diagnostics']
 
 
+def test_leaves_no_surface_crosses_give_empty_meshes():
+    origins, spans = mixed_leaves()
+
+    def forbidden(points):
+        raise AssertionError('nothing to sample')
+
+    args = (origins, spans, (8, 8, 8), (0, 8, 0, 8, 0, 8), np.ones((2, len(spans), 8)), [0, 1], [0, 0],
+            [R.ERODE, R.BASEMENT], [[0.], [0.]])
+    for arguments in (args, _on_torch(args)):
+        result = core.extract_adaptive_topology(*arguments, sample_fields=forbidden, balanced=True)
+        assert len(result['vertices']) == 0 and all(len(faces) == 0 for faces in result['faces'])
+
+
 @pytest.mark.parametrize('onlap', [False, True])
 @pytest.mark.parametrize('permutation', [(0, 1, 2), (2, 0, 1)])
 def test_torch_matches_numpy_on_mixed_leaf_contacts(onlap, permutation):

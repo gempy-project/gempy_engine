@@ -13,13 +13,15 @@ import numpy as np
 
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor as BT
+from ...core.compute_scope import checking
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.stack_relation_type import StackRelationType as R
 from ...modules.dual_contouring._gen_vertices import generate_dual_contouring_vertices, triangles_in_extent_face
 from ...modules.dual_contouring.dual_contouring_interface import (find_intersection_on_edge,
                                                                   find_strict_row_intersections)
 from ...modules.dual_contouring.joint_cell_branches import CORNERS, EDGE_START, EDGE_END
-from ...modules.dual_contouring.joint_cell_complex import AdaptiveComplex, _paused_gc, adaptive_complex_arrays
+from ...modules.dual_contouring.joint_cell_complex import (AdaptiveComplex, _paused_gc, adaptive_complex_arrays,
+                                                           partial_complex_arrays)
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
 from ...modules.dual_contouring.joint_edge_decisions import crossing_normals, edge_crossing_decisions
 from ...modules.dual_contouring.joint_field_queries import ExactPointCache, TargetedFieldBatch
@@ -45,7 +47,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                               surface_to_stack, surface_indices, stack_relations, isovalues,
                               *, sample_fields, ownership=None, include_reference=False,
                               faults_relations=None, separator_contacts=None, defer_emission=False,
-                              cell_complex=None, fault_merge=None, field_query=None, snap_extent=False):
+                              cell_complex=None, fault_merge=None, field_query=None, snap_extent=False,
+                              balanced=False):
     """Extract balanced dyadic leaves using canonical tiles and minimal primal edges.
 
     ``sample_fields`` supplies raw fields (S,M) and actual gradients (S,M,3).
@@ -64,6 +67,11 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     on the face.
     ``cell_complex`` may supply the read-only ``adaptive_complex_arrays`` result
     for these exact origins/spans/domain, so bank partitions share one build.
+    Otherwise, outside the banks, only the part of the complex the surfaces use
+    is built (``_contact_complex``). ``balanced`` declares the leaves to be
+    ``balance_joint_leaves`` output: they are then validated, by building the full
+    complex and comparing, only in check mode. The ``canonical_face_tile_count``
+    and ``minimal_edge_count`` diagnostics count the tiles and edges examined.
     ``fault_merge`` maps each represented fault surface to exactly the surfaces it
     affects (pretty's fault rule, as key substitution): in leaves where the fault
     has a vertex, an affected surface uses the fault's vertex identity, its
@@ -114,8 +122,11 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     # Leaves set the array library and device (NumPy, or Torch on the engine's device).
     xp = namespace(origins, spans)
     origins, spans = xp.asarray(origins, dtype=np.int64), xp.asarray(spans, dtype=np.int64)
-    complex_ = (adaptive_complex_arrays(origins, spans, domain_shape) if cell_complex is None else
-                AdaptiveComplex(*(xp.asarray(a) for a in cell_complex)))
+    full_complex = None
+    if cell_complex is not None:
+        full_complex = AdaptiveComplex(*(xp.asarray(a) for a in cell_complex))
+    elif separator is not None or not balanced or checking():
+        full_complex = adaptive_complex_arrays(origins, spans, domain_shape)
     domain = np.asarray(host(domain_shape))
     bounds, spacing = lattice_frame(extent, domain)
     low, step = xp.asarray(bounds[::2]), xp.asarray(spacing)
@@ -133,10 +144,6 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         host_levels[separator] = 0.
     levels = xp.asarray(host_levels)
     fields = samples-levels[:, None, None]
-    n_faces, n_edges = len(complex_.face_axis), len(complex_.edge_axis)
-    tiles = tile_nodes(complex_.face_axis, complex_.face_origin, complex_.face_span)
-    edge_nodes = minimal_edge_nodes(complex_.edge_axis, complex_.edge_origin, complex_.edge_span)
-    tile_xyz, minimal_xyz = low+tiles*step, low+edge_nodes*step
     if field_query is not None and (separator_contacts is not None or ownership is not None):
         raise ValueError('invalid_field_query_contract: exclusive with separator contacts and ownership')
     plane = []
@@ -152,8 +159,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         return query(points.reshape(-1, 3))
 
     batch = TargetedFieldBatch(field_query, xp)
-    all_endpoint_gradients = None
-    if field_query is not None or separator is None:
+    lattice = None
+    if separator is None:
         # Every tile and minimal-edge node is a leaf corner: reuse the supplied
         # corner values, one side per node for every leaf sharing it. A
         # re-queried node (low precision) could sit on the other side of a
@@ -161,6 +168,44 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         samples = snap_straddling_nodes(corners, samples, host_levels, domain)
         fields = samples-levels[:, None, None]
         lattice = shared_node_fields(corners, fields, domain)
+    controllers = ordinary_controllers(identities, truncations)
+    if separator is not None:
+        controllers = separator_controllers(controllers, faults)
+        check_composite_controllers(separator_contacts['controllers'], controllers)
+        if ownership is not None:
+            raise ValueError('unsupported_ownership: separator contract supplies composite ownership')
+    elif isinstance(ownership, dict):
+        check_composite_controllers(ownership, controllers)
+    elif ownership is not None:
+        controllers = controllers_from_ownership(host(ownership), host(fields), truncations)
+    pairs = contact_pairs(controllers, allowed)
+    flags = (fields[:, :, xp.asarray(EDGE_START)]*fields[:, :, xp.asarray(EDGE_END)]) < 0
+    merged, multi_fault, source = borrowed_leaves(merge_targets, flags)
+    borrowed = source >= 0
+    counts, edge_xyz = _surface_crossings(xp, xyz, samples, levels, flags, merged, multi_fault, fields,
+                                          strict=separator is not None or fault_merge is not None,
+                                          reject_aligned=separator is not None)
+    # endregion
+
+    # region Cell complex and its fields
+    fallback_ring = bool(borrowed.any()) or bool(multi_fault.any())
+    if cell_complex is not None or separator is not None:
+        complex_ = full_complex
+    else:
+        complex_ = _contact_complex(xp, origins, spans, domain_shape, flags.any(axis=2), pairs, fallback_ring)
+    # One region for every surface: a junction given up there leaves both
+    # participants, affected or not, with unshared vertices.
+    region = fallback_region(complex_.edge_cells, (merged | multi_fault).any(axis=0)) if fallback_ring else None
+    if separator is None:
+        if full_complex is not None and complex_ is not full_complex:
+            _check_contact_complex(xp, complex_, full_complex, counts, pairs, lattice)
+        complex_ = _dual_face_edges(xp, complex_, counts)
+    n_faces, n_edges = len(complex_.face_axis), len(complex_.edge_axis)
+    tiles = tile_nodes(complex_.face_axis, complex_.face_origin, complex_.face_span)
+    edge_nodes = minimal_edge_nodes(complex_.edge_axis, complex_.edge_origin, complex_.edge_span)
+    tile_xyz, minimal_xyz = low+tiles*step, low+edge_nodes*step
+    all_endpoint_gradients = None
+    if separator is None:
         tile_fields = lookup_node_fields(tiles, *lattice).reshape(n, n_faces, 4)
         edge_fields = lookup_node_fields(edge_nodes, *lattice).reshape(n, n_edges, 2)
     else:
@@ -182,26 +227,9 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         endpoint_gradients = sample(minimal_xyz[crossed_edges])[1].reshape(n, len(crossed_edges), 2, 3)
     else:
         endpoint_gradients = xp.zeros((n, len(crossed_edges), 2, 3))
-    controllers = ordinary_controllers(identities, truncations)
-    if separator is not None:
-        controllers = separator_controllers(controllers, faults)
-        check_composite_controllers(separator_contacts['controllers'], controllers)
-        if ownership is not None:
-            raise ValueError('unsupported_ownership: separator contract supplies composite ownership')
-    elif isinstance(ownership, dict):
-        check_composite_controllers(ownership, controllers)
-    elif ownership is not None:
-        controllers = controllers_from_ownership(host(ownership), host(fields), truncations)
-    pairs = contact_pairs(controllers, allowed)
     # endregion
 
-    # region Crossings, branches and production QEFs
-    flags = (fields[:, :, xp.asarray(EDGE_START)]*fields[:, :, xp.asarray(EDGE_END)]) < 0
-    merged, multi_fault, source = borrowed_leaves(merge_targets, flags)
-    borrowed = source >= 0
-    counts, edge_xyz = _surface_crossings(xp, xyz, samples, levels, flags, merged, multi_fault, fields,
-                                          strict=separator is not None or fault_merge is not None,
-                                          reject_aligned=separator is not None)
+    # region Branches and production QEFs
     normals = edge_xyz.zeros_like()
     # A surface never solves its own QEF in borrowed leaves; there its Hermite
     # rows only constrain the fault vertex it borrows (pretty's weighted rule).
@@ -257,12 +285,7 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
             normals.flat[index][group_own], extra, extent=host(bounds) if snap_extent else None)
     # endregion
 
-    # region Junctions, fallback region and edge rows
-    region = None
-    if bool(borrowed.any()) or bool(multi_fault.any()):
-        # One region for every surface: a junction given up there leaves both
-        # participants, affected or not, with unshared vertices.
-        region = fallback_region(complex_.edge_cells, (merged | multi_fault).any(axis=0))
+    # region Junctions and edge rows
     junctions, evidence, fallback = _plan_junctions(
         xp, complex_.face_cells, tile_xyz, tile_fields, pairs, identities, origins, spans, counts, edge_xyz,
         normals, flags, controllers, fields, region)
@@ -377,6 +400,59 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     return result
 
 
+def _contact_complex(xp, origins, spans, domain_shape, crossed, pairs, every_ring):
+    """The part of the cell complex extraction uses; ``crossed`` (S, N) are the leaves each surface crosses.
+
+    A tile some contact pair straddles is a whole face of a leaf both cross (the finer one where
+    sizes meet), so tiles come from those leaves; without pairs there are none. A dual face needs a
+    vertex in every leaf of its ring, so edges come from crossed leaves, or from every leaf if
+    ``every_ring`` (the fallback region walks all rings around its leaves).
+    """
+    both = xp.zeros(len(origins), dtype=bool)
+    for controller, target in pairs:
+        both |= crossed[controller] & crossed[target]
+    return partial_complex_arrays(origins, spans, domain_shape, xp.flatnonzero(both),
+                                  None if every_ring else xp.flatnonzero(crossed.any(axis=0)))
+
+
+def _dual_face_edges(xp, complex_, counts):
+    """``complex_`` without the edges no surface can emit, in the same order.
+
+    Those are exterior edges and edges without a surface that has a vertex in all four ring
+    leaves (``edge_crossing_decisions`` drops them, whatever their fields). The partial complex's
+    edges without a full-complex record are among them: a leaf that would split them is uncrossed.
+    """
+    cells = complex_.edge_cells
+    keep = xp.flatnonzero((cells >= 0).all(axis=1) & (counts == 1)[:, xp.maximum(cells, 0)].all(axis=2).any(axis=0))
+    return complex_._replace(edge_axis=complex_.edge_axis[keep], edge_origin=complex_.edge_origin[keep],
+                             edge_span=complex_.edge_span[keep], edge_cells=cells[keep])
+
+
+def _straddled_tiles(xp, tile_fields, pairs):
+    """(F,) mask of the tiles some contact pair straddles."""
+    straddled = xp.zeros(tile_fields.shape[1], dtype=bool)
+    for controller, target in pairs:
+        pair_fields = tile_fields[[controller, target]]
+        straddled |= ~((xp.min(pair_fields, axis=2) > 0) | (xp.max(pair_fields, axis=2) < 0)).any(axis=0)
+    return straddled
+
+
+def _check_contact_complex(xp, partial, full, counts, pairs, lattice):
+    """Raise unless extraction reads the same edges and junction tiles from both complexes."""
+    def junction_tiles(complex_):
+        nodes = tile_nodes(complex_.face_axis, complex_.face_origin, complex_.face_span)
+        rows = _straddled_tiles(xp, lookup_node_fields(nodes, *lattice).reshape(len(counts), -1, 4), pairs)
+        return tuple(column[rows] for column in complex_[:4])
+
+    def same(first, second):
+        return all(len(a) == len(b) and bool((a == b).all()) for a, b in zip(first, second))
+
+    if not same(_dual_face_edges(xp, full, counts)[4:], _dual_face_edges(xp, partial, counts)[4:]):
+        raise AssertionError('partial cell complex: edges differ from the full complex')
+    if not same(junction_tiles(full), junction_tiles(partial)):
+        raise AssertionError('partial cell complex: junction tiles differ from the full complex')
+
+
 def _plan_junctions(xp, face_cells, tile_xyz, tile_fields, pairs, identities, origins, spans, counts, edge_xyz,
                     normals, flags, controllers, fields, region):
     """``plan_adaptive_junctions`` on the host, over only the tiles some contact pair straddles.
@@ -384,11 +460,7 @@ def _plan_junctions(xp, face_cells, tile_xyz, tile_fields, pairs, identities, or
     Inputs are reduced to those tiles and their leaves (renumbered); results
     use the original tile and leaf indices.
     """
-    candidates = xp.zeros(len(face_cells), dtype=bool)
-    for controller, target in pairs:
-        pair_fields = tile_fields[[controller, target]]
-        candidates |= ~((xp.min(pair_fields, axis=2) > 0) | (xp.max(pair_fields, axis=2) < 0)).any(axis=0)
-    tiles = xp.flatnonzero(candidates)
+    tiles = xp.flatnonzero(_straddled_tiles(xp, tile_fields, pairs))
     tile_cells = face_cells[tiles]
     cells = xp.unique(tile_cells[tile_cells >= 0])
     local = xp.full(len(origins), -1, dtype=np.int64)

@@ -25,7 +25,6 @@ from ...core.data.options import InterpolationOptions
 from ...core.data.options.evaluation_options import MeshExtractionMaskingOptions
 from ...core.data.stack_relation_type import StackRelationType
 from ...modules.dual_contouring.joint_balance import balance_joint_leaves
-from ...modules.dual_contouring.joint_cell_complex import adaptive_complex_arrays
 from ...modules.dual_contouring.joint_xp import extraction_namespace, host
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
 from ...modules.dual_contouring.joint_field_queries import unique_rows_per_request
@@ -271,7 +270,7 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
     result = extract_adaptive_topology(
         origins, spans, domain_shape, extent, samples, surface_to_stack, surface_indices,
         _topology_relations(relations), isovalues, sample_fields=sample_fields, ownership=None,
-        include_reference=False, snap_extent=options.evaluation_options.mesh_extraction_snap_to_extent)
+        include_reference=False, snap_extent=options.evaluation_options.mesh_extraction_snap_to_extent, balanced=True)
     return _meshes_from_result(result, metadata, dict(result["diagnostics"], octree_balance=balance), relations)
 
 
@@ -336,8 +335,7 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
     result = extract_adaptive_topology(
         origins, spans, domain_shape, extent, samples, groups, indices, topology_relations, levels,
         sample_fields=sample_fields, field_query=field_query, faults_relations=matrix, fault_merge=fault_merge,
-        cell_complex=adaptive_complex_arrays(origins, spans, domain_shape),
-        snap_extent=options.evaluation_options.mesh_extraction_snap_to_extent)
+        snap_extent=options.evaluation_options.mesh_extraction_snap_to_extent, balanced=True)
     report = dict(result["diagnostics"], octree_balance=balance, interface="pretty_fault_vertex_merge_single_fault_mesh",
                   sampler=sampler.get("diagnostics", {}), no_uniform_fallback=True,
                   no_post_reconciliation=True)
