@@ -683,8 +683,9 @@ def test_model7_null_space_mesh_field_truncates_layers():
 
 def test_external_fault_stack_still_rejected():
     from gempy_engine.API.model.model_api import compute_model
+    from gempy_engine.core.exceptions import GemPyEngineInputError
 
     model, *_ = _model7_null_space(9, 2, 'joint_contacts', callback_stack_relation=R.FAULT)
     model[2].stack_structure.faults_relations[0, 1:] = False
-    with pytest.raises(NotImplementedError, match='fault stacks must be interpolated'):
+    with pytest.raises(GemPyEngineInputError, match='cannot use an external interpolation function'):
         compute_model(*model)
