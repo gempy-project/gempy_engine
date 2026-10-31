@@ -2,13 +2,14 @@
 
 import copy
 from dataclasses import replace
+from functools import partial
 from types import SimpleNamespace
 
 import numpy as np
 
 from .fault_drift_sampler import prepare_fault_drift_sampler
 from .fixed_weight_snapshots import production_weights
-from .joint_topology import extract_adaptive_topology
+from .joint_topology import VertexKeys, extract_adaptive_topology
 from ..interp_single.interp_features import interpolate_all_fields_no_octree
 from ..interp_single._interp_single_feature import input_preprocess, interpolate_feature_with_external_function
 from ..interp_single._interp_scalar_field import _evaluate_sys_eq
@@ -356,6 +357,10 @@ def _balance_leaves(origins, spans, domain_shape, extent, samples, raw_values):
                                 lambda nodes: raw_values(bounds[::2] + nodes * spacing))
 
 
+def _keys_at(keys, ids):
+    return list(map(keys.__getitem__, ids.tolist()))
+
+
 def _meshes_from_result(result, metadata, report, relations=()):
     """One ``DualContouringMesh`` per exported surface from a shared-vertex extraction result.
 
@@ -373,7 +378,7 @@ def _meshes_from_result(result, metadata, report, relations=()):
             surface_index=surface, exported_surface_index=len(meshes), isovalue=isovalue,
             contact_report=report)
         mesh.joint_vertex_ids = ids
-        mesh.joint_vertex_keys = list(map(result["vertex_keys"].__getitem__, ids.tolist()))
+        mesh.joint_vertex_keys = VertexKeys(partial(_keys_at, result["vertex_keys"], ids))
         mesh.joint_seam_edges = np.asarray(result["seam_edges"], dtype=np.int64).copy()
         meshes.append(mesh)
     return meshes

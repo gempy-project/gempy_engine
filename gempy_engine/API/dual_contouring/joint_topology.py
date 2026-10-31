@@ -5,6 +5,8 @@ are module functions; this file samples fields, solves the production QEFs and
 passes data between them.
 """
 
+from collections.abc import Sequence
+from functools import partial
 from itertools import repeat
 
 import numpy as np
@@ -307,8 +309,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     host_cells, host_pairs = host(junction_cells), host(junction_pairs)
     vertex_order = _key_order(host(xp.flatnonzero(~xp.isnan(positions[:, 0]))), joint_start, leaves, identities,
                               host_origins, host_spans, host_cells, host_pairs)
-    keys = _vertex_keys(vertex_order, joint_start, leaves, identities, host_origins, host_spans, junctions,
-                        host_cells)
+    keys = VertexKeys(partial(_vertex_keys, vertex_order, joint_start, leaves, identities, host_origins, host_spans,
+                              junctions, host_cells))
     vertices = host(positions[xp.asarray(vertex_order)]).reshape(-1, 3)
     host_ids = np.full(len(positions), -1, dtype=np.int64)
     host_ids[vertex_order] = np.arange(len(vertex_order))
@@ -476,6 +478,30 @@ def _key_order(vertex_ids, joint_start, leaves, identities, origins, spans, junc
     order = np.lexsort((spans[cells], origin[:, 2], origin[:, 1], origin[:, 0], second[:, 1], second[:, 0],
                         first[:, 1], first[:, 0], ~joint))
     return vertex_ids[order]
+
+
+class VertexKeys(Sequence):
+    """Public symbolic vertex keys, built on the first read: extraction never reads them itself."""
+
+    def __init__(self, build):
+        self._build, self._keys = build, None
+
+    def _list(self):
+        if self._keys is None:
+            self._keys, self._build = self._build(), None
+        return self._keys
+
+    def __len__(self):
+        return len(self._list())
+
+    def __getitem__(self, index):
+        return self._list()[index]
+
+    def __iter__(self):
+        return iter(self._list())
+
+    def __eq__(self, other):
+        return self._list() == list(other)
 
 
 def _vertex_keys(vertex_ids, joint_start, leaves, identities, origins, spans, junctions, junction_cells):
