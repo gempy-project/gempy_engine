@@ -23,6 +23,7 @@ class ExportedFields:
 
     _scalar_field_at_surface_points: Optional[np.ndarray] = None
     scalar_field_at_fault_shell: Optional[np.ndarray] = None
+    refine_near_surface: bool = False  #: See ``CustomInterpolationFunctions``.
 
     debug = None
 

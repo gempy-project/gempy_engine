@@ -29,6 +29,10 @@ class StacksStructure:
     ignored_grid_types_per_stack    : Optional[List[Tuple[str, ...]]] = None
     null_space_id: int = -1
 
+    # * Units each stack assigns, when they differ from its surfaces: an external stack without input data has no
+    # * surfaces for the tensors but still claims a unit. Read it through units_per_stack.
+    number_of_units_per_stack       : Optional[np.ndarray] = None
+
     _number_of_points_per_stack_vector      : np.ndarray = field(default_factory=lambda: np.ones(1))
     _number_of_orientations_per_stack_vector: np.ndarray = field(default_factory=lambda: np.ones(1))
     _number_of_surfaces_per_stack_vector    : np.ndarray = field(default_factory=lambda: np.ones(1))
@@ -70,6 +74,13 @@ class StacksStructure:
         self._number_of_surfaces_per_stack_vector     = np.concatenate([np.array([0])                 , per_stack_surface_cumsum])
     
     # @on
+
+    @property
+    def units_per_stack(self) -> np.ndarray:
+        """Resolved on read: number_of_surfaces_per_stack can be replaced after construction."""
+        if self.number_of_units_per_stack is None:
+            return self.number_of_surfaces_per_stack
+        return self.number_of_units_per_stack
 
     @property
     def number_of_surfaces_per_stack_vector(self):

@@ -176,6 +176,7 @@ def _interpolate_external_function(interp_funct, xyz):
         _gx_field=field(interp_funct.gx_function),
         _gy_field=field(interp_funct.gy_function),
         _gz_field=field(interp_funct.gz_function),
-        _scalar_field_at_surface_points=interp_funct.scalar_field_at_surface_points
+        _scalar_field_at_surface_points=interp_funct.scalar_field_at_surface_points,
+        refine_near_surface=interp_funct.refine_near_surface
     )
     return exported_fields
