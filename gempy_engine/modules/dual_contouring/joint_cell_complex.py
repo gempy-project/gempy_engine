@@ -7,6 +7,7 @@ from typing import NamedTuple
 
 import numpy as np
 
+from .joint_cell_branches import CORNERS, EDGE_END, EDGE_START
 from .joint_xp import INT64_MAX, NUMPY, host, is_tensor, namespace
 
 
@@ -247,14 +248,15 @@ def adaptive_complex_arrays(origins, spans, domain_shape) -> AdaptiveComplex:
     return _adaptive_complex_arrays(NUMPY, *(np.asarray(value) for value in (origins, spans)), domain_shape)
 
 
-def partial_complex_arrays(origins, spans, domain_shape, face_leaves=None, edge_leaves=None) -> AdaptiveComplex:
-    """The tiles of leaves ``face_leaves`` and the edges of ``edge_leaves`` (rows; ``None`` for every leaf).
+def partial_complex_arrays(origins, spans, domain_shape, face_leaves=None, leaf_edges=None) -> AdaptiveComplex:
+    """Part of the full complex, in its order: the tiles of leaves ``face_leaves`` and the given leaf edges.
 
-    For extraction, which needs only the leaves its surfaces cross. Neighbours and rings are located
-    against all leaves, so every tile has its full-complex record. Collinear endpoints come from
-    ``edge_leaves`` only: an edge whose whole ring lies in ``edge_leaves`` has its full-complex record,
-    any other may span several minimal edges. Sort orders are the full complex's. Storage and work are
-    proportional to the given leaves, plus the location tables. The leaves are trusted: only what
+    For extraction, which needs only what its surfaces cross. ``face_leaves`` are leaf rows;
+    ``leaf_edges`` are rows ``(leaves, edges)``, ``edges`` in 0..11 of ``EDGE_START``. Of those, only
+    the ones that are minimal edges are kept. Each minimal edge is a whole edge of the finest leaf
+    around it, so giving every leaf edge gives every edge. ``None`` means every leaf for faces and
+    the full sweep for edges. Neighbours and rings are located against all leaves. Work is
+    proportional to the rows given, plus the location tables. The leaves are trusted: only what
     the built rows touch is validated. If lattice codes could overflow, this is the full complex.
     """
     xp = namespace(origins, spans)
@@ -267,7 +269,8 @@ def partial_complex_arrays(origins, spans, domain_shape, face_leaves=None, edge_
     tables = _level_tables(xp, o, w, domain)
     locate = _locator(xp, tables, xp.asarray(domain, dtype=np.int64), deferred)
     key, cells = _face_records(xp, o, w, every if face_leaves is None else face_leaves, domain, tables, locate, deferred)
-    edges = _edge_records(xp, o, w, every if edge_leaves is None else edge_leaves, domain, tables, locate, deferred)
+    edges = (_edge_records(xp, o, w, domain, tables, locate, deferred) if leaf_edges is None else
+             _leaf_edge_records(xp, o, w, *leaf_edges, domain, tables, locate, deferred))
     _raise_first(xp, deferred)
     return AdaptiveComplex(xp.copy(key[:, 0]), xp.copy(key[:, 1:4]), xp.copy(key[:, 4]), cells, *edges)
 
@@ -354,9 +357,8 @@ def _adaptive_complex_arrays(xp, origins, spans, domain_shape) -> AdaptiveComple
     # Balance, coverage and incidence checks are read back together at the end (one host read).
     deferred = []
     locate = _locator(xp, tables, extent, deferred)
-    every = xp.arange(n)
-    key, cells = _face_records(xp, o, w, every, domain, tables, locate, deferred)
-    edges = _edge_records(xp, o, w, every, domain, tables, locate, deferred)
+    key, cells = _face_records(xp, o, w, xp.arange(n), domain, tables, locate, deferred)
+    edges = _edge_records(xp, o, w, domain, tables, locate, deferred)
     _raise_first(xp, deferred)
     return AdaptiveComplex(xp.copy(key[:, 0]), xp.copy(key[:, 1:4]), xp.copy(key[:, 4]), cells, *edges)
 
@@ -446,19 +448,16 @@ def _face_records(xp, o, w, rows, domain, tables, locate, deferred):
     return key[starts], cells[starts]
 
 
-def _edge_records(xp, o, w, rows, domain, tables, locate, deferred):
-    """Sorted minimal edges (axis, origin, span, ring): sweep the union of the leaves' edges on every grid line."""
-    if not len(rows):
-        empty = xp.zeros(0, dtype=np.int64)
-        return empty, xp.zeros((0, 3), dtype=np.int64), empty, xp.zeros((0, 4), dtype=np.int64)
-    a, s, n = o[rows], w[rows], len(rows)
+def _edge_records(xp, o, w, domain, tables, locate, deferred):
+    """Sorted minimal edges (axis, origin, span, ring): sweep the union of all leaf edges on every grid line."""
+    n = len(o)
     quarter, largest = tables[0][0], tables[-1][0]
     line_axis, line_t, line_coord, line_delta = [], [], [], []
     for axis in range(3):
-        other = [i for i in range(3) if i != axis]
+        other = [a for a in range(3) if a != axis]
         for du, dv in product((0, 1), repeat=2):
-            transverse = xp.stack((a[:, other[0]] + du * s, a[:, other[1]] + dv * s), axis=1)
-            for coord, delta in ((a[:, axis], 1), (a[:, axis] + s, -1)):
+            transverse = xp.stack((o[:, other[0]] + du * w, o[:, other[1]] + dv * w), axis=1)
+            for coord, delta in ((o[:, axis], 1), (o[:, axis] + w, -1)):
                 line_axis.append(xp.full(n, axis, dtype=np.int64))
                 line_t.append(transverse)
                 line_coord.append(coord)
@@ -490,22 +489,52 @@ def _edge_records(xp, o, w, rows, domain, tables, locate, deferred):
     # Per axis: the edge's own axis, then its two transverse axes (the event columns 1 and 2).
     unit = np.eye(3, dtype=np.int64)
     axis_unit = xp.asarray(unit)[seg_axis]
-    transverse = xp.asarray(np.stack([unit[[i for i in range(3) if i != axis]] for axis in range(3)]))[seg_axis]
+    transverse = xp.asarray(np.stack([unit[[a for a in range(3) if a != axis]] for axis in range(3)]))[seg_axis]
     seg_lower = (seg_start[:, None] * axis_unit + events[segment, 1][:, None] * transverse[:, 0]
                  + events[segment, 2][:, None] * transverse[:, 1])
-    midpoint = 4 * seg_lower + (2 * (seg_end - seg_start))[:, None] * axis_unit
-    # The four quadrant probes around each edge, in _INCIDENT_OFFSETS order (the axis' own offset is 0).
-    ring_offsets = np.array([[[0 if i == axis else quarter if offsets[i] == 0 else -quarter for i in range(3)]
-                              for offsets in _INCIDENT_OFFSETS[axis]] for axis in range(3)])  # (3, 4, 3)
-    rings = locate((midpoint[:, None, :] + xp.asarray(ring_offsets)[seg_axis]).reshape(-1, 3)).reshape(-1, 4)
-    present = rings >= 0
-    ring_widths = xp.where(present, w[xp.maximum(rings, 0)], 0)
-    widest = xp.max(ring_widths, axis=1)
-    narrowest = xp.min(xp.where(present, ring_widths, INT64_MAX), axis=1)
-    deferred.append(((widest > 2 * narrowest).any(), 'unsupported_unbalanced_octree: edge depth difference exceeds one'))
     seg_span = seg_end - seg_start
+    rings = _edge_rings(xp, seg_axis, seg_lower, seg_span, quarter, locate)
+    deferred.append(_ring_violation(xp, rings, w))
     order = _sort_order(xp, (seg_axis, *seg_lower.T, seg_span), (3, *(d+1 for d in domain), largest+1))
     return seg_axis[order], seg_lower[order], seg_span[order], rings[order]
+
+
+def _leaf_edge_records(xp, o, w, leaves, edges, domain, tables, locate, deferred):
+    """Sorted minimal edges among leaf edges ``(leaves, edges)``: those no ring leaf is narrower than."""
+    if not len(leaves):
+        empty = xp.zeros(0, dtype=np.int64)
+        return empty, xp.zeros((0, 3), dtype=np.int64), empty, xp.zeros((0, 4), dtype=np.int64)
+    quarter, largest = tables[0][0], tables[-1][0]
+    axis = xp.asarray(np.argmax(CORNERS[EDGE_START] != CORNERS[EDGE_END], axis=1), dtype=np.int64)[edges]
+    span = w[leaves]
+    lower = o[leaves] + span[:, None] * xp.asarray(np.minimum(CORNERS[EDGE_START], CORNERS[EDGE_END]))[edges]
+    order = _sort_order(xp, (axis, *lower.T, span), (3, *(d+1 for d in domain), largest+1))
+    axis, lower, span = axis[order], lower[order], span[order]
+    new = xp.ones(len(axis), dtype=bool)
+    new[1:] = (axis[1:] != axis[:-1]) | (lower[1:] != lower[:-1]).any(axis=1) | (span[1:] != span[:-1])
+    axis, lower, span = axis[new], lower[new], span[new]
+    rings = _edge_rings(xp, axis, lower, span, quarter, locate)
+    deferred.append(_ring_violation(xp, rings, w))
+    minimal = ((rings < 0) | (w[xp.maximum(rings, 0)] >= span[:, None])).all(axis=1)
+    return axis[minimal], lower[minimal], span[minimal], rings[minimal]
+
+
+def _edge_rings(xp, axis, lower, span, quarter, locate):
+    """(E, 4) cyclic leaf rings around edges' midpoints, in _INCIDENT_OFFSETS order; -1 outside."""
+    midpoint = 4 * lower + (2 * span)[:, None] * xp.asarray(np.eye(3, dtype=np.int64))[axis]
+    # The four quadrant probes around each edge (the axis' own offset is 0).
+    ring_offsets = np.array([[[0 if a == edge_axis else quarter if offsets[a] == 0 else -quarter for a in range(3)]
+                              for offsets in _INCIDENT_OFFSETS[edge_axis]] for edge_axis in range(3)])  # (3, 4, 3)
+    return locate((midpoint[:, None, :] + xp.asarray(ring_offsets)[axis]).reshape(-1, 3)).reshape(-1, 4)
+
+
+def _ring_violation(xp, rings, widths):
+    """(flag, message): whether a ring holds leaves more than one level apart; not read back."""
+    present = rings >= 0
+    ring_widths = xp.where(present, widths[xp.maximum(rings, 0)], 0)
+    widest = xp.max(ring_widths, axis=1)
+    narrowest = xp.min(xp.where(present, ring_widths, INT64_MAX), axis=1)
+    return (widest > 2 * narrowest).any(), 'unsupported_unbalanced_octree: edge depth difference exceeds one'
 
 
 @contextlib.contextmanager

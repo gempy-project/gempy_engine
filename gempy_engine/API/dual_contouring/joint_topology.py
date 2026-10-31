@@ -194,7 +194,7 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     if cell_complex is not None or separator is not None:
         complex_ = full_complex
     else:
-        complex_ = _contact_complex(xp, origins, spans, domain_shape, flags.any(axis=2), pairs, fallback_ring)
+        complex_ = _contact_complex(xp, origins, spans, domain_shape, flags, pairs, fallback_ring)
     # One region for every surface: a junction given up there leaves both
     # participants, affected or not, with unshared vertices.
     region = fallback_region(complex_.edge_cells, (merged | multi_fault).any(axis=0)) if fallback_ring else None
@@ -401,27 +401,29 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     return result
 
 
-def _contact_complex(xp, origins, spans, domain_shape, crossed, pairs, every_ring):
-    """The part of the cell complex extraction uses; ``crossed`` (S, N) are the leaves each surface crosses.
+def _contact_complex(xp, origins, spans, domain_shape, flags, pairs, every_ring):
+    """The part of the cell complex extraction uses; ``flags`` (S, N, 12) are the surfaces' leaf-edge crossings.
 
     A tile some contact pair straddles is a whole face of a leaf both cross (the finer one where
     sizes meet), so tiles come from those leaves; without pairs there are none. A dual face needs a
-    vertex in every leaf of its ring, so edges come from crossed leaves, or from every leaf if
-    ``every_ring`` (the fallback region walks all rings around its leaves).
+    crossing on a minimal edge, which is a whole edge of the finest leaf around it, and snapped
+    corners agree in sign between leaves: that leaf flags the crossing. So edges come from the
+    flagged leaf edges, or from every leaf if ``every_ring`` (the fallback region walks all rings
+    around its leaves).
     """
+    crossed = flags.any(axis=2)
     both = xp.zeros(len(origins), dtype=bool)
     for controller, target in pairs:
         both |= crossed[controller] & crossed[target]
     return partial_complex_arrays(origins, spans, domain_shape, xp.flatnonzero(both),
-                                  None if every_ring else xp.flatnonzero(crossed.any(axis=0)))
+                                  None if every_ring else xp.nonzero(flags.any(axis=0)))
 
 
 def _dual_face_edges(xp, complex_, counts):
     """``complex_`` without the edges no surface can emit, in the same order.
 
     Those are exterior edges and edges without a surface that has a vertex in all four ring
-    leaves (``edge_crossing_decisions`` drops them, whatever their fields). The partial complex's
-    edges without a full-complex record are among them: a leaf that would split them is uncrossed.
+    leaves (``edge_crossing_decisions`` drops them, whatever their fields).
     """
     cells = complex_.edge_cells
     keep = xp.flatnonzero((cells >= 0).all(axis=1) & (counts == 1)[:, xp.maximum(cells, 0)].all(axis=2).any(axis=0))
@@ -439,7 +441,14 @@ def _straddled_tiles(xp, tile_fields, pairs):
 
 
 def _check_contact_complex(xp, partial, full, counts, pairs, lattice):
-    """Raise unless extraction reads the same edges and junction tiles from both complexes."""
+    """Raise unless extraction reads the same crossed edges and junction tiles from both complexes."""
+    def crossed_edges(complex_):
+        kept = _dual_face_edges(xp, complex_, counts)
+        nodes = minimal_edge_nodes(kept.edge_axis, kept.edge_origin, kept.edge_span)
+        fields = lookup_node_fields(nodes, *lattice).reshape(len(counts), -1, 2)
+        rows = (fields[:, :, 0]*fields[:, :, 1] < 0).any(axis=0)
+        return tuple(column[rows] for column in kept[4:])
+
     def junction_tiles(complex_):
         nodes = tile_nodes(complex_.face_axis, complex_.face_origin, complex_.face_span)
         rows = _straddled_tiles(xp, lookup_node_fields(nodes, *lattice).reshape(len(counts), -1, 4), pairs)
@@ -448,7 +457,7 @@ def _check_contact_complex(xp, partial, full, counts, pairs, lattice):
     def same(first, second):
         return all(len(a) == len(b) and bool((a == b).all()) for a, b in zip(first, second))
 
-    if not same(_dual_face_edges(xp, full, counts)[4:], _dual_face_edges(xp, partial, counts)[4:]):
+    if not same(crossed_edges(full), crossed_edges(partial)):
         raise AssertionError('partial cell complex: edges differ from the full complex')
     if not same(junction_tiles(full), junction_tiles(partial)):
         raise AssertionError('partial cell complex: junction tiles differ from the full complex')

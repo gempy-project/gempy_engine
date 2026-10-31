@@ -295,7 +295,7 @@ def test_balanced_leaves_build_only_the_part_of_the_complex_they_use(monkeypatch
 
 
 @pytest.mark.parametrize('kwargs, check_mode', [(dict(), False), (dict(balanced=True), True)])
-@pytest.mark.parametrize('tamper, match', [(lambda faces, edges: (faces, faces), 'edges differ'),
+@pytest.mark.parametrize('tamper, match', [(lambda faces, edges: (faces, tuple(rows[:0] for rows in edges)), 'edges differ'),
                                            (lambda faces, edges: (faces[:0], edges), 'junction tiles differ')])
 def test_partial_complex_is_compared_with_the_full_one(monkeypatch, tamper, match, kwargs, check_mode):
     original = joint_topology.partial_complex_arrays
