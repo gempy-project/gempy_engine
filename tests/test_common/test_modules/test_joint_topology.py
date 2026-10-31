@@ -306,6 +306,16 @@ def test_partial_complex_is_compared_with_the_full_one(monkeypatch, tamper, matc
         extract_planes(**kwargs)
 
 
+def test_vertices_no_face_or_junction_uses_are_not_solved():
+    every, _ = extract_planes(include_reference=True)
+    used, _ = extract_planes()
+    assert len(used['vertices']) < len(every['vertices'])
+    assert set(used['vertex_keys']) < set(every['vertex_keys'])
+    for faces, reference_faces in zip(used['faces'], every['faces']):
+        assert len(faces) and len(np.unique(faces)) == len(np.unique(reference_faces))
+        np.testing.assert_array_equal(used['vertices'][faces], every['vertices'][reference_faces])
+
+
 def test_float32_supported_and_faults_explicitly_unsupported():
     BT._change_backend(AvailableBackends.numpy, use_gpu=False, dtype='float64')
     reference, _ = extract_planes()

@@ -73,6 +73,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     ``balance_joint_leaves`` output: they are then validated, by building the full
     complex and comparing, only in check mode. The ``canonical_face_tile_count``
     and ``minimal_edge_count`` diagnostics count the tiles and edges examined.
+    Without borrowing, ``result['vertices']`` holds only vertices a face or
+    junction can use (all of them with ``include_reference``).
     ``fault_merge`` maps each represented fault surface to exactly the surfaces it
     affects (pretty's fault rule, as key substitution): in leaves where the fault
     has a vertex, an affected surface uses the fault's vertex identity, its
@@ -237,8 +239,13 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     # A surface never solves its own QEF in borrowed leaves; there its Hermite
     # rows only constrain the fault vertex it borrows (pretty's weighted rule).
     solved = flags & ~merged[:, :, None]
+    junction_tiles = xp.flatnonzero(_straddled_tiles(xp, tile_fields, pairs))
     # Every surface's crossings at once (surface-major rows); ``point_bounds`` split them per surface.
     crossed = edge_xyz.crossed
+    if not merge_targets and separator is None and not include_reference:
+        # Eroded vertices: no dual face or junction reads them. Borrowing and the reference read every row.
+        crossed = crossed & _used_vertices(xp, selected, complex_, junction_tiles, leaves)[
+            edge_xyz.surface, edge_xyz.flat_rows][:, None]
     crossing_points = edge_xyz.flat[crossed]
     point_bounds = edge_xyz.segments(crossed.sum(axis=1))
     if field_query is None:
@@ -256,7 +263,7 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         normals.flat[crossed] = xp.concatenate([answers[s][0][:b-a] for s, (a, b) in enumerate(point_bounds)])
         endpoint_gradients[edge_surface, edge_slot[surface_edges]] = xp.concatenate(
             [answers[s][0][b-a:].reshape(-1, 2, 3) for s, (a, b) in enumerate(point_bounds)])
-    own = solved[edge_xyz.surface, edge_xyz.flat_rows]
+    own = solved[edge_xyz.surface, edge_xyz.flat_rows] & crossed
     if bool(((xp.norm(normals.flat, axis=2) < 1e-12) & own).any()):
         raise ValueError('degenerate_hermite_normal: actual crossing gradient vanishes')
 
@@ -289,8 +296,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
 
     # region Junctions and edge rows
     junctions, evidence, fallback = _plan_junctions(
-        xp, complex_.face_cells, tile_xyz, tile_fields, pairs, identities, origins, spans, counts, edge_xyz,
-        normals, flags, controllers, fields, region)
+        xp, junction_tiles, complex_.face_cells, tile_xyz, tile_fields, pairs, identities, origins, spans, counts,
+        edge_xyz, normals, flags, controllers, fields, region)
     if region is not None:
         fallback = fallback_junction_leaves(fallback, region, flags.any(axis=2), pairs)
     fallback_leaves = xp.zeros(leaves, dtype=bool) if region is None else xp.copy(region)
@@ -463,14 +470,23 @@ def _check_contact_complex(xp, partial, full, counts, pairs, lattice):
         raise AssertionError('partial cell complex: junction tiles differ from the full complex')
 
 
-def _plan_junctions(xp, face_cells, tile_xyz, tile_fields, pairs, identities, origins, spans, counts, edge_xyz,
+def _used_vertices(xp, selected, complex_, junction_tiles, leaves):
+    """(S, N) mask of the vertices a selected edge's ring or a junction tile's leaf can read."""
+    surfaces, edges = xp.nonzero(selected)
+    used = xp.zeros((len(selected), leaves), dtype=bool)
+    used[surfaces[:, None], complex_.edge_cells[edges]] = True
+    tile_cells = complex_.face_cells[junction_tiles]
+    used[:, tile_cells[tile_cells >= 0]] = True
+    return used
+
+
+def _plan_junctions(xp, tiles, face_cells, tile_xyz, tile_fields, pairs, identities, origins, spans, counts, edge_xyz,
                     normals, flags, controllers, fields, region):
-    """``plan_adaptive_junctions`` on the host, over only the tiles some contact pair straddles.
+    """``plan_adaptive_junctions`` on the host, over only ``tiles``, those some contact pair straddles.
 
     Inputs are reduced to those tiles and their leaves (renumbered); results
     use the original tile and leaf indices.
     """
-    tiles = xp.flatnonzero(_straddled_tiles(xp, tile_fields, pairs))
     tile_cells = face_cells[tiles]
     cells = xp.unique(tile_cells[tile_cells >= 0])
     local = xp.full(len(origins), -1, dtype=np.int64)
