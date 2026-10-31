@@ -171,6 +171,15 @@ def _calculate_topology(shift_select_xyz: List[np.ndarray], ids: np.ndarray):
     return edges_id, count_edges
 
 
+def _cells_a_surface_may_cross(center_values, isovalues, half_diagonal):
+    """A cell's corners only see a surface that reaches one of them. With distances, the value at the center also
+    sees one that fits between them, and creases whose cells would otherwise miss their neighbours."""
+    selected = BackendTensor.t.zeros(center_values.shape, dtype=bool)
+    for isovalue in isovalues:
+        selected |= BackendTensor.t.abs(center_values - isovalue) <= half_diagonal
+    return selected
+
+
 def _additional_refinement_tests(voxel_select, current_octree_level, evaluation_options, prev_octree):
     shape = voxel_select.shape[0]
 
@@ -186,6 +195,12 @@ def _additional_refinement_tests(voxel_select, current_octree_level, evaluation_
     for output in prev_octree.outputs:
         slicer =output.grid.corners_grid_slice
         exported_fields = output.scalar_fields.exported_fields
+        if exported_fields.refine_near_surface:
+            additional_voxel_selected_to_refinement |= _cells_a_surface_may_cross(
+                exported_fields.scalar_field[output.grid.octree_grid_slice],
+                exported_fields.scalar_field_at_surface_points,
+                0.5 * sum(float(size) ** 2 for size in prev_octree.grid.octree_grid.dxdydz) ** 0.5
+            )
         if test_for_curvature:
             additional_voxel_selected_to_refinement |= mark_highest_curvature_voxels(
                 gx=(exported_fields.gx_field[slicer].reshape((-1, 8))),

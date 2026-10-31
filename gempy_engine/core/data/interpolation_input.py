@@ -77,10 +77,10 @@ class InterpolationInput:
         if stack_structure.active_masking_descriptor is StackRelationType.NULL_SPACE:
             unit_values = np.array([stack_structure.null_space_id], dtype=np.int16)
         else:
-            cum_number_surfaces_l0 = stack_structure.number_of_surfaces_per_stack[:stack_number].sum()
-            cum_number_surfaces_l1 = stack_structure.number_of_surfaces_per_stack[:stack_number + 1].sum() + 1  # * we need to take one unit extra for the basement
+            cum_number_units_l0 = stack_structure.units_per_stack[:stack_number].sum()
+            cum_number_units_l1 = stack_structure.units_per_stack[:stack_number + 1].sum() + 1  # * we need to take one unit extra for the basement
 
-            unit_values = all_interpolation_input.unit_values[cum_number_surfaces_l0:cum_number_surfaces_l1]
+            unit_values = all_interpolation_input.unit_values[cum_number_units_l0:cum_number_units_l1]
 
         grid = all_interpolation_input.grid
         micro = all_interpolation_input.micro_points

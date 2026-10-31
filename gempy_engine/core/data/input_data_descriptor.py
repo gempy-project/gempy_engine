@@ -70,9 +70,12 @@ class InputDataDescriptor:
         )
 
         n_surfaces_per_stack = structural_frame.number_of_elements_per_group.copy()
+        n_units_per_stack = n_surfaces_per_stack.copy()
         for i, group in enumerate(structural_frame.structural_groups):
             if group.custom_interpolation is not None and structural_frame.number_of_points_per_group[i] == 0:
-                n_surfaces_per_stack[i] = 0
+                n_surfaces_per_stack[i] = 0  # * TensorsStructure drops surfaces without points
+                if making_descriptor[i] is StackRelationType.NULL_SPACE:
+                    n_units_per_stack[i] = 0  # * Only the units of other stacks can be seen through it
 
         # 1. Extract interpolation functions logic
         interp_functions = None
@@ -89,6 +92,7 @@ class InputDataDescriptor:
             number_of_points_per_stack=structural_frame.number_of_points_per_group,
             number_of_orientations_per_stack=structural_frame.number_of_orientations_per_group,
             number_of_surfaces_per_stack=n_surfaces_per_stack,
+            number_of_units_per_stack=n_units_per_stack,
             masking_descriptor=making_descriptor,  # Note: double-check if this typo 'making' vs 'masking' is intentional!
             faults_relations=faults_relations,
             faults_input_data=faults_input_data,

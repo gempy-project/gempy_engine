@@ -21,6 +21,9 @@ class CustomInterpolationFunctions:
     gx_function: Callable | None = None
     gy_function: Callable | None = None
     gz_function: Callable | None = None
+    #: The field grows no faster than a distance in engine units, so a value says how far the nearest surface can be.
+    #: Octrees then also refine cells it may cross, which finds bodies too small to reach a cell corner.
+    refine_near_surface: bool = False
     
     def __post_init__(self):
         self.scalar_field_at_surface_points = BackendTensor.t.array(self.scalar_field_at_surface_points, dtype=BackendTensor.dtype_obj)
