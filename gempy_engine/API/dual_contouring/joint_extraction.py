@@ -370,9 +370,11 @@ def _meshes_from_result(result, metadata, report, relations=()):
         if stack < len(relations) and relations[stack] is StackRelationType.NULL_SPACE:
             continue
         faces = np.asarray(result["faces"][exported], dtype=np.int64).reshape(-1, 3)
-        ids, inverse = np.unique(faces, return_inverse=True)
+        used = np.zeros(len(vertices), dtype=bool)
+        used[faces] = True
+        ids = np.flatnonzero(used)
         mesh = DualContouringMesh(
-            vertices=vertices[ids].copy(), edges=inverse.reshape(-1, 3), stack_index=stack,
+            vertices=vertices[ids], edges=(np.cumsum(used)-1)[faces], stack_index=stack,
             surface_index=surface, exported_surface_index=len(meshes), isovalue=isovalue,
             contact_report=report)
         mesh.joint_vertex_ids = ids

@@ -37,6 +37,9 @@ def balance_leaves(origins, spans, domain_shape):
     domain = tuple(int(d) for d in host(domain_shape))
     corners = xp.asarray(CORNERS, dtype=np.int64)
     split_count = 0
+    # Two leaf sizes at most: no neighbour can be more than twice as wide.
+    if len(spans) and int(spans.max()) <= 2*int(spans.min()):
+        return origins, spans, source, split_count
     while True:
         coarse = _coarse_neighbors(xp, origins, spans, domain)
         if not len(coarse):
