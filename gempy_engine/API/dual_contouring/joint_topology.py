@@ -87,7 +87,7 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     request (S, M) scalars or (S, M, 3) gradients: tile and minimal-edge node
     values come from the supplied leaf corners (shared nodes must agree within
     tolerance), gradients are evaluated only for the crossing surface (one batch
-    for crossings and crossed-edge endpoints), and vertex checks are one
+    for crossings and selected-edge endpoints), and vertex checks are one
     scalar-only batch. Not with separator contacts.
     """
     if defer_emission and include_reference:
@@ -217,16 +217,17 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         edge_fields, all_endpoint_gradients = sample(minimal_xyz)
         edge_fields = edge_fields.reshape(n, n_edges, 2)-levels[:, None, None]
         all_endpoint_gradients = all_endpoint_gradients.reshape(n, n_edges, 2, 3)
-    # Endpoint gradients orient ring triangles: only edges some surface crosses need them.
-    crossed_edges = xp.flatnonzero((edge_fields[:, :, 0]*edge_fields[:, :, 1] < 0).any(axis=0))
+    selected, fraction = edge_crossing_decisions(edge_fields, controllers, complex_.edge_cells, counts)
+    # Endpoint gradients orient ring triangles: only selected edges need them.
+    used_edges = xp.flatnonzero(selected.any(axis=0))
     edge_slot = xp.full(n_edges, -1, dtype=np.int64)
-    edge_slot[crossed_edges] = xp.arange(len(crossed_edges))
+    edge_slot[used_edges] = xp.arange(len(used_edges))
     if all_endpoint_gradients is not None:
-        endpoint_gradients = all_endpoint_gradients[:, crossed_edges]
-    elif field_query is None and len(crossed_edges):
-        endpoint_gradients = sample(minimal_xyz[crossed_edges])[1].reshape(n, len(crossed_edges), 2, 3)
+        endpoint_gradients = all_endpoint_gradients[:, used_edges]
+    elif field_query is None and len(used_edges):
+        endpoint_gradients = sample(minimal_xyz[used_edges])[1].reshape(n, len(used_edges), 2, 3)
     else:
-        endpoint_gradients = xp.zeros((n, len(crossed_edges), 2, 3))
+        endpoint_gradients = xp.zeros((n, len(used_edges), 2, 3))
     # endregion
 
     # region Branches and production QEFs
@@ -243,11 +244,10 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
             point_surface = xp.repeat(edge_xyz.surface, 12).reshape(-1, 12)[crossed]
             normals.flat[crossed] = sample(crossing_points)[1][point_surface, xp.arange(len(crossing_points))]
     else:
-        surface_crossed = edge_fields[:, :, 0]*edge_fields[:, :, 1] < 0
-        edge_flat = xp.flatnonzero(surface_crossed)
+        edge_flat = xp.flatnonzero(selected)
         edge_surface, surface_edges = edge_flat // n_edges, edge_flat % n_edges
-        edge_bounds = np.concatenate(([0], np.cumsum(host(surface_crossed.sum(axis=1))))).tolist()
-        # One request per surface: its crossings, then the endpoints of the minimal edges it crosses.
+        edge_bounds = np.concatenate(([0], np.cumsum(host(selected.sum(axis=1))))).tolist()
+        # One request per surface: its crossings, then the endpoints of its selected minimal edges.
         endpoints = minimal_xyz[surface_edges].reshape(-1, 3)
         answers = batch([(xp.concatenate((crossing_points[a:b], endpoints[2*c:2*d])), [s], 'gradient')
                          for s, ((a, b), c, d) in enumerate(zip(point_bounds, edge_bounds[:-1], edge_bounds[1:]))])
@@ -311,7 +311,6 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                      dtype=np.int64)
     fault_vertex = xp.asarray(np.concatenate((np.repeat(fault_surface, leaves), fault_surface[lower])))
 
-    selected, fraction = edge_crossing_decisions(edge_fields, controllers, complex_.edge_cells, counts)
     plan, filtered_triangles = plan_edge_rows(selected, complex_.edge_cells, vertex_ids, borrowed, fault_vertex)
     triangle_normals = crossing_normals(fraction[plan['surface'], plan['edge']][None],
                                         endpoint_gradients[plan['surface'], edge_slot[plan['edge']]][None])[0]
