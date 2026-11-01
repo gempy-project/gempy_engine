@@ -44,6 +44,10 @@ class InterpolationSystem:
         return self.transform.rhs if self.transform is not None else self.physical_rhs
 
     def scale_initial_guess(self, initial_guess):
+        # Previous model weights are optional warm starts. Editing observations,
+        # drift degree or fault relations can change the system size on recompute.
+        if initial_guess is not None and len(initial_guess) != self.physical_rhs.shape[0]:
+            return None
         return self.transform.scale_initial_guess(initial_guess) if self.transform is not None else initial_guess
 
     def restore_weights(self, solver_weights):

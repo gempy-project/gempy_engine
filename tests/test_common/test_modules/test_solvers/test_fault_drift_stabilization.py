@@ -106,6 +106,23 @@ def test_initial_guess_is_transformed_to_solver_coordinates():
     )
 
 
+@pytest.mark.parametrize("equilibration", ["none", "ruiz"])
+def test_changed_model_discards_incompatible_warm_start(one_fault_model, equilibration):
+    interpolation_input, structure, options = deepcopy(one_fault_model)
+    options.evaluation_options.number_octree_levels = 1
+    options.evaluation_options.mesh_extraction = False
+    options.kernel_options.symmetric_equilibration_method = equilibration
+    expected = compute_model(interpolation_input, options, structure)
+    # Prior observations/fault relations produced a differently sized system.
+    interpolation_input.weights = [BackendTensor.t.ones(len(output.weights) + 1)
+                                   for output in expected.root_output.outputs]
+    actual = compute_model(interpolation_input, options, structure)
+    for before, after in zip(expected.root_output.outputs, actual.root_output.outputs):
+        np.testing.assert_allclose(BackendTensor.t.to_numpy(after.weights), BackendTensor.t.to_numpy(before.weights))
+        np.testing.assert_allclose(BackendTensor.t.to_numpy(after.exported_fields.scalar_field),
+                                   BackendTensor.t.to_numpy(before.exported_fields.scalar_field))
+
+
 def test_ruiz_scaling_preserves_pytorch_autograd():
     if BackendTensor.engine_backend is not AvailableBackends.PYTORCH:
         pytest.skip("PyTorch-only autograd test")
