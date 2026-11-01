@@ -122,8 +122,8 @@ class RawArraysSolution:
         ss = require_subsurface()
         pd = require_pandas()
 
-        vertex: list[np.ndarray] = self.vertices
-        simplex_list: list[np.ndarray] = [triangles.copy() for triangles in self.edges]
+        vertex: list[np.ndarray] = [] if self.vertices is None else list(self.vertices)
+        simplex_list: list[np.ndarray] = [] if self.edges is None else [triangles.copy() for triangles in self.edges]
         
         idx_max = 0
         for i, simplex_array in enumerate(simplex_list):
@@ -137,16 +137,16 @@ class RawArraysSolution:
             vertex_id_array = [np.full(v.shape[0], element_ids[i]) for i, v in enumerate(vertex)]
             cell_id_array = [np.full(s.shape[0], element_ids[i]) for i, s in enumerate(simplex_list)]
 
-        concatenated_id_array = np.concatenate(vertex_id_array)
-        concatenated_cell_id_array = np.concatenate(cell_id_array)
+        concatenated_id_array = np.concatenate(vertex_id_array) if vertex_id_array else np.empty(0, dtype=np.int64)
+        concatenated_cell_id_array = np.concatenate(cell_id_array) if cell_id_array else np.empty(0, dtype=np.int64)
 
-        all_vertex = np.concatenate(vertex)
+        all_vertex = np.concatenate(vertex) if vertex else np.empty((0, 3))
         if input_transform:
             all_vertex = input_transform.apply_inverse(all_vertex)
         
         meshes: ss.UnstructuredData = ss.UnstructuredData.from_array(
             vertex=all_vertex,
-            cells=np.concatenate(simplex_list),
+            cells=np.concatenate(simplex_list) if simplex_list else np.empty((0, 3), dtype=np.int64),
             vertex_attr=pd.DataFrame({'id': concatenated_id_array}),
             cells_attr=pd.DataFrame({'id': concatenated_cell_id_array})
         )
