@@ -192,6 +192,19 @@ def test_edge_rows_split_borrowed_rings_and_drop_all_fault_triangles():
     assert plan['entry'].all()
 
 
+def test_edge_rows_keep_an_offset_faults_triangles_up_to_the_fault_it_borrows_from():
+    edge_cells = np.array([[0, 1, 2, 3]])
+    # Fault 1 borrows fault 0's vertices in leaves 0, 1 and 3.
+    borrowed = np.zeros((2, 4), dtype=bool)
+    borrowed[1, [0, 1, 3]] = True
+    vertex_ids = np.arange(8).reshape(2, 4)
+    vertex_ids[1, [0, 1, 3]] = [0, 1, 3]
+    plan, filtered = plan_edge_rows(np.array([[False], [True]]), edge_cells, vertex_ids, borrowed, np.ones(8, dtype=bool))
+    # Only (0, 1, 3) lies wholly on the other fault; (6, 3, 1) keeps fault 1's own vertex.
+    assert filtered == 1
+    np.testing.assert_array_equal(plan['keys'], [[6, 3, 1]])
+
+
 def test_collapse_rings_merges_coarse_repeats_only():
     collapsed, lengths = collapse_rings(np.array([[0, 1, 2, 3], [0, 0, 1, 2], [0, 1, 2, 0], [5, 6, 6, 7]]))
     np.testing.assert_array_equal(lengths, [4, 3, 3, 3])

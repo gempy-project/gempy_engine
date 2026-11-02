@@ -443,24 +443,6 @@ def test_micro_fit_uses_existing_macro_evaluation(monkeypatch):
     assert calls == [ii.grid.len_all_grids + ii.surface_points.n_points + len(ii.micro_points.points)] * 3
 
 
-def test_external_upstream_fault_evaluates_shared_suffix(monkeypatch, flat):
-    ii, descriptor, options = _fault_micro_model()
-    descriptor.stack_structure.interp_functions_per_stack = [CustomInterpolationFunctions(
-        scalar_field_at_surface_points=np.array([0.5]),
-        implicit_function=lambda xyz: xyz[:, 0],
-    ), None]
-    monkeypatch.setenv('GEMPY_FLAT_STACKS', str(flat))
-    BackendTensor._change_backend(AvailableBackends.numpy, use_pykeops=flat)
-    try:
-        result = compute_model(ii, options, descriptor)
-        outputs = result.octrees_output[0].outputs
-        expected = ii.grid.len_all_grids + ii.surface_points.n_points + len(ii.micro_points.points)
-        assert all(len(o.scalar_fields.exported_fields.scalar_field_everywhere) == expected for o in outputs)
-        assert np.isfinite(outputs[-1].scalar_fields.exported_fields.scalar_field_everywhere).all()
-    finally:
-        BackendTensor._change_backend(AvailableBackends.numpy)
-
-
 def test_flat_faults_use_each_faults_segmentation_function(monkeypatch, pykeops):
     ii, descriptor, options = _fault_micro_model(chain=True)
     relations = descriptor.stack_structure.faults_relations

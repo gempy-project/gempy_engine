@@ -109,17 +109,19 @@ def borrowed_leaves(merge_targets, stricts):
     ``stricts`` (S, N, 12) are strict edge crossings. Returns ``merged`` and
     ``multi_fault`` (S, N) masks and ``source`` (S, N), the fault surface whose
     vertex each (surface, leaf) borrows, or -1. A leaf crossed by the surface
-    and two or more of its faults has no unambiguous borrow: the surface keeps
-    its own vertex there (pretty-style, counted).
+    and two or more of its faults has no unambiguous borrow, and a fault that
+    borrows there itself has no vertex to lend: the surface keeps its own vertex
+    in both (pretty-style, counted). Faults come before the surfaces they offset.
     """
     xp = namespace(stricts)
     merged = xp.zeros(tuple(stricts.shape[:2]), dtype=bool)
     multi_fault = xp.zeros(tuple(stricts.shape[:2]), dtype=bool)
     source = xp.full(tuple(stricts.shape[:2]), -1, dtype=np.int64)
-    for s, sources in merge_targets.items():
+    for s in sorted(merge_targets):
+        sources = merge_targets[s]
         crossed = stricts[s].any(axis=1)
         hits = xp.stack([stricts[c].any(axis=1) & crossed for c in sources])
-        several = hits.sum(axis=0) > 1
+        several = (hits.sum(axis=0) > 1) | (hits & xp.stack([merged[c] for c in sources])).any(axis=0)
         multi_fault[s] = several
         hits &= ~several
         merged[s] = hits.any(axis=0)

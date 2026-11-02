@@ -237,7 +237,14 @@ def _check_input_validity(interpolation_input: InterpolationInput, options: Inte
                     f"Each stack must have at least one orientation, unless it uses an external interpolation function."
                 )
 
-        # 3.6 Finite-fault definitions belong to single-surface fault stacks
+        # 3.6 A fault cannot be defined by an external function
+        for stack_index, relation in enumerate(ss.masking_descriptor):
+            if relation is StackRelationType.FAULT and _stack_uses_external_function(ss, stack_index):
+                raise GemPyEngineInputError(
+                    f"Validation Error: Fault stack {stack_index} cannot use an external interpolation function."
+                )
+
+        # 3.7 Finite-fault definitions belong to single-surface fault stacks
         if ss.faults_input_data is not None:
             if len(ss.faults_input_data) != ss.n_stacks:
                 raise GemPyEngineInputError(
@@ -253,10 +260,6 @@ def _check_input_validity(interpolation_input: InterpolationInput, options: Inte
                 if ss.number_of_surfaces_per_stack[stack_index] != 1:
                     raise GemPyEngineInputError(
                         f"Validation Error: Finite-fault stack {stack_index} must contain exactly one surface."
-                    )
-                if _stack_uses_external_function(ss, stack_index):
-                    raise GemPyEngineInputError(
-                        f"Validation Error: Finite-fault stack {stack_index} requires cokriging evaluation."
                     )
 
     # 4. Check surfaces consistency

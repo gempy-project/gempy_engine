@@ -107,7 +107,8 @@ leaves where a fault and an affected surface both cross, the surface borrows
 the fault's vertex by identity, so they meet exactly. The fault's QEF there
 receives the borrowing surfaces' Hermite rows with `pretty`'s cross-surface
 weight (10), which pulls it onto the intersection. Rings with borrowed vertices
-use the production diagonals; all-fault triangles are dropped. Faults are never
+use the production diagonals; triangles wholly on another fault's vertices are
+dropped, so a fault offset by another still reaches it. Faults are never
 ownership controllers.
 
 - **Fallback region**: borrowed leaves plus the leaves sharing an edge with them.

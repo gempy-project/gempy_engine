@@ -1,23 +1,12 @@
 """Fit and apply stack-local authored micro contacts without changing macro solves."""
-from dataclasses import dataclass
 import warnings
 
 import numpy as np
 
 from gempy_engine.config import AvailableBackends
 from gempy_engine.core.backend_tensor import BackendTensor
-from gempy_engine.core.data.micro_points import MicroArray, MicroPointResults
+from gempy_engine.core.data.micro_points import MicroCorrection, MicroPointResults
 from .micro_anisotropic_evaluator import build_micro_design_matrix, evaluate_micro_values_and_gradient
-
-
-@dataclass(frozen=True)
-class MicroCorrection:
-    points: MicroArray
-    matrices: MicroArray
-    weights: MicroArray
-    kernel_range: float
-    kernel_type: str
-    surface_isovalues: MicroArray | None = None
 
 
 def align_micro_matrices(micro, gradients):
@@ -149,6 +138,7 @@ def fit_micro_fields(interpolation_input, fields, options, surface_sizes, xyz, p
         fields.micro_point_results = MicroPointResults(interpolation_input.micro_indices.copy(), gradients,
                                                         correction.matrices[:len(micro.points)])
     apply_micro_correction(fields, xyz, correction)
+    fields.micro_correction = correction
     if not publish_gradients:
         fields._gx_field = fields._gy_field = fields._gz_field = None
 
@@ -161,9 +151,9 @@ def apply_micro_correction(fields, xyz, correction: MicroCorrection | None):
         correction.kernel_range, correction.kernel_type,
         compute_gradient=fields.gx_field_everywhere is not None,
     )
-    if isinstance(fields.scalar_field_everywhere, np.ndarray):
-        values = values.astype(fields.scalar_field_everywhere.dtype)
-    fields._scalar_field = fields.scalar_field_everywhere + values
+    scalar = fields.scalar_field_everywhere
+    if scalar is not None:  # Gradient-only evaluations have no scalar to correct.
+        fields._scalar_field = scalar + (values.astype(scalar.dtype) if isinstance(scalar, np.ndarray) else values)
     if correction.surface_isovalues is not None:
         # Keep segmentation and extraction on the fitted targets even if macro points move.
         fields.scalar_field_at_surface_points = correction.surface_isovalues

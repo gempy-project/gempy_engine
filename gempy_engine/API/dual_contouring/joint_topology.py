@@ -62,9 +62,10 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     ``fault_merge`` maps each represented fault surface to exactly the surfaces it
     affects (pretty's fault rule, as key substitution): in leaves where the fault
     has a vertex, an affected surface uses the fault's vertex identity, its
-    discarded own geometry there is not validated, all-fault triangles are
-    dropped, and a contact junction there or in the adjacent leaf ring is not
-    shared: participants keep unshared vertices without ownership certification
+    discarded own geometry there is not validated, triangles wholly on another
+    fault's vertices are dropped, and a contact junction there or in the
+    adjacent leaf ring is not shared: participants keep unshared vertices
+    without ownership certification
     (pretty-style fallback, counted, never silent). A leaf crossed by an
     affected surface and two or more of its faults has no unambiguous borrow:
     the surface keeps its own vertex there, under the same fallback. Faults are
@@ -225,6 +226,7 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     # Vertex ids: s*leaves + leaf is surface s's own vertex, joint_start + j the j-th junction.
     joint_start = n*leaves
     regular = xp.full((n, leaves, 3), np.nan)
+    snapped_faces = xp.zeros((n, leaves, 6), dtype=bool)
     weighted_fault_cells = set()
     for s in range(n):
         own = solved[s][edge_xyz.rows[s]]
@@ -238,9 +240,11 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                                           DEFAULT_CROSS_SURFACE_WEIGHT)
             if extra is not None:
                 weighted_fault_cells.update((s, c) for c in cells[(extra[2] > 0).any(axis=1)].tolist())
-        regular[s, cells] = _solve_qef(xp, edge_xyz.values[s][own], own[solving], xyz[cells], spans[cells], step,
-                                       origins[cells], normals.values[s][own], extra,
-                                       extent=host(bounds) if snap_extent else None)
+        regular[s, cells], faces = _solve_qef(xp, edge_xyz.values[s][own], own[solving], xyz[cells], spans[cells], step,
+                                              origins[cells], normals.values[s][own], extra,
+                                              extent=host(bounds) if snap_extent else None)
+        if snap_extent:
+            snapped_faces[s, cells] = xp.asarray(faces).reshape(-1, 6)
     # endregion
 
     # region Junctions, fallback region and edge rows
@@ -283,9 +287,11 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     # region Validation and emission
     seams, coarsefine = validate_adaptive_incidence(plan, junction_ids, junction_pairs, joint_start, evidence, spans)
     junction_positions = np.asarray([junctions[c]['position'] for c in sorted(junctions)], dtype=float)
+    junction_faces = np.zeros((len(junctions), 6), dtype=bool)
     if snap_extent and len(junction_positions):
         roots = np.asarray([junctions[c]['roots'] for c in sorted(junctions)], dtype=float)
-        junction_positions = _snap_junctions(junction_positions, roots, host(bounds), 1e-3*float(np.min(host(step))))
+        junction_positions, junction_faces = _snap_junctions(junction_positions, roots, host(bounds),
+                                                             1e-3*float(np.min(host(step))))
     positions = xp.concatenate((regular.reshape(-1, 3), xp.asarray(junction_positions.reshape(-1, 3))))
     participants = (junction_pairs*leaves+junction_cells[:, None]).reshape(-1)
     if bool(xp.isnan(positions[participants]).any()):
@@ -303,8 +309,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     ids = xp.asarray(host_ids)
     triangles = plan_adaptive_triangles(plan, positions, triangle_normals, joint_start, n)
     if snap_extent:
-        in_face = triangles_in_extent_face(positions[triangles['keys']], xp.asarray(bounds[::2]),
-                                           xp.asarray(bounds[1::2]), 1e-3*float(np.min(host(step))))
+        vertex_faces = xp.concatenate((snapped_faces.reshape(-1, 6), xp.asarray(junction_faces)))
+        in_face = triangles_in_extent_face(vertex_faces[triangles['keys']])
         triangles = dict(triangles, **{k: triangles[k][~in_face] for k in ('surface', 'keys', 'affected')})
     output_faces, affected = (None, None) if defer_emission else emit_adaptive_triangles(triangles, ids)
     seam_edges = np.sort(host_ids[np.asarray(sorted(seams), dtype=np.int64).reshape(-1, 2)], axis=1)
@@ -534,16 +540,21 @@ def _solve_qef(xp, crossing_xyz, own, xyz, spans, spacing, origins, crossing_nor
     positions = xp.asarray(generate_dual_contouring_vertices(dc), dtype=np.float64)
     if not bool(xp.isfinite(positions).all()):
         raise ValueError('nonfinite_qef_solution: original production solve failed')
-    return positions
+    return positions, dc.snapped_faces
 
 
 def _snap_junctions(positions, roots, bounds, tolerance):
     """Junctions whose contact line leaves through an extent face take that face root.
 
     ``roots`` (J, 2, 3) are the two tile roots the junction lies between.
+    Returns the positions and the (J, 6) faces each one was snapped to.
     """
-    on_face = (np.abs(roots[:, :, :, None] - bounds.reshape(1, 1, 3, 2)) <= tolerance).any(axis=(2, 3))
+    root_faces = np.abs(roots[:, :, :, None] - bounds.reshape(1, 1, 3, 2)) <= tolerance
+    on_face = root_faces.any(axis=(2, 3))
     positions = positions.copy()
     snapped = on_face.any(axis=1)
-    positions[snapped] = roots[snapped, np.argmax(on_face[snapped], axis=1)]
-    return positions
+    chosen = np.argmax(on_face[snapped], axis=1)
+    positions[snapped] = roots[snapped, chosen]
+    faces = np.zeros((len(positions), 6), dtype=bool)
+    faces[snapped] = root_faces[snapped, chosen].reshape(-1, 6)
+    return positions, faces

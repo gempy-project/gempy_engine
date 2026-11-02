@@ -60,3 +60,14 @@ class MicroPointResults:
     source_indices: np.ndarray
     macro_gradients: MicroArray
     anisotropy_matrices: MicroArray
+
+
+@dataclass(frozen=True)
+class MicroCorrection:
+    """A stack's fitted correction, evaluable at any point without another solve."""
+    points: MicroArray
+    matrices: MicroArray
+    weights: MicroArray
+    kernel_range: float
+    kernel_type: str
+    surface_isovalues: MicroArray | None = None
