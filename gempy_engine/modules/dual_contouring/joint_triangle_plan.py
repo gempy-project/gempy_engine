@@ -139,7 +139,7 @@ def plan_adaptive_junctions(face_cells, tile_xyz, tile_fields, pairs, identities
         parameter = np.clip((projected @ rhs + (points.mean(axis=0)-point) @ direction)/denominator, 0., 1.)
         key = ('joint', tuple(sorted(identities[s] for s in pair)),
                tuple(map(int, origins[cell])), int(spans[cell]), 0)
-        junctions[cell] = dict(key=key, pair=pair, position=point+parameter*direction)
+        junctions[cell] = dict(key=key, pair=pair, position=point+parameter*direction, roots=(point, end))
     evidence = [item for item in evidence if not any(c in fallback for c in item['cells'])]
     return junctions, evidence, fallback
 

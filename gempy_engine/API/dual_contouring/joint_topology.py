@@ -11,7 +11,7 @@ from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor as BT
 from ...core.data.dual_contouring_data import DualContouringData
 from ...core.data.stack_relation_type import StackRelationType as R
-from ...modules.dual_contouring._gen_vertices import generate_dual_contouring_vertices
+from ...modules.dual_contouring._gen_vertices import generate_dual_contouring_vertices, triangles_in_extent_face
 from ...modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge
 from ...modules.dual_contouring.joint_cell_branches import CORNERS, EDGE_START, EDGE_END
 from ...modules.dual_contouring.joint_cell_complex import AdaptiveComplex, _paused_gc, adaptive_complex_arrays
@@ -40,7 +40,7 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                               surface_to_stack, surface_indices, stack_relations, isovalues,
                               *, sample_fields, ownership=None, include_reference=False,
                               faults_relations=None, separator_contacts=None, defer_emission=False,
-                              cell_complex=None, fault_merge=None, field_query=None):
+                              cell_complex=None, fault_merge=None, field_query=None, snap_extent=False):
     """Extract balanced dyadic leaves using canonical tiles and minimal primal edges.
 
     ``sample_fields`` supplies raw fields (S,M) and actual gradients (S,M,3).
@@ -54,6 +54,9 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     ``defer_emission`` returns a fully validated ``_triangle_plan`` and
     ``_key_to_id`` with faces/affected_faces set to None for a caller-owned
     all-bank validation barrier. It cannot be combined with ``include_reference``.
+    ``snap_extent`` puts vertices of leaves crossed at the extent on the extent
+    faces (``mesh_extraction_snap_to_extent``); junctions there take their root
+    on the face.
     ``cell_complex`` may supply the read-only ``adaptive_complex_arrays`` result
     for these exact origins/spans/domain, so bank partitions share one build.
     ``fault_merge`` maps each represented fault surface to exactly the surfaces it
@@ -236,7 +239,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
             if extra is not None:
                 weighted_fault_cells.update((s, c) for c in cells[(extra[2] > 0).any(axis=1)].tolist())
         regular[s, cells] = _solve_qef(xp, edge_xyz.values[s][own], own[solving], xyz[cells], spans[cells], step,
-                                       origins[cells], normals.values[s][own], extra)
+                                       origins[cells], normals.values[s][own], extra,
+                                       extent=host(bounds) if snap_extent else None)
     # endregion
 
     # region Junctions, fallback region and edge rows
@@ -279,6 +283,9 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     # region Validation and emission
     seams, coarsefine = validate_adaptive_incidence(plan, junction_ids, junction_pairs, joint_start, evidence, spans)
     junction_positions = np.asarray([junctions[c]['position'] for c in sorted(junctions)], dtype=float)
+    if snap_extent and len(junction_positions):
+        roots = np.asarray([junctions[c]['roots'] for c in sorted(junctions)], dtype=float)
+        junction_positions = _snap_junctions(junction_positions, roots, host(bounds), 1e-3*float(np.min(host(step))))
     positions = xp.concatenate((regular.reshape(-1, 3), xp.asarray(junction_positions.reshape(-1, 3))))
     participants = (junction_pairs*leaves+junction_cells[:, None]).reshape(-1)
     if bool(xp.isnan(positions[participants]).any()):
@@ -295,6 +302,10 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     host_ids[vertex_order] = np.arange(len(vertex_order))
     ids = xp.asarray(host_ids)
     triangles = plan_adaptive_triangles(plan, positions, triangle_normals, joint_start, n)
+    if snap_extent:
+        in_face = triangles_in_extent_face(positions[triangles['keys']], xp.asarray(bounds[::2]),
+                                           xp.asarray(bounds[1::2]), 1e-3*float(np.min(host(step))))
+        triangles = dict(triangles, **{k: triangles[k][~in_face] for k in ('surface', 'keys', 'affected')})
     output_faces, affected = (None, None) if defer_emission else emit_adaptive_triangles(triangles, ids)
     seam_edges = np.sort(host_ids[np.asarray(sorted(seams), dtype=np.int64).reshape(-1, 2)], axis=1)
     seam_edges = seam_edges[np.lexsort(seam_edges.T[::-1])] if len(seam_edges) else seam_edges
@@ -509,7 +520,7 @@ def _surface_crossings(xp, xyz, samples, levels, stricts, merged, multi_fault, f
     return counts, _LeafRows(xp, rows_per_surface, values, leaves)
 
 
-def _solve_qef(xp, crossing_xyz, own, xyz, spans, spacing, origins, crossing_normals, extra):
+def _solve_qef(xp, crossing_xyz, own, xyz, spans, spacing, origins, crossing_normals, extra, extent=None):
     """Production QEF vertices of one surface's crossed leaves, with optional extra weighted rows.
 
     All inputs are restricted to the solved leaves (the QEF is per leaf).
@@ -517,10 +528,22 @@ def _solve_qef(xp, crossing_xyz, own, xyz, spans, spacing, origins, crossing_nor
     dc = DualContouringData(
         _tensor(crossing_xyz), _tensor(own, True), _tensor(xyz.mean(axis=1)),
         _tensor(spans[:, None]*spacing), 1, _tensor(origins), gradients=_tensor(crossing_normals),
-        strict_crossings=False)
+        strict_crossings=False, extent=extent)
     if extra is not None:
         dc.extra_edge_xyz, dc.extra_edge_normals, dc.extra_weights = map(_tensor, extra)
     positions = xp.asarray(generate_dual_contouring_vertices(dc), dtype=np.float64)
     if not bool(xp.isfinite(positions).all()):
         raise ValueError('nonfinite_qef_solution: original production solve failed')
+    return positions
+
+
+def _snap_junctions(positions, roots, bounds, tolerance):
+    """Junctions whose contact line leaves through an extent face take that face root.
+
+    ``roots`` (J, 2, 3) are the two tile roots the junction lies between.
+    """
+    on_face = (np.abs(roots[:, :, :, None] - bounds.reshape(1, 1, 3, 2)) <= tolerance).any(axis=(2, 3))
+    positions = positions.copy()
+    snapped = on_face.any(axis=1)
+    positions[snapped] = roots[snapped, np.argmax(on_face[snapped], axis=1)]
     return positions

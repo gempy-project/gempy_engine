@@ -2,7 +2,7 @@ import concurrent.futures
 import os
 from typing import List
 
-from ._gen_vertices import generate_dual_contouring_vertices
+from ._gen_vertices import generate_dual_contouring_vertices, snap_tolerance, triangles_in_extent_face
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.data.dual_contouring_data import DualContouringData
@@ -66,6 +66,14 @@ def _process_one_surface(dc_data: DualContouringData, left_right_codes) -> DualC
         edges_normals=edges_normals,
         vertex=vertices
     )
+    if dc_data.extent is not None and len(indices):
+        bounds = BackendTensor.t.array(dc_data.extent, dtype=BackendTensor.dtype).reshape(3, 2)
+        if BackendTensor.engine_backend == AvailableBackends.PYTORCH:
+            bounds = bounds.to(vertices.device)
+        in_face = triangles_in_extent_face(vertices[indices], bounds[:, 0], bounds[:, 1],
+                                           snap_tolerance(dc_data.dxdydz))
+        indices = indices[~in_face]
+        dc_data.triangulation_report['extent_fold_triangle_count'] = int(in_face.sum())
 
     mesh = DualContouringMesh(vertices, indices, dc_data)
     return mesh

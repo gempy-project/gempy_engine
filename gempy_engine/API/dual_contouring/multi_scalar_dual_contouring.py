@@ -24,8 +24,7 @@ from ...modules.dual_contouring.dual_contouring_interface import (find_intersect
                                                                   get_masked_codes, mask_generation)
 from ...modules.dual_contouring.overlapping import average_overlapping_vertices, remove_fault_overlap_triangles
 from ...modules.dual_contouring._support_report import mesh_support_report
-from ...core.data.options.evaluation_options import OctreeRefinementMode, MeshExtentCapping
-from .extent_capping import cap_meshes_at_extent
+from ...core.data.options.evaluation_options import OctreeRefinementMode
 
 
 @gempy_profiler_decorator
@@ -62,7 +61,8 @@ def dual_contouring_multi_scalar(
 
     octree_leaves = octree_list[-1]
     all_meshes: List[DualContouringMesh] = []
-    cap_enabled = MeshExtentCapping(options.evaluation_options.mesh_extraction_extent_capping) != MeshExtentCapping.NONE
+    snap_extent = (BackendTensor.t.to_numpy(octree_list[0].grid.octree_grid.orthogonal_extent)
+                   if options.evaluation_options.mesh_extraction_snap_to_extent else None)
 
     dual_contouring_options = copy.deepcopy(options)
     dual_contouring_options.evaluation_options.compute_scalar_gradient = True
@@ -97,8 +97,7 @@ def dual_contouring_multi_scalar(
             _xyz_corners=octree_leaves.grid.corners_grid.values,
             scalar_field_on_corners=output.exported_fields.scalar_field[output.grid.corners_grid_slice],
             scalar_at_sp=output.scalar_field_at_sp,
-            masking=mask,
-            strict_crossings=cap_enabled
+            masking=mask
         )
 
         all_surfaces_intersection.append(intersection_xyz)
@@ -138,8 +137,7 @@ def dual_contouring_multi_scalar(
                     output.exported_fields.scalar_field[output.grid.corners_grid_slice],
                     output.scalar_field_at_sp[surface_i], base_number, mask,
                     surface_index=surface_i,
-                    ancestor_coordinates=[level.grid.octree_grid.integer_coordinates for level in octree_list[:-1]],
-                    strict_crossings=cap_enabled
+                    ancestor_coordinates=[level.grid.octree_grid.integer_coordinates for level in octree_list[:-1]]
                 )
                 report['stack_index'] = n_scalar_field
                 if report['internal_refinement_boundary_edge_count']:
@@ -169,7 +167,7 @@ def dual_contouring_multi_scalar(
                 base_number=base_number,
                 triangulation_method=options.evaluation_options.triangulation_method,
                 generated_cell_coordinates=left_right_codes,
-                strict_crossings=cap_enabled
+                extent=snap_extent
             )
 
             dc_data_per_surface_all.append(dc_data_per_surface)
@@ -234,14 +232,6 @@ def dual_contouring_multi_scalar(
         mesh.surface_index = surface_index
         mesh.exported_surface_index = index
         mesh.isovalue = isovalue
-        mesh.inside_convention = "scalar <= isovalue" if cap_enabled else None
-
-    if cap_enabled:
-        cap_meshes_at_extent(
-            all_meshes, dc_data_per_surface_all, all_mask_arrays, base_number,
-            octree_list[0].grid.octree_grid.orthogonal_extent,
-            interpolation_input, options, data_descriptor
-        )
 
     return all_meshes
 

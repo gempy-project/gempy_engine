@@ -204,4 +204,5 @@ def test_public_model_mesh_parity(backend, monkeypatch):
         assert new.dc_data.triangulation_method is TriangulationMethod.QUADS
         assert new.dc_data.generated_cell_coordinates is not None
         assert new.dc_data.triangulation_report['unknown_boundary_edge_count'] == 0
-        assert new.dc_data.triangulation_report['quad_count'] * 2 == len(new.edges)
+        report = new.dc_data.triangulation_report
+        assert report['quad_count'] * 2 - report['extent_fold_triangle_count'] == len(new.edges)

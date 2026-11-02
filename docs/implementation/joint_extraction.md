@@ -40,7 +40,6 @@ extraction disabled, the mode has no effect.
 | --- | --- |
 | Backend | NumPy or PyTorch (CPU or CUDA, with or without KeOps), `float64`, no autograd |
 | Masking | `MeshExtractionMaskingOptions.INTERSECT` only |
-| Extent capping | `MeshExtentCapping.NONE` only |
 | Faults | `joint`: none, or exactly one independent infinite planar fault (banks). `joint_contacts`: any number of independent infinite faults (no fault offsets another fault) |
 | Null-space stacks | Unsupported |
 | Field callbacks | Actual finite raw scalar values and gradients for every exported surface |

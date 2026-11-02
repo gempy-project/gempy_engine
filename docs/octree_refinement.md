@@ -27,7 +27,7 @@ neighborhood among existing sparse cells, clipped to the physical domain. Neithe
 mode guarantees discovery of unsampled features or watertight surfaces. A surface
 newly detected at the outer edge of an earlier support band can still request an
 absent branch; this produces a warning rather than silently claiming closure.
-Physical extent capping and extraction-mask stitching are separate concerns.
+Extent snapping and extraction-mask stitching are separate concerns.
 
 ## Diagnostics
 
@@ -146,7 +146,7 @@ boundaries. Missing-cell counts are incidences and boundary categories can overl
 Direct callers without pre-mask cell coordinates receive an unknown interior
 boundary classification. Counts precede subsequent overlap/fault triangle removal.
 
-This is same-level connectivity, not coarse/fine transition stitching or extent
-capping, and it does not resolve ambiguous topology or guarantee watertightness.
+This is same-level connectivity, not coarse/fine transition stitching, and it
+does not resolve ambiguous topology or guarantee watertightness.
 NumPy and CPU Torch parity are tested; GPU behavior and end-to-end performance
 still require validation.
