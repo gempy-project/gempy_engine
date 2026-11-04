@@ -118,7 +118,8 @@ def fit_micro_correction(interpolation_input, macro_values, options, surface_siz
     if not (torch.isfinite(fitted).all() if is_torch else np.isfinite(fitted).all()):
         raise ValueError("Micro-point fit produced non-finite weights")
     return MicroCorrection(centers, matrices, fitted * settings.strength, settings.kernel_range,
-                           settings.kernel_type, surface_isovalues)
+                           settings.kernel_type, surface_isovalues,
+                           gradient_scale=1.0 / options.kernel_options.gi_res)
 
 
 def fit_micro_fields(interpolation_input, fields, options, surface_sizes, xyz, publish_gradients):
@@ -158,6 +159,7 @@ def apply_micro_correction(fields, xyz, correction: MicroCorrection | None):
         # Keep segmentation and extraction on the fitted targets even if macro points move.
         fields.scalar_field_at_surface_points = correction.surface_isovalues
     if fields.gx_field_everywhere is not None:
+        grad = grad * correction.gradient_scale
         if isinstance(fields.gx_field_everywhere, np.ndarray):
             grad = grad.astype(fields.gx_field_everywhere.dtype)
         fields._gx_field = fields.gx_field_everywhere + grad[:, 0]

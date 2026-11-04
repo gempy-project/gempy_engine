@@ -4,6 +4,7 @@ import pytest
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data import InterpolationOptions, Orientations, SurfacePoints, TensorsStructure
 from gempy_engine.core.data.engine_grid import EngineGrid, RegularGrid
+from gempy_engine.core.data.generic_grid import GenericGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.micro_points import MicroPoints
@@ -749,3 +750,56 @@ def test_alignment_zero_gradient_and_authored_frame_independence(backend):
 def test_micro_rejects_invalid_support_to_engine(transform):
     with pytest.raises(ValueError, match='support_to_engine'):
         MicroPoints(np.zeros((1, 3)), np.eye(3)[None], np.zeros(1), np.array([0]), transform)
+
+
+def _micro_bump_model(grid, i_res=4., gi_res=2.):
+    """A flat horizon at z = 0.5 pulled up to one micro contact at z = 0.6."""
+    xy = np.array([[x, y] for x in (0.15, 0.5, 0.85) for y in (0.15, 0.5, 0.85)])
+    sp = np.column_stack((xy, np.full(len(xy), 0.5)))
+    orientations = Orientations(dip_positions=np.array([[0.5, 0.5, 0.5]]), dip_gradients=np.array([[0., 0., 1.]]))
+    micro = MicroPoints(np.array([[0.32, 0.33, 0.6]]), np.array([np.diag([20.] * 3)]), np.array([0.]), np.array([0]))
+    ii = InterpolationInput(SurfacePoints(sp), orientations, grid, micro_points=micro)
+    options = InterpolationOptions.from_args(range=3., c_o=1., uni_degree=1, i_res=i_res, gi_res=gi_res,
+                                             mesh_extraction=False)
+    options.micro_options.enabled = True
+    descriptor = InputDataDescriptor(TensorsStructure(np.array([len(sp)])), StacksStructure(
+        number_of_points_per_stack=np.array([len(sp)]), number_of_orientations_per_stack=np.array([1]),
+        number_of_surfaces_per_stack=np.array([1]), masking_descriptor=[StackRelationType.BASEMENT]))
+    return ii, options, descriptor
+
+
+@pytest.mark.parametrize('i_res, gi_res', [(4., 2.), (9., 3.)])
+def test_corrected_gradient_is_parallel_to_corrected_field(i_res, gi_res):
+    """Macro gradients are the field's derivative over gi_res; the micro gradient must share that scale."""
+    BackendTensor._change_backend(AvailableBackends.numpy, dtype='float64')  # central differences
+    rng = np.random.default_rng(0)
+    centers = np.array([0.32, 0.33, 0.55]) + rng.normal(scale=0.03, size=(20, 3))
+    h = 1e-6
+    shifts = [np.zeros(3)] + [sign * h * axis for axis in np.eye(3) for sign in (1, -1)]
+    points = np.concatenate([centers + shift for shift in shifts])
+    ii, options, descriptor = _micro_bump_model(EngineGrid(custom_grid=GenericGrid(values=points)), i_res, gi_res)
+    options.evaluation_options.compute_scalar_gradient = True
+    output = compute_model(ii, options, descriptor).octrees_output[0].outputs[0]
+    fields, rows = output.exported_fields, output.grid.custom_grid_slice
+    values = fields.scalar_field[rows].reshape(len(shifts), -1)
+    gradient = np.stack([fields.gx_field[rows], fields.gy_field[rows], fields.gz_field[rows]], axis=1)[:len(centers)]
+    derivative = np.stack([(values[1 + 2 * k] - values[2 + 2 * k]) / (2 * h) for k in range(3)], axis=1)
+    # The micro term must matter here, or the test cannot see its scale.
+    assert np.max(np.abs(derivative[:, :2])) > 0.1 * np.max(np.abs(derivative[:, 2]))
+    np.testing.assert_allclose(gi_res * gradient, derivative, rtol=1e-4, atol=1e-4)
+
+
+def test_micro_bump_mesh_faces_one_way():
+    """Gradient-based winding flipped triangles around micro contacts when the scales disagreed."""
+    ii, options, descriptor = _micro_bump_model(EngineGrid.from_regular_grid(RegularGrid(
+        orthogonal_extent=[0, 1, 0, 1, 0, 1], regular_grid_shape=[2, 2, 2])))
+    evaluation = options.evaluation_options
+    evaluation.number_octree_levels = evaluation.number_octree_levels_surface = 5
+    evaluation.mesh_extraction = True
+    evaluation.mesh_extraction_overlap = 'joint_contacts'
+    mesh, = compute_model(ii, options, descriptor).dc_meshes
+    vertices, faces = np.asarray(mesh.vertices), np.asarray(mesh.edges)
+    assert vertices[:, 2].max() > 0.54  # the contact pulls the horizon into a bump
+    normals = np.cross(vertices[faces[:, 1]] - vertices[faces[:, 0]], vertices[faces[:, 2]] - vertices[faces[:, 0]])
+    # A single-valued bump over a horizon whose field increases upwards faces up everywhere.
+    assert (normals[:, 2] < 0).sum() == 0
