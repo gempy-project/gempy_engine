@@ -261,6 +261,18 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     fallback_leaves = xp.zeros(leaves, dtype=bool) if region is None else xp.copy(region)
     fallback_leaves[xp.asarray(sorted(fallback), dtype=np.int64)] = True
 
+    def controller_field(points, surface, kind):
+        if field_query is not None:
+            return host(batch([(points, [surface], kind)])[0][0])
+        values, gradients = sample(points)
+        return host((values if kind == 'scalar' else gradients)[surface])
+
+    faces = np.asarray(host(snapped_faces)).reshape(-1, 6)
+    snapped_rows = np.flatnonzero(faces.any(axis=1))
+    regular, pulled_back = _pull_back_fallback_vertices(
+        regular, [(snapped_rows, faces[snapped_rows]@(1 << np.arange(6)))], fallback, controllers, host_levels,
+        leaves, origins, spans, low, step, controller_field, False, xp)
+
     junction_cells = xp.asarray(sorted(junctions), dtype=np.int64)
     junction_pairs = xp.asarray([sorted(junctions[c]['pair']) for c in sorted(junctions)],
                                 dtype=np.int64).reshape(-1, 2)
@@ -325,6 +337,7 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                                    no_post_reconciliation=True, original_hermite_rows=12,
                                    sampled_point_count=len(query)+batch.sampled, canonical_face_tile_count=n_faces,
                                    minimal_edge_count=n_edges, finite_faults='unsupported',
+                                   fallback_junction_leaf_count=len(fallback), pulled_back_vertex_count=pulled_back,
                                    interior_topology='sampled_boundary_only_not_interior_certified'))
     if defer_emission:
         result.update(_triangle_plan=triangles, _key_to_id=ids)
@@ -558,3 +571,121 @@ def _snap_junctions(positions, roots, bounds, tolerance):
     faces = np.zeros((len(positions), 6), dtype=bool)
     faces[snapped] = root_faces[snapped, chosen].reshape(-1, 6)
     return positions, faces
+
+
+def _pull_back_fallback_vertices(regular, snapped_faces, fallback, controllers, levels, leaves, origins, spans, low,
+                                 step, field, compact_vertices, xp, rounds=3, steps=4):
+    """Move the vertices of given-up junction leaves out of the regions younger contacts claim.
+
+    A junction given up leaves each participant its own QEF vertex, solved from that surface's crossings alone, so it
+    can sit across a contact that truncates the surface, and its triangles then cross that contact. Such a vertex is
+    projected onto the contact by Newton steps along the controller's gradient, within its leaf: an axis that reaches
+    the leaf box, or that the vertex was snapped to an extent face along, stays fixed. ``field(points, surface, kind)`` gives raw scalars or gradients.
+    Returns the vertices, in the layout they came in, and how many moved.
+    """
+    targets = [s for s in sorted(controllers) if controllers[s]]
+    if not fallback or not targets:
+        return regular, 0
+    if compact_vertices:
+        keys = np.concatenate([np.asarray(row[0], dtype=np.int64) for row in regular])
+        values = np.concatenate([np.asarray(row[1]) for row in regular])
+    else:
+        grid = np.array(host(regular), dtype=np.float64).reshape(-1, 3)
+        keys = np.flatnonzero(~np.isnan(grid[:, 0]))
+        values = grid[keys]
+    cells = np.asarray(sorted(fallback), dtype=np.int64)
+    rows = np.flatnonzero(np.isin(keys, np.concatenate([s*leaves+cells for s in targets])))
+    if not len(rows):
+        return regular, 0
+    surface, cell = keys[rows]//leaves, keys[rows] % leaves
+    points = values[rows].astype(np.float64)
+    box_low = np.asarray(host(low), dtype=np.float64)+np.asarray(host(origins))[cell]*np.asarray(host(step))
+    box_high = box_low+np.asarray(host(spans))[cell, None]*np.asarray(host(step))
+    free = np.ones((len(rows), 3))  # Snapped axes stay on their extent face
+    snapped = [(np.asarray(host(ids), dtype=np.int64), np.asarray(host(faces), dtype=np.uint8))
+               for ids, faces in snapped_faces]
+    bits = np.zeros(max([int(keys.max())]+[int(ids.max()) for ids, _ in snapped if len(ids)])+1, dtype=np.uint8)
+    for ids, faces in snapped:
+        bits[ids] = faces
+    for axis in range(3):
+        free[(bits[keys[rows]] >> 2*axis & 3) != 0, axis] = 0.
+    moved = np.zeros(len(rows), dtype=bool)
+    for _ in range(rounds):
+        changed = False
+        for target in targets:
+            mine = np.flatnonzero(surface == target)
+            for controller, sign in controllers[target] if len(mine) else ():
+                # Newton steps onto the contact; an axis that reaches the leaf box stays there, and the
+                # steps go on along the box face.
+                pinned = np.zeros((len(rows), 3), dtype=bool)
+                for _ in range(steps):
+                    offset = field(points[mine], controller, 'scalar')-levels[controller]
+                    outside = mine[sign*offset < 0]
+                    if not len(outside):
+                        break
+                    gradient = field(points[outside], controller, 'gradient')*free[outside]*~pinned[outside]
+                    norm = np.sum(gradient*gradient, axis=1)
+                    usable = norm > 1e-30
+                    rows_ = outside[usable]
+                    if not len(rows_):
+                        break
+                    wanted = points[rows_]-(offset[sign*offset < 0][usable]/norm[usable])[:, None]*gradient[usable]
+                    points[rows_] = np.clip(wanted, box_low[rows_], box_high[rows_])
+                    pinned[rows_] |= points[rows_] != wanted
+                    moved[rows_] = changed = True
+                # Pinned short of the contact (the kept part of the leaf is a corner): the nearest crossing on
+                # the leaf's edges instead.
+                offset = field(points[mine], controller, 'scalar')-levels[controller]
+                stuck = mine[sign*offset < 0]
+                if len(stuck):
+                    landing = _edge_contact(points[stuck], box_low[stuck], box_high[stuck],
+                                            lambda xyz: sign*(field(xyz, controller, 'scalar')-levels[controller]))
+                    found = stuck[~np.isnan(landing[:, 0])]
+                    points[found] = landing[~np.isnan(landing[:, 0])]
+                    moved[found] = changed = True
+        if not changed:
+            break
+    if not moved.any():
+        return regular, 0
+    values = values.copy()
+    values[rows] = points
+    if compact_vertices:
+        return [(keys, values)], int(moved.sum())
+    grid[keys] = values
+    return xp.asarray(grid.reshape(np.asarray(host(regular)).shape)), int(moved.sum())
+
+
+def _edge_contact(points, box_low, box_high, kept, iterations=12):
+    """For each box, the point of its edges nearest ``points`` on the contact, from the kept side; NaN if none.
+
+    ``kept(xyz)`` is positive on the side to keep. Each edge whose ends straddle the contact is narrowed by Illinois
+    false position, keeping the bracket, so the result lies on the kept side within the remaining bracket.
+    """
+    corners = box_low[:, None]+CORNERS[None]*(box_high-box_low)[:, None]
+    values = kept(corners.reshape(-1, 3)).reshape(-1, 8)
+    start, end = values[:, EDGE_START], values[:, EDGE_END]
+    rows, edges = np.nonzero((start >= 0) != (end >= 0))
+    landing = np.full_like(points, np.nan)
+    if not len(rows):
+        return landing
+    first_kept = start[rows, edges] >= 0
+    inner = np.where(first_kept[:, None], corners[rows, EDGE_START[edges]], corners[rows, EDGE_END[edges]])
+    outer = np.where(first_kept[:, None], corners[rows, EDGE_END[edges]], corners[rows, EDGE_START[edges]])
+    f_in = np.where(first_kept, start[rows, edges], end[rows, edges])
+    f_out = np.where(first_kept, end[rows, edges], start[rows, edges])
+    last = np.zeros(len(rows), dtype=np.int8)  # 1: the kept end moved last, -1: the other one
+    for _ in range(iterations):
+        t = f_in/(f_in-f_out)
+        trial = inner+t[:, None]*(outer-inner)
+        f = kept(trial)
+        keep = f >= 0
+        f_out = np.where(keep & (last == 1), f_out/2, f_out)
+        f_in = np.where(~keep & (last == -1), f_in/2, f_in)
+        inner, f_in = np.where(keep[:, None], trial, inner), np.where(keep, f, f_in)
+        outer, f_out = np.where(keep[:, None], outer, trial), np.where(keep, f_out, f)
+        last = np.where(keep, 1, -1).astype(np.int8)
+    distance = np.linalg.norm(inner-points[rows], axis=1)
+    order = np.lexsort((distance, rows))
+    first = order[np.r_[True, rows[order][1:] != rows[order][:-1]]]
+    landing[rows[first]] = inner[first]
+    return landing

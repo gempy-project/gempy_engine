@@ -256,6 +256,35 @@ def test_competing_pairs_fall_back_to_unshared_vertices():
     assert sum(len(f) for f in result['faces'])
 
 
+def _eroded_close_layers(slope=.83, offset=.17):
+    """A tilted eroding plane over two layers .16 apart: both meet it inside the same unit leaves, which fall back."""
+    def callback(points):
+        values = np.array([points[:, 2]-slope*points[:, 0]-offset, points[:, 2], points[:, 2]])
+        normals = np.array([[-slope, 0., 1.], [0., 0., 1.], [0., 0., 1.]])
+        return values, np.broadcast_to(normals[:, None, :], (3, len(points), 3)).copy()
+
+    origins = np.array(list(product(range(8), repeat=3)), dtype=np.int64)
+    spans = np.ones(len(origins), dtype=np.int64)
+    samples = callback((origins[:, None, :]+spans[:, None, None]*CORNERS).reshape(-1, 3).astype(float))[0]
+    result = extract_adaptive_topology(origins, spans, (8, 8, 8), (0, 8, 0, 8, 0, 8), samples.reshape(3, -1, 8),
+                                       [0, 1, 1], [0, 0, 1], [R.ERODE, R.BASEMENT], [[0.], [3.37, 3.21]],
+                                       sample_fields=callback)
+    used = np.unique(np.concatenate([np.asarray(result['faces'][s]).ravel() for s in (1, 2)]))
+    layers = result['vertices'][used]
+    # How far the layers' vertices reach into what the eroding plane claims, above it.
+    return float(np.max((layers[:, 2]-slope*layers[:, 0]-offset)/np.hypot(1, slope))), result['diagnostics']
+
+
+def test_fallback_vertices_stay_out_of_the_eroded_region(monkeypatch):
+    from gempy_engine.API.dual_contouring import joint_topology
+
+    inside, diagnostics = _eroded_close_layers()
+    assert diagnostics['fallback_junction_leaf_count'] > 0 and diagnostics['pulled_back_vertex_count'] > 0
+    assert inside < 1e-9  # On the contact
+    monkeypatch.setattr(joint_topology, '_pull_back_fallback_vertices', lambda regular, *args, **kwargs: (regular, 0))
+    assert _eroded_close_layers()[0] > .2  # Each layer's own QEF vertex, across the contact
+
+
 def test_aligned_tile_pair_rejected():
     with pytest.raises(ValueError, match='grid_edge_junction'):
         face_pair_root(np.array([[0., 1., 0., 1.], [-.3, -.3, .7, .7]]))
