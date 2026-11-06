@@ -260,6 +260,12 @@ def mask_generation(
     for i in range(n_scalar_fields):
         stack_relation = all_scalar_fields_outputs[i].scalar_fields.stack_relation
 
+        if masking_option != MeshExtractionMaskingOptions.RAW and all_scalar_fields_outputs[i].scalar_fields.is_null_space:
+            # No mesh, and no voxels taken from older stacks; an onlapping null stack still continues the chain.
+            mask_matrix[i] = BackendTensor.t.zeros(grid_size // 8, dtype=bool)
+            onlap_chain_counter = onlap_chain_counter + 1 if stack_relation is StackRelationType.ONLAP else 0
+            continue
+
         match (masking_option, stack_relation):
             case MeshExtractionMaskingOptions.RAW, _:
                 mask_matrix[i] = BackendTensor.t.ones(grid_size // 8, dtype=bool)
@@ -338,10 +344,6 @@ def mask_generation(
 
             case _, StackRelationType.FAULT:
                 mask_matrix[i] = BackendTensor.t.ones(grid_size // 8, dtype=bool)
-
-            case _, StackRelationType.NULL_SPACE:
-                mask_matrix[i] = BackendTensor.t.zeros(grid_size // 8, dtype=bool)
-                onlap_chain_counter = 0
 
             case _:
                 raise ValueError("Invalid combination of options")

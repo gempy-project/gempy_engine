@@ -38,6 +38,7 @@ class InterpolationInput:
 
     _fault_values: FaultsData = None  # ! This field is internal. If you want to pass fault data use StacksStructure
     stack_relation: StackRelationType = StackRelationType.ERODE  # ? Should be here or in the descriptor
+    is_null_space: bool = False  #: The region this stack claims is void; set per stack from StacksStructure
 
     # endregion
 
@@ -55,6 +56,7 @@ class InterpolationInput:
         self.unit_values = unit_values
         self.segmentation_function = segmentation_function
         self.stack_relation = stack_relation
+        self.is_null_space = False
         self.weights = weights
         self.micro_points = micro_points
 
@@ -74,13 +76,17 @@ class InterpolationInput:
         sp = SurfacePoints.from_suraface_points_subset(all_interpolation_input.surface_points, stack_structure)
         o = Orientations.from_orientations_subset(all_interpolation_input.orientations, stack_structure)
 
-        if stack_structure.active_masking_descriptor is StackRelationType.NULL_SPACE:
+        if stack_structure.is_bottom_null_space(stack_number):
+            # Owns no units: what it does not void is the basement, the unit after every other stack's.
+            first_unit = int(stack_structure.unit_offsets[stack_number])
+            unit_values = all_interpolation_input.unit_values[first_unit:first_unit + 1]
+        elif stack_structure.active_is_null_space:
             unit_values = np.array([stack_structure.null_space_id], dtype=np.int16)
         else:
-            cum_number_surfaces_l0 = stack_structure.number_of_surfaces_per_stack[:stack_number].sum()
-            cum_number_surfaces_l1 = stack_structure.number_of_surfaces_per_stack[:stack_number + 1].sum() + 1  # * we need to take one unit extra for the basement
+            first_unit = int(stack_structure.unit_offsets[stack_number])
+            last_unit = first_unit + int(stack_structure.number_of_units_per_stack[stack_number]) + 1  # * we need to take one unit extra for the basement
 
-            unit_values = all_interpolation_input.unit_values[cum_number_surfaces_l0:cum_number_surfaces_l1]
+            unit_values = all_interpolation_input.unit_values[first_unit:last_unit]
 
         grid = all_interpolation_input.grid
         micro = all_interpolation_input.micro_points
@@ -105,6 +111,7 @@ class InterpolationInput:
 
         # ! Setting this on the constructor does not work with data classes.
         ii_subset.fault_values = stack_structure.active_faults_input_data
+        ii_subset.is_null_space = stack_structure.active_is_null_space
         ii_subset.all_surface_points = all_interpolation_input.surface_points
         ii_subset._all_micro_points = all_interpolation_input._all_micro_points
         ii_subset._micro_indices = np.flatnonzero(mask) if all_interpolation_input._all_micro_points is not None else None

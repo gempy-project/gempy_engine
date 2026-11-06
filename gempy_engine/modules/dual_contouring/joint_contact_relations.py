@@ -6,7 +6,7 @@ from ...core.data.stack_relation_type import StackRelationType
 
 
 def build_contact_relations(surface_to_stack, surface_indices, stack_relations,
-                            faults_relations, isovalues):
+                            faults_relations, isovalues, null_stacks=None):
     """Return a symmetric eligibility matrix and directed surface-pair sets.
 
     Surface indices are local indices into each stack's full 1-D isovalue
@@ -18,13 +18,19 @@ def build_contact_relations(surface_to_stack, surface_indices, stack_relations,
     mask exclusion in _masking_ops. Erosion uses the minimum boundary; onlap
     uses the maximum boundary of the stack supplying that mask (not necessarily
     a stack whose own relation is ONLAP). Faults may carry an onlap chain but
-    never become ordinary contact controllers. No inputs are modified.
+    never become ordinary contact controllers. Null-space stacks (``null_stacks``,
+    or a legacy ``NULL_SPACE`` relation, which erodes) mask by their relation but
+    take part in no contact. No inputs are modified.
     """
     stacks = np.asarray(surface_to_stack)
     indices = np.asarray(surface_indices)
     n = len(stacks)
-    relations = tuple(stack_relations)
+    legacy_null = [relation is StackRelationType.NULL_SPACE for relation in stack_relations]
+    relations = tuple(StackRelationType.ERODE if null else relation
+                      for relation, null in zip(stack_relations, legacy_null))
     ns = len(relations)
+    nulls = np.array(legacy_null, dtype=bool) if null_stacks is None else \
+        np.array(legacy_null, dtype=bool) | np.asarray(null_stacks, dtype=bool)
     if stacks.shape != (n,) or indices.shape != (n,) or \
             (n and (stacks.dtype.kind not in 'iu' or indices.dtype.kind not in 'iu')):
         raise ValueError('Expected integer surface_to_stack and surface_indices arrays')
@@ -48,8 +54,7 @@ def build_contact_relations(surface_to_stack, surface_indices, stack_relations,
     if not n:
         return np.zeros((0, 0), dtype=bool), set(), set()
 
-    excluded = np.array([relation in (StackRelationType.FAULT, StackRelationType.NULL_SPACE)
-                         for relation in relations]) | faults.any(axis=1)
+    excluded = np.array([relation is StackRelationType.FAULT for relation in relations]) | nulls | faults.any(axis=1)
     allowed_pairs = (stacks[:, None] != stacks[None, :]) & \
         ~excluded[stacks, None] & ~excluded[stacks][None, :]
     fault_pairs = {(i, j) for i in range(n) for j in range(n)
@@ -68,7 +73,7 @@ def build_contact_relations(surface_to_stack, surface_indices, stack_relations,
             for j in range(i - 1, i - chain - 1, -1):
                 cumulative = cumulative | masks[j]
                 masks[j] = cumulative.copy()
-        if relation in (StackRelationType.ERODE, StackRelationType.NULL_SPACE):
+        if relation is StackRelationType.ERODE:
             masks[i] = {(i, 'erode')}
         elif relation is not StackRelationType.ONLAP:
             masks[i] = set()

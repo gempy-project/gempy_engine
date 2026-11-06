@@ -208,7 +208,8 @@ def _segment(
             grid=interpolation_inputs[idx].grid,
             exported_fields=exported_fields_per_stack[idx],
             values_block=values_block,
-            stack_relation=interpolation_inputs[idx].stack_relation
+            stack_relation=interpolation_inputs[idx].stack_relation,
+            is_null_space=interpolation_inputs[idx].is_null_space
         )
         return output
 

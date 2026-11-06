@@ -53,17 +53,6 @@ def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_st
             case StackRelationType.ERODE:
                 mask_lith = all_scalar_fields_outputs[i].mask_components_erode
                 mask_matrix[i, :] = mask_lith
-            case StackRelationType.NULL_SPACE:
-                mask_lith = all_scalar_fields_outputs[i].mask_components_erode
-                # Zero out ignored grid slices for this null-space stack
-                stack_structure.stack_number = i
-                ignored_types = stack_structure.active_ignored_grid_types
-                if ignored_types:
-                    output_grid = all_scalar_fields_outputs[i].grid
-                    for grid_name in ignored_types:
-                        slc = _grid_slice_for_name(output_grid, grid_name)
-                        mask_lith[slc] = False
-                mask_matrix[i, :] = mask_lith
             case StackRelationType.FAULT:
                 mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_fault
             case False | StackRelationType.BASEMENT:
@@ -71,12 +60,60 @@ def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_st
             case _:
                 raise ValueError(f"Stack relation {stack_relation[i]} not recognized")
 
+    # After the loop: an onlap chain rewrites an ONLAP stack's row at the next stack.
+    _exempt_ignored_grids_from_null_space(mask_matrix, all_scalar_fields_outputs, stack_structure)
+
     final_mask_array = BackendTensor.t.zeros((n_scalar_fields, grid_size), dtype=bool)
     final_mask_array[0] = mask_matrix[-1]
     final_mask_array[1:] = BackendTensor.t.cumprod(BackendTensor.t.invert(mask_matrix[:-1]), axis=0)
     final_mask_array *= mask_matrix
 
+    if stack_structure.is_bottom_null_space(n_scalar_fields - 1):
+        # The bottom null stack keeps only its basement: what lies above its lowest surface is left void.
+        final_mask_array[-1] = final_mask_array[-1] & BackendTensor.t.invert(
+            _bottom_null_space_void(all_scalar_fields_outputs[-1], stack_structure))
+
     return final_mask_array
+
+
+def _bottom_null_space_void(output: ScalarFieldOutput, stack_structure: StacksStructure) -> np.ndarray:
+    """Where the bottom null stack is void: above its lowest surface, except on the grids it ignores."""
+    void = output.mask_components_erode  # A new array on every access
+    ignored = stack_structure.ignored_grid_types_per_stack
+    for entry in (ignored[-1] or ()) if ignored is not None else ():
+        void[_grid_slice_for(output.grid, entry)] = False
+    return void
+
+
+def _exempt_ignored_grids_from_null_space(mask_matrix, all_scalar_fields_outputs: List[ScalarFieldOutput],
+                                          stack_structure: StacksStructure) -> None:
+    """A null-space stack does not claim the grids (or grid parts) it ignores: they keep the geology below."""
+    if stack_structure.ignored_grid_types_per_stack is None:
+        return
+    for i, ignored in enumerate(stack_structure.ignored_grid_types_per_stack):
+        if not ignored or not stack_structure.is_null_space(i) or stack_structure.is_bottom_null_space(i):
+            continue  # The bottom null stack's ignores only shrink its void (``_bottom_null_space_void``)
+        for entry in ignored:
+            mask_matrix[i, _grid_slice_for(all_scalar_fields_outputs[i].grid, entry)] = False
+
+
+def ignored_grid_name(entry) -> str:
+    """The grid an ``ignored_grid_types`` entry refers to: a grid name, or ``(name, start, stop)``."""
+    return entry if isinstance(entry, str) else entry[0]
+
+
+def _grid_slice_for(grid: "EngineGrid", entry) -> slice:
+    """A whole grid's slice, or for ``(name, start, stop)`` its points ``start`` to ``stop``.
+
+    Temporary query grids (dual contouring edges, field samples) put other points in the custom grid,
+    so a range past their end is clipped rather than rejected.
+    """
+    if isinstance(entry, str):
+        return _grid_slice_for_name(grid, entry)
+    name, start, stop = entry
+    whole = _grid_slice_for_name(grid, name)
+    length = whole.stop - whole.start
+    return slice(whole.start + min(int(start), length), whole.start + min(int(stop), length))
 
 
 def _grid_slice_for_name(grid: "EngineGrid", name: str) -> slice:
@@ -121,7 +158,7 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
                            stack_structure: StacksStructure,
                            compute_scalar_grad: bool = False) -> List[CombinedScalarFieldsOutput]:
     n_scalar_fields: int = len(all_scalar_fields_outputs)
-    has_null_space = any(r == StackRelationType.NULL_SPACE for r in stack_relation)
+    has_null_space = stack_structure.has_null_space
     init_value = 0
     squeezed_value_block: ndarray = BackendTensor.t.full((1, lithology_mask.shape[1]), init_value)
     squeezed_fault_block: ndarray = BackendTensor.t.zeros((1, lithology_mask.shape[1]))
@@ -135,7 +172,7 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
     for i in range(n_scalar_fields):
         interp_output: ScalarFieldOutput = all_scalar_fields_outputs[i]
 
-        if stack_relation[i] is StackRelationType.NULL_SPACE:
+        if stack_structure.is_null_space(i) and not stack_structure.is_bottom_null_space(i):
             squeezed_value_block = squeezed_value_block + BackendTensor.t.zeros_like(squeezed_value_block)
         else:
             squeezed_value_block = _apply_mask(

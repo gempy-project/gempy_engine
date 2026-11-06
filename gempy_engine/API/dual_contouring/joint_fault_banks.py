@@ -95,7 +95,8 @@ def extract_fault_joint_octree(descriptor, interpolation_input, options, octree_
         raise ValueError("unsupported_fault_surfaces: one separator boundary required")
     affected = set(np.flatnonzero(matrix[fault_stack]).tolist())
     unaffected = set(range(stacks.n_stacks)) - affected - {fault_stack}
-    _, _, truncations = build_contact_relations(groups, indices, relations, matrix, levels)
+    _, _, truncations = build_contact_relations(groups, indices, relations, matrix, levels,
+                                                null_stacks=stacks.null_space_flags)
     if any((groups[c] in affected and groups[t] in unaffected) or
            (groups[c] in unaffected and groups[t] in affected) for c, t in truncations):
         raise ValueError("unsupported_cross_partition_dependencies: affected/unaffected truncation")

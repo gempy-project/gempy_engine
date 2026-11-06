@@ -25,8 +25,9 @@ class FieldEvaluator:
 
     ``fault_stacks`` lists the independent fault stacks, the rows of
     ``fault_sides``; ``affected_by`` maps each stack to the faults that offset
-    it; ``stack_isovalues`` are each stack's surface levels and
-    ``stack_relations`` its masking relation, as ``classify_units`` expects.
+    it; ``stack_isovalues`` are each stack's surface levels,
+    ``stack_relations`` its masking relation and ``stack_null_space`` whether
+    its region is void, as ``classify_units`` expects.
     """
     fault_stacks: tuple
     affected_by: dict
@@ -34,6 +35,7 @@ class FieldEvaluator:
     stack_relations: list
     diagnostics: dict
     _sampler: dict = field(repr=False)
+    stack_null_space: tuple = ()
 
     def __call__(self, points, stacks=None, fault_sides=None) -> np.ndarray:
         """Production fault drift by default; with ``fault_sides`` (F, M) of ±1, each fault's plateau.
@@ -77,7 +79,8 @@ def prepare_field_evaluator(solutions: Solutions, interpolation_input: Interpola
     return FieldEvaluator(fault_stacks=tuple(sampler['fault_stacks']), affected_by=dict(sampler['affected_by']),
                           stack_isovalues=stack_isovalues,
                           stack_relations=list(data_descriptor.stack_structure.masking_descriptor),
-                          diagnostics=dict(sampler['diagnostics']), _sampler=sampler)
+                          diagnostics=dict(sampler['diagnostics']), _sampler=sampler,
+                          stack_null_space=tuple(data_descriptor.stack_structure.null_space_flags))
 
 
 def evaluate_fields(solutions: Solutions, interpolation_input: InterpolationInput,

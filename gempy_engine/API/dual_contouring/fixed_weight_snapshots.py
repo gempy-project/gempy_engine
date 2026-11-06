@@ -100,7 +100,7 @@ def check_fixed_query_contract(stacks, interpolation_input, octree_list, allow_f
     if any(callback is not None and relation is StackRelationType.FAULT
            for callback, relation in zip(callbacks, stacks.masking_descriptor)):
         raise NotImplementedError('unsupported_external_fault_callback: fault stacks must be interpolated')
-    if not allow_external_stacks and StackRelationType.NULL_SPACE in stacks.masking_descriptor:
+    if not allow_external_stacks and stacks.has_null_space:
         raise NotImplementedError('unsupported_fault_null_space')
     if (not allow_external_stacks and stacks.ignored_grid_types_per_stack is not None
             and any(stacks.ignored_grid_types_per_stack)):
