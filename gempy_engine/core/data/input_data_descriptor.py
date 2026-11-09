@@ -84,6 +84,8 @@ class InputDataDescriptor:
         if any(group.ignored_grid_types for group in structural_frame.structural_groups):
             ignored_grid_types = [group.ignored_grid_types for group in structural_frame.structural_groups]
 
+        null_space = [bool(getattr(group, "null_space", False)) for group in structural_frame.structural_groups]
+
         # 3. Clean constructor call
         stack_structure = StacksStructure(
             number_of_points_per_stack=structural_frame.number_of_points_per_group,
@@ -94,6 +96,9 @@ class InputDataDescriptor:
             faults_input_data=faults_input_data,
             interp_functions_per_stack=interp_functions,
             ignored_grid_types_per_stack=ignored_grid_types,
+            null_space_per_stack=null_space if any(null_space) else None,
+            # Every element owns a unit, also in groups without points (external functions).
+            number_of_elements_per_stack=np.asarray(structural_frame.number_of_elements_per_group).copy(),
         )
 
         input_data_descriptor = cls(

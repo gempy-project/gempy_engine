@@ -128,8 +128,26 @@ def test_classify_units_masking_rules():
     # An onlapping stack is kept where the next (older) stack is above its top surface.
     stack, _ = classify_units(np.array([[.6, .6], [.9, .1]]), [R.ONLAP, R.BASEMENT], [np.array([.5]), np.array([.3])])
     np.testing.assert_array_equal(stack, [0, 1])
-    with pytest.raises(ValueError, match='unsupported_relation'):
-        classify_units(values, [R.NULL_SPACE, R.ERODE, R.BASEMENT], isovalues)
+
+
+def test_classify_units_null_space():
+    isovalues = [np.array([.5]), np.array([.2, .4]), np.array([.3])]
+    values = np.array([[.6, .1, .1, .1],
+                       [.0, .5, .3, .1],
+                       [.0, .0, .0, .9]])
+    # A legacy NULL_SPACE relation is an eroding null stack: it masks like ERODE ...
+    stack, interval = classify_units(values, [R.NULL_SPACE, R.ERODE, R.BASEMENT], isovalues)
+    np.testing.assert_array_equal(stack, [0, 1, 1, 2])
+    flagged = classify_units(values, [R.ERODE, R.ERODE, R.BASEMENT], isovalues, null_stacks=[True, False, False])
+    np.testing.assert_array_equal(flagged[0], stack)
+    # ... its points are void and it owns no units, so the next stack starts at the first one.
+    ids = unit_ids(stack, interval, [1, 2, 1], np.arange(1, 6), null_stacks=[True, False, False])
+    np.testing.assert_array_equal(ids, [-1, 1, 2, 3])
+    # An onlapping null stack voids where the older stack is above its top, whatever its own value.
+    stack, interval = classify_units(np.array([[.1, .1], [.9, .1]]), [R.ONLAP, R.BASEMENT],
+                                     [np.array([.5]), np.array([.3])], null_stacks=[True, False])
+    np.testing.assert_array_equal(stack, [0, 1])
+    np.testing.assert_array_equal(unit_ids(stack, interval, [1, 1], np.arange(1, 4), [True, False]), [-1, 2])
 
 
 def test_fault_free_model_evaluates_without_drift():

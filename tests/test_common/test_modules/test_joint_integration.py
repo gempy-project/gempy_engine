@@ -161,7 +161,7 @@ def test_joint_guards(monkeypatch, guard):
     if guard == "mask":
         options.evaluation_options.mesh_extraction_masking_options = MeshExtractionMaskingOptions.RAW
     elif guard == "null":
-        descriptor.stack_structure.masking_descriptor[0] = StackRelationType.NULL_SPACE
+        descriptor.stack_structure.null_space_per_stack = [True]
         descriptor.stack_structure.ignored_grid_types_per_stack = [("octree_grid",)]
     original_grid = inputs.grid
     with pytest.raises((ValueError, NotImplementedError)):

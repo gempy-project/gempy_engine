@@ -146,7 +146,8 @@ def _segment(exported_fields: ExportedFields, external_segment_funct: Callable[[
         grid=grid,
         exported_fields=exported_fields,
         values_block=values_block,  # TODO: Check value
-        stack_relation=interpolation_input.stack_relation
+        stack_relation=interpolation_input.stack_relation,
+        is_null_space=interpolation_input.is_null_space
     )
 
     if BackendTensor.dtype and BackendTensor.engine_backend != AvailableBackends.PYTORCH:

@@ -122,9 +122,8 @@ def dual_contouring_multi_scalar(
     dc_data_per_surface_all = []
     support_reports = []
     surface_metadata = []
-    stack_relations = data_descriptor.stack_structure.masking_descriptor
     for n_scalar_field in range(data_descriptor.stack_structure.n_stacks):
-        if stack_relations[n_scalar_field] is StackRelationType.NULL_SPACE:
+        if data_descriptor.stack_structure.is_null_space(n_scalar_field):
             continue
         output: InterpOutput = octree_leaves.outputs[n_scalar_field]
         mask = all_mask_arrays[n_scalar_field]
@@ -306,7 +305,7 @@ def _interp_on_edges(
         slicer = slice(slicer_idx_start, slicer_idx_end)
         ef = o.exported_fields
         has_intersections = all_stack_intersection[e].shape[0] > 0
-        is_null_space = stack_relations[e] is StackRelationType.NULL_SPACE
+        is_null_space = data_descriptor.stack_structure.is_null_space(e)
         if ef.gx_field is not None:
             gradients.append(BackendTensor.t.stack((
                     ef.gx_field[slicer],

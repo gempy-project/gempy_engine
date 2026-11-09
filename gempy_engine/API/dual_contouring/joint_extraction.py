@@ -26,6 +26,7 @@ from ...modules.dual_contouring.joint_balance import balance_joint_leaves
 from ...modules.dual_contouring.joint_cell_complex import adaptive_complex_arrays
 from ...modules.dual_contouring.joint_xp import extraction_namespace
 from ...modules.dual_contouring.joint_contact_relations import build_contact_relations
+from ..interp_single._masking_ops import ignored_grid_name
 from ...modules.dual_contouring.joint_lattice import lattice_frame, precision_tolerance
 from ...modules.evaluator.micro_correction import fit_micro_fields, micro_evaluation_options
 
@@ -105,15 +106,10 @@ def _check_joint_options(descriptor, options):
     if evaluation.mesh_extraction_masking_options != MeshExtractionMaskingOptions.INTERSECT:
         raise ValueError("joint only supports INTERSECT mesh masking")
     stacks = descriptor.stack_structure
-    for stack_index, relation in enumerate(stacks.masking_descriptor):
+    for stack_index in range(len(stacks.masking_descriptor)):
         ignored = () if stacks.ignored_grid_types_per_stack is None else stacks.ignored_grid_types_per_stack[stack_index]
-        if relation is StackRelationType.NULL_SPACE and {"octree_grid", "corners_grid"} & set(ignored or ()):
+        if stacks.is_null_space(stack_index) and {"octree_grid", "corners_grid"} & {ignored_grid_name(e) for e in ignored or ()}:
             raise NotImplementedError("joint null-space stacks ignoring the octree/corners grid are unsupported")
-
-
-def _topology_relations(relations):
-    """Null space masks like erosion and exports no mesh, so its boundary only truncates."""
-    return [StackRelationType.ERODE if r is StackRelationType.NULL_SPACE else r for r in relations]
 
 
 def _has_faults(descriptor, interpolation_input):
@@ -241,9 +237,10 @@ def extract_joint_octree(descriptor, interpolation_input, options, octree_list):
         origins, spans, domain_shape, extent, samples, lambda points: sample_fields(points)[0])
     result = extract_adaptive_topology(
         origins, spans, domain_shape, extent, samples, surface_to_stack, surface_indices,
-        _topology_relations(relations), isovalues, sample_fields=sample_fields, ownership=None,
+        relations, isovalues, sample_fields=sample_fields, ownership=None,
         include_reference=False, snap_extent=options.evaluation_options.mesh_extraction_snap_to_extent)
-    return _meshes_from_result(result, metadata, dict(result["diagnostics"], octree_balance=balance), relations)
+    return _meshes_from_result(result, metadata, dict(result["diagnostics"], octree_balance=balance),
+                               stacks.null_space_flags)
 
 
 def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_list):
@@ -284,8 +281,7 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
     def sample_fields(points):
         raise ValueError("unexpected_full_field_query: joint_contacts uses targeted field queries")
 
-    topology_relations = _topology_relations(relations)
-    _, fault_pairs, _ = build_contact_relations(groups, indices, topology_relations, matrix, levels)
+    _, fault_pairs, _ = build_contact_relations(groups, indices, relations, matrix, levels)
     fault_merge = {int(i): set() for i, g in enumerate(groups) if relations[g] is StackRelationType.FAULT}
     for c, t in fault_pairs:
         if c not in fault_merge:
@@ -296,14 +292,14 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
         origins, spans, domain_shape, extent, samples,
         lambda points: field_query([(points, every_surface, 'scalar')])[0])
     result = extract_adaptive_topology(
-        origins, spans, domain_shape, extent, samples, groups, indices, topology_relations, levels,
+        origins, spans, domain_shape, extent, samples, groups, indices, relations, levels,
         sample_fields=sample_fields, field_query=field_query, faults_relations=matrix, fault_merge=fault_merge,
         cell_complex=adaptive_complex_arrays(origins, spans, domain_shape),
         snap_extent=options.evaluation_options.mesh_extraction_snap_to_extent)
     report = dict(result["diagnostics"], octree_balance=balance, interface="pretty_fault_vertex_merge_single_fault_mesh",
                   sampler=sampler.get("diagnostics", {}), no_uniform_fallback=True,
                   no_post_reconciliation=True)
-    return _meshes_from_result(result, metadata, report, relations)
+    return _meshes_from_result(result, metadata, report, stacks.null_space_flags)
 
 
 def _balance_leaves(origins, spans, domain_shape, extent, samples, raw_values):
@@ -319,15 +315,15 @@ def _balance_leaves(origins, spans, domain_shape, extent, samples, raw_values):
                                 lambda nodes: raw_values(bounds[::2] + nodes * spacing))
 
 
-def _meshes_from_result(result, metadata, report, relations=()):
+def _meshes_from_result(result, metadata, report, null_stacks=()):
     """One ``DualContouringMesh`` per exported surface from a shared-vertex extraction result.
 
-    Null-space surfaces are extracted (they truncate others) but, as in pretty, not returned.
+    Null-space surfaces are extracted (they truncate others, by their relation) but, as in pretty, not returned.
     """
     vertices = np.asarray(result["vertices"], dtype=np.float64).reshape(-1, 3)
     meshes = []
     for exported, (stack, surface, isovalue) in enumerate(metadata):
-        if stack < len(relations) and relations[stack] is StackRelationType.NULL_SPACE:
+        if stack < len(null_stacks) and null_stacks[stack]:
             continue
         faces = np.asarray(result["faces"][exported], dtype=np.int64).reshape(-1, 3)
         ids, inverse = np.unique(faces, return_inverse=True)

@@ -21,6 +21,7 @@ class ScalarFieldOutput:
     values_block: Optional[np.ndarray]  #: Final values ignoring unconformities
     _values_block: Optional[np.ndarray] = dataclasses.field(init=False, repr=False)
     finite_fault_scalar: Optional[np.ndarray] = None
+    is_null_space: bool = False  #: The region this stack claims is void and its surfaces export no mesh
 
     @property
     def values_block(self) -> Optional[np.ndarray]:
@@ -88,7 +89,7 @@ class ScalarFieldOutput:
     def _compute_mask_components(exported_fields: ExportedFields, stack_relation: StackRelationType,
                                  fault_thickness: Optional[float] = None) -> np.ndarray:
         match stack_relation:
-            case StackRelationType.ERODE | StackRelationType.NULL_SPACE:
+            case StackRelationType.ERODE:
                 erode_limit_value = exported_fields.scalar_field_at_surface_points.min()
                 mask_array = exported_fields.scalar_field > erode_limit_value
             case StackRelationType.ONLAP:
