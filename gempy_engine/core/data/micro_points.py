@@ -71,3 +71,6 @@ class MicroCorrection:
     kernel_range: float
     kernel_type: str
     surface_isovalues: MicroArray | None = None
+    # Macro gradients are the evaluated field's derivative divided by gi_res; the correction's
+    # gradient is scaled to match so the corrected gradient stays parallel to the corrected field's.
+    gradient_scale: float = 1.0
