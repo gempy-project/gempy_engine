@@ -44,7 +44,8 @@ def interpolate_all_fields(interpolation_input: InterpolationInput, options: Int
     combined_scalar_output: List[CombinedScalarFieldsOutput] = combine_scalar_fields(
         all_scalar_fields_outputs=all_scalar_fields_outputs,
         data_descriptor=data_descriptor,
-        compute_scalar_grad=options.compute_scalar_gradient
+        compute_scalar_grad=options.compute_scalar_gradient,
+        erosion_sigmoid_slope=options.erosion_sigmoid_slope
     )
 
     all_outputs = []
