@@ -24,11 +24,17 @@ class MagneticsInput:
 class GeophysicsInput:
     gravity_input: Optional[GravityInput] = None
     magnetics_input: Optional[MagneticsInput] = None
-    
+    #: Map densities and susceptibilities from each stack's continuous unit field instead of rounded unit ids,
+    #: which makes gravity and magnetics differentiable with respect to the geometry (PyTorch backend). Default
+    #: False keeps the rounded-id mapping.
+    blend_properties: bool = False
+
     def __init__(self, gravity_input: Optional[GravityInput] = None,
                  magnetics_input: Optional[MagneticsInput] = None,
                  tz: Optional[Annotated[np.ndarray, numpy_array_short_validator]] = None,
-                 densities: Optional[Annotated[np.ndarray, numpy_array_short_validator]] = None):
+                 densities: Optional[Annotated[np.ndarray, numpy_array_short_validator]] = None,
+                 blend_properties: bool = False):
+        self.blend_properties = blend_properties
         if gravity_input is not None:
             self.gravity_input = gravity_input
         else:

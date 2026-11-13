@@ -105,7 +105,8 @@ def _compute_geophysics(geophysics_input: GeophysicsInput, output: list[OctreeLe
     if getattr(geophysics_input, 'tz', None) is not None and getattr(geophysics_input, 'densities', None) is not None:
         gravity = compute_gravity(
             geophysics_input=geophysics_input,
-            root_ouput=first_level_last_field
+            root_ouput=first_level_last_field,
+            stack_outputs=output[0].outputs
         )
     else:
         gravity = None
@@ -115,7 +116,9 @@ def _compute_geophysics(geophysics_input: GeophysicsInput, output: list[OctreeLe
         if getattr(geophysics_input, 'magnetics_input', None) is not None:
             magnetics = compute_tmi(
                 geophysics_input=geophysics_input.magnetics_input,
-                root_output=first_level_last_field
+                root_output=first_level_last_field,
+                stack_outputs=output[0].outputs,
+                blend_properties=getattr(geophysics_input, 'blend_properties', False)
             )
         else:
             magnetics = None

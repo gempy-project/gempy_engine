@@ -1,6 +1,9 @@
+from typing import List, Optional
+
 import numpy as np
 
 from .magnetic_gradient import _direction_cosines
+from .property_mapping import blended_unit_property
 from ...core.data.geophysics_input import GeophysicsInput, MagneticsInput
 from ...core.data.interp_output import InterpOutput
 from ...core.backend_tensor import BackendTensor
@@ -14,7 +17,9 @@ def map_susceptibilities_to_ids_basic(ids_geophysics_grid, susceptibilities):
     return susceptibilities[ids_geophysics_grid - 1]
 
 
-def compute_tmi(geophysics_input: MagneticsInput, root_output: InterpOutput) -> BackendTensor.t:
+def compute_tmi(geophysics_input: MagneticsInput, root_output: InterpOutput,
+                stack_outputs: Optional[List[InterpOutput]] = None,
+                blend_properties: bool = False) -> BackendTensor.t:
     """
     Compute induced-only Total Magnetic Intensity (TMI) anomalies (nT) by combining
     precomputed per-voxel TMI kernel with voxel susceptibilities.
@@ -44,10 +49,19 @@ def compute_tmi(geophysics_input: MagneticsInput, root_output: InterpOutput) -> 
     mag_kernel = BackendTensor.t.array(geophysics_input.mag_kernel)
 
     # Map susceptibilities to voxel centers according to IDs (1-based indexing)
-    chi = map_susceptibilities_to_ids_basic(
-        ids_geophysics_grid=root_output.ids_geophysics_grid,
-        susceptibilities=BackendTensor.t.array(geophysics_input.susceptibilities)
-    )
+    if blend_properties:  # differentiable in the geometry, see property_mapping
+        if stack_outputs is None:
+            raise ValueError("blend_properties needs the per-stack outputs (stack_outputs).")
+        chi = blended_unit_property(
+            stack_outputs=stack_outputs,
+            unit_properties=BackendTensor.t.array(geophysics_input.susceptibilities),
+            grid_slice=root_output.grid.geophysics_grid_slice
+        )
+    else:
+        chi = map_susceptibilities_to_ids_basic(
+            ids_geophysics_grid=root_output.ids_geophysics_grid,
+            susceptibilities=BackendTensor.t.array(geophysics_input.susceptibilities)
+        )
 
     # Determine how many devices are present by comparing lengths
     n_devices = chi.shape[0] // mag_kernel.shape[0]

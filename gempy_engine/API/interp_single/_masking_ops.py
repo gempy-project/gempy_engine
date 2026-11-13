@@ -262,7 +262,8 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
             squeezed_mask_array=(lithology_mask[i]),
             final_block=squeezed_value_block,
             faults_block=squeezed_fault_block,
-            final_exported_fields=final_exported_fields
+            final_exported_fields=final_exported_fields,
+            blend_mask_array=blend_mask[i]
         )
 
         all_combined_scalar_fields.append(combined_scalar_fields)

@@ -45,8 +45,9 @@ class InterpolationOptions(BaseModel):
     #: (``final_block``) across erosion contacts, which makes it differentiable there. Scalar fields, meshes, the
     #: squeezed masks and null space are unchanged. The blend is ~4/slope wide in scalar-field units; it must span
     #: more than one grid spacing near the contact, or the gradient is undersampled.
-    #: The blend mixes unit ids, so map ids to properties linearly. Forward gravity and magnetics index properties
-    #: by integer id, so they are still not differentiable with respect to geometry.
+    #: The blend mixes unit ids of different stacks. For gravity and magnetics set
+    #: ``GeophysicsInput.blend_properties``, which maps properties inside each stack before blending; the default
+    #: rounded-id mapping is not differentiable with respect to geometry.
     erosion_sigmoid_slope: float | None = None
 
     # region Volatile
