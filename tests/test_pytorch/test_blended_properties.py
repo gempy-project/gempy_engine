@@ -114,9 +114,9 @@ def _relative_rmse(a, b):
 
 
 def test_interpolate_unit_property():
-    ids = np.array([1.0, 1.5, 2.0, 2.25, 3.0, 0.5, 3.7])
-    np.testing.assert_allclose(interpolate_unit_property(ids, DENSITIES),
-                               [2.0, 2.3, 2.6, 2.725, 3.1, 2.0, 3.1])
+    ids = BackendTensor.t.array(np.array([1.0, 1.5, 2.0, 2.25, 3.0, 0.5, 3.7]))  # inputs are backend tensors
+    result = interpolate_unit_property(ids, BackendTensor.t.array(DENSITIES))
+    np.testing.assert_allclose(BackendTensor.t.to_numpy(result), [2.0, 2.3, 2.6, 2.725, 3.1, 2.0, 3.1])
 
 
 def test_rounded_ids_give_no_geometry_gradient(torch_backend):
