@@ -10,26 +10,59 @@ from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
+from gempy_engine.core.data.interpolation_input import InterpolationInput
+from gempy_engine.core.data.options import InterpolationOptions
+from gempy_engine.modules.activator._soft_segment import _sigmoid
+
+
+def blends_erosion_contact(options: InterpolationOptions, interpolation_input: InterpolationInput) -> bool:
+    """Whether this stack's erosion contact is blended by the soft mask (see ``erosion_sigmoid_slope``).
+
+    If so, the stack's own segmentation leaves out its lowest surface: the soft mask carries that contact.
+    """
+    return (options.erosion_sigmoid_slope is not None
+            and interpolation_input.stack_relation is StackRelationType.ERODE
+            and not interpolation_input.is_null_space)
 
 
 def combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
                           data_descriptor: InputDataDescriptor,
-                          compute_scalar_grad: bool = False) -> List[CombinedScalarFieldsOutput]:
+                          compute_scalar_grad: bool = False,
+                          erosion_sigmoid_slope: Optional[float] = None) -> List[CombinedScalarFieldsOutput]:
     stack_structure = data_descriptor.stack_structure
+    lithology_mask = _lithology_mask(all_scalar_fields_outputs, stack_structure)
+    blend_mask = (lithology_mask if erosion_sigmoid_slope is None else
+                  _lithology_mask(all_scalar_fields_outputs, stack_structure, erosion_sigmoid_slope))
     return _combine_scalar_fields(
         all_scalar_fields_outputs=all_scalar_fields_outputs,
-        lithology_mask=_lithology_mask(all_scalar_fields_outputs, stack_structure),
+        lithology_mask=lithology_mask,
         faults_mask=_faults_mask(all_scalar_fields_outputs, data_descriptor.stack_relation),
         stack_relation=data_descriptor.stack_relation,
         stack_structure=stack_structure,
-        compute_scalar_grad=compute_scalar_grad
+        compute_scalar_grad=compute_scalar_grad,
+        blend_mask=blend_mask
     )
 
 
-def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_structure: StacksStructure) -> np.ndarray:
+def _soft_mask_components_erode(output: ScalarFieldOutput, erosion_sigmoid_slope: float):
+    """Sigmoid version of ``mask_components_erode``: ~1 above the lowest surface of the stack, ~0 below."""
+    erode_limit_value = output.exported_fields.scalar_field_at_surface_points.min()
+    return _sigmoid(output.exported_fields.scalar_field, erode_limit_value, 1 / erosion_sigmoid_slope)
+
+
+def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_structure: StacksStructure,
+                    erosion_sigmoid_slope: Optional[float] = None) -> np.ndarray:
+    """Which stack owns each point.
+
+    With ``erosion_sigmoid_slope`` None (default) the mask is boolean. Otherwise ERODE rows are sigmoids, the mask
+    is float, and the stacks are combined as ``m_i * prod_{j<i}(1 - m_j)`` so the result stays differentiable with
+    respect to the position of erosion contacts. Onlap, fault, basement and null-space rows stay hard.
+    """
+    soft = erosion_sigmoid_slope is not None
     n_scalar_fields = len(all_scalar_fields_outputs)
     grid_size = all_scalar_fields_outputs[0].grid_size
-    mask_matrix = BackendTensor.t.zeros((n_scalar_fields, grid_size), dtype=bool)
+    mask_dtype = BackendTensor.dtype_obj if soft else bool
+    mask_matrix = BackendTensor.t.zeros((n_scalar_fields, grid_size), dtype=mask_dtype)
     stack_relation = stack_structure.masking_descriptor
 
     onlap_chain_counter = 0
@@ -51,7 +84,10 @@ def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_st
             case StackRelationType.ONLAP:
                 pass
             case StackRelationType.ERODE:
-                mask_lith = all_scalar_fields_outputs[i].mask_components_erode
+                if soft and not stack_structure.is_null_space(i):
+                    mask_lith = _soft_mask_components_erode(all_scalar_fields_outputs[i], erosion_sigmoid_slope)
+                else:
+                    mask_lith = all_scalar_fields_outputs[i].mask_components_erode
                 mask_matrix[i, :] = mask_lith
             case StackRelationType.FAULT:
                 mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_fault
@@ -63,15 +99,16 @@ def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_st
     # After the loop: an onlap chain rewrites an ONLAP stack's row at the next stack.
     _exempt_ignored_grids_from_null_space(mask_matrix, all_scalar_fields_outputs, stack_structure)
 
-    final_mask_array = BackendTensor.t.zeros((n_scalar_fields, grid_size), dtype=bool)
+    final_mask_array = BackendTensor.t.zeros((n_scalar_fields, grid_size), dtype=mask_dtype)
     final_mask_array[0] = mask_matrix[-1]
-    final_mask_array[1:] = BackendTensor.t.cumprod(BackendTensor.t.invert(mask_matrix[:-1]), axis=0)
+    not_above = (1 - mask_matrix[:-1]) if soft else BackendTensor.t.invert(mask_matrix[:-1])
+    final_mask_array[1:] = BackendTensor.t.cumprod(not_above, axis=0)
     final_mask_array *= mask_matrix
 
     if stack_structure.is_bottom_null_space(n_scalar_fields - 1):
         # The bottom null stack keeps only its basement: what lies above its lowest surface is left void.
-        final_mask_array[-1] = final_mask_array[-1] & BackendTensor.t.invert(
-            _bottom_null_space_void(all_scalar_fields_outputs[-1], stack_structure))
+        not_void = BackendTensor.t.invert(_bottom_null_space_void(all_scalar_fields_outputs[-1], stack_structure))
+        final_mask_array[-1] = final_mask_array[-1] * not_void if soft else final_mask_array[-1] & not_void
 
     return final_mask_array
 
@@ -156,7 +193,12 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
                            faults_mask: np.ndarray,
                            stack_relation: List[StackRelationType],
                            stack_structure: StacksStructure,
-                           compute_scalar_grad: bool = False) -> List[CombinedScalarFieldsOutput]:
+                           compute_scalar_grad: bool = False,
+                           blend_mask: Optional[np.ndarray] = None) -> List[CombinedScalarFieldsOutput]:
+    """``blend_mask`` (float, from ``erosion_sigmoid_slope``) replaces ``lithology_mask`` only when combining the
+    values block. Scalar fields, their gradients and ``squeezed_mask_array`` (meshing, null space) stay hard."""
+    if blend_mask is None:
+        blend_mask = lithology_mask
     n_scalar_fields: int = len(all_scalar_fields_outputs)
     has_null_space = stack_structure.has_null_space
     init_value = 0
@@ -177,7 +219,7 @@ def _combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
         else:
             squeezed_value_block = _apply_mask(
                 block_to_squeeze=interp_output.values_block,
-                squeezed_mask_array=(lithology_mask[i]),
+                squeezed_mask_array=(blend_mask[i]),
                 previous_block=squeezed_value_block
             )
             assigned_mask = assigned_mask | lithology_mask[i]

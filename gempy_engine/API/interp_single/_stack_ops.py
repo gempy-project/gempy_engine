@@ -3,6 +3,7 @@ import concurrent.futures
 from ._aux_faults_ops import _grab_stack_fault_data, _modify_faults_values_output, _options_with_finite_fault_gradients
 from ._interp_scalar_field import _deduplicate_corners, _evaluate_sys_eq, _restore_corner_fields, compute_weights
 from ._interp_single_feature import interpolate_feature_with_external_function
+from ._masking_ops import blends_erosion_contact
 from ...config import AvailableBackends
 from ...core.backend_tensor import BackendTensor
 from ...core.data import TensorsStructure, SurfacePoints, Orientations, SurfacePointsInternals, OrientationsInternals
@@ -199,7 +200,9 @@ def _segment(
         values_block = activator_interface.activate_formation_block(
             exported_fields=exported_fields_per_stack[idx],
             ids=segmentation_input.unit_values,
-            sigmoid_slope=segmentation_input.sigmoid_slope
+            sigmoid_slope=segmentation_input.sigmoid_slope,
+            drop_lowest_edge=(local_stack_structure.segmentation_function is None and
+                              blends_erosion_contact(options_i, interpolation_inputs[idx]))
         )
 
         # endregion

@@ -39,6 +39,15 @@ class InterpolationOptions(BaseModel):
     cache_model_name: str  # : Model name for the cache
     block_solutions_type: RawArraysSolution.BlockSolutionType
     sigmoid_slope: int
+    #: Slope of a sigmoid that blends eroding stacks into the stacks below, in the same scalar-field units as
+    #: ``sigmoid_slope`` (a unit id jump of 1). ``None`` (default) keeps the hard boolean erosion mask, which gives
+    #: no gradient with respect to the position of an erosion contact. Setting it blends the values block
+    #: (``final_block``) across erosion contacts, which makes it differentiable there. Scalar fields, meshes, the
+    #: squeezed masks and null space are unchanged. The blend is ~4/slope wide in scalar-field units; it must span
+    #: more than one grid spacing near the contact, or the gradient is undersampled.
+    #: The blend mixes unit ids, so map ids to properties linearly. Forward gravity and magnetics index properties
+    #: by integer id, so they are still not differentiable with respect to geometry.
+    erosion_sigmoid_slope: float | None = None
 
     # region Volatile
     temp_interpolation_values: TempInterpolationValues = Field(
