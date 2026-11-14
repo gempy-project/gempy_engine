@@ -6,6 +6,7 @@ from numpy import dtype, ndarray
 
 from gempy_engine.config import AvailableBackends, NOT_MAKE_INPUT_DEEP_COPY
 from ._interp_scalar_field import compute_weights, _evaluate_sys_eq
+from ._masking_ops import blends_erosion_contact
 from ...core.backend_tensor import BackendTensor
 from ...core.data import SurfacePoints, SurfacePointsInternals, Orientations, OrientationsInternals, TensorsStructure
 from ...core.data.engine_grid import EngineGrid
@@ -137,7 +138,14 @@ def _segment(exported_fields: ExportedFields, external_segment_funct: Callable[[
     # endregion
 
     # region segmentation
-    values_block = _scalar_field_segmentation(exported_fields=exported_fields, external_segment_funct=external_segment_funct, unit_values=interpolation_input.unit_values, xyz=xyz, sigmoid_slope=options.sigmoid_slope)
+    values_block = _scalar_field_segmentation(
+        exported_fields=exported_fields,
+        external_segment_funct=external_segment_funct,
+        unit_values=interpolation_input.unit_values,
+        xyz=xyz,
+        sigmoid_slope=options.sigmoid_slope,
+        drop_lowest_edge=external_segment_funct is None and blends_erosion_contact(options, interpolation_input)
+    )
 
     # endregion
 
@@ -158,13 +166,15 @@ def _segment(exported_fields: ExportedFields, external_segment_funct: Callable[[
 
 
 def _scalar_field_segmentation(exported_fields: ExportedFields, external_segment_funct: Callable[[ndarray[tuple[Any, ...], dtype[Any]]], float] | None,
-                               unit_values: np.ndarray, xyz: ndarray | None, sigmoid_slope: float) -> ndarray[tuple[Any, ...], dtype[Any]]:
+                               unit_values: np.ndarray, xyz: ndarray | None, sigmoid_slope: float,
+                               drop_lowest_edge: bool = False) -> ndarray[tuple[Any, ...], dtype[Any]]:
     if external_segment_funct is not None:  # * This branch is used in finite faults
         sigmoid_slope = external_segment_funct(xyz)
     else:
         sigmoid_slope = sigmoid_slope
 
-    values_block: np.ndarray = activator_interface.activate_formation_block(exported_fields, unit_values, sigmoid_slope=sigmoid_slope)
+    values_block: np.ndarray = activator_interface.activate_formation_block(
+        exported_fields, unit_values, sigmoid_slope=sigmoid_slope, drop_lowest_edge=drop_lowest_edge)
     return values_block
 
 

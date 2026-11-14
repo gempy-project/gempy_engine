@@ -12,3 +12,6 @@ class CombinedScalarFieldsOutput:
     final_block: np.ndarray  # Masked array containing only the active voxels
     faults_block: np.ndarray
     final_exported_fields: ExportedFields  # Masked array containing only the active voxels
+    #: Weight of this stack at each point when the stacks are combined: the boolean lithology mask, or its sigmoid
+    #: version when ``InterpolationOptions.erosion_sigmoid_slope`` is set. Used to blend unit properties.
+    blend_mask_array: Optional[np.ndarray] = None
