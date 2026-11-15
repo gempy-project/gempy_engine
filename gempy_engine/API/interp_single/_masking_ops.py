@@ -10,6 +10,7 @@ from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.scalar_field_output import ScalarFieldOutput
 from gempy_engine.core.data.stack_relation_type import StackRelationType
 from gempy_engine.core.data.stacks_structure import StacksStructure
+from gempy_engine.modules.masking.stack_rule import ERODE, StackRule
 
 
 def combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
@@ -27,46 +28,20 @@ def combine_scalar_fields(all_scalar_fields_outputs: List[ScalarFieldOutput],
 
 
 def _lithology_mask(all_scalar_fields_outputs: List[ScalarFieldOutput], stack_structure: StacksStructure) -> np.ndarray:
+    """Squeezed ownership (n_stacks, grid): ``StackRule`` on each stack's erode/onlap components."""
     n_scalar_fields = len(all_scalar_fields_outputs)
     grid_size = all_scalar_fields_outputs[0].grid_size
-    mask_matrix = BackendTensor.t.zeros((n_scalar_fields, grid_size), dtype=bool)
-    stack_relation = stack_structure.masking_descriptor
+    rule = StackRule(stack_structure.masking_descriptor, stack_structure.null_space_flags)
 
-    onlap_chain_counter = 0
-    for i in range(n_scalar_fields):
-        onlap_chain_cont: bool = stack_relation[i - 1] in [StackRelationType.ONLAP, StackRelationType.FAULT]
-        onlap_chain_began: bool = stack_relation[i - 1 - onlap_chain_counter] is StackRelationType.ONLAP
-        onlap_chain_counter: int = (onlap_chain_counter + 1) * onlap_chain_cont * onlap_chain_began
+    def component(stack, kind):
+        output = all_scalar_fields_outputs[stack]
+        return output.mask_components_erode if kind == ERODE else output.mask_components_erode_components_onlap
 
-        if onlap_chain_counter:
-            mask_matrix[i - 1] = all_scalar_fields_outputs[i].mask_components_erode_components_onlap
-
-            x_mask = mask_matrix[(i - onlap_chain_counter):i, :]
-            reversed_x_mask = BackendTensor.t.flip(x_mask, axis=0)
-            cumprod_mask = BackendTensor.t.cumprod(reversed_x_mask, axis=0)
-            reversed_cumprod_mask = BackendTensor.t.flip(cumprod_mask, axis=0)
-            mask_matrix[i - onlap_chain_counter: i] = reversed_cumprod_mask
-
-        match stack_relation[i]:
-            case StackRelationType.ONLAP:
-                pass
-            case StackRelationType.ERODE:
-                mask_lith = all_scalar_fields_outputs[i].mask_components_erode
-                mask_matrix[i, :] = mask_lith
-            case StackRelationType.FAULT:
-                mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_fault
-            case False | StackRelationType.BASEMENT:
-                mask_matrix[i, :] = all_scalar_fields_outputs[i].mask_components_basement
-            case _:
-                raise ValueError(f"Stack relation {stack_relation[i]} not recognized")
-
-    # After the loop: an onlap chain rewrites an ONLAP stack's row at the next stack.
-    _exempt_ignored_grids_from_null_space(mask_matrix, all_scalar_fields_outputs, stack_structure)
-
-    final_mask_array = BackendTensor.t.zeros((n_scalar_fields, grid_size), dtype=bool)
-    final_mask_array[0] = mask_matrix[-1]
-    final_mask_array[1:] = BackendTensor.t.cumprod(BackendTensor.t.invert(mask_matrix[:-1]), axis=0)
-    final_mask_array *= mask_matrix
+    owned = rule.owned(
+        component=component,
+        zeros=lambda: BackendTensor.t.zeros(grid_size, dtype=bool),
+        row_hook=lambda rows: _exempt_ignored_grids_from_null_space(rows, all_scalar_fields_outputs, stack_structure))
+    final_mask_array = BackendTensor.t.stack(owned, axis=0)
 
     if stack_structure.is_bottom_null_space(n_scalar_fields - 1):
         # The bottom null stack keeps only its basement: what lies above its lowest surface is left void.
@@ -85,16 +60,19 @@ def _bottom_null_space_void(output: ScalarFieldOutput, stack_structure: StacksSt
     return void
 
 
-def _exempt_ignored_grids_from_null_space(mask_matrix, all_scalar_fields_outputs: List[ScalarFieldOutput],
+def _exempt_ignored_grids_from_null_space(rows, all_scalar_fields_outputs: List[ScalarFieldOutput],
                                           stack_structure: StacksStructure) -> None:
-    """A null-space stack does not claim the grids (or grid parts) it ignores: they keep the geology below."""
+    """A null-space stack does not claim the grids (or grid parts) it ignores: they keep the geology below.
+
+    ``rows`` are the evaluated ownership rows, per stack, before younger rows exclude older ones.
+    """
     if stack_structure.ignored_grid_types_per_stack is None:
         return
     for i, ignored in enumerate(stack_structure.ignored_grid_types_per_stack):
         if not ignored or not stack_structure.is_null_space(i) or stack_structure.is_bottom_null_space(i):
             continue  # The bottom null stack's ignores only shrink its void (``_bottom_null_space_void``)
         for entry in ignored:
-            mask_matrix[i, _grid_slice_for(all_scalar_fields_outputs[i].grid, entry)] = False
+            rows[i][_grid_slice_for(all_scalar_fields_outputs[i].grid, entry)] = False
 
 
 def ignored_grid_name(entry) -> str:

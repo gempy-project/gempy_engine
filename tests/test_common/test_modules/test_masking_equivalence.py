@@ -1,8 +1,8 @@
-"""The three copies of the stack masking rule agree.
+"""The three evaluations of the stack ownership rule (``StackRule``) agree.
 
 * ``_masking_ops._lithology_mask``: production ownership (lith block, pretty/none meshes through the squeezed masks).
-* ``classify_units``: the hard NumPy copy used by field evaluation.
-* ``build_contact_relations`` + ``ordinary_controllers``: the symbolic copy the joint paths evaluate as sign tests,
+* ``classify_units``: the hard NumPy evaluation used by field evaluation.
+* ``build_contact_relations`` + ``ordinary_controllers``: the symbolic export the joint paths evaluate as sign tests,
   ``sign * (raw_c - iso_c) > 0`` for every controller surface ``c`` of a target surface.
 
 Ownership at a point depends only on the stack values there, so points are random value vectors. A surface ``t`` of
@@ -46,31 +46,6 @@ def _configurations():
 
 
 CONFIGURATIONS = list(_configurations())
-
-
-def _onlap_chain_reaching_fault(configuration, exported_only=False):
-    """An onlap stack whose onlap chain (onlap stacks below it) reaches a fault; ``exported_only``: a non-null one."""
-    relations, null = configuration
-    for i, relation in enumerate(relations):
-        if relation is not R.ONLAP or (exported_only and null[i]):
-            continue
-        j = i + 1
-        while relations[j] is R.ONLAP:
-            j += 1
-        if relations[j] is R.FAULT:
-            return True
-    return False
-
-
-# Production bug: an onlap chain reaching a fault stack takes the fault's onlap component (``raw_fault > iso``), so
-# the onlapping stack exists on one side of the fault plane only, and the chain rewrite of the fault's row makes the
-# fault stack own the other side (its unit id lands in the lith block). Joint skips faults in chains, as intended.
-ONLAP_CHAIN_REACHING_FAULT = pytest.mark.xfail(strict=True,
-                                               reason="production onlap chains take a fault stack's field")
-OWNERSHIP_CASES = [pytest.param(c, marks=ONLAP_CHAIN_REACHING_FAULT) if _onlap_chain_reaching_fault(c) else c
-                   for c in CONFIGURATIONS]
-JOINT_CASES = [pytest.param(c, marks=ONLAP_CHAIN_REACHING_FAULT)
-               if _onlap_chain_reaching_fault(c, exported_only=True) else c for c in CONFIGURATIONS]
 
 
 def _label(configuration):
@@ -137,7 +112,7 @@ def test_classify_units_matches_production(configuration):
     np.testing.assert_array_equal(stack[owned], owner[owned])
 
 
-@pytest.mark.parametrize("configuration", OWNERSHIP_CASES, ids=[_label(c) for c in CONFIGURATIONS])
+@pytest.mark.parametrize("configuration", CONFIGURATIONS, ids=[_label(c) for c in CONFIGURATIONS])
 def test_faults_own_no_rock(configuration):
     relations, null = configuration
     rng = np.random.default_rng(zlib.crc32(_label(configuration).encode()))
@@ -147,7 +122,7 @@ def test_faults_own_no_rock(configuration):
     assert not np.isin(owner, faults).any()
 
 
-@pytest.mark.parametrize("configuration", JOINT_CASES, ids=[_label(c) for c in CONFIGURATIONS])
+@pytest.mark.parametrize("configuration", CONFIGURATIONS, ids=[_label(c) for c in CONFIGURATIONS])
 def test_joint_truncations_match_production(configuration):
     relations, null = configuration
     rng = np.random.default_rng(zlib.crc32(_label(configuration).encode()))

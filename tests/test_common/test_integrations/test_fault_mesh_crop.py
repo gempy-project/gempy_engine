@@ -1,11 +1,17 @@
-"""Fault meshes are cropped to the rock older than the fault: younger erosions and null spaces cut the plane."""
+"""Faults and the stacks around them.
+
+Fault meshes are cropped to the rock older than the fault: younger erosions and null spaces cut the plane. Faults are
+transparent to lithology ownership: an onlap stack above a fault onlaps the stack below the fault, on both sides.
+"""
 
 import numpy as np
 import pytest
 
 from gempy_engine.API.model.model_api import compute_model
 from gempy_engine.core.data import TensorsStructure
+from gempy_engine.core.backend_tensor import BackendTensor
 from gempy_engine.core.data.engine_grid import EngineGrid
+from gempy_engine.core.data.generic_grid import GenericGrid
 from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
 from gempy_engine.core.data.interpolation_input import InterpolationInput
 from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
@@ -31,8 +37,11 @@ def _vertical(x):
     return np.array([[x, .5, 1.], [x, 1.5, 4.]]), np.array([[x, 1., 2.5]]), np.array([[1., 0., 0.]])
 
 
-def _compute(stacks, faults_relations, overlap, null_space=None):
-    """``stacks``: (relation, (points, orientation positions, gradients)), youngest first, one surface each."""
+def _compute(stacks, faults_relations, overlap, null_space=None, custom=None):
+    """``stacks``: (relation, (points, orientation positions, gradients)), youngest first, one surface each.
+
+    Returns the meshes' vertices, or with ``custom`` points the unit ids there.
+    """
     points = np.concatenate([s[1][0] for s in stacks])
     stack_structure = StacksStructure(
         number_of_points_per_stack=np.array([len(s[1][0]) for s in stacks]),
@@ -47,12 +56,14 @@ def _compute(stacks, faults_relations, overlap, null_space=None):
     options = InterpolationOptions.from_args(86.6, 3571.4, uni_degree=1, i_res=4, gi_res=2, number_dimensions=3,
                                              kernel_function=AvailableKernelFunctions.cubic)
     options.evaluation_options.number_octree_levels = LEVELS
-    options.evaluation_options.mesh_extraction = True
+    options.evaluation_options.mesh_extraction = custom is None
     options.evaluation_options.mesh_extraction_overlap = overlap
-    solutions = compute_model(
-        InterpolationInput(SurfacePoints(points), orientations, EngineGrid(octree_grid=RegularGrid(EXTENT, RESOLUTION)),
-                           np.arange(1, 10)),
-        options, InputDataDescriptor(tensors, stack_structure))
+    grid = EngineGrid(octree_grid=RegularGrid(EXTENT, RESOLUTION),
+                      custom_grid=None if custom is None else GenericGrid(values=np.asarray(custom, dtype=float)))
+    solutions = compute_model(InterpolationInput(SurfacePoints(points), orientations, grid, np.arange(1, 10)),
+                              options, InputDataDescriptor(tensors, stack_structure))
+    if custom is not None:
+        return np.rint(np.asarray(BackendTensor.t.to_numpy(solutions.raw_arrays.custom))).astype(int)
     return [np.asarray(mesh.vertices) for mesh in solutions.dc_meshes]
 
 
@@ -85,3 +96,14 @@ def test_younger_null_space_crops_the_fault_plane(overlap):
         [(R.ERODE, _horizontal(UNCONFORMITY)), (R.FAULT, _vertical(5.)), (R.BASEMENT, _horizontal(2.))],
         [[0, 0, 0], [0, 0, 1], [0, 0, 0]], overlap, null_space=[True, False, False])
     assert fault[:, 2].max() <= UNCONFORMITY + VOXEL_Z
+
+
+def test_onlap_over_a_fault_onlaps_the_stack_below_on_both_sides():
+    """Before, the onlap chain took the fault's field: the cover existed on one side, the fault owned the other."""
+    cover = [[x, 1., z] for z in (3.2, 4.5) for x in (2., 8.)]  # Above the basement top (2), both sides of x = 5
+    faulted = _compute([(R.ONLAP, _horizontal(UNCONFORMITY)), (R.FAULT, _vertical(5.)), (R.BASEMENT, _horizontal(2.))],
+                       [[0, 0, 0], [0, 0, 1], [0, 0, 0]], "none", custom=cover)
+    unfaulted = _compute([(R.ONLAP, _horizontal(UNCONFORMITY)), (R.BASEMENT, _horizontal(2.))],
+                         [[0, 0], [0, 0]], "none", custom=cover)
+    np.testing.assert_array_equal(faulted, unfaulted)
+    assert faulted[0] == faulted[1] and faulted[2] == faulted[3] and faulted[0] != faulted[2]

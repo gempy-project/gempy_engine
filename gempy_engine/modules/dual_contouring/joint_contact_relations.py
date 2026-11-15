@@ -3,6 +3,7 @@
 import numpy as np
 
 from ...core.data.stack_relation_type import StackRelationType
+from ..masking.stack_rule import StackRule
 
 
 def build_contact_relations(surface_to_stack, surface_indices, stack_relations,
@@ -14,13 +15,14 @@ def build_contact_relations(surface_to_stack, surface_indices, stack_relations,
     the supplied surface order. Eligibility is NOT a connected-component weld
     rule: grouping must independently enforce at most one surface per stack.
 
-    Truncation dependencies mirror the onlap cumulative products and preceding
-    mask exclusion in _masking_ops. Erosion uses the minimum boundary; onlap
-    uses the maximum boundary of the stack supplying that mask (not necessarily
-    a stack whose own relation is ONLAP). Faults may carry an onlap chain but
-    never become ordinary contact controllers. Null-space stacks (``null_stacks``,
-    or a legacy ``NULL_SPACE`` relation, which erodes) mask by their relation but
-    take part in no contact. No inputs are modified.
+    Truncation dependencies are those of the shared ownership rule
+    (``StackRule.dependencies``), the same rule ``_masking_ops`` evaluates.
+    Erosion uses the minimum boundary; onlap uses the maximum boundary of the
+    stack supplying that mask (not necessarily a stack whose own relation is
+    ONLAP). Faults are transparent to the rule and never become ordinary contact
+    controllers. Null-space stacks (``null_stacks``, or a legacy ``NULL_SPACE``
+    relation, which erodes) mask by their relation but take part in no contact.
+    No inputs are modified.
     """
     stacks = np.asarray(surface_to_stack)
     indices = np.asarray(surface_indices)
@@ -60,39 +62,10 @@ def build_contact_relations(surface_to_stack, surface_indices, stack_relations,
     fault_pairs = {(i, j) for i in range(n) for j in range(n)
                    if stacks[i] != stacks[j] and faults[stacks[i], stacks[j]]}
 
-    # Symbolic dependencies of mask_matrix, before squeezed ownership exclusion.
-    masks = [set() for _ in relations]
-    chain = 0
-    for i, relation in enumerate(relations):
-        continues = relations[i - 1] in (StackRelationType.ONLAP, StackRelationType.FAULT)
-        began = relations[i - 1 - chain] is StackRelationType.ONLAP
-        chain = (chain + 1) * continues * began
-        if chain:
-            masks[i - 1] = {(i, 'onlap')}
-            cumulative = set()
-            for j in range(i - 1, i - chain - 1, -1):
-                cumulative = cumulative | masks[j]
-                masks[j] = cumulative.copy()
-        if relation is StackRelationType.ERODE:
-            masks[i] = {(i, 'erode')}
-        elif relation is not StackRelationType.ONLAP:
-            masks[i] = set()
-
+    rule = StackRule(relations, nulls)
     truncation_pairs = set()
-    for target_stack, mask in enumerate(masks):
-        # A preceding broader mask absorbs narrower masks in their OR. For
-        # example !(A & B) & !B is just !B, and a minimum threshold absorbs
-        # the same stack's maximum threshold. Without this, onlap chains create
-        # spurious backward controller pairs and redundant contact cycles.
-        preceding = [entry for entry in masks[:target_stack] if entry]
-        expanded = [entry | {(stack, 'erode') for stack, kind in entry if kind == 'onlap'}
-                    for entry in preceding]
-        dependencies = mask.copy()
-        for j, entry in enumerate(preceding):
-            if not any(other < expanded[j] for other in expanded):
-                dependencies |= entry
-        if target_stack == 0 and masks:
-            dependencies |= masks[-1]
+    for target_stack in range(ns):
+        dependencies = rule.dependencies(target_stack)
         for controller_stack, kind in dependencies:
             if (controller_stack == target_stack or excluded[controller_stack] or excluded[target_stack]
                     or not len(levels[controller_stack])):
