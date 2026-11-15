@@ -4,6 +4,7 @@
 * ``classify_units``: the hard NumPy evaluation used by field evaluation.
 * ``build_contact_relations`` + ``ordinary_controllers``: the symbolic export the joint paths evaluate as sign tests,
   ``sign * (raw_c - iso_c) > 0`` for every controller surface ``c`` of a target surface.
+* ``StackRule.region``: where none/pretty extract a stack's surfaces (any voxel corner in it).
 
 Ownership at a point depends only on the stack values there, so points are random value vectors. A surface ``t`` of
 stack ``s`` is present at a point on it (``raw_s == iso_t``) when the production unit changes across it
@@ -27,6 +28,7 @@ from gempy_engine.core.data.stacks_structure import StacksStructure
 from gempy_engine.modules.activator.unit_classification import classify_units
 from gempy_engine.modules.dual_contouring.joint_contact_relations import build_contact_relations
 from gempy_engine.modules.dual_contouring.joint_ownership import ordinary_controllers
+from gempy_engine.modules.masking.stack_rule import ERODE, StackRule
 
 N_POINTS = 400
 EPS = 1e-7
@@ -147,4 +149,34 @@ def test_joint_truncations_match_production(configuration):
         if (present != kept).any():
             mismatches.append(f"surface {s}/{k}: production-only {(present & ~kept).sum()}, "
                               f"joint-only {(kept & ~present).sum()} of {N_POINTS}")
+    assert not mismatches, "; ".join(mismatches)
+
+
+@pytest.mark.parametrize("configuration", CONFIGURATIONS, ids=[_label(c) for c in CONFIGURATIONS])
+def test_surface_regions_match_joint_truncations(configuration):
+    """A surface point has a side in its stack's ``region`` exactly where the joint controllers keep the surface."""
+    relations, null = configuration
+    rng = np.random.default_rng(zlib.crc32(_label(configuration).encode()))
+    isovalues = _isovalues(rng, len(relations))
+    surfaces, controllers = _joint_controllers(relations, isovalues)
+    rule = StackRule(relations, null)
+    mismatches = []
+    for t, (s, k) in enumerate(surfaces):
+        if relations[s] is R.FAULT or null[s]:
+            continue
+        values = rng.uniform(-1, 1, size=(len(relations), N_POINTS))
+        values[s] = isovalues[s][k]
+        in_region = np.zeros(N_POINTS, dtype=bool)
+        for offset in (EPS, -EPS):
+            shifted = values.copy()
+            shifted[s] += offset
+            component = lambda g, kind: shifted[g] > (isovalues[g].min() if kind == ERODE else isovalues[g].max())
+            in_region |= rule.region(s, component, zeros=lambda: np.zeros(N_POINTS, dtype=bool))
+        kept = np.ones(N_POINTS, dtype=bool)
+        for c, sign in controllers[t]:
+            cs, ck = surfaces[c]
+            kept &= sign * (values[cs] - isovalues[cs][ck]) > 0
+        if (in_region != kept).any():
+            mismatches.append(f"surface {s}/{k}: region-only {(in_region & ~kept).sum()}, "
+                              f"joint-only {(kept & ~in_region).sum()} of {N_POINTS}")
     assert not mismatches, "; ".join(mismatches)

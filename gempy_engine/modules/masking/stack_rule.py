@@ -119,21 +119,56 @@ class StackRule:
         """A stack's row as atoms; FALSE has none."""
         return self.rows[stack] or frozenset()
 
-    def dependencies(self, target: int) -> set:
-        """Atoms the target stack's ownership depends on: its row and the younger rows that are not absorbed.
+    def _terms(self, target: int) -> list:
+        """``(row stack, atoms)`` the target's ownership depends on: its row and the younger rows not absorbed.
 
         A younger broader row absorbs narrower ones in their OR: ``!(A & B) & !B`` is just ``!B``, and a minimum
         threshold absorbs the same stack's maximum. Without this, onlap chains give spurious backward controllers.
         The first stack also depends on the last non-fault stack's row.
         """
-        preceding = [self.atoms(k) for k in range(target) if self.atoms(k)]
-        expanded = [entry | {(stack, ERODE) for stack, kind in entry if kind == ONLAP} for entry in preceding]
-        dependencies = set(self.atoms(target))
-        for j, entry in enumerate(preceding):
+        preceding = [(k, self.atoms(k)) for k in range(target) if self.atoms(k)]
+        expanded = [entry | {(stack, ERODE) for stack, kind in entry if kind == ONLAP} for _, entry in preceding]
+        terms = [(target, self.atoms(target))]
+        for j, (k, entry) in enumerate(preceding):
             if not any(other < expanded[j] for other in expanded):
-                dependencies |= entry
+                terms.append((k, entry))
         if target == 0 and self.lithology:
-            dependencies |= self.atoms(self.last_lithology)
-        return dependencies
+            terms.append((self.last_lithology, self.atoms(self.last_lithology)))
+        return terms
+
+    def dependencies(self, target: int) -> set:
+        """Atoms the target stack's ownership depends on (see ``_terms``)."""
+        return set().union(*(atoms for _, atoms in self._terms(target)))
+
+    # endregion
+
+    # region Surface regions
+
+    def region(self, target: int, component: Callable, zeros: Callable, exempt: Optional[Callable] = None):
+        """The target stack's side of the model, truncated by the other stacks as the joint controllers truncate it.
+
+        Each dependency atom of another stack must hold if that stack is older and fail if it is younger; the
+        target's own row must hold too (its surfaces lie on that side, above its lowest surface for an erode
+        stack). Unlike ownership, younger rows' atoms of the target itself do not limit it: a one-surface stack
+        onlapped from above owns nothing, but its surface is the onlap contact. ``exempt(row_stack)`` may return
+        where that row claims nothing (null stacks' ignored grids), or ``None``.
+        """
+        value = ~zeros()
+        for row_stack, atoms in self._terms(target):
+            free = exempt(row_stack) if exempt is not None and row_stack != target else None
+            for stack, kind in sorted(atoms):
+                if stack == target and row_stack != target:
+                    continue
+                literal = component(stack, kind) if stack >= target else ~component(stack, kind)
+                value = value & (literal if free is None else literal | free)
+        return value
+
+    def older_rock(self, fault: int, owned: Sequence):
+        """Where a stack older than the fault owns rock (not void): the region a fault's surface cuts."""
+        rock = owned[fault] & ~owned[fault]
+        for stack in range(fault + 1, len(owned)):
+            if self.relations[stack] is not R.FAULT and (not self.null[stack] or stack == self.last_lithology):
+                rock = rock | owned[stack]
+        return rock
 
     # endregion

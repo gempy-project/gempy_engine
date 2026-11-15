@@ -75,7 +75,8 @@ def dual_contouring_multi_scalar(
     # ? I guess this mask is different that erosion mask
     all_mask_arrays: np.ndarray = mask_generation(
         octree_leaves=octree_leaves,
-        masking_option=options.evaluation_options.mesh_extraction_masking_options
+        masking_option=options.evaluation_options.mesh_extraction_masking_options,
+        stack_structure=data_descriptor.stack_structure
     )
 
     # Process each scalar field
