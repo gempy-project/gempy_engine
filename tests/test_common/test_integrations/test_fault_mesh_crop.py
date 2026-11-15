@@ -1,0 +1,87 @@
+"""Fault meshes are cropped to the rock older than the fault: younger erosions and null spaces cut the plane."""
+
+import numpy as np
+import pytest
+
+from gempy_engine.API.model.model_api import compute_model
+from gempy_engine.core.data import TensorsStructure
+from gempy_engine.core.data.engine_grid import EngineGrid
+from gempy_engine.core.data.input_data_descriptor import InputDataDescriptor
+from gempy_engine.core.data.interpolation_input import InterpolationInput
+from gempy_engine.core.data.kernel_classes.kernel_functions import AvailableKernelFunctions
+from gempy_engine.core.data.kernel_classes.orientations import Orientations
+from gempy_engine.core.data.kernel_classes.surface_points import SurfacePoints
+from gempy_engine.core.data.options import InterpolationOptions
+from gempy_engine.core.data.regular_grid import RegularGrid
+from gempy_engine.core.data.stack_relation_type import StackRelationType as R
+from gempy_engine.core.data.stacks_structure import StacksStructure
+
+EXTENT = [0, 10., 0, 2., 0, 5.]
+RESOLUTION = [10, 2, 10]
+LEVELS = 3
+VOXEL_Z = (EXTENT[5] - EXTENT[4]) / RESOLUTION[2] / 2 ** (LEVELS - 1)
+UNCONFORMITY = 3.5
+
+
+def _horizontal(z):
+    return np.array([[2., .5, z], [8., .5, z]]), np.array([[5., 1., z]]), np.array([[0., 0., 1.]])
+
+
+def _vertical(x):
+    return np.array([[x, .5, 1.], [x, 1.5, 4.]]), np.array([[x, 1., 2.5]]), np.array([[1., 0., 0.]])
+
+
+def _compute(stacks, faults_relations, overlap, null_space=None):
+    """``stacks``: (relation, (points, orientation positions, gradients)), youngest first, one surface each."""
+    points = np.concatenate([s[1][0] for s in stacks])
+    stack_structure = StacksStructure(
+        number_of_points_per_stack=np.array([len(s[1][0]) for s in stacks]),
+        number_of_orientations_per_stack=np.array([len(s[1][1]) for s in stacks]),
+        number_of_surfaces_per_stack=np.ones(len(stacks), dtype=int),
+        masking_descriptor=[s[0] for s in stacks],
+        faults_relations=np.asarray(faults_relations, dtype=bool),
+        null_space_per_stack=null_space,
+    )
+    tensors = TensorsStructure(number_of_points_per_surface=np.array([len(s[1][0]) for s in stacks]))
+    orientations = Orientations(np.concatenate([s[1][1] for s in stacks]), np.concatenate([s[1][2] for s in stacks]))
+    options = InterpolationOptions.from_args(86.6, 3571.4, uni_degree=1, i_res=4, gi_res=2, number_dimensions=3,
+                                             kernel_function=AvailableKernelFunctions.cubic)
+    options.evaluation_options.number_octree_levels = LEVELS
+    options.evaluation_options.mesh_extraction = True
+    options.evaluation_options.mesh_extraction_overlap = overlap
+    solutions = compute_model(
+        InterpolationInput(SurfacePoints(points), orientations, EngineGrid(octree_grid=RegularGrid(EXTENT, RESOLUTION)),
+                           np.arange(1, 10)),
+        options, InputDataDescriptor(tensors, stack_structure))
+    return [np.asarray(mesh.vertices) for mesh in solutions.dc_meshes]
+
+
+@pytest.mark.parametrize("overlap", ["none", "pretty"])
+def test_younger_erosion_crops_the_fault_plane(overlap):
+    unconformity, fault, layer = _compute(
+        [(R.ERODE, _horizontal(UNCONFORMITY)), (R.FAULT, _vertical(5.)), (R.BASEMENT, _horizontal(2.))],
+        [[0, 0, 0], [0, 0, 1], [0, 0, 0]], overlap)
+    assert len(fault) and fault[:, 2].min() < 2.
+    assert fault[:, 2].max() <= UNCONFORMITY + VOXEL_Z
+
+
+@pytest.mark.parametrize("overlap", ["none", "pretty"])
+def test_fault_without_younger_rock_spans_the_domain(overlap):
+    fault, layer = _compute([(R.FAULT, _vertical(5.)), (R.BASEMENT, _horizontal(2.))], [[0, 1], [0, 0]], overlap)
+    assert fault[:, 2].max() > EXTENT[5] - 2 * VOXEL_Z
+
+
+@pytest.mark.parametrize("overlap", ["none", "pretty"])
+def test_younger_fault_does_not_crop_an_older_fault(overlap):
+    younger, older, layer = _compute(
+        [(R.FAULT, _vertical(3.)), (R.FAULT, _vertical(7.)), (R.BASEMENT, _horizontal(2.))],
+        [[0, 1, 1], [0, 0, 1], [0, 0, 0]], overlap)
+    assert older[:, 2].max() > EXTENT[5] - 2 * VOXEL_Z
+
+
+@pytest.mark.parametrize("overlap", ["none", "pretty"])
+def test_younger_null_space_crops_the_fault_plane(overlap):
+    fault, layer = _compute(
+        [(R.ERODE, _horizontal(UNCONFORMITY)), (R.FAULT, _vertical(5.)), (R.BASEMENT, _horizontal(2.))],
+        [[0, 0, 0], [0, 0, 1], [0, 0, 0]], overlap, null_space=[True, False, False])
+    assert fault[:, 2].max() <= UNCONFORMITY + VOXEL_Z

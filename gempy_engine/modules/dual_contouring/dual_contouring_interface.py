@@ -256,6 +256,7 @@ def mask_generation(
     onlap_chain_counter = 0
 
     accumulated_voxel_mask = BackendTensor.t.zeros(grid_size // 8, dtype=bool)
+    older_rock_per_fault = _older_rock_per_fault(all_scalar_fields_outputs)
 
     for i in range(n_scalar_fields):
         stack_relation = all_scalar_fields_outputs[i].scalar_fields.stack_relation
@@ -343,12 +344,30 @@ def mask_generation(
                 onlap_chain_counter += 1
 
             case _, StackRelationType.FAULT:
-                mask_matrix[i] = BackendTensor.t.ones(grid_size // 8, dtype=bool)
+                # A fault cuts only the rock older than itself: younger erosions and null spaces crop its plane.
+                x = older_rock_per_fault[i][slice_corners].reshape((1, -1, 8))
+                mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
 
             case _:
                 raise ValueError("Invalid combination of options")
 
     return mask_matrix
+
+
+def _older_rock_per_fault(all_scalar_fields_outputs: List[InterpOutput]) -> dict:
+    """For each fault stack, where the grid holds rock of a stack older than the fault (any later stack).
+
+    Older null-space voids are not rock; a null bottom stack's squeezed mask is already only its basement.
+    """
+    older_rock = BackendTensor.t.zeros_like(all_scalar_fields_outputs[0].squeezed_mask_array)
+    per_fault = {}
+    for i in reversed(range(len(all_scalar_fields_outputs))):
+        fields = all_scalar_fields_outputs[i].scalar_fields
+        if fields.stack_relation is StackRelationType.FAULT:
+            per_fault[i] = older_rock
+        elif not fields.is_null_space or fields.stack_relation in (False, StackRelationType.BASEMENT):
+            older_rock = older_rock | all_scalar_fields_outputs[i].squeezed_mask_array  # bool: _masking_ops
+    return per_fault
 
 
 # endregion
