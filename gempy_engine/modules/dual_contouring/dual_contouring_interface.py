@@ -16,6 +16,8 @@ from ...core.data.octree_level import OctreeLevel
 from ...core.data.options import MeshExtractionMaskingOptions
 from ...core.data.stack_relation_type import StackRelationType
 from ...core.data.stacks_structure import StacksStructure
+from ...API.interp_single._masking_ops import _grid_slice_for
+from ..masking.stack_rule import ERODE, StackRule
 
 
 # region edges
@@ -229,14 +231,20 @@ def get_masked_codes(left_right_codes: np.ndarray, mask: np.ndarray) -> np.ndarr
 
 def mask_generation(
         octree_leaves: OctreeLevel,
-        masking_option: MeshExtractionMaskingOptions
+        masking_option: MeshExtractionMaskingOptions,
+        stack_structure: StacksStructure | None = None
 ) -> np.ndarray:
     """
     Generate masks for mesh extraction based on masking options and stack relations.
-    
+
+    INTERSECT keeps a stack's voxels where any corner lies in its ``StackRule.region``: where its surfaces exist,
+    truncated by the other stacks only (as the joint controllers truncate them). Faults keep the voxels of the rock
+    older than the fault (``StackRule.older_rock``).
+
     Args:
         octree_leaves: Octree leaf level containing scalar field outputs
         masking_option: Mesh extraction masking configuration
+        stack_structure: Ignored grids of null stacks (they claim nothing there); optional
         
     Returns:
         Matrix of boolean masks for each scalar field
@@ -256,6 +264,26 @@ def mask_generation(
     onlap_chain_counter = 0
 
     accumulated_voxel_mask = BackendTensor.t.zeros(grid_size // 8, dtype=bool)
+    fields = [output.scalar_fields for output in all_scalar_fields_outputs]
+    rule = StackRule([f.stack_relation for f in fields], [f.is_null_space for f in fields])
+    squeezed = [output.squeezed_mask_array for output in all_scalar_fields_outputs]
+
+    def any_corner(mask):
+        return BackendTensor.t.sum(mask[slice_corners].reshape((1, -1, 8)), -1, bool)[0]
+
+    def component(stack, kind):
+        return fields[stack].mask_components_erode if kind == ERODE else fields[stack].mask_components_erode_components_onlap
+
+    def exempt(stack):
+        """Where a null stack claims nothing: the grids it ignores (``_masking_ops``)."""
+        ignored = None if stack_structure is None or stack_structure.ignored_grid_types_per_stack is None else \
+            stack_structure.ignored_grid_types_per_stack[stack]
+        if not ignored or not rule.null[stack] or stack == rule.last_lithology:
+            return None
+        free = BackendTensor.t.zeros(len(squeezed[stack]), dtype=bool)
+        for entry in ignored:
+            free[_grid_slice_for(all_scalar_fields_outputs[stack].grid, entry)] = True
+        return free
 
     for i in range(n_scalar_fields):
         stack_relation = all_scalar_fields_outputs[i].scalar_fields.stack_relation
@@ -324,26 +352,16 @@ def mask_generation(
                 mask_matrix[i] = final_voxel_mask
                 onlap_chain_counter += 1  # <--- CRITICAL: Keep this increment!
 
-            case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.ERODE:
-                mask_array = all_scalar_fields_outputs[i + onlap_chain_counter].squeezed_mask_array
-                x = mask_array[slice_corners].reshape((1, -1, 8))
-                mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
-                onlap_chain_counter = 0
+            case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.FAULT:
+                # A fault cuts only the rock older than itself: younger erosions and null spaces crop its plane.
+                mask_matrix[i] = any_corner(rule.older_rock(i, squeezed))
 
-            case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.BASEMENT:
-                mask_array = all_scalar_fields_outputs[i].squeezed_mask_array
-                x = mask_array[slice_corners].reshape((1, -1, 8))
-                mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
-                onlap_chain_counter = 0
+            case MeshExtractionMaskingOptions.INTERSECT, _:
+                mask_matrix[i] = any_corner(rule.region(
+                    i, component, zeros=lambda: BackendTensor.t.zeros(len(squeezed[i]), dtype=bool), exempt=exempt))
 
-            case MeshExtractionMaskingOptions.INTERSECT, StackRelationType.ONLAP:
-                mask_array = all_scalar_fields_outputs[i].squeezed_mask_array
-                x = mask_array[slice_corners].reshape((1, -1, 8))
-                mask_matrix[i] = BackendTensor.t.sum(x, -1, bool)[0]
-                onlap_chain_counter += 1
-
-            case _, StackRelationType.FAULT:
-                mask_matrix[i] = BackendTensor.t.ones(grid_size // 8, dtype=bool)
+            case MeshExtractionMaskingOptions.DISJOINT, StackRelationType.FAULT:
+                mask_matrix[i] = any_corner(rule.older_rock(i, squeezed))
 
             case _:
                 raise ValueError("Invalid combination of options")

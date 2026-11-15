@@ -85,8 +85,11 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         raise ValueError('unsupported_backend: NumPy/Torch only')
 
     # region Contracts and controllers
+    # joint_contacts (fault_merge) crops fault surfaces to the rock older than the fault.
+    fault_targets = fault_merge is not None
+    fault_stacks = frozenset(i for i, r in enumerate(stack_relations) if r is R.FAULT) if fault_targets else ()
     allowed, faults, truncations = build_contact_relations(
-        surface_to_stack, surface_indices, stack_relations, faults_relations, isovalues)
+        surface_to_stack, surface_indices, stack_relations, faults_relations, isovalues, fault_targets=fault_targets)
     if separator_contacts is None and fault_merge is None and (faults or any(r is R.FAULT for r in stack_relations)
                                 or (faults_relations is not None and np.asarray(faults_relations).any())):
         raise ValueError('unsupported_fault_extraction: adaptive bank incidence unavailable')
@@ -102,7 +105,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     full_identities = [(g, s) for g, values in enumerate(isovalues) for s in range(len(values))]
     _, _, full_truncations = build_contact_relations(
         np.array([g for g, _ in full_identities], dtype=int),
-        np.array([s for _, s in full_identities], dtype=int), stack_relations, faults_relations, isovalues)
+        np.array([s for _, s in full_identities], dtype=int), stack_relations, faults_relations, isovalues,
+        fault_targets=fault_targets)
     check_missing_controllers(full_identities, full_truncations, surface_to_stack, surface_indices, isovalues)
     # endregion
 
@@ -179,7 +183,7 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         endpoint_gradients = sample(minimal_xyz[crossed_edges])[1].reshape(n, len(crossed_edges), 2, 3)
     else:
         endpoint_gradients = xp.zeros((n, len(crossed_edges), 2, 3))
-    controllers = ordinary_controllers(identities, truncations)
+    controllers = ordinary_controllers(identities, truncations, fault_stacks)
     if separator is not None:
         controllers = separator_controllers(controllers, faults)
         check_composite_controllers(separator_contacts['controllers'], controllers)
