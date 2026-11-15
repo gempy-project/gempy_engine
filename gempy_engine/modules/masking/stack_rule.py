@@ -124,7 +124,8 @@ class StackRule:
 
         A younger broader row absorbs narrower ones in their OR: ``!(A & B) & !B`` is just ``!B``, and a minimum
         threshold absorbs the same stack's maximum. Without this, onlap chains give spurious backward controllers.
-        The first stack also depends on the last non-fault stack's row.
+        The first stack also depends on the last non-fault stack's row (unless it is a fault: a fault's terms are
+        the younger rows only, the rock older than it).
         """
         preceding = [(k, self.atoms(k)) for k in range(target) if self.atoms(k)]
         expanded = [entry | {(stack, ERODE) for stack, kind in entry if kind == ONLAP} for _, entry in preceding]
@@ -132,7 +133,7 @@ class StackRule:
         for j, (k, entry) in enumerate(preceding):
             if not any(other < expanded[j] for other in expanded):
                 terms.append((k, entry))
-        if target == 0 and self.lithology:
+        if target == 0 and self.lithology and self.relations[0] is not R.FAULT:
             terms.append((self.last_lithology, self.atoms(self.last_lithology)))
         return terms
 

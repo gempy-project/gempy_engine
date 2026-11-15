@@ -27,6 +27,8 @@ RESOLUTION = [10, 2, 10]
 LEVELS = 3
 VOXEL_Z = (EXTENT[5] - EXTENT[4]) / RESOLUTION[2] / 2 ** (LEVELS - 1)
 UNCONFORMITY = 3.5
+#: none/pretty crop per voxel (within one voxel past the contact); joint_contacts cuts the fault on the contact.
+OVERLAPS = ["none", "pretty", "joint_contacts"]
 
 
 def _horizontal(z):
@@ -67,22 +69,22 @@ def _compute(stacks, faults_relations, overlap, null_space=None, custom=None):
     return [np.asarray(mesh.vertices) for mesh in solutions.dc_meshes]
 
 
-@pytest.mark.parametrize("overlap", ["none", "pretty"])
+@pytest.mark.parametrize("overlap", OVERLAPS)
 def test_younger_erosion_crops_the_fault_plane(overlap):
     unconformity, fault, layer = _compute(
         [(R.ERODE, _horizontal(UNCONFORMITY)), (R.FAULT, _vertical(5.)), (R.BASEMENT, _horizontal(2.))],
         [[0, 0, 0], [0, 0, 1], [0, 0, 0]], overlap)
     assert len(fault) and fault[:, 2].min() < 2.
-    assert fault[:, 2].max() <= UNCONFORMITY + VOXEL_Z
+    assert fault[:, 2].max() <= UNCONFORMITY + _tolerance(overlap)
 
 
-@pytest.mark.parametrize("overlap", ["none", "pretty"])
+@pytest.mark.parametrize("overlap", OVERLAPS)
 def test_fault_without_younger_rock_spans_the_domain(overlap):
     fault, layer = _compute([(R.FAULT, _vertical(5.)), (R.BASEMENT, _horizontal(2.))], [[0, 1], [0, 0]], overlap)
     assert fault[:, 2].max() > EXTENT[5] - 2 * VOXEL_Z
 
 
-@pytest.mark.parametrize("overlap", ["none", "pretty"])
+@pytest.mark.parametrize("overlap", OVERLAPS)
 def test_younger_fault_does_not_crop_an_older_fault(overlap):
     younger, older, layer = _compute(
         [(R.FAULT, _vertical(3.)), (R.FAULT, _vertical(7.)), (R.BASEMENT, _horizontal(2.))],
@@ -90,12 +92,28 @@ def test_younger_fault_does_not_crop_an_older_fault(overlap):
     assert older[:, 2].max() > EXTENT[5] - 2 * VOXEL_Z
 
 
-@pytest.mark.parametrize("overlap", ["none", "pretty"])
+@pytest.mark.parametrize("overlap", OVERLAPS)
 def test_younger_null_space_crops_the_fault_plane(overlap):
     fault, layer = _compute(
         [(R.ERODE, _horizontal(UNCONFORMITY)), (R.FAULT, _vertical(5.)), (R.BASEMENT, _horizontal(2.))],
         [[0, 0, 0], [0, 0, 1], [0, 0, 0]], overlap, null_space=[True, False, False])
-    assert fault[:, 2].max() <= UNCONFORMITY + VOXEL_Z
+    assert fault[:, 2].max() <= UNCONFORMITY + _tolerance(overlap)
+
+
+def _tolerance(overlap):
+    return 1e-6 if overlap == "joint_contacts" else VOXEL_Z
+
+
+@pytest.mark.parametrize("overlap", OVERLAPS)
+def test_younger_onlap_crops_the_fault_plane(overlap):
+    """The cover onlaps the basement below the fault, so the fault ends on the basement top inside the cover's
+    reach: where the cover lies, above its own surface and above the basement top."""
+    cover, fault, base = _compute(
+        [(R.ONLAP, _horizontal(UNCONFORMITY)), (R.FAULT, _vertical(5.)), (R.BASEMENT, _horizontal(2.))],
+        [[0, 0, 0], [0, 0, 1], [0, 0, 0]], overlap)
+    assert len(fault) and fault[:, 2].min() < 1.5
+    assert fault[:, 2].max() <= 2. + VOXEL_Z + .5  # The faulted basement top, offset up to .5 on one side
+    assert fault[:, 2].max() < UNCONFORMITY
 
 
 def test_onlap_over_a_fault_onlaps_the_stack_below_on_both_sides():
