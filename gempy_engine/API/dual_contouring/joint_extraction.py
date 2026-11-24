@@ -281,6 +281,23 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
     def sample_fields(points):
         raise ValueError("unexpected_full_field_query: joint_contacts uses targeted field queries")
 
+    fault_stacks = tuple(sampler["fault_stacks"])
+    side_query = None
+    if fault_stacks and not any(sampler["affected_by"][f] for f in fault_stacks):
+        fault_levels = np.array([levels[f][0] for f in fault_stacks])[:, None]
+
+        def side_query(points, surface, fault_stack):
+            # Other faults keep each point's actual side; the given fault takes each side in turn.
+            points = np.asarray(points, dtype=np.float64).reshape(-1, 3)
+            actual = sampler["query_batch"]([(points, list(fault_stacks), "scalar")])[0]
+            sides = np.where(np.asarray(actual) > fault_levels, 1, -1)
+            row = fault_stacks.index(fault_stack)
+            answers = []
+            for side in (-1, 1):
+                sides[row] = side
+                answers.append(sampler["query_sides"](points, [int(groups[surface])], sides)[0])
+            return np.stack(answers)
+
     _, fault_pairs, _ = build_contact_relations(groups, indices, relations, matrix, levels)
     fault_merge = {int(i): set() for i, g in enumerate(groups) if relations[g] is StackRelationType.FAULT}
     for c, t in fault_pairs:
@@ -294,6 +311,7 @@ def extract_fault_merge_octree(descriptor, interpolation_input, options, octree_
     result = extract_adaptive_topology(
         origins, spans, domain_shape, extent, samples, groups, indices, relations, levels,
         sample_fields=sample_fields, field_query=field_query, faults_relations=matrix, fault_merge=fault_merge,
+        side_query=side_query,
         cell_complex=adaptive_complex_arrays(origins, spans, domain_shape),
         snap_extent=options.evaluation_options.mesh_extraction_snap_to_extent)
     report = dict(result["diagnostics"], octree_balance=balance, interface="pretty_fault_vertex_merge_single_fault_mesh",

@@ -31,12 +31,17 @@ def check_missing_controllers(full_identities, full_truncations, surface_to_stac
                              f'{controller_stack}/{index}')
 
 
-def ordinary_controllers(identities, truncations):
-    """Per target, ``(controller, sign)``: younger stacks own their positive side."""
+def ordinary_controllers(identities, truncations, fault_stacks=()):
+    """Per target, ``(controller, sign)``: younger stacks own their positive side.
+
+    A fault target (its stack in ``fault_stacks``) keeps the negative side of every controller: all come from
+    younger rows, including onlap atoms of stacks older than the fault (faults are transparent to onlap chains).
+    """
     controllers = {s: [] for s in range(len(identities))}
     for c, t in sorted(truncations):
         # Full isovalue extrema and ordinary onlap/erosion roles are unchanged.
-        controllers[t].append((c, 1 if identities[c][0] > identities[t][0] else -1))
+        older = identities[c][0] > identities[t][0] and identities[t][0] not in fault_stacks
+        controllers[t].append((c, 1 if older else -1))
     return controllers
 
 
