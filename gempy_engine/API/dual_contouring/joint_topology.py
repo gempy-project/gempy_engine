@@ -40,7 +40,8 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                               surface_to_stack, surface_indices, stack_relations, isovalues,
                               *, sample_fields, ownership=None, include_reference=False,
                               faults_relations=None, separator_contacts=None, defer_emission=False,
-                              cell_complex=None, fault_merge=None, field_query=None, snap_extent=False):
+                              cell_complex=None, fault_merge=None, field_query=None, snap_extent=False,
+                              side_query=None):
     """Extract balanced dyadic leaves using canonical tiles and minimal primal edges.
 
     ``sample_fields`` supplies raw fields (S,M) and actual gradients (S,M,3).
@@ -77,6 +78,14 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
     tolerance), gradients are evaluated only for the crossing surface (one batch
     for crossings and crossed-edge endpoints), and vertex checks are one
     scalar-only batch. Not with separator contacts.
+    ``side_query(points, surface, fault_stack)`` optionally returns (2, M) raw
+    scalars of a surface's stack with that fault's drift fixed to its negative
+    and positive side. With ``fault_merge``, a fault cropped by a contact the
+    fault itself offsets (an onlap cover over the faulted rock) keeps a crossing
+    where either side keeps it: the contact jumps on the fault plane, so the
+    interpolated endpoints would pick a side per edge. Such a pair shares no
+    junction vertex. Vertices are never pulled back toward a contact in leaves
+    a fault offsetting that contact crosses.
     """
     if defer_emission and include_reference:
         raise ValueError('unsupported_deferred_reference: defer_emission and include_reference are incompatible')
@@ -193,6 +202,9 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
         check_composite_controllers(ownership, controllers)
     elif ownership is not None:
         controllers = controllers_from_ownership(host(ownership), host(fields), truncations)
+    enveloped, allowed = _enveloped_pairs(controllers, allowed, surface_to_stack, stack_relations, faults_relations,
+                                          fault_targets and side_query is not None)
+    offset = _offset_pairs(controllers, surface_to_stack, stack_relations, faults_relations, fault_targets)
     pairs = contact_pairs(controllers, allowed)
     # endregion
 
@@ -273,9 +285,20 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
 
     faces = np.asarray(host(snapped_faces)).reshape(-1, 6)
     snapped_rows = np.flatnonzero(faces.any(axis=1))
+    snapped = [(snapped_rows, faces[snapped_rows]@(1 << np.arange(6)))]
     regular, pulled_back = _pull_back_fallback_vertices(
-        regular, [(snapped_rows, faces[snapped_rows]@(1 << np.arange(6)))], fallback, controllers, host_levels,
-        leaves, origins, spans, low, step, controller_field, False, xp)
+        regular, snapped, fallback, controllers, host_levels, leaves, origins, spans, low, step, controller_field,
+        False, xp, offset_leaves=_offset_leaves(controllers, flags.any(axis=2), surface_to_stack, stack_relations,
+                                                faults_relations))
+    regular, projected = _project_faults_onto_envelope(
+        regular, snapped, enveloped, controllers, host_levels, leaves, origins, spans, low, step, controller_field,
+        side_query, False, xp)
+    pulled_back += projected
+    crossed_leaves = flags.any(axis=2)
+    regular, projected = _project_onto_scarps(
+        regular, snapped, offset, controllers, host_levels, leaves, origins, spans, low, step, controller_field,
+        side_query, crossed_leaves, surface_to_stack, False, xp)
+    pulled_back += projected
 
     junction_cells = xp.asarray(sorted(junctions), dtype=np.int64)
     junction_pairs = xp.asarray([sorted(junctions[c]['pair']) for c in sorted(junctions)],
@@ -294,7 +317,12 @@ def extract_adaptive_topology(origins, spans, domain_shape, extent, scalar_sampl
                      dtype=np.int64)
     fault_vertex = xp.asarray(np.concatenate((np.repeat(fault_surface, leaves), fault_surface[lower])))
 
-    selected, fraction = edge_crossing_decisions(edge_fields, controllers, complex_.edge_cells, counts)
+    selected, fraction = edge_crossing_decisions(edge_fields, _without(controllers, {**enveloped, **offset}),
+                                                 complex_.edge_cells, counts)
+    selected = _keep_enveloped_crossings(selected, fraction, enveloped, controllers, minimal_xyz, side_query,
+                                         host_levels, xp)
+    selected = _keep_offset_crossings(selected, fraction, offset, controllers, edge_fields, complex_.edge_cells,
+                                      crossed_leaves, minimal_xyz, controller_field, host_levels, xp)
     plan, filtered_triangles = plan_edge_rows(selected, complex_.edge_cells, vertex_ids, borrowed, fault_vertex)
     triangle_normals = crossing_normals(fraction[plan['surface'], plan['edge']][None],
                                         endpoint_gradients[plan['surface'], edge_slot[plan['edge']]][None])[0]
@@ -578,13 +606,15 @@ def _snap_junctions(positions, roots, bounds, tolerance):
 
 
 def _pull_back_fallback_vertices(regular, snapped_faces, fallback, controllers, levels, leaves, origins, spans, low,
-                                 step, field, compact_vertices, xp, rounds=3, steps=4):
+                                 step, field, compact_vertices, xp, rounds=3, steps=4, offset_leaves=None):
     """Move the vertices of given-up junction leaves out of the regions younger contacts claim.
 
     A junction given up leaves each participant its own QEF vertex, solved from that surface's crossings alone, so it
     can sit across a contact that truncates the surface, and its triangles then cross that contact. Such a vertex is
     projected onto the contact by Newton steps along the controller's gradient, within its leaf: an axis that reaches
     the leaf box, or that the vertex was snapped to an extent face along, stays fixed. ``field(points, surface, kind)`` gives raw scalars or gradients.
+    ``offset_leaves`` may map a controller to the (N,) leaves where a fault offsetting it crosses: its field jumps
+    there, so no vertex is pulled toward it in those leaves.
     Returns the vertices, in the layout they came in, and how many moved.
     """
     targets = [s for s in sorted(controllers) if controllers[s]]
@@ -617,8 +647,13 @@ def _pull_back_fallback_vertices(regular, snapped_faces, fallback, controllers, 
     for _ in range(rounds):
         changed = False
         for target in targets:
-            mine = np.flatnonzero(surface == target)
-            for controller, sign in controllers[target] if len(mine) else ():
+            target_rows = np.flatnonzero(surface == target)
+            for controller, sign in controllers[target] if len(target_rows) else ():
+                mine = target_rows
+                if offset_leaves is not None and controller in offset_leaves:
+                    mine = mine[~offset_leaves[controller][cell[mine]]]
+                    if not len(mine):
+                        continue
                 # Newton steps onto the contact; an axis that reaches the leaf box stays there, and the
                 # steps go on along the box face.
                 pinned = np.zeros((len(rows), 3), dtype=bool)
@@ -657,6 +692,311 @@ def _pull_back_fallback_vertices(regular, snapped_faces, fallback, controllers, 
         return [(keys, values)], int(moved.sum())
     grid[keys] = values
     return xp.asarray(grid.reshape(np.asarray(host(regular)).shape)), int(moved.sum())
+
+
+# region Faults cropped by a contact they offset
+
+def _enveloped_pairs(controllers, allowed, surface_to_stack, stack_relations, faults_relations, enabled):
+    """``{(fault target, controller): fault stack}`` where the fault offsets its controller's stack, and ``allowed``
+    without those pairs.
+
+    An onlap cover over a faulted stack crops the fault at that stack's top, which the fault itself offsets: the
+    contact jumps on the fault plane (along the scarp older rock lies on one side, the cover on the other), so a
+    junction vertex on it, or a decision interpolated between edge endpoints on both sides, has no single answer.
+    """
+    if not enabled or faults_relations is None:
+        return {}, allowed
+    stack_of = np.asarray(host(surface_to_stack), dtype=np.int64)
+    offsets = np.asarray(host(faults_relations), dtype=bool)
+    enveloped = {(t, c): int(stack_of[t]) for t, rows in controllers.items() for c, _ in rows
+                 if stack_relations[stack_of[t]] is R.FAULT and offsets[stack_of[t], stack_of[c]]}
+    if enveloped:
+        allowed = np.array(host(allowed), copy=True)
+        for t, c in enveloped:
+            allowed[t, c] = allowed[c, t] = False
+    return enveloped, allowed
+
+
+def _without(controllers, enveloped):
+    """The controllers less the enveloped pairs (decided by ``_keep_enveloped_crossings`` instead)."""
+    if not enveloped:
+        return controllers
+    return {t: [(c, sign) for c, sign in rows if (t, c) not in enveloped] for t, rows in controllers.items()}
+
+
+def _keep_enveloped_crossings(selected, fraction, enveloped, controllers, minimal_xyz, side_query, levels, xp):
+    """Drop the selected fault crossings that an enveloped controller claims on both sides of the fault.
+
+    At each crossing the controller is evaluated with the fault's drift fixed to either side
+    (``side_query(points, surface, fault_stack)`` -> (2, M) raw scalars): the fault cuts where older rock lies on at
+    least one side, so it ends at the upthrown block's contact and covers the scarp below it.
+    """
+    for (t, c), fault_stack in enveloped.items():
+        edges = xp.flatnonzero(selected[t])
+        if not len(edges):
+            continue
+        ends = minimal_xyz[edges]
+        points = ends[:, 0]+fraction[t, edges][:, None]*(ends[:, 1]-ends[:, 0])
+        sign = dict(controllers[t])[c]
+        kept = sign*(np.asarray(side_query(np.asarray(host(points), dtype=np.float64).reshape(-1, 3), c, fault_stack),
+                                dtype=np.float64)-levels[c])
+        selected[t, edges] = xp.asarray(kept.max(axis=0) > 0)
+    return selected
+
+
+def _offset_leaves(controllers, crossed_leaves, surface_to_stack, stack_relations, faults_relations):
+    """Per controller, the (N,) leaves crossed by a fault that offsets its stack (``crossed_leaves`` (S, N)).
+
+    The controller's field jumps there, so Newton steps along it carry vertices off their own surface.
+    """
+    if faults_relations is None:
+        return None
+    stack_of = np.asarray(host(surface_to_stack), dtype=np.int64)
+    offsets = np.asarray(host(faults_relations), dtype=bool)
+    crossed = np.asarray(host(crossed_leaves), dtype=bool)
+    faults = [f for f in range(len(stack_of)) if stack_relations[stack_of[f]] is R.FAULT]
+    result = {}
+    for c in {c for rows in controllers.values() for c, _ in rows}:
+        rows = [crossed[f] for f in faults if offsets[stack_of[f], stack_of[c]]]
+        if rows:
+            result[c] = np.logical_or.reduce(rows)
+    return result or None
+
+
+def _project_faults_onto_envelope(regular, snapped_faces, enveloped, controllers, levels, leaves, origins, spans,
+                                  low, step, field, side_query, compact_vertices, xp, iterations=4):
+    """Move fault vertices lying in the controller's rock on both sides onto the fault's crop line.
+
+    For an enveloped pair the fault keeps where either side of it is older rock, so its crop line is where the
+    fault plane meets the upthrown block's contact. The fault's own QEF vertices there come from its crossings alone
+    and can sit up to a leaf beyond that line. Each such vertex takes minimum-norm Newton steps onto both the fault
+    plane and the nearer side's contact (side-fixed fields are smooth), within its leaf; an axis snapped to an extent
+    face stays on it. ``field(points, surface, kind)`` gives raw production scalars or gradients. Returns the
+    vertices, in the layout they came in, and how many moved.
+    """
+    if not enveloped:
+        return regular, 0
+    if compact_vertices:
+        keys = np.concatenate([np.asarray(row[0], dtype=np.int64) for row in regular])
+        values = np.concatenate([np.asarray(row[1]) for row in regular]).astype(np.float64)
+    else:
+        grid = np.array(host(regular), dtype=np.float64).reshape(-1, 3)
+        keys = np.flatnonzero(~np.isnan(grid[:, 0]))
+        values = grid[keys]
+    bits = {}
+    for ids, faces in snapped_faces:
+        bits.update(zip(np.asarray(host(ids), dtype=np.int64).tolist(), np.asarray(host(faces), dtype=np.uint8).tolist()))
+    low, step = np.asarray(host(low), dtype=np.float64), np.asarray(host(step), dtype=np.float64)
+    box_origin, box_span = np.asarray(host(origins)), np.asarray(host(spans))
+    delta = 1e-3*float(step.min())
+    moved = np.zeros(len(keys), dtype=bool)
+    for (t, c), fault_stack in enveloped.items():
+        rows = np.flatnonzero(keys//leaves == t)
+        if not len(rows):
+            continue
+        sign = dict(controllers[t])[c]
+        cells = keys[rows] % leaves
+        box_low = low+box_origin[cells]*step
+        box_high = box_low+box_span[cells, None]*step
+        free = np.array([[(bits.get(int(k), 0) >> 2*axis & 3) == 0 for axis in range(3)] for k in keys[rows]],
+                        dtype=float).reshape(-1, 3)
+
+        def kept(xyz):
+            return sign*(np.asarray(side_query(xyz, c, fault_stack), dtype=np.float64)-levels[c])  # (2, M)
+
+        points = values[rows]
+        for _ in range(iterations):
+            sides = kept(points)
+            outside = np.flatnonzero(sides.max(axis=0) < 0)
+            if not len(outside):
+                break
+            p, nearer = points[outside], sides[:, outside].argmax(axis=0)
+            pick = np.arange(len(p))
+
+            def both(xyz):  # (M, 2) nearer side's contact and fault offsets
+                return np.stack((kept(xyz)[nearer, pick], field(xyz, t, 'scalar')-levels[t]), axis=1)
+
+            # Minimum-norm step onto both constraints, J d = -r with J = [g_contact; g_fault], free axes only.
+            jacobian = _difference_jacobian(both, p, delta)*free[outside, None, :]
+            residual = both(p)
+            gram = jacobian@np.swapaxes(jacobian, 1, 2)
+            solvable = np.abs(np.linalg.det(gram)) > 1e-24
+            if not solvable.any():
+                break
+            update = (np.swapaxes(jacobian[solvable], 1, 2)@np.linalg.solve(gram[solvable],
+                                                                           -residual[solvable, :, None]))[:, :, 0]
+            target = outside[solvable]
+            points[target] = np.clip(points[target]+update, box_low[target], box_high[target])
+            moved[rows[target]] = True
+        values[rows] = points
+    if not moved.any():
+        return regular, 0
+    if compact_vertices:
+        return [(keys, values)], int(moved.sum())
+    grid[keys] = values
+    return xp.asarray(grid.reshape(np.asarray(host(regular)).shape)), int(moved.sum())
+
+def _difference_jacobian(function, points, delta):
+    """(M, K, 3) central differences of ``function(points)`` -> (M, K).
+
+    Newton steps onto production scalars use their own slope: the gradient queries can come in other units.
+    """
+    return np.stack([(function(points+e*delta)-function(points-e*delta))/(2*delta) for e in np.eye(3)], axis=2)
+
+
+def _offset_pairs(controllers, surface_to_stack, stack_relations, faults_relations, enabled):
+    """``{(target, controller): [fault surfaces]}``: a target no fault offsets, cropped by a contact these faults offset.
+
+    The contact jumps on each fault plane (an onlap over a fault scarp), so near the fault its value interpolated
+    between edge endpoints on both sides decides nothing, and the target's crop line there is the fault plane itself.
+    """
+    if not enabled or faults_relations is None:
+        return {}
+    stack_of = np.asarray(host(surface_to_stack), dtype=np.int64)
+    offsets = np.asarray(host(faults_relations), dtype=bool)
+    faults = [f for f in range(len(stack_of)) if stack_relations[stack_of[f]] is R.FAULT]
+    result = {}
+    for t, rows in controllers.items():
+        if stack_relations[stack_of[t]] is R.FAULT:
+            continue
+        for c, _ in rows:
+            offsetting = [f for f in faults if offsets[stack_of[f], stack_of[c]] and not offsets[stack_of[f], stack_of[t]]]
+            if offsetting:
+                result[(t, c)] = offsetting
+    return result
+
+
+def _keep_offset_crossings(selected, fraction, offset, controllers, edge_fields, edge_cells, crossed_leaves,
+                           minimal_xyz, field, levels, xp):
+    """Apply the offset pairs' controllers, left out of ``selected``: at the crossing point itself on minimal edges
+    whose leaf ring a fault offsetting the controller crosses, interpolated between the edge ends elsewhere.
+
+    The production field at a point takes that point's own side of the fault. ``field(points, surface, kind)`` gives
+    raw scalars; ``levels`` the host isovalues.
+    """
+    if not offset:
+        return selected
+    present = edge_cells >= 0
+    ring = xp.maximum(edge_cells, 0)
+    for (t, c), faults in offset.items():
+        edges = xp.flatnonzero(selected[t])
+        if not len(edges):
+            continue
+        sign = dict(controllers[t])[c]
+        f = fraction[t, edges]
+        decision = sign*((1-f)*edge_fields[c, edges, 0]+f*edge_fields[c, edges, 1])
+        crossed = crossed_leaves[xp.asarray(faults)].any(axis=0)
+        near = (crossed[ring[edges]] & present[edges]).any(axis=1)
+        if bool(near.any()):
+            ends = minimal_xyz[edges[near]]
+            points = ends[:, 0]+f[near][:, None]*(ends[:, 1]-ends[:, 0])
+            values = field(np.asarray(host(points), dtype=np.float64).reshape(-1, 3), c, 'scalar')
+            decision[near] = xp.asarray(sign*(np.asarray(values, dtype=np.float64)-levels[c]))
+        selected[t, edges] = decision > 1e-10  # Exactly on the contact counts as a junction: no face
+    return selected
+
+
+def _project_onto_scarps(regular, snapped_faces, offset, controllers, levels, leaves, origins, spans, low, step,
+                         field, side_query, crossed_leaves, surface_to_stack, compact_vertices, xp, iterations=6):
+    """Move the offset pairs' target vertices onto the fault plane where the fault cuts the target off.
+
+    In a leaf the fault crosses, where the controller keeps the target on one side of the fault and not on the other
+    (``side_query``), the target's crop line is where it meets the fault plane. The target's own QEF vertex there
+    comes from its crossings alone, anywhere in the leaf, so the crop line steps from leaf to leaf. Each such vertex
+    takes minimum-norm Newton steps onto both the target and the fault, within its leaf; an axis snapped to an extent
+    face stays on it. Where the line misses the leaf, a vertex on the side cut off slides along the target toward the
+    fault instead, and one on the kept side stays. Returns the vertices, in the layout they came in, and how many
+    moved.
+    """
+    if not offset or side_query is None:
+        return regular, 0
+    if compact_vertices:
+        keys = np.concatenate([np.asarray(row[0], dtype=np.int64) for row in regular])
+        values = np.concatenate([np.asarray(row[1]) for row in regular]).astype(np.float64)
+    else:
+        grid = np.array(host(regular), dtype=np.float64).reshape(-1, 3)
+        keys = np.flatnonzero(~np.isnan(grid[:, 0]))
+        values = grid[keys]
+    bits = {}
+    for ids, faces in snapped_faces:
+        bits.update(zip(np.asarray(host(ids), dtype=np.int64).tolist(), np.asarray(host(faces), dtype=np.uint8).tolist()))
+    low, step = np.asarray(host(low), dtype=np.float64), np.asarray(host(step), dtype=np.float64)
+    box_origin, box_span = np.asarray(host(origins)), np.asarray(host(spans))
+    crossed = np.asarray(host(crossed_leaves), dtype=bool)
+    stack_of = np.asarray(host(surface_to_stack), dtype=np.int64)
+    tolerance, delta = 5e-2*float(step.min()), 1e-3*float(step.min())
+    moved = np.zeros(len(keys), dtype=bool)
+    for (t, c), faults in offset.items():
+        sign = dict(controllers[t])[c]
+        for fault in faults:
+            rows = np.flatnonzero((keys//leaves == t) & crossed[fault][keys % leaves] & ~moved)
+            if not len(rows):
+                continue
+            sides = sign*(np.asarray(side_query(values[rows], c, int(stack_of[fault])), dtype=np.float64)-levels[c])
+            rows = rows[(sides > 0).any(axis=0) & (sides < 0).any(axis=0)]
+            if not len(rows):
+                continue
+            cells = keys[rows] % leaves
+            box_low = low+box_origin[cells]*step
+            box_high = box_low+box_span[cells, None]*step
+            free = np.array([[(bits.get(int(k), 0) >> 2*axis & 3) == 0 for axis in range(3)] for k in keys[rows]],
+                            dtype=float).reshape(-1, 3)
+            points = values[rows].copy()
+
+            def both(xyz):  # (M, 2) target and fault offsets from their levels
+                return np.stack((field(xyz, t, 'scalar')-levels[t], field(xyz, fault, 'scalar')-levels[fault]), axis=1)
+
+            for _ in range(iterations):
+                # Minimum-norm step onto both surfaces, J d = -r with J = [g_target; g_fault], free axes only.
+                residual = both(points)
+                jacobian = _difference_jacobian(both, points, delta)*free[:, None, :]
+                gram = jacobian@np.swapaxes(jacobian, 1, 2)
+                solvable = np.abs(np.linalg.det(gram)) > 1e-24
+                if not solvable.any():
+                    break
+                update = (np.swapaxes(jacobian[solvable], 1, 2)@np.linalg.solve(gram[solvable],
+                                                                               -residual[solvable, :, None]))[:, :, 0]
+                points[solvable] = np.clip(points[solvable]+update, box_low[solvable], box_high[solvable])
+            # Landed: within a twentieth of a lattice step of both surfaces, to first order.
+            distance = np.abs(both(points))/np.maximum(np.linalg.norm(_difference_jacobian(both, points, delta), axis=2),
+                                                       1e-30)
+            landed = (distance < tolerance).all(axis=1)
+            # The line misses the leaf: a vertex on the side cut off goes back onto the target from the clipped
+            # point (the nearest the target comes to the fault in the leaf, roughly), the axes it reached the leaf
+            # box along staying there. A vertex on the kept side is not on the crop line, and stays.
+            missed = np.flatnonzero(~landed)
+            if len(missed):
+                cut = sign*(field(values[rows[missed]], c, 'scalar')-levels[c]) < 0
+                missed = missed[cut]
+            if len(missed):
+                pinned = (points[missed] <= box_low[missed]) | (points[missed] >= box_high[missed])
+                start = np.abs(both(values[rows[missed]])[:, 1])
+                p = points[missed]
+                for _ in range(iterations):
+                    offset_t = field(p, t, 'scalar')-levels[t]
+                    gradient = _difference_jacobian(lambda xyz: (field(xyz, t, 'scalar')-levels[t])[:, None], p,
+                                                    delta)[:, 0]*free[missed]*~pinned
+                    norm = np.sum(gradient*gradient, axis=1)
+                    usable = norm > 1e-30
+                    p[usable] = np.clip(p[usable]-(offset_t[usable]/norm[usable])[:, None]*gradient[usable],
+                                        box_low[missed][usable], box_high[missed][usable])
+                residual = both(p)
+                gradients = _difference_jacobian(both, p, delta)
+                on_target = np.abs(residual[:, 0])/np.maximum(np.linalg.norm(gradients[:, 0], axis=1), 1e-30) < tolerance
+                nearer = np.abs(residual[:, 1]) < start
+                slid = on_target & nearer
+                points[missed[slid]] = p[slid]
+                landed[missed[slid]] = True
+            values[rows[landed]] = points[landed]
+            moved[rows[landed]] = True
+    if not moved.any():
+        return regular, 0
+    if compact_vertices:
+        return [(keys, values)], int(moved.sum())
+    grid[keys] = values
+    return xp.asarray(grid.reshape(np.asarray(host(regular)).shape)), int(moved.sum())
+
+# endregion
 
 
 def _edge_contact(points, box_low, box_high, kept, iterations=12):

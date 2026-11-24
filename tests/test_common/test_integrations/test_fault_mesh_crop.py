@@ -116,6 +116,44 @@ def test_younger_onlap_crops_the_fault_plane(overlap):
     assert fault[:, 2].max() < UNCONFORMITY
 
 
+@pytest.mark.parametrize("overlap", OVERLAPS)
+def test_onlap_over_a_fault_scarp_keeps_the_fault_to_the_upthrown_top(overlap):
+    """The basement top steps from 1.5 (west) to 2.5 (east) across the fault, and the cover onlaps it. Along the
+    scarp older rock lies on the east side only, so the fault reaches the upthrown top all along strike.
+
+    Before, joint_contacts cropped the fault where the offset basement field, interpolated across the fault plane,
+    changed sign: it stopped at 1.875 here, and on a real model chose a side per edge (a crenellated top edge)."""
+    stepped = (np.array([[x, y, 1.5 if x < 5 else 2.5] for x in (1., 2.5, 7.5, 9.) for y in (.5, 1.5)]),
+               np.array([[2., 1., 1.5], [8., 1., 2.5]]), np.array([[0., 0., 1.], [0., 0., 1.]]))
+    cover, fault, base = _compute(
+        [(R.ONLAP, _horizontal(UNCONFORMITY)), (R.FAULT, _vertical(5.)), (R.BASEMENT, stepped)],
+        [[0, 0, 0], [0, 0, 1], [0, 0, 0]], overlap)
+    upthrown = base[base[:, 0] > 6., 2].mean()
+    strike = np.clip((fault[:, 1] / EXTENT[3] * 8).astype(int), 0, 7)
+    tops = np.array([fault[strike == b, 2].max() for b in range(8)])
+    assert upthrown > 2.4
+    assert (tops >= upthrown - VOXEL_Z).all(), tops
+    assert (tops <= upthrown + _tolerance(overlap)).all(), tops
+
+
+def test_onlap_cut_off_by_a_fault_scarp_ends_on_the_fault_plane():
+    """The cover at 2 lies above the downthrown basement top (1.5, west) and below the upthrown one (2.5, east): it
+    ends against the scarp, on the fault plane x = 5, all along strike.
+
+    Before, joint_contacts decided the cover's crossings from the basement field interpolated across the plane, and
+    the cover's border vertices stayed where its own crossings put them in each leaf: a staircase about the plane."""
+    stepped = (np.array([[x, y, 1.5 if x < 5 else 2.5] for x in (1., 2.5, 7.5, 9.) for y in (.5, 1.5)]),
+               np.array([[2., 1., 1.5], [8., 1., 2.5]]), np.array([[0., 0., 1.], [0., 0., 1.]]))
+    cover, fault, base = _compute(
+        [(R.ONLAP, _horizontal(2.)), (R.FAULT, _vertical(5.)), (R.BASEMENT, stepped)],
+        [[0, 0, 0], [0, 0, 1], [0, 0, 0]], "joint_contacts")
+    voxel_x = (EXTENT[1] - EXTENT[0]) / RESOLUTION[0] / 2 ** (LEVELS - 1)
+    strike = np.clip((cover[:, 1] / EXTENT[3] * 8).astype(int), 0, 7)
+    ends = np.array([cover[strike == b, 0].max() for b in range(8)])
+    assert cover[:, 0].min() < 1.
+    assert np.abs(ends - 5.).max() <= .05 * voxel_x, ends
+
+
 def test_onlap_over_a_fault_onlaps_the_stack_below_on_both_sides():
     """Before, the onlap chain took the fault's field: the cover existed on one side, the fault owned the other."""
     cover = [[x, 1., z] for z in (3.2, 4.5) for x in (2., 8.)]  # Above the basement top (2), both sides of x = 5
