@@ -125,8 +125,10 @@ def test_mismatched_surfaces_count(basic_input):
     # But here they are all length 1.
     dd = InputDataDescriptor(tensors_structure=dd.tensors_structure, stack_structure=new_stack_struct)
 
-    with pytest.raises(GemPyEngineInputError, match="Total surfaces in StacksStructure"):
+    with pytest.raises(GemPyEngineInputError, match="Total surfaces in StacksStructure") as raised:
         compute_model(ii, options, dd)
+    assert raised.value.reason == "surface_without_points"
+    assert raised.value.context == {"stack_surfaces": 2, "surfaces_with_points": 1}
 
 
 def test_finite_fault_requires_fault_stack(basic_input):
@@ -138,13 +140,27 @@ def test_finite_fault_requires_fault_stack(basic_input):
         )
     ]
 
-    with pytest.raises(GemPyEngineInputError, match="requires a FAULT stack"):
+    with pytest.raises(GemPyEngineInputError, match="requires a FAULT stack") as raised:
         compute_model(ii, options, dd)
+    assert raised.value.reason == "finite_fault_on_non_fault_group"
+    assert raised.value.context == {"stack_index": 0}
 
 
 def test_fault_input_data_requires_one_entry_per_stack(basic_input):
     ii, options, dd = basic_input
     dd.stack_structure.faults_input_data = [None, None]
 
-    with pytest.raises(GemPyEngineInputError, match="one entry per stack"):
+    with pytest.raises(GemPyEngineInputError, match="one entry per stack") as raised:
         compute_model(ii, options, dd)
+    assert raised.value.reason == "inconsistent_input"
+
+
+def test_stack_without_orientations_has_a_reason(basic_input):
+    ii, options, dd = basic_input
+    ii.orientations = Orientations(dip_positions=np.zeros((0, 3)), dip_gradients=np.zeros((0, 3)))
+    dd.stack_structure.number_of_orientations_per_stack = np.array([0])
+
+    with pytest.raises(GemPyEngineInputError, match="Stack 0 has no orientations") as raised:
+        compute_model(ii, options, dd)
+    assert raised.value.reason == "missing_orientations"
+    assert raised.value.context == {"stack_index": 0}

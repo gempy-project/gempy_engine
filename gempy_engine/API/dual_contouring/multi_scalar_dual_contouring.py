@@ -17,6 +17,7 @@ from ...core.data.interp_output import InterpOutput
 from ...core.data.interpolation_input import InterpolationInput
 from ...core.data.octree_level import OctreeLevel
 from ...core.data.stack_relation_type import StackRelationType
+from ...core.exceptions import MeshExtractionError
 from ...core.utils import gempy_profiler_decorator
 from ...modules.dual_contouring.dual_contouring_v2 import compute_dual_contouring_v2
 from ...modules.dual_contouring.weighted_qef_setup_multicore import find_and_inject_multi_surface_constraints_multicore
@@ -49,12 +50,17 @@ def dual_contouring_multi_scalar(
 
     overlap_mode = resolve_dual_contouring_overlap(
         options.evaluation_options.mesh_extraction_overlap, DUAL_CONTOURING_VERTEX_OVERLAP)
-    if overlap_mode == DualContouringOverlap.joint:
-        from .joint_extraction import extract_joint_octree
-        return extract_joint_octree(data_descriptor, interpolation_input, options, octree_list)
-    if overlap_mode == DualContouringOverlap.joint_contacts:
-        from .joint_extraction import extract_joint_contacts_octree
-        return extract_joint_contacts_octree(data_descriptor, interpolation_input, options, octree_list)
+    if overlap_mode in (DualContouringOverlap.joint, DualContouringOverlap.joint_contacts):
+        from .joint_extraction import extract_joint_contacts_octree, extract_joint_octree
+        extract = extract_joint_octree if overlap_mode == DualContouringOverlap.joint else extract_joint_contacts_octree
+        try:
+            return extract(data_descriptor, interpolation_input, options, octree_list)
+        except ValueError as error:
+            # The joint extractor reports what it cannot mesh as "<code>: <detail>"; give callers the code.
+            coded = MeshExtractionError.from_error(error)
+            if coded is None:
+                raise
+            raise coded from error
 
     if interpolation_input.grid.octree_grid is None:
         raise ValueError("Octree grid must be defined to extract the mesh")
