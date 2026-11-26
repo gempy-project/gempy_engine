@@ -216,7 +216,8 @@ def _check_input_validity(interpolation_input: InterpolationInput, options: Inte
         if expected_surfaces_from_stacks != actual_surfaces_count:
             raise GemPyEngineInputError(
                 f"Consistency Error: Total surfaces in StacksStructure ({expected_surfaces_from_stacks}) "
-                f"does not match the number of surfaces in TensorsStructure ({actual_surfaces_count})."
+                f"does not match the number of surfaces in TensorsStructure ({actual_surfaces_count}).",
+                reason="surface_without_points", context={"stack_surfaces": int(expected_surfaces_from_stacks), "surfaces_with_points": int(actual_surfaces_count)}
             )
 
         # 3.4 Each stack must have at least one surface point (unless backed by an external function)
@@ -225,7 +226,8 @@ def _check_input_validity(interpolation_input: InterpolationInput, options: Inte
             if not _stack_uses_external_function(ss, stack_index):
                 raise GemPyEngineInputError(
                     f"Validation Error: Stack {stack_index} has no surface points. "
-                    f"Each stack must have at least one surface point, unless it uses an external interpolation function."
+                    f"Each stack must have at least one surface point, unless it uses an external interpolation function.",
+                    reason="missing_surface_points", context={"stack_index": int(stack_index)}
                 )
 
         # 3.5 Each stack must have at least one orientation (unless backed by an external function)
@@ -234,14 +236,16 @@ def _check_input_validity(interpolation_input: InterpolationInput, options: Inte
             if not _stack_uses_external_function(ss, stack_index):
                 raise GemPyEngineInputError(
                     f"Validation Error: Stack {stack_index} has no orientations. "
-                    f"Each stack must have at least one orientation, unless it uses an external interpolation function."
+                    f"Each stack must have at least one orientation, unless it uses an external interpolation function.",
+                    reason="missing_orientations", context={"stack_index": int(stack_index)}
                 )
 
         # 3.6 A fault cannot be defined by an external function
         for stack_index, relation in enumerate(ss.masking_descriptor):
             if relation is StackRelationType.FAULT and _stack_uses_external_function(ss, stack_index):
                 raise GemPyEngineInputError(
-                    f"Validation Error: Fault stack {stack_index} cannot use an external interpolation function."
+                    f"Validation Error: Fault stack {stack_index} cannot use an external interpolation function.",
+                    reason="external_function_fault", context={"stack_index": int(stack_index)}
                 )
 
         # 3.7 Finite-fault definitions belong to single-surface fault stacks
@@ -255,11 +259,13 @@ def _check_input_validity(interpolation_input: InterpolationInput, options: Inte
                     continue
                 if ss.masking_descriptor[stack_index] is not StackRelationType.FAULT:
                     raise GemPyEngineInputError(
-                        f"Validation Error: Finite-fault definition on stack {stack_index} requires a FAULT stack."
+                        f"Validation Error: Finite-fault definition on stack {stack_index} requires a FAULT stack.",
+                        reason="finite_fault_on_non_fault_group", context={"stack_index": int(stack_index)}
                     )
                 if ss.number_of_surfaces_per_stack[stack_index] != 1:
                     raise GemPyEngineInputError(
-                        f"Validation Error: Finite-fault stack {stack_index} must contain exactly one surface."
+                        f"Validation Error: Finite-fault stack {stack_index} must contain exactly one surface.",
+                        reason="finite_fault_multiple_surfaces", context={"stack_index": int(stack_index)}
                     )
 
     # 4. Check surfaces consistency
@@ -268,7 +274,8 @@ def _check_input_validity(interpolation_input: InterpolationInput, options: Inte
         surface_index = np.where(data_descriptor.tensors_structure.number_of_points_per_surface == 0)[0][0]
         raise GemPyEngineInputError(
             f"Validation Error: Surface {surface_index} has no surface points. "
-            f"Each surface must have at least one surface point."
+            f"Each surface must have at least one surface point.",
+            reason="surface_without_points", context={"surface_index": int(surface_index)}
         )
 
 
@@ -276,12 +283,13 @@ def _validate_nugget(nugget, expected_size: int, name: str, allow_negative: bool
     values = np.asarray(BackendTensor.t.to_numpy(nugget))
     if values.ndim != 1 or values.shape[0] != expected_size:
         raise GemPyEngineInputError(
-            f"Validation Error: {name} nugget must have shape ({expected_size},), got {values.shape}."
+            f"Validation Error: {name} nugget must have shape ({expected_size},), got {values.shape}.",
+            reason="invalid_nugget", context={"kind": name}
         )
     if not np.isfinite(values).all():
-        raise GemPyEngineInputError(f"Validation Error: {name} nugget values must be finite.")
+        raise GemPyEngineInputError(f"Validation Error: {name} nugget values must be finite.", reason="invalid_nugget", context={"kind": name})
     if not allow_negative and (values < 0).any():
-        raise GemPyEngineInputError(f"Validation Error: {name} nugget values must be non-negative.")
+        raise GemPyEngineInputError(f"Validation Error: {name} nugget values must be non-negative.", reason="invalid_nugget", context={"kind": name})
 
 
 def _isolate_fault_buffers(interpolation_input: InterpolationInput, data_descriptor: InputDataDescriptor):
