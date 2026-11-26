@@ -10,6 +10,12 @@ import numpy as np
 
 from .joint_xp import host, namespace
 
+MULTIPLE_ROOTS = 'unsupported_sampled_junction: multiple tile roots'
+
+
+class AmbiguousTileError(ValueError):
+    """The pair crosses a tile more than once: the planner gives the tile's leaves up instead of failing."""
+
 
 def face_pair_root(values):
     """Isolated bilinear pair root on one face, ordered 00, 10, 01, 11."""
@@ -58,7 +64,7 @@ def face_pair_root(values):
             raise ValueError('grid_edge_junction: tile-edge root needs sided support')
         roots.append(np.array([v, u]) if swapped else np.array([u, v]))
     if len(roots) > 1:
-        raise ValueError('unsupported_sampled_junction: multiple tile roots')
+        raise AmbiguousTileError(MULTIPLE_ROOTS)
     return roots[0] if roots else None
 
 
@@ -101,7 +107,12 @@ def plan_adaptive_junctions(face_cells, tile_xyz, tile_fields, pairs, identities
                                  'retained' if np.all(signed > 0) else 'competing')
                 if tile_decision == 'excluded' and all(decisions[c] == 'excluded' for c in cells):
                     continue
-            root = face_pair_root(tile_fields[[controller, target], tile])
+            try:
+                root = face_pair_root(tile_fields[[controller, target], tile])
+            except AmbiguousTileError:
+                # Which crossing continues the contact is unknown: unshared vertices on both sides.
+                fallback.update(cells)
+                continue
             if root is None:
                 continue
             if additional:

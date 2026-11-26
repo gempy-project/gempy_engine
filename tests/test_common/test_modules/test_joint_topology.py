@@ -15,7 +15,7 @@ from gempy_engine.modules.dual_contouring._gen_vertices import generate_dual_con
 from gempy_engine.modules.dual_contouring.dual_contouring_interface import find_intersection_on_edge
 from gempy_engine.modules.dual_contouring.joint_cell_branches import CORNERS
 from gempy_engine.modules.dual_contouring.joint_triangle_plan import (
-    face_pair_root, plan_adaptive_triangles,
+    AmbiguousTileError, face_pair_root, plan_adaptive_triangles,
 )
 
 
@@ -283,6 +283,44 @@ def test_fallback_vertices_stay_out_of_the_eroded_region(monkeypatch):
     assert inside < 1e-9  # On the contact
     monkeypatch.setattr(joint_topology, '_pull_back_fallback_vertices', lambda regular, *args, **kwargs: (regular, 0))
     assert _eroded_close_layers()[0] > .2  # Each layer's own QEF vertex, across the contact
+
+
+def _saddles_crossing_twice():
+    """Two saddles that meet in two contact lines, which merge near y = 0 inside one leaf.
+
+    Both fields are products of linear terms, so they are bilinear on x-z faces
+    and the sampled face at y = 0 has the two roots of the fields themselves.
+    """
+    def callback(points):
+        x, y, z = points.T
+        k = .2-.13*y
+        values = np.array([(x-3)*(z-3)-k, (4.13-x)*(4.07-z)-k])
+        normals = np.zeros((2, len(points), 3))
+        normals[0, :, 0], normals[0, :, 1], normals[0, :, 2] = z-3, .13, x-3
+        normals[1, :, 0], normals[1, :, 1], normals[1, :, 2] = z-4.07, .13, x-4.13
+        return values, normals
+
+    origins = np.array(list(product(range(8), repeat=3)), dtype=np.int64)
+    spans = np.ones(len(origins), dtype=np.int64)
+    samples = callback((origins[:, None, :]+spans[:, None, None]*CORNERS).reshape(-1, 3).astype(float))[0]
+    return extract_adaptive_topology(origins, spans, (8, 8, 8), (0, 8, 0, 8, 0, 8), samples.reshape(2, -1, 8),
+                                     [0, 1], [0, 0], [R.ERODE, R.BASEMENT], [[0.], [0.]], sample_fields=callback)
+
+
+def test_a_face_crossed_twice_gives_its_leaves_up():
+    k = .2
+    with pytest.raises(AmbiguousTileError, match='multiple tile roots'):
+        face_pair_root(np.array([[-k, -k, -k, 1-k], [1-k, -k, -k, -k]]))  # u*v - k and (1-u)*(1-v) - k
+    result = _saddles_crossing_twice()
+    # Only the leaf with the doubly crossed face keeps unshared vertices; the rest of the contact shares them.
+    assert result['diagnostics']['fallback_junction_leaf_count'] == 1
+    assert sum(key[0] == 'joint' for key in result['vertex_keys']) == 18
+    assert all(len(faces) for faces in result['faces'])
+    # The seam stays inside that leaf: each surface has its own vertex there.
+    given_up = [v for key, v in zip(result['vertex_keys'], result['vertices'])
+                if key[0] == 'regular' and key[2] == (3, 0, 3)]
+    assert len(given_up) == 2
+    assert np.all((np.array(given_up) >= [3, 0, 3]) & (np.array(given_up) <= [4, 1, 4]))
 
 
 def test_aligned_tile_pair_rejected():
